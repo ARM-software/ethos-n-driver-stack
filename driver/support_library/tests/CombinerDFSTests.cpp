@@ -3125,7 +3125,7 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
     //  |
     //   -- >  D
     //
-    //  D is an output node on DRAM and cannot share
+    //  D is an output node in DRAM and cannot share
     //  glue with B, C
     GraphOfParts graph;
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -3252,7 +3252,7 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
 
     REQUIRE(combGlued.m_Elems.size() == 4);
 
-    // Ending glue of A copies to an FCAF buffer for use by B and C
+    // Ending glue of A copies to an FCAF buffer for use by B and C, and has a DmaOp for D
     auto elemA = combGlued.m_Elems.find(partAId);
     REQUIRE(elemA != combGlued.m_Elems.end());
     REQUIRE(elemA->second.m_EndingGlues.size() == 1);
@@ -3260,12 +3260,15 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
 
     auto endingGlueA = elemA->second.m_EndingGlues[partAOutputSlot];
     REQUIRE(endingGlueA->m_Graph.GetBuffers().size() == 1);
-    REQUIRE(endingGlueA->m_Graph.GetOps().size() == 1);
+    REQUIRE(endingGlueA->m_Graph.GetOps().size() == 2);
     REQUIRE(endingGlueA->m_Graph.GetSingleProducer(endingGlueA->m_Graph.GetBuffers().front()) ==
-            endingGlueA->m_Graph.GetOp(0));
-    const auto& planABuffers = combGlued.m_Elems.find(partAId)->second.m_Plan->m_OpGraph.GetBuffers();
-    REQUIRE(endingGlueA->m_ExternalConnections.m_BuffersToOps.find(planABuffers.back())->second ==
-            endingGlueA->m_Graph.GetOp(0));
+            endingGlueA->m_Graph.GetOp(1));
+    const auto& planABuffers = opGraphA.GetBuffers();
+    REQUIRE(endingGlueA->m_ExternalConnections.m_BuffersToOps ==
+            std::multimap<Buffer*, Op*>{
+                { planABuffers.back(), endingGlueA->m_Graph.GetOp(0) },
+                { planABuffers.back(), endingGlueA->m_Graph.GetOp(1) },
+            });
 
     // Starting glue of B and C copy from that FCAF buffer
     auto elemB               = combGlued.m_Elems.find(partBId);
@@ -3295,10 +3298,9 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
     auto elemD               = combGlued.m_Elems.find(partDId);
     const auto& planDBuffers = elemD->second.m_Plan->m_OpGraph.GetBuffers();
     auto startingGlueD       = elemD->second.m_StartingGlues[partDInputSlot];
-    REQUIRE(startingGlueD->m_Graph.GetOps().size() == 1);
-    REQUIRE(startingGlueD->m_ExternalConnections.m_BuffersToOps.find(opGraphA.GetBuffers()[0])->second ==
-            startingGlueD->m_Graph.GetOp(0));
-    REQUIRE(startingGlueD->m_ExternalConnections.m_OpsToBuffers.find(startingGlueD->m_Graph.GetOp(0))->second ==
+    REQUIRE(startingGlueD->m_Graph.GetOps().size() == 0);
+    REQUIRE(startingGlueD->m_ExternalConnections.m_BuffersToOps.size() == 0);
+    REQUIRE(startingGlueD->m_ExternalConnections.m_OpsToBuffers.find(endingGlueA->m_Graph.GetOp(0))->second ==
             planDBuffers.back());
 }
 
@@ -3450,9 +3452,8 @@ TEST_CASE("GluePartToCombinationBranch2", "[CombinerDFS]")
         SaveCombinationToDot(combGlued, stream, DetailLevel::High);
     }
 
-    // One glue shared by A-B, A-C (SRAM - SRAM)
-    // The glue has (1) 1 x input DMA (2) DRAM buffer (3) 2 x ouput DMA.
-    // A-D partially shares this same glue, but requires some extra DMAs.
+    // One glue shared by A-B, A-C (SRAM - SRAM) and A-D
+    // A-D partially shares this same glue, but requires some extra DMAs afterwards.
     // Note part D's input buffer in DRAM is NHWC so that it
     // cannot share glue with others.
     REQUIRE(combGlued.m_Elems.size() == 5);
@@ -3460,8 +3461,8 @@ TEST_CASE("GluePartToCombinationBranch2", "[CombinerDFS]")
     auto elemA              = combGlued.m_Elems.find(partAId);
     EndingGlue* endingGlueA = elemA->second.m_EndingGlues.find(partAOutputSlot)->second.get();
     OpGraph& opGraphA       = elemA->second.m_Plan->m_OpGraph;
-    REQUIRE(endingGlueA->m_Graph.GetOps().size() == 1);
-    REQUIRE(endingGlueA->m_Graph.GetBuffers().size() == 1);
+    REQUIRE(endingGlueA->m_Graph.GetOps().size() == 3);
+    REQUIRE(endingGlueA->m_Graph.GetBuffers().size() == 2);
     REQUIRE(endingGlueA->m_ExternalConnections.m_BuffersToOps ==
             std::multimap<Buffer*, Op*>{ { opGraphA.GetBuffers()[0], endingGlueA->m_Graph.GetOp(0) } });
 
@@ -3488,13 +3489,11 @@ TEST_CASE("GluePartToCombinationBranch2", "[CombinerDFS]")
     auto elemD                  = combGlued.m_Elems.find(partDId);
     StartingGlue* startingGlueD = elemD->second.m_StartingGlues.find(partDInputSlot)->second.get();
     OpGraph& opGraphD           = elemD->second.m_Plan->m_OpGraph;
-    REQUIRE(startingGlueD->m_Graph.GetOps().size() == 2);
-    REQUIRE(startingGlueD->m_Graph.GetBuffers().size() == 1);
-    REQUIRE(
-        startingGlueD->m_ExternalConnections.m_BuffersToOps ==
-        std::multimap<Buffer*, Op*>{ { endingGlueA->m_Graph.GetBuffers()[0], startingGlueD->m_Graph.GetOps()[0] } });
+    REQUIRE(startingGlueD->m_Graph.GetOps().size() == 0);
+    REQUIRE(startingGlueD->m_Graph.GetBuffers().size() == 0);
+    REQUIRE(startingGlueD->m_ExternalConnections.m_BuffersToOps.size() == 0);
     REQUIRE(startingGlueD->m_ExternalConnections.m_OpsToBuffers ==
-            std::multimap<Op*, Buffer*>{ { startingGlueD->m_Graph.GetOps()[1], opGraphD.GetBuffers()[0] } });
+            std::multimap<Op*, Buffer*>{ { endingGlueA->m_Graph.GetOps()[2], opGraphD.GetBuffers()[0] } });
 }
 
 TEST_CASE("GluePartToCombinationDramToDramAndSramShare", "[CombinerDFS]")
@@ -4017,25 +4016,25 @@ TEST_CASE("GluePartToCombinationSramToDramsMerge", "[CombinerDFS]")
 
     REQUIRE(combGlued.m_Elems.size() == 3);
 
-    // Ending glue of A contains copies to NHWCB DRAM, but not if both B and C are outputs in which
-    // case there is nothing to share
+    // Ending glue of A contains copies to NHWCB DRAM, which can be shared if neither B nor C are outputs.
     auto elemA              = combGlued.m_Elems.find(partAId);
     EndingGlue* endingGlueA = elemA->second.m_EndingGlues.find(partAOutputSlot)->second.get();
-    REQUIRE(endingGlueA->m_Graph.GetOps().size() == ((isBOutput && isCOutput) ? 0 : 1));
+    REQUIRE(endingGlueA->m_Graph.GetOps().size() == ((!isBOutput && !isCOutput) ? 1 : 2));
     REQUIRE(endingGlueA->m_Graph.GetBuffers().size() == ((isBOutput && isCOutput) ? 0 : 1));
     if (!(isBOutput && isCOutput))
     {
         REQUIRE(endingGlueA->m_Graph.GetBuffers()[0]->m_Format == CascadingBufferFormat::NHWCB);
     }
 
-    // Starting glue of B is either a DmaOp, or a Replacement, depending on if could share or not
+    // Starting glue of B is either empty, or a Replacement, depending on if could share or not
     auto elemB                  = combGlued.m_Elems.find(partBId);
     StartingGlue* startingGlueB = elemB->second.m_StartingGlues.find(partBInputSlot)->second.get();
     if (isBOutput)
     {
-        // Copy
-        REQUIRE(startingGlueB->m_Graph.GetOps().size() == 1);
+        // Empty
+        REQUIRE(startingGlueB->m_Graph.GetOps().size() == 0);
         REQUIRE(startingGlueB->m_Graph.GetBuffers().size() == 0);
+        REQUIRE(startingGlueB->m_ExternalConnections.m_ReplacementBuffers.size() == 0);
     }
     else
     {
@@ -4045,14 +4044,15 @@ TEST_CASE("GluePartToCombinationSramToDramsMerge", "[CombinerDFS]")
         REQUIRE(startingGlueB->m_ExternalConnections.m_ReplacementBuffers.size() == 1);
     }
 
-    // Starting glue of C is either a DmaOp, or a Replacement, depending on if could share or not
+    // Starting glue of C is either empty, or a Replacement, depending on if could share or not
     auto elemC                  = combGlued.m_Elems.find(partCId);
     StartingGlue* startingGlueC = elemC->second.m_StartingGlues.find(partCInputSlot)->second.get();
     if (isCOutput)
     {
-        // Copy
-        REQUIRE(startingGlueC->m_Graph.GetOps().size() == 1);
+        // Empty
+        REQUIRE(startingGlueC->m_Graph.GetOps().size() == 0);
         REQUIRE(startingGlueC->m_Graph.GetBuffers().size() == 0);
+        REQUIRE(startingGlueC->m_ExternalConnections.m_ReplacementBuffers.size() == 0);
     }
     else
     {

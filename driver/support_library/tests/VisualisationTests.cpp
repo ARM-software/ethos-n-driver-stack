@@ -1419,10 +1419,12 @@ subgraph clusterPart_0_Plan_4_Ending_Glue
 {
 label="Part 0 Plan 4 Ending Glue"
 labeljust=l
+DmaOp_12[label = "DmaOp 12", shape = oval, color = darkgoldenrod]
 DmaOp_14[label = "DmaOp 14", shape = oval, color = darkgoldenrod]
 DramBuffer_13[label = "DramBuffer 13", shape = box, color = brown]
 DmaOp_14 -> DramBuffer_13
 }
+SramBuffer_5 -> DmaOp_12
 SramBuffer_5 -> DmaOp_14
 subgraph clusterPlan_6
 {
@@ -1448,9 +1450,7 @@ subgraph clusterPart_3_Plan_10_Starting_Glue
 {
 label="Part 3 Plan 10 Starting Glue"
 labeljust=l
-DmaOp_12[label = "DmaOp 12", shape = oval, color = darkgoldenrod]
 }
-SramBuffer_5 -> DmaOp_12
 DmaOp_12 -> DramBuffer_11
 subgraph clusterPlan_8
 {

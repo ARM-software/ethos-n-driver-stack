@@ -607,13 +607,13 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
             else
             {
                 // We might be able to add a single DMA to copy directly from the producer buffer,
-                Buffer* dramBufferToCopyFrom = producedBuffer;
+                Buffer* bufferToCopyFrom = producedBuffer;
                 if (!impl::IsSramBufferCompatibleWithDramBuffer(*producedBuffer->Sram(), *consumerBuffer->Dram(),
                                                                 { 0, 0, 0, 0 }))
                 {
                     // If the SRAM buffer is not compatible though, then we'll need to do a conversion.
                     // We may be lucky and there is already a DRAM buffer that is compatible that we can copy from, or we may need to add a new one.
-                    dramBufferToCopyFrom = getOrAddCompatibleDramBuffer({ producedBuffer->Sram() });
+                    bufferToCopyFrom = getOrAddCompatibleDramBuffer({ producedBuffer->Sram() });
                 }
 
                 // We could re-use this consumer DRAM buffer for other consumers, to save them doing their own conversion.
@@ -622,14 +622,21 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
                 {
                     // In order for DRAM buffers in consuming plans to be available for sharing, a new copy of this buffer
                     // must be made in the ending glue of the producer, and then linked to the existing consumer buffer via a replacement.
-                    Buffer* replacementBuffer = addNewBuffer(consumerBuffer->m_Format, dramBufferToCopyFrom);
+                    Buffer* replacementBuffer = addNewBuffer(consumerBuffer->m_Format, bufferToCopyFrom);
                     startingGlue.m_ExternalConnections.m_ReplacementBuffers[consumerBuffer] = replacementBuffer;
                 }
                 else
                 {
                     // This consumer buffer can't be re-used, so just copy from the buffer we chose above in the starting glue.
-                    AddCopyBetweenBuffers(startingGlue.m_Graph, dramBufferToCopyFrom,
-                                          &startingGlue.m_ExternalConnections, consumerBuffer,
+                    // Note that we put the DmaOp in the ending glue not the starting glue, so that the data is copied out of
+                    // SRAM as soon as possible (before any branching).
+                    // If the new buffer is being copied from the original producedBuffer, then the connections to the DmaOp
+                    // need to be in the external connections of the ending glue (as they connect something in the glue to something
+                    // in the plan). Otherwise we assume the `copiedFrom` buffer is part of the ending glue, and so it needs an internal
+                    // connection.
+                    GlueConnections* connections =
+                        (bufferToCopyFrom == producedBuffer) ? &endingGlue.m_ExternalConnections : nullptr;
+                    AddCopyBetweenBuffers(endingGlue.m_Graph, bufferToCopyFrom, connections, consumerBuffer,
                                           &startingGlue.m_ExternalConnections, m_Caps);
                 }
             }
