@@ -8,10 +8,10 @@
 #include "EthosNBackend.hpp"
 #include "EthosNConfig.hpp"
 
+#include <armnn/Descriptors.hpp>
 #include <armnn/Tensor.hpp>
 #include <armnn/backends/SubgraphView.hpp>
 #include <armnnUtils/Filesystem.hpp>
-
 #include <doctest/doctest.h>
 
 #include <atomic>
