@@ -50,7 +50,7 @@ EthosNSubgraphViewConverter::EthosNSubgraphViewConverter(const SubgraphView& sub
     }
 }
 
-std::pair<const ConstTensorHandle*, const ConstTensorHandle&> GetBiasAndWeightsHandle(const IConnectableLayer& layer)
+std::pair<const ConstTensorHandle&, const ConstTensorHandle*> GetWeightsAndBiasHandle(const IConnectableLayer& layer)
 {
 
     // Get the weights tensor from the layer connected to input slot #1
@@ -88,7 +88,7 @@ std::pair<const ConstTensorHandle*, const ConstTensorHandle&> GetBiasAndWeightsH
         biasHandle = armnn::PolymorphicDowncast<const ConstantLayer*>(&biasLayer)->m_LayerOutput.get();
     }
 
-    return { biasHandle, weightsHandle };
+    return { weightsHandle, biasHandle };
 }
 
 EthosNConstantPtr EthosNSubgraphViewConverter::AddBiases(const IConnectableLayer& layer,
@@ -325,12 +325,12 @@ void EthosNSubgraphViewConverter::AddConvolution2dLayer(const IConnectableLayer*
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
-    auto biasAndWeightsHandle = GetBiasAndWeightsHandle(convolutionLayer);
+    auto weightsAndBiasHandle = GetWeightsAndBiasHandle(convolutionLayer);
 
-    auto biases = AddBiases(convolutionLayer, biasAndWeightsHandle.first, biasAndWeightsHandle.second.GetTensorInfo(),
+    auto biases = AddBiases(convolutionLayer, weightsAndBiasHandle.second, weightsAndBiasHandle.first.GetTensorInfo(),
                             descriptor.m_BiasEnabled);
     auto weights =
-        AddWeights(convolutionLayer, convolutionLayer.GetParameters().m_DataLayout, biasAndWeightsHandle.second);
+        AddWeights(convolutionLayer, convolutionLayer.GetParameters().m_DataLayout, weightsAndBiasHandle.first);
 
     auto& outputInfo                                      = convolutionLayer.GetOutputSlot(0).GetTensorInfo();
     Optional<ethosn_lib::ConvolutionInfo> convolutionInfo = BuildEthosNConvolutionInfo(
@@ -370,12 +370,12 @@ void EthosNSubgraphViewConverter::AddDepthwiseConvolution2dLayer(const IConnecta
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
-    auto biasAndWeightsHandle = GetBiasAndWeightsHandle(depthwiseConvolution2dLayer);
+    auto weightsAndBiasHandle = GetWeightsAndBiasHandle(depthwiseConvolution2dLayer);
 
-    auto biases  = AddBiases(depthwiseConvolution2dLayer, biasAndWeightsHandle.first,
-                            biasAndWeightsHandle.second.GetTensorInfo(), descriptor.m_BiasEnabled);
+    auto biases  = AddBiases(depthwiseConvolution2dLayer, weightsAndBiasHandle.second,
+                            weightsAndBiasHandle.first.GetTensorInfo(), descriptor.m_BiasEnabled);
     auto weights = AddWeights(depthwiseConvolution2dLayer, depthwiseConvolution2dLayer.GetParameters().m_DataLayout,
-                              biasAndWeightsHandle.second);
+                              weightsAndBiasHandle.first);
 
     auto outputInfo      = layer->GetOutputSlot(0).GetTensorInfo();
     auto convolutionInfo = BuildEthosNConvolutionInfo(descriptor, outputInfo.GetQuantizationOffset(),
@@ -440,11 +440,11 @@ void EthosNSubgraphViewConverter::AddFullyConnectedLayer(const IConnectableLayer
     const FullyConnectedDescriptor& descriptor = *PolymorphicDowncast<const FullyConnectedDescriptor*>(&baseDescriptor);
     bool transposeWeights                      = descriptor.m_TransposeWeightMatrix;
 
-    auto biasAndWeightsHandle = GetBiasAndWeightsHandle(*layer);
+    auto weightsAndBiasHandle = GetWeightsAndBiasHandle(*layer);
 
-    auto biases  = AddBiases(*layer, biasAndWeightsHandle.first, biasAndWeightsHandle.second.GetTensorInfo(),
+    auto biases  = AddBiases(*layer, weightsAndBiasHandle.second, weightsAndBiasHandle.first.GetTensorInfo(),
                             descriptor.m_BiasEnabled);
-    auto weights = AddWeights(transposeWeights, biasAndWeightsHandle.second);
+    auto weights = AddWeights(transposeWeights, weightsAndBiasHandle.first);
 
     const TensorInfo& outputInfo                      = layer->GetOutputSlot(0).GetTensorInfo();
     ethosn_lib::FullyConnectedInfo fullyConnectedInfo = BuildEthosNFullyConnectedLayerInfo(
