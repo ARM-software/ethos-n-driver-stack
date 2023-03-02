@@ -59,7 +59,7 @@ To use the NPU in Secure mode, the target platform must have a [Trusted Firmware
 
 NPU support is available in the TF-A source tree, along with a reference implementation showing how to use it on the Arm Juno platform.
 For instructions on how to get and build the TF-A source, see the [TF-A documentation](https://trustedfirmware-a.readthedocs.io/en/latest/index.html). The following commit of TF-A must be used:
-[08afe03b](https://review.trustedfirmware.org/c/TF-A/trusted-firmware-a/+/19711).
+[08afe03b](https://review.trustedfirmware.org/plugins/gitiles/TF-A/trusted-firmware-a/+/08afe03b0887e6b6159a7e6d4135d57d20d94a71).
 
 The build flag required to enable NPU support for the Arm Juno platform is available at [TF-A Arm Platform Build Options](https://review.trustedfirmware.org/plugins/gitiles/TF-A/trusted-firmware-a/+/08afe03b0887e6b6159a7e6d4135d57d20d94a71/docs/plat/arm/arm-build-options.rst).
 
