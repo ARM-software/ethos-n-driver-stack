@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2022 Arm Limited.
+ * (C) COPYRIGHT 2018-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -326,13 +326,6 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 					  buf_req->flags);
 	if (fd < 0)
 		goto err_dma_free;
-
-	if (buf_req->flags & MB_ZERO) {
-		memset(buf->dma_info->cpu_addr, 0, buf->dma_info->size);
-		ethosn_dma_sync_for_device(asset_allocator,
-					   buf->dma_info);
-		dev_dbg(ethosn->dev, "Zeroed device buffer 0x%pK\n", buf);
-	}
 
 	if (asset_allocator->pid != ETHOSN_INVALID_PID)
 		ethosn_asset_allocator_get(asset_allocator);
