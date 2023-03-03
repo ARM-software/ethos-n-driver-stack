@@ -94,6 +94,14 @@ struct IfmS
     /// central (non-boundary) data. This is expected to be used for streaming strategies that split
     /// the IFM in both width and height, and therefore need boundary data that cannot be re-used.
     PackedBoundaryThickness packedBoundaryThickness;
+    /// For some valid padding cases when using packed boundary data, the IfmS will not need to load
+    /// the final stripe of data on the right/bottom edge and so the numStripes will be one smaller,
+    /// but this extra data will still need to be included the packed boundary data for the second-to-last
+    /// row/column.
+    /// @{
+    uint8_t isExtraPackedBoundaryDataOnRightEdge;
+    uint8_t isExtraPackedBoundaryDataOnBottomEdge;
+    /// @}
 };
 
 /// Output Streamer data

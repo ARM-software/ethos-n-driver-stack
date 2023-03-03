@@ -210,9 +210,28 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
             uint32_t inputDramBufferOffset =
                 utils::CalculateDramOffset(inputBuffer->m_Format, inputBuffer->m_TensorShape, ptrDmaOp->m_Offset);
 
-            AgentIdType ifmStreamerAgentId =
-                AddIfmStreamerToCommandStream(ptrDmaOp, inputBufferId, inputBuffer, outputBuffer->Sram(),
-                                              dmaOp->m_TransferFormat, inputDramBufferOffset);
+            bool isExtraIfmStripeAtRightEdge  = false;
+            bool isExtraIfmStripeAtBottomEdge = false;
+            OpGraph::ConsumersList consumers  = m_MergedOpGraph.GetConsumers(outputBuffer);
+            assert(consumers.size() == 1);
+            if (IsObjectOfType<MceOp>(consumers[0].first))
+            {
+                MceOp* mceOp                = static_cast<MceOp*>(consumers[0].first);
+                Buffer* mceInputBuffer      = outputBuffer;
+                Buffer* mceOutputBuffer     = m_MergedOpGraph.GetOutput(mceOp);
+                isExtraIfmStripeAtRightEdge = utils::DivRoundUp(utils::GetWidth(mceInputBuffer->m_TensorShape),
+                                                                utils::GetWidth(mceOp->m_InputStripeShape)) >
+                                              utils::DivRoundUp(utils::GetWidth(mceOutputBuffer->m_TensorShape),
+                                                                utils::GetWidth(mceOp->m_OutputStripeShape));
+                isExtraIfmStripeAtBottomEdge = utils::DivRoundUp(utils::GetHeight(mceInputBuffer->m_TensorShape),
+                                                                 utils::GetHeight(mceOp->m_InputStripeShape)) >
+                                               utils::DivRoundUp(utils::GetHeight(mceOutputBuffer->m_TensorShape),
+                                                                 utils::GetHeight(mceOp->m_OutputStripeShape));
+            }
+
+            AgentIdType ifmStreamerAgentId = AddIfmStreamerToCommandStream(
+                ptrDmaOp, inputBufferId, inputBuffer, outputBuffer->Sram(), dmaOp->m_TransferFormat,
+                inputDramBufferOffset, isExtraIfmStripeAtRightEdge, isExtraIfmStripeAtBottomEdge);
 
             if (m_FenceOpForIfmS != nullptr)
             {
@@ -553,7 +572,9 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(DmaOp
                                                                            const Buffer* const inputDramBuffer,
                                                                            const SramBuffer* const inputSramBuffer,
                                                                            const CascadingBufferFormat transferFormat,
-                                                                           const uint32_t inputDramBufferOffset)
+                                                                           const uint32_t inputDramBufferOffset,
+                                                                           bool isExtraIfmStripeAtRightEdge,
+                                                                           bool isExtraIfmStripeAtBottomEdge)
 {
     assert(inputSramBuffer->m_Format == CascadingBufferFormat::NHWCB);
 
@@ -591,15 +612,27 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(DmaOp
     StreamersUtils::SetStripeChannelsInfo(ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
                                           inputSramBuffer->m_StripeShape, ptrOp->m_Offset, supertensorShape);
 
+    if (isExtraIfmStripeAtRightEdge && inputSramBuffer->m_PackedBoundaryThickness.right > 0)
+    {
+        ifmStreamerData.fmData.numStripes.width = static_cast<uint16_t>(ifmStreamerData.fmData.numStripes.width - 1);
+        ifmStreamerData.isExtraPackedBoundaryDataOnRightEdge = true;
+    }
+    if (isExtraIfmStripeAtBottomEdge && inputSramBuffer->m_PackedBoundaryThickness.bottom > 0)
+    {
+        ifmStreamerData.fmData.numStripes.height = static_cast<uint16_t>(ifmStreamerData.fmData.numStripes.height - 1);
+        ifmStreamerData.isExtraPackedBoundaryDataOnBottomEdge = true;
+    }
+
     StreamersUtils::SetSuperTensorSizeInCells(ifmStreamerData.fmData, supertensorShape, transferFormat);
 
     StreamersUtils::SetStripeIdStrides(ifmStreamerData.fmData, inputSramBuffer->m_Order);
     ifmStreamerData.packedBoundaryThickness = inputSramBuffer->m_PackedBoundaryThickness;
 
     AgentDependencyInfo dependencyInfo = {};
-    dependencyInfo.numStripesTotal     = ethosn::utils::NumericCast<uint16_t>(
-        utils::GetNumStripesTotal(inputSramBuffer->m_TensorShape, inputSramBuffer->m_StripeShape) *
-        inputSramBuffer->m_NumLoads);
+
+    dependencyInfo.numStripesTotal = ethosn::utils::NumericCast<uint16_t>(
+        ifmStreamerData.fmData.numStripes.width * ifmStreamerData.fmData.numStripes.height *
+        ifmStreamerData.fmData.numStripes.channels * inputSramBuffer->m_NumLoads);
 
     Agent ifmStreamerAgent{ ifmStreamerData, dependencyInfo };
 

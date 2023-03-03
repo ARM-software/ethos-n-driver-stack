@@ -982,6 +982,14 @@ void Parse(std::stringstream& parent, const cascading::IfmS& ifms)
     Parse(parent, ifms.packedBoundaryThickness);
     Parse(parent, "</PACKED_BOUNDARY_THICKNESS>", 4, true);
 
+    Parse(parent, "<IS_EXTRA_PACKED_BOUNDARY_DATA_ON_RIGHT_EDGE>", 4, false);
+    ParseAsNum(parent, ifms.isExtraPackedBoundaryDataOnRightEdge);
+    Parse(parent, "</IS_EXTRA_PACKED_BOUNDARY_DATA_ON_RIGHT_EDGE>", 0, true);
+
+    Parse(parent, "<IS_EXTRA_PACKED_BOUNDARY_DATA_ON_BOTTOM_EDGE>", 4, false);
+    ParseAsNum(parent, ifms.isExtraPackedBoundaryDataOnBottomEdge);
+    Parse(parent, "</IS_EXTRA_PACKED_BOUNDARY_DATA_ON_BOTTOM_EDGE>", 0, true);
+
     Parse(parent, "</IFM_STREAMER>", 3, true);
 }
 

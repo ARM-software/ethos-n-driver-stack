@@ -78,7 +78,9 @@ private:
                                               const Buffer* const inputDramBuffer,
                                               const SramBuffer* const inputSramBuffer,
                                               const CascadingBufferFormat transferFormat,
-                                              const uint32_t inputDramBufferOffset);
+                                              const uint32_t inputDramBufferOffset,
+                                              bool isExtraIfmStripeAtRightEdge,
+                                              bool isExtraIfmStripeAtBottomEdge);
     // Private function to add WGT_STREAMER to the command stream
     AgentIdType AddWeightStreamerToCommandStream(DmaOp* const ptrDmaOp);
     // Private function to add MCE_SCHEDULER to the command stream

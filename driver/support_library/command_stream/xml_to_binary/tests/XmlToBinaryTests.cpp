@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -449,6 +449,8 @@ const std::string g_XmlStr =
                     <RIGHT>7</RIGHT>
                     <BOTTOM>8</BOTTOM>
                 </PACKED_BOUNDARY_THICKNESS>
+                <IS_EXTRA_PACKED_BOUNDARY_DATA_ON_RIGHT_EDGE>1</IS_EXTRA_PACKED_BOUNDARY_DATA_ON_RIGHT_EDGE>
+                <IS_EXTRA_PACKED_BOUNDARY_DATA_ON_BOTTOM_EDGE>0</IS_EXTRA_PACKED_BOUNDARY_DATA_ON_BOTTOM_EDGE>
             </IFM_STREAMER>
             <NUM_STRIPES_TOTAL>96</NUM_STRIPES_TOTAL>
             <SCHEDULE_DEPENDENCY>
@@ -1403,7 +1405,11 @@ TEST_CASE("XmlToBinary-BinaryToXml")
                              cascading::PackedBoundaryThickness{ /* Left = */ uint8_t{ 5 },
                                                                  /* Top = */ uint8_t{ 6 },
                                                                  /* Right = */ uint8_t{ 7 },
-                                                                 /* Bottom = */ uint8_t{ 8 } } } },
+                                                                 /* Bottom = */ uint8_t{ 8 } },
+                             /* isExtraPackedBoundaryDataOnRightEdge = */
+                             uint8_t{ 1 },
+                             /* isExtraPackedBoundaryDataOnBottomEdge = */
+                             uint8_t{ 0 } } },
         /* AgentDependencyInfo = */
         cascading::AgentDependencyInfo{
             /* NumStripesTotal = */ uint16_t{ 96 },
