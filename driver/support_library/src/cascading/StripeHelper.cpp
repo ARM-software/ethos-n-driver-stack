@@ -584,17 +584,17 @@ std::unique_ptr<SramBuffer>
         }
     }
 
-    auto sramBuffer                = std::make_unique<SramBuffer>();
-    sramBuffer->m_Format           = CascadingBufferFormat::NHWCB;
-    sramBuffer->m_TensorShape      = shape;
-    sramBuffer->m_StripeShape      = bestStripeShape;
-    sramBuffer->m_Order            = TraversalOrder::Xyz;
-    sramBuffer->m_SizeInBytes      = utils::TotalSizeBytesNHWCB(bestStripeShape);
-    sramBuffer->m_QuantizationInfo = quantInfo;
-    sramBuffer->m_DataType         = dataType;
-    sramBuffer->m_Offset     = 0;    // Nothing else should be resident in SRAM at this point, so we can use any address
-    sramBuffer->m_NumStripes = 1;
-    sramBuffer->m_SlotSizeInBytes = sramBuffer->m_SizeInBytes;
+    std::unique_ptr<SramBuffer> sramBuffer = SramBufferBuilder()
+                                                 .AddFormat(CascadingBufferFormat::NHWCB)
+                                                 .AddDataType(dataType)
+                                                 .AddTensorShape(shape)
+                                                 .AddQuantization(quantInfo)
+                                                 .AddStripeShape(bestStripeShape)
+                                                 .AddNumStripes(1)
+                                                 .AddSlotSize(utils::TotalSizeBytesNHWCB(bestStripeShape))
+                                                 .AddTraversalOrder(TraversalOrder::Xyz);
+
+    sramBuffer->m_Offset = 0;    // Nothing else should be resident in SRAM at this point, so we can use any address
 
     // Sanity check that the SRAM buffer we created is valid for DMAs to/from the DRAM buffers
     for (CascadingBufferFormat format : compatibleDramBufferFormats)
@@ -1523,15 +1523,19 @@ Buffer* AddPleInputSramBuffer(OwnedOpGraph& opGraph,
                               const QuantizationInfo& quantInfo,
                               DataType dataType)
 {
-    PleInputSramBuffer* buffer = opGraph.AddBuffer(std::make_unique<PleInputSramBuffer>());
-    buffer->m_NumStripes       = numPleInputMemoryStripes;
-    buffer->m_StripeShape      = pleInputMemoryShape;
-    buffer->m_Format           = CascadingBufferFormat::NHWCB;
-    buffer->m_TensorShape      = tensorShape;
-    buffer->m_DataType         = dataType;
-    buffer->m_QuantizationInfo = quantInfo;
-    buffer->m_SizeInBytes      = utils::CalculateBufferSize(pleInputMemoryShape, CascadingBufferFormat::NHWCB);
-    return buffer;
+    std::unique_ptr<PleInputSramBuffer> buffer =
+        PleInputSramBufferBuilder()
+            .AddFormat(CascadingBufferFormat::NHWCB)
+            .AddDataType(dataType)
+            .AddTensorShape(tensorShape)
+            .AddQuantization(quantInfo)
+            .AddStripeShape(pleInputMemoryShape)
+            .AddNumStripes(numPleInputMemoryStripes)
+            .AddSizeInBytes(utils::CalculateBufferSize(pleInputMemoryShape, CascadingBufferFormat::NHWCB));
+
+    PleInputSramBuffer* bufferRaw = opGraph.AddBuffer(std::move(buffer));
+
+    return bufferRaw;
 }
 
 std::pair<SramBuffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
@@ -1546,23 +1550,22 @@ std::pair<SramBuffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
     Op* op             = opGraph.AddOp(std::move(pleOp));
     op->m_OperationIds = sourceOperationIds;
 
-    auto pleOutBuffer      = opGraph.AddBuffer(std::make_unique<SramBuffer>());
-    pleOutBuffer->m_Format = GetFormat(Location::Sram);
-    pleOutBuffer->m_Order  = TraversalOrder::Xyz;
-    opGraph.SetProducer(pleOutBuffer, op);
-
-    pleOutBuffer->m_DataType    = outputDataType;
-    pleOutBuffer->m_TensorShape = outputShape;
-    pleOutBuffer->m_StripeShape = memoryOutputShape;
-    pleOutBuffer->m_NumStripes  = numMemoryStripes.m_Output;
     // Note that we don't need to account for FCAF here, because this SRAM buffer will never be decompressed
     // from FCAF. It may be compressed _into_ FCAF, but that's fine and doesn't require any special consideration.
-    pleOutBuffer->m_SizeInBytes     = numMemoryStripes.m_Output * utils::TotalSizeBytesNHWCB(memoryOutputShape);
-    pleOutBuffer->m_SlotSizeInBytes = utils::TotalSizeBytesNHWCB(memoryOutputShape);
+    std::unique_ptr<SramBuffer> pleOutBuffer = SramBufferBuilder()
+                                                   .AddFormat(GetFormat(Location::Sram))
+                                                   .AddDataType(outputDataType)
+                                                   .AddTensorShape(outputShape)
+                                                   .AddQuantization(outputQuantInfo)
+                                                   .AddStripeShape(memoryOutputShape)
+                                                   .AddNumStripes(numMemoryStripes.m_Output)
+                                                   .AddSlotSize(utils::TotalSizeBytesNHWCB(memoryOutputShape))
+                                                   .AddTraversalOrder(TraversalOrder::Xyz);
 
-    pleOutBuffer->m_QuantizationInfo = outputQuantInfo;
+    auto pleOutBufferRaw = opGraph.AddBuffer(std::move(pleOutBuffer));
+    opGraph.SetProducer(pleOutBufferRaw, op);
 
-    return { pleOutBuffer, op };
+    return { pleOutBufferRaw, op };
 };
 
 }    // namespace impl

@@ -99,15 +99,16 @@ void SplitPart::CreateSplitDramPlans(Plans& plans) const
     PartOutputMapping outputMappings;
     OwnedOpGraph opGraph;
 
-    DramBuffer* inputBuffer         = opGraph.AddBuffer(std::make_unique<DramBuffer>());
-    inputBuffer->m_Format           = format;
-    inputBuffer->m_DataType         = m_InputTensorInfo.m_DataType;
-    inputBuffer->m_TensorShape      = m_InputTensorInfo.m_Dimensions;
-    inputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(inputBuffer->m_TensorShape, format);
-    inputBuffer->m_QuantizationInfo = m_InputTensorInfo.m_QuantizationInfo;
-    inputBuffer->m_BufferType       = BufferType::Intermediate;
+    std::unique_ptr<DramBuffer> inputBuffer = DramBuffer::Build()
+                                                  .AddFormat(format)
+                                                  .AddDataType(m_InputTensorInfo.m_DataType)
+                                                  .AddTensorShape(m_InputTensorInfo.m_Dimensions)
+                                                  .AddQuantization(m_InputTensorInfo.m_QuantizationInfo)
+                                                  .AddBufferType(BufferType::Intermediate);
 
-    inputMappings[inputBuffer] = PartInputSlot{ m_PartId, 0 };
+    DramBuffer* inputBufferRaw = opGraph.AddBuffer(std::move(inputBuffer));
+
+    inputMappings[inputBufferRaw] = PartInputSlot{ m_PartId, 0 };
 
     for (uint32_t outputIndex = 0; outputIndex < numOutputs; outputIndex++)
     {
@@ -136,19 +137,20 @@ void SplitPart::CreateSplitDramPlans(Plans& plans) const
         DmaOp* dma2Raw       = dma2.get();
         opGraph.AddOp(std::move(dma2));
 
-        DramBuffer* outputBuffer         = opGraph.AddBuffer(std::make_unique<DramBuffer>());
-        outputBuffer->m_Format           = format;
-        outputBuffer->m_DataType         = outputTensorInfo.m_DataType;
-        outputBuffer->m_TensorShape      = outputTensorInfo.m_Dimensions;
-        outputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(outputBuffer->m_TensorShape, format);
-        outputBuffer->m_QuantizationInfo = outputTensorInfo.m_QuantizationInfo;
-        outputBuffer->m_BufferType       = BufferType::Intermediate;
-        outputMappings[outputBuffer]     = PartOutputSlot{ m_PartId, outputIndex };
+        std::unique_ptr<DramBuffer> outputBuffer = DramBuffer::Build()
+                                                       .AddFormat(format)
+                                                       .AddDataType(outputTensorInfo.m_DataType)
+                                                       .AddTensorShape(outputTensorInfo.m_Dimensions)
+                                                       .AddQuantization(outputTensorInfo.m_QuantizationInfo)
+                                                       .AddBufferType(BufferType::Intermediate);
 
-        opGraph.AddConsumer(inputBuffer, dma1Raw, 0);
+        DramBuffer* outputBufferRaw     = opGraph.AddBuffer(std::move(outputBuffer));
+        outputMappings[outputBufferRaw] = PartOutputSlot{ m_PartId, outputIndex };
+
+        opGraph.AddConsumer(inputBufferRaw, dma1Raw, 0);
         opGraph.SetProducer(sramBufferRaw, dma1Raw);
         opGraph.AddConsumer(sramBufferRaw, dma2Raw, 0);
-        opGraph.AddProducer(outputBuffer, dma2Raw);
+        opGraph.AddProducer(outputBufferRaw, dma2Raw);
     }
 
     // Note that we don't use AddNewPlan as the validation is wrong for SRAM (not all our buffers need to

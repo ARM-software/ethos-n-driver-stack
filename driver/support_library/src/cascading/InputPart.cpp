@@ -43,14 +43,15 @@ void InputPart::CreatePlanForInputPart(Plans& plans) const
     OwnedOpGraph opGraph;
 
     CascadingBufferFormat format = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
-    auto buffer                  = std::make_unique<DramBuffer>();
-    buffer->m_Format             = format;
-    buffer->m_DataType           = m_OutputDataType;
-    buffer->m_TensorShape        = m_OutputTensorShape;
-    buffer->m_SizeInBytes        = utils::CalculateBufferSize(m_OutputTensorShape, format);
-    buffer->m_QuantizationInfo   = m_OutputQuantizationInfo;
-    buffer->m_OperationId        = *m_CorrespondingOperationIds.begin();
-    buffer->m_BufferType         = BufferType::Input;
+
+    std::unique_ptr<DramBuffer> buffer = DramBuffer::Build()
+                                             .AddFormat(format)
+                                             .AddDataType(m_OutputDataType)
+                                             .AddTensorShape(m_OutputTensorShape)
+                                             .AddQuantization(m_OutputQuantizationInfo)
+                                             .AddBufferType(BufferType::Input)
+                                             .AddOperationId(*m_CorrespondingOperationIds.begin());
+
     outputMappings[buffer.get()] = PartOutputSlot{ m_PartId, 0 };
     opGraph.AddBuffer(std::move(buffer));
 

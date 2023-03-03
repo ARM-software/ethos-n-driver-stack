@@ -12,21 +12,29 @@
 using namespace ethosn::support_library;
 using namespace ethosn::command_stream::cascading;
 
+std::unique_ptr<DramBuffer> TestBuffer()
+{
+    // Creates a valid DramBuffer for tests
+    std::unique_ptr<DramBuffer> buffer =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+    return buffer;
+}
+
 TEST_CASE("OpGraph Contains")
 {
     OpGraph graph;
 
-    DramBuffer buffer;
+    std::unique_ptr<DramBuffer> buffer = TestBuffer();
     MceOp op;
 
     // Initially these are not in the graph
-    REQUIRE(!graph.Contains(&buffer));
+    REQUIRE(!graph.Contains(buffer.get()));
     REQUIRE(!graph.Contains(&op));
 
     // Add them and check that they are reported as contained
-    graph.AddBuffer(&buffer);
+    graph.AddBuffer(buffer.get());
     graph.AddOp(&op);
-    REQUIRE(graph.Contains(&buffer));
+    REQUIRE(graph.Contains(buffer.get()));
     REQUIRE(graph.Contains(&op));
 }
 
@@ -37,24 +45,24 @@ TEST_CASE("OpGraph GetSingleProducer and GetProducers")
     OpGraph graph;
 
     // Start with just a single buffer and nothing that produces it
-    DramBuffer buffer;
-    graph.AddBuffer(&buffer);
-    REQUIRE(graph.GetSingleProducer(&buffer) == nullptr);
-    REQUIRE(graph.GetProducers(&buffer) == std::vector<Op*>{});
+    std::unique_ptr<DramBuffer> buffer = TestBuffer();
+    graph.AddBuffer(buffer.get());
+    REQUIRE(graph.GetSingleProducer(buffer.get()) == nullptr);
+    REQUIRE(graph.GetProducers(buffer.get()) == std::vector<Op*>{});
 
     // Add an Op as a producer
     MceOp op;
     graph.AddOp(&op);
-    graph.SetProducer(&buffer, &op);
-    REQUIRE(graph.GetSingleProducer(&buffer) == &op);
-    REQUIRE(graph.GetProducers(&buffer) == std::vector<Op*>{ &op });
+    graph.SetProducer(buffer.get(), &op);
+    REQUIRE(graph.GetSingleProducer(buffer.get()) == &op);
+    REQUIRE(graph.GetProducers(buffer.get()) == std::vector<Op*>{ &op });
 
     // Add a second Op as a producer
     MceOp op2;
     graph.AddOp(&op2);
-    graph.AddProducer(&buffer, &op2);
-    REQUIRE_THROWS(graph.GetSingleProducer(&buffer));
-    REQUIRE(graph.GetProducers(&buffer) == std::vector<Op*>{ &op, &op2 });
+    graph.AddProducer(buffer.get(), &op2);
+    REQUIRE_THROWS(graph.GetSingleProducer(buffer.get()));
+    REQUIRE(graph.GetProducers(buffer.get()) == std::vector<Op*>{ &op, &op2 });
 }
 
 /// Checks GetConsumers correctly returns zero or many consumers, along with their input indices
@@ -63,23 +71,23 @@ TEST_CASE("OpGraph GetConsumers")
     OpGraph graph;
 
     // Start with just a single buffer and nothing that consumes it
-    DramBuffer buffer;
-    graph.AddBuffer(&buffer);
-    REQUIRE(graph.GetConsumers(&buffer) == std::vector<std::pair<Op*, uint32_t>>{});
+    std::unique_ptr<DramBuffer> buffer = TestBuffer();
+    graph.AddBuffer(buffer.get());
+    REQUIRE(graph.GetConsumers(buffer.get()) == std::vector<std::pair<Op*, uint32_t>>{});
 
     // Add an Op as a consumer
     MceOp op1;
     graph.AddOp(&op1);
-    graph.AddConsumer(&buffer, &op1, 0);
-    REQUIRE(graph.GetConsumers(&buffer) == std::vector<std::pair<Op*, uint32_t>>{ { &op1, 0 } });
+    graph.AddConsumer(buffer.get(), &op1, 0);
+    REQUIRE(graph.GetConsumers(buffer.get()) == std::vector<std::pair<Op*, uint32_t>>{ { &op1, 0 } });
 
     // Add another Op as a consumer, but using its 2nd input.
     // Note we must first connect the 1st input of the op to something else
     MceOp op2;
     graph.AddOp(&op2);
-    graph.AddConsumer(&buffer, &op2, 0);
-    graph.AddConsumer(&buffer, &op2, 1);
-    REQUIRE(graph.GetConsumers(&buffer) ==
+    graph.AddConsumer(buffer.get(), &op2, 0);
+    graph.AddConsumer(buffer.get(), &op2, 1);
+    REQUIRE(graph.GetConsumers(buffer.get()) ==
             std::vector<std::pair<Op*, uint32_t>>{ { &op1, 0 }, { &op2, 0 }, { &op2, 1 } });
 }
 
@@ -94,16 +102,16 @@ TEST_CASE("OpGraph GetInputs")
     REQUIRE(graph.GetInputs(&op) == std::vector<Buffer*>{});
 
     // Add a Buffer as the first input
-    DramBuffer buffer1;
-    graph.AddBuffer(&buffer1);
-    graph.AddConsumer(&buffer1, &op, 0);
-    REQUIRE(graph.GetInputs(&op) == std::vector<Buffer*>{ &buffer1 });
+    std::unique_ptr<DramBuffer> buffer1 = TestBuffer();
+    graph.AddBuffer(buffer1.get());
+    graph.AddConsumer(buffer1.get(), &op, 0);
+    REQUIRE(graph.GetInputs(&op) == std::vector<Buffer*>{ buffer1.get() });
 
     // Add a Buffer as the second input
-    DramBuffer buffer2;
-    graph.AddBuffer(&buffer2);
-    graph.AddConsumer(&buffer2, &op, 1);
-    REQUIRE(graph.GetInputs(&op) == std::vector<Buffer*>{ &buffer1, &buffer2 });
+    std::unique_ptr<DramBuffer> buffer2 = TestBuffer();
+    graph.AddBuffer(buffer2.get());
+    graph.AddConsumer(buffer2.get(), &op, 1);
+    REQUIRE(graph.GetInputs(&op) == std::vector<Buffer*>{ buffer1.get(), buffer2.get() });
 }
 
 /// Checks GetOutput correctly returns zero or one output
@@ -117,10 +125,10 @@ TEST_CASE("OpGraph GetOutput")
     REQUIRE(graph.GetOutput(&op) == nullptr);
 
     // Add a Buffer as the output
-    DramBuffer buffer;
-    graph.AddBuffer(&buffer);
-    graph.SetProducer(&buffer, &op);
-    REQUIRE(graph.GetOutput(&op) == &buffer);
+    std::unique_ptr<DramBuffer> buffer = TestBuffer();
+    graph.AddBuffer(buffer.get());
+    graph.SetProducer(buffer.get(), &op);
+    REQUIRE(graph.GetOutput(&op) == buffer.get());
 }
 
 /// Adds a single Op to the graph, checking both the successful and unsuccessful cases
@@ -141,14 +149,14 @@ TEST_CASE("OpGraph AddOp")
 TEST_CASE("OpGraph AddBuffer")
 {
     OpGraph graph;
-    DramBuffer buffer;
+    std::unique_ptr<DramBuffer> buffer = TestBuffer();
 
     // Add the buffer and check it has been added
-    graph.AddBuffer(&buffer);
-    REQUIRE(graph.GetBuffers() == std::vector<Buffer*>{ &buffer });
+    graph.AddBuffer(buffer.get());
+    REQUIRE(graph.GetBuffers() == std::vector<Buffer*>{ buffer.get() });
 
     // Attempt to add it again and check that this failed
-    REQUIRE_THROWS(graph.AddBuffer(&buffer));
+    REQUIRE_THROWS(graph.AddBuffer(buffer.get()));
 }
 
 /// Checks SetProducer correctly validates
@@ -158,9 +166,9 @@ TEST_CASE("OpGraph SetProducer")
     {
         OpGraph graph;
         MceOp op;
-        DramBuffer buffer;
-        graph.AddBuffer(&buffer);
-        REQUIRE_THROWS(graph.SetProducer(&buffer, &op));
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        graph.AddBuffer(buffer.get());
+        REQUIRE_THROWS(graph.SetProducer(buffer.get(), &op));
     }
 
     // Try calling with a Buffer that isn't part of the graph
@@ -168,8 +176,8 @@ TEST_CASE("OpGraph SetProducer")
         OpGraph graph;
         MceOp op;
         graph.AddOp(&op);
-        DramBuffer buffer;
-        REQUIRE_THROWS(graph.SetProducer(&buffer, &op));
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        REQUIRE_THROWS(graph.SetProducer(buffer.get(), &op));
     }
 
     // Try setting the producer for a buffer that already has a producer
@@ -177,13 +185,13 @@ TEST_CASE("OpGraph SetProducer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        DramBuffer buffer;
-        graph.AddBuffer(&buffer);
-        graph.SetProducer(&buffer, &op1);
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        graph.AddBuffer(buffer.get());
+        graph.SetProducer(buffer.get(), &op1);
 
         MceOp op2;
         graph.AddOp(&op2);
-        REQUIRE_THROWS(graph.SetProducer(&buffer, &op2));
+        REQUIRE_THROWS(graph.SetProducer(buffer.get(), &op2));
     }
 
     // Try adding a producer that is already a producer
@@ -191,11 +199,11 @@ TEST_CASE("OpGraph SetProducer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        DramBuffer buffer;
-        graph.AddBuffer(&buffer);
-        graph.SetProducer(&buffer, &op1);
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        graph.AddBuffer(buffer.get());
+        graph.SetProducer(buffer.get(), &op1);
 
-        REQUIRE_THROWS(graph.SetProducer(&buffer, &op1));
+        REQUIRE_THROWS(graph.SetProducer(buffer.get(), &op1));
     }
 
     // Successful case
@@ -203,11 +211,11 @@ TEST_CASE("OpGraph SetProducer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        DramBuffer buffer;
-        graph.AddBuffer(&buffer);
-        graph.SetProducer(&buffer, &op1);
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        graph.AddBuffer(buffer.get());
+        graph.SetProducer(buffer.get(), &op1);
 
-        REQUIRE(graph.GetSingleProducer(&buffer) == &op1);
+        REQUIRE(graph.GetSingleProducer(buffer.get()) == &op1);
     }
 }
 
@@ -218,9 +226,9 @@ TEST_CASE("OpGraph AddProducer")
     {
         OpGraph graph;
         MceOp op;
-        DramBuffer buffer;
-        graph.AddBuffer(&buffer);
-        REQUIRE_THROWS(graph.AddProducer(&buffer, &op));
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        graph.AddBuffer(buffer.get());
+        REQUIRE_THROWS(graph.AddProducer(buffer.get(), &op));
     }
 
     // Try calling with a Buffer that isn't part of the graph
@@ -228,8 +236,8 @@ TEST_CASE("OpGraph AddProducer")
         OpGraph graph;
         MceOp op;
         graph.AddOp(&op);
-        DramBuffer buffer;
-        REQUIRE_THROWS(graph.AddProducer(&buffer, &op));
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        REQUIRE_THROWS(graph.AddProducer(buffer.get(), &op));
     }
 
     // Try adding a producer for a buffer that already has a producer
@@ -237,14 +245,14 @@ TEST_CASE("OpGraph AddProducer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        DramBuffer buffer;
-        graph.AddBuffer(&buffer);
-        graph.SetProducer(&buffer, &op1);
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        graph.AddBuffer(buffer.get());
+        graph.SetProducer(buffer.get(), &op1);
 
         MceOp op2;
         graph.AddOp(&op2);
-        graph.AddProducer(&buffer, &op2);
-        REQUIRE(graph.GetProducers(&buffer) == std::vector<Op*>{ &op1, &op2 });
+        graph.AddProducer(buffer.get(), &op2);
+        REQUIRE(graph.GetProducers(buffer.get()) == std::vector<Op*>{ &op1, &op2 });
     }
 
     // Try adding a producer that is already a producer
@@ -252,11 +260,11 @@ TEST_CASE("OpGraph AddProducer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        DramBuffer buffer;
-        graph.AddBuffer(&buffer);
-        graph.SetProducer(&buffer, &op1);
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        graph.AddBuffer(buffer.get());
+        graph.SetProducer(buffer.get(), &op1);
 
-        REQUIRE_THROWS(graph.AddProducer(&buffer, &op1));
+        REQUIRE_THROWS(graph.AddProducer(buffer.get(), &op1));
     }
 
     // Successful case
@@ -264,11 +272,11 @@ TEST_CASE("OpGraph AddProducer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        DramBuffer buffer;
-        graph.AddBuffer(&buffer);
-        graph.AddProducer(&buffer, &op1);
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        graph.AddBuffer(buffer.get());
+        graph.AddProducer(buffer.get(), &op1);
 
-        REQUIRE(graph.GetSingleProducer(&buffer) == &op1);
+        REQUIRE(graph.GetSingleProducer(buffer.get()) == &op1);
     }
 }
 
@@ -285,9 +293,9 @@ TEST_CASE("OpGraph RemoveProducer")
     SECTION("Try calling with nullptr Op")
     {
         OpGraph graph;
-        DramBuffer b;
-        graph.AddBuffer(&b);
-        REQUIRE_THROWS(graph.RemoveProducer(&b, nullptr));
+        std::unique_ptr<DramBuffer> b = TestBuffer();
+        graph.AddBuffer(b.get());
+        REQUIRE_THROWS(graph.RemoveProducer(b.get(), nullptr));
     }
 
     SECTION("Try calling with a Buffer that isn't part of the graph")
@@ -295,39 +303,39 @@ TEST_CASE("OpGraph RemoveProducer")
         OpGraph graph;
         MceOp o;
         graph.AddOp(&o);
-        DramBuffer b;
-        REQUIRE_THROWS(graph.RemoveProducer(&b, &o));
+        std::unique_ptr<DramBuffer> b = TestBuffer();
+        REQUIRE_THROWS(graph.RemoveProducer(b.get(), &o));
     }
     SECTION("Try calling with an Op that isn't part of the graph")
     {
         OpGraph graph;
-        DramBuffer b;
-        graph.AddBuffer(&b);
+        std::unique_ptr<DramBuffer> b = TestBuffer();
+        graph.AddBuffer(b.get());
         MceOp o;
-        REQUIRE_THROWS(graph.RemoveProducer(&b, &o));
+        REQUIRE_THROWS(graph.RemoveProducer(b.get(), &o));
     }
 
     SECTION("Try calling with a Buffer that has no producers")
     {
         OpGraph graph;
-        DramBuffer b;
-        graph.AddBuffer(&b);
+        std::unique_ptr<DramBuffer> b = TestBuffer();
+        graph.AddBuffer(b.get());
         MceOp o;
         graph.AddOp(&o);
-        REQUIRE_THROWS(graph.RemoveProducer(&b, &o));
+        REQUIRE_THROWS(graph.RemoveProducer(b.get(), &o));
     }
     SECTION("Try calling with an Op that isn't a producer of the Buffer (but the Buffer has other producers)")
     {
         OpGraph graph;
-        DramBuffer b;
-        graph.AddBuffer(&b);
+        std::unique_ptr<DramBuffer> b = TestBuffer();
+        graph.AddBuffer(b.get());
         MceOp o1;
         graph.AddOp(&o1);
         MceOp o2;
         graph.AddOp(&o2);
-        graph.SetProducer(&b, &o1);
+        graph.SetProducer(b.get(), &o1);
 
-        REQUIRE_THROWS(graph.RemoveProducer(&b, &o2));
+        REQUIRE_THROWS(graph.RemoveProducer(b.get(), &o2));
     }
 
     SECTION("Remove a producer from a buffer that has only one")
@@ -335,12 +343,12 @@ TEST_CASE("OpGraph RemoveProducer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        DramBuffer buffer;
-        graph.AddBuffer(&buffer);
-        graph.SetProducer(&buffer, &op1);
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        graph.AddBuffer(buffer.get());
+        graph.SetProducer(buffer.get(), &op1);
 
-        graph.RemoveProducer(&buffer, &op1);
-        REQUIRE(graph.GetProducers(&buffer).size() == 0);
+        graph.RemoveProducer(buffer.get(), &op1);
+        REQUIRE(graph.GetProducers(buffer.get()).size() == 0);
         REQUIRE(graph.GetOutput(&op1) == nullptr);
     }
 
@@ -351,15 +359,15 @@ TEST_CASE("OpGraph RemoveProducer")
         graph.AddOp(&op1);
         MceOp op2;
         graph.AddOp(&op2);
-        DramBuffer buffer;
-        graph.AddBuffer(&buffer);
-        graph.AddProducer(&buffer, &op1);
-        graph.AddProducer(&buffer, &op2);
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        graph.AddBuffer(buffer.get());
+        graph.AddProducer(buffer.get(), &op1);
+        graph.AddProducer(buffer.get(), &op2);
 
-        graph.RemoveProducer(&buffer, &op1);
-        REQUIRE(graph.GetProducers(&buffer) == OpGraph::OpList{ &op2 });
+        graph.RemoveProducer(buffer.get(), &op1);
+        REQUIRE(graph.GetProducers(buffer.get()) == OpGraph::OpList{ &op2 });
         REQUIRE(graph.GetOutput(&op1) == nullptr);
-        REQUIRE(graph.GetOutput(&op2) == &buffer);
+        REQUIRE(graph.GetOutput(&op2) == buffer.get());
     }
 }
 
@@ -375,17 +383,17 @@ TEST_CASE("OpGraph ClearProducers")
     SECTION("Try calling with a Buffer that isn't part of the graph")
     {
         OpGraph graph;
-        DramBuffer b;
-        REQUIRE_THROWS(graph.ClearProducers(&b));
+        std::unique_ptr<DramBuffer> b = TestBuffer();
+        REQUIRE_THROWS(graph.ClearProducers(b.get()));
     }
 
     SECTION("Clear the producer for a buffer that doesn't already have one. This should be a no-op")
     {
         OpGraph graph;
-        DramBuffer buffer;
-        graph.AddBuffer(&buffer);
-        REQUIRE_NOTHROW(graph.ClearProducers(&buffer));
-        REQUIRE(graph.GetSingleProducer(&buffer) == nullptr);
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        graph.AddBuffer(buffer.get());
+        REQUIRE_NOTHROW(graph.ClearProducers(buffer.get()));
+        REQUIRE(graph.GetSingleProducer(buffer.get()) == nullptr);
     }
 
     SECTION("Clear the producer for a buffer that already has one")
@@ -393,12 +401,12 @@ TEST_CASE("OpGraph ClearProducers")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        DramBuffer buffer;
-        graph.AddBuffer(&buffer);
-        graph.SetProducer(&buffer, &op1);
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        graph.AddBuffer(buffer.get());
+        graph.SetProducer(buffer.get(), &op1);
 
-        graph.ClearProducers(&buffer);
-        REQUIRE(graph.GetSingleProducer(&buffer) == nullptr);
+        graph.ClearProducers(buffer.get());
+        REQUIRE(graph.GetSingleProducer(buffer.get()) == nullptr);
         REQUIRE(graph.GetOutput(&op1) == nullptr);
     }
 
@@ -409,13 +417,13 @@ TEST_CASE("OpGraph ClearProducers")
         graph.AddOp(&op1);
         MceOp op2;
         graph.AddOp(&op2);
-        DramBuffer buffer;
-        graph.AddBuffer(&buffer);
-        graph.AddProducer(&buffer, &op1);
-        graph.AddProducer(&buffer, &op2);
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        graph.AddBuffer(buffer.get());
+        graph.AddProducer(buffer.get(), &op1);
+        graph.AddProducer(buffer.get(), &op2);
 
-        graph.ClearProducers(&buffer);
-        REQUIRE(graph.GetSingleProducer(&buffer) == nullptr);
+        graph.ClearProducers(buffer.get());
+        REQUIRE(graph.GetSingleProducer(buffer.get()) == nullptr);
         REQUIRE(graph.GetOutput(&op1) == nullptr);
     }
 }
@@ -427,9 +435,9 @@ TEST_CASE("OpGraph AddConsumer")
     {
         OpGraph graph;
         MceOp op;
-        DramBuffer buffer;
-        graph.AddBuffer(&buffer);
-        REQUIRE_THROWS(graph.AddConsumer(&buffer, &op, 0));
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        graph.AddBuffer(buffer.get());
+        REQUIRE_THROWS(graph.AddConsumer(buffer.get(), &op, 0));
     }
 
     // Try calling with a Buffer that isn't part of the graph
@@ -437,8 +445,8 @@ TEST_CASE("OpGraph AddConsumer")
         OpGraph graph;
         MceOp op;
         graph.AddOp(&op);
-        DramBuffer buffer;
-        REQUIRE_THROWS(graph.AddConsumer(&buffer, &op, 0));
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        REQUIRE_THROWS(graph.AddConsumer(buffer.get(), &op, 0));
     }
 
     // Try adding an op as a consumer that is already linked to another buffer
@@ -446,13 +454,13 @@ TEST_CASE("OpGraph AddConsumer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        DramBuffer buffer1;
-        graph.AddBuffer(&buffer1);
-        graph.AddConsumer(&buffer1, &op1, 0);
+        std::unique_ptr<DramBuffer> buffer1 = TestBuffer();
+        graph.AddBuffer(buffer1.get());
+        graph.AddConsumer(buffer1.get(), &op1, 0);
 
-        DramBuffer buffer2;
-        graph.AddBuffer(&buffer2);
-        REQUIRE_THROWS(graph.AddConsumer(&buffer2, &op1, 0));
+        std::unique_ptr<DramBuffer> buffer2 = TestBuffer();
+        graph.AddBuffer(buffer2.get());
+        REQUIRE_THROWS(graph.AddConsumer(buffer2.get(), &op1, 0));
     }
 
     // Connect a second input slot of an Op where the lower-numbered slots is already connected
@@ -461,12 +469,12 @@ TEST_CASE("OpGraph AddConsumer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        DramBuffer buffer1;
-        graph.AddBuffer(&buffer1);
-        graph.AddConsumer(&buffer1, &op1, 0);
-        graph.AddConsumer(&buffer1, &op1, 1);
+        std::unique_ptr<DramBuffer> buffer1 = TestBuffer();
+        graph.AddBuffer(buffer1.get());
+        graph.AddConsumer(buffer1.get(), &op1, 0);
+        graph.AddConsumer(buffer1.get(), &op1, 1);
 
-        REQUIRE(graph.GetInputs(&op1) == std::vector<Buffer*>{ &buffer1, &buffer1 });
+        REQUIRE(graph.GetInputs(&op1) == std::vector<Buffer*>{ buffer1.get(), buffer1.get() });
     }
 
     // Connect a higher-numbered input slot of an Op where the lower-numbered slots are not yet connected
@@ -475,9 +483,9 @@ TEST_CASE("OpGraph AddConsumer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        DramBuffer buffer1;
-        graph.AddBuffer(&buffer1);
-        REQUIRE_THROWS(graph.AddConsumer(&buffer1, &op1, 2));
+        std::unique_ptr<DramBuffer> buffer1 = TestBuffer();
+        graph.AddBuffer(buffer1.get());
+        REQUIRE_THROWS(graph.AddConsumer(buffer1.get(), &op1, 2));
     }
 }
 
@@ -494,9 +502,9 @@ TEST_CASE("OpGraph RemoveConsumer")
     SECTION("Try calling with nullptr Op")
     {
         OpGraph graph;
-        DramBuffer b;
-        graph.AddBuffer(&b);
-        REQUIRE_THROWS(graph.RemoveConsumer(&b, nullptr, 0));
+        std::unique_ptr<DramBuffer> b = TestBuffer();
+        graph.AddBuffer(b.get());
+        REQUIRE_THROWS(graph.RemoveConsumer(b.get(), nullptr, 0));
     }
 
     SECTION("Try calling with a Buffer that isn't part of the graph")
@@ -504,65 +512,65 @@ TEST_CASE("OpGraph RemoveConsumer")
         OpGraph graph;
         MceOp o;
         graph.AddOp(&o);
-        DramBuffer b;
-        REQUIRE_THROWS(graph.RemoveConsumer(&b, &o, 0));
+        std::unique_ptr<DramBuffer> b = TestBuffer();
+        REQUIRE_THROWS(graph.RemoveConsumer(b.get(), &o, 0));
     }
     SECTION("Try calling with an Op that isn't part of the graph")
     {
         OpGraph graph;
-        DramBuffer b;
-        graph.AddBuffer(&b);
+        std::unique_ptr<DramBuffer> b = TestBuffer();
+        graph.AddBuffer(b.get());
         MceOp o;
-        REQUIRE_THROWS(graph.RemoveConsumer(&b, &o, 0));
+        REQUIRE_THROWS(graph.RemoveConsumer(b.get(), &o, 0));
     }
 
     SECTION("Try calling with a Buffer that has no consumers")
     {
         OpGraph graph;
-        DramBuffer b;
-        graph.AddBuffer(&b);
+        std::unique_ptr<DramBuffer> b = TestBuffer();
+        graph.AddBuffer(b.get());
         MceOp o1;
         graph.AddOp(&o1);
-        REQUIRE_THROWS(graph.RemoveConsumer(&b, &o1, 0));
+        REQUIRE_THROWS(graph.RemoveConsumer(b.get(), &o1, 0));
     }
 
     SECTION("Try calling with an Op that isn't a consumer of the Buffer (but the Buffer has other consumers)")
     {
         OpGraph graph;
-        DramBuffer b;
-        graph.AddBuffer(&b);
+        std::unique_ptr<DramBuffer> b = TestBuffer();
+        graph.AddBuffer(b.get());
         MceOp o1;
         graph.AddOp(&o1);
         MceOp o2;
         graph.AddOp(&o2);
-        graph.AddConsumer(&b, &o1, 0);
+        graph.AddConsumer(b.get(), &o1, 0);
 
-        REQUIRE_THROWS(graph.RemoveConsumer(&b, &o2, 0));
+        REQUIRE_THROWS(graph.RemoveConsumer(b.get(), &o2, 0));
     }
 
     SECTION("Try calling with an Op that is a consumer of the Buffer, but with a different input index")
     {
         OpGraph graph;
-        DramBuffer b;
-        graph.AddBuffer(&b);
+        std::unique_ptr<DramBuffer> b = TestBuffer();
+        graph.AddBuffer(b.get());
         MceOp o1;
         graph.AddOp(&o1);
-        graph.AddConsumer(&b, &o1, 0);
+        graph.AddConsumer(b.get(), &o1, 0);
 
-        REQUIRE_THROWS(graph.RemoveConsumer(&b, &o1, 1));
+        REQUIRE_THROWS(graph.RemoveConsumer(b.get(), &o1, 1));
     }
 
     SECTION("Try removing a consumer Op which has other (later-numbered) inputs connected too")
     {
         OpGraph graph;
-        DramBuffer b;
-        graph.AddBuffer(&b);
+        std::unique_ptr<DramBuffer> b = TestBuffer();
+        graph.AddBuffer(b.get());
         MceOp o1;
         graph.AddOp(&o1);
-        graph.AddConsumer(&b, &o1, 0);
-        graph.AddConsumer(&b, &o1, 1);
+        graph.AddConsumer(b.get(), &o1, 0);
+        graph.AddConsumer(b.get(), &o1, 1);
 
-        REQUIRE_THROWS(graph.RemoveConsumer(&b, &o1, 0));
+        REQUIRE_THROWS(graph.RemoveConsumer(b.get(), &o1, 0));
     }
 
     SECTION("Remove a consumer from a buffer that has only one")
@@ -570,12 +578,12 @@ TEST_CASE("OpGraph RemoveConsumer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        DramBuffer buffer;
-        graph.AddBuffer(&buffer);
-        graph.AddConsumer(&buffer, &op1, 0);
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        graph.AddBuffer(buffer.get());
+        graph.AddConsumer(buffer.get(), &op1, 0);
 
-        graph.RemoveConsumer(&buffer, &op1, 0);
-        REQUIRE(graph.GetConsumers(&buffer).size() == 0);
+        graph.RemoveConsumer(buffer.get(), &op1, 0);
+        REQUIRE(graph.GetConsumers(buffer.get()).size() == 0);
         REQUIRE(graph.GetInputs(&op1).size() == 0);
     }
 
@@ -586,15 +594,15 @@ TEST_CASE("OpGraph RemoveConsumer")
         graph.AddOp(&op1);
         MceOp op2;
         graph.AddOp(&op2);
-        DramBuffer buffer;
-        graph.AddBuffer(&buffer);
-        graph.AddConsumer(&buffer, &op1, 0);
-        graph.AddConsumer(&buffer, &op2, 0);
+        std::unique_ptr<DramBuffer> buffer = TestBuffer();
+        graph.AddBuffer(buffer.get());
+        graph.AddConsumer(buffer.get(), &op1, 0);
+        graph.AddConsumer(buffer.get(), &op2, 0);
 
-        graph.RemoveConsumer(&buffer, &op1, 0);
-        REQUIRE(graph.GetConsumers(&buffer) == OpGraph::ConsumersList{ { &op2, 0 } });
+        graph.RemoveConsumer(buffer.get(), &op1, 0);
+        REQUIRE(graph.GetConsumers(buffer.get()) == OpGraph::ConsumersList{ { &op2, 0 } });
         REQUIRE(graph.GetInputs(&op1).size() == 0);
-        REQUIRE(graph.GetInputs(&op2) == std::vector<Buffer*>{ &buffer });
+        REQUIRE(graph.GetInputs(&op2) == std::vector<Buffer*>{ buffer.get() });
     }
 }
 
@@ -625,7 +633,14 @@ TEST_CASE("OpGraph RemoveAndPrune")
 
     OpGraph graph;
     MceOp B, D, E, G, H, L, Z;
-    DramBuffer a, c, f, i, j, k, q, w;
+    std::unique_ptr<DramBuffer> a = TestBuffer();
+    std::unique_ptr<DramBuffer> c = TestBuffer();
+    std::unique_ptr<DramBuffer> f = TestBuffer();
+    std::unique_ptr<DramBuffer> i = TestBuffer();
+    std::unique_ptr<DramBuffer> j = TestBuffer();
+    std::unique_ptr<DramBuffer> k = TestBuffer();
+    std::unique_ptr<DramBuffer> q = TestBuffer();
+    std::unique_ptr<DramBuffer> w = TestBuffer();
     graph.AddOp(&B);
     graph.AddOp(&D);
     graph.AddOp(&E);
@@ -634,30 +649,30 @@ TEST_CASE("OpGraph RemoveAndPrune")
     graph.AddOp(&L);
     graph.AddOp(&Z);
 
-    graph.AddBuffer(&a);
-    graph.AddBuffer(&c);
-    graph.AddBuffer(&f);
-    graph.AddBuffer(&i);
-    graph.AddBuffer(&j);
-    graph.AddBuffer(&k);
-    graph.AddBuffer(&q);
-    graph.AddBuffer(&w);
+    graph.AddBuffer(a.get());
+    graph.AddBuffer(c.get());
+    graph.AddBuffer(f.get());
+    graph.AddBuffer(i.get());
+    graph.AddBuffer(j.get());
+    graph.AddBuffer(k.get());
+    graph.AddBuffer(q.get());
+    graph.AddBuffer(w.get());
 
-    graph.AddConsumer(&j, &B, 0);
-    graph.AddConsumer(&a, &B, 1);
-    graph.AddConsumer(&i, &B, 2);
-    graph.AddProducer(&c, &B);
-    graph.AddConsumer(&c, &D, 0);
-    graph.AddConsumer(&c, &E, 0);
-    graph.AddProducer(&k, &D);
-    graph.AddConsumer(&k, &L, 0);
-    graph.AddProducer(&f, &L);
-    graph.AddProducer(&f, &E);
-    graph.AddConsumer(&f, &G, 0);
-    graph.AddConsumer(&f, &H, 0);
+    graph.AddConsumer(j.get(), &B, 0);
+    graph.AddConsumer(a.get(), &B, 1);
+    graph.AddConsumer(i.get(), &B, 2);
+    graph.AddProducer(c.get(), &B);
+    graph.AddConsumer(c.get(), &D, 0);
+    graph.AddConsumer(c.get(), &E, 0);
+    graph.AddProducer(k.get(), &D);
+    graph.AddConsumer(k.get(), &L, 0);
+    graph.AddProducer(f.get(), &L);
+    graph.AddProducer(f.get(), &E);
+    graph.AddConsumer(f.get(), &G, 0);
+    graph.AddConsumer(f.get(), &H, 0);
 
-    graph.AddConsumer(&q, &Z, 0);
-    graph.AddProducer(&w, &Z);
+    graph.AddConsumer(q.get(), &Z, 0);
+    graph.AddProducer(w.get(), &Z);
 
     bool debug = false;
     if (debug)
@@ -669,19 +684,20 @@ TEST_CASE("OpGraph RemoveAndPrune")
     SECTION("Prune j")
     {
         // Not valid, as this would disconnect a non-last input of B
-        REQUIRE_THROWS(graph.RemoveAndPrune(&j));
+        REQUIRE_THROWS(graph.RemoveAndPrune(j.get()));
     }
     SECTION("Prune a")
     {
         // Not valid, as this would disconnect a non-last input of B
-        REQUIRE_THROWS(graph.RemoveAndPrune(&a));
+        REQUIRE_THROWS(graph.RemoveAndPrune(a.get()));
     }
     SECTION("Prune i")
     {
-        graph.RemoveAndPrune(&i);
+        graph.RemoveAndPrune(i.get());
         // Only i is removed as B has other inputs
         CHECK(graph.GetOps() == std::vector<Op*>{ &B, &D, &E, &G, &H, &L, &Z });
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &a, &c, &f, &j, &k, &q, &w });
+        CHECK(graph.GetBuffers() ==
+              std::vector<Buffer*>{ a.get(), c.get(), f.get(), j.get(), k.get(), q.get(), w.get() });
     }
 
     SECTION("Prune B")
@@ -689,14 +705,14 @@ TEST_CASE("OpGraph RemoveAndPrune")
         graph.RemoveAndPrune(&B);
         // The entire left sub-graph gets pruned
         CHECK(graph.GetOps() == std::vector<Op*>{ &Z });
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &q, &w });
+        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ q.get(), w.get() });
     }
     SECTION("Prune c")
     {
-        graph.RemoveAndPrune(&c);
+        graph.RemoveAndPrune(c.get());
         // The entire left sub-graph gets pruned
         CHECK(graph.GetOps() == std::vector<Op*>{ &Z });
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &q, &w });
+        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ q.get(), w.get() });
     }
 
     SECTION("Prune D")
@@ -704,21 +720,24 @@ TEST_CASE("OpGraph RemoveAndPrune")
         graph.RemoveAndPrune(&D);
         // The branch D-L gets removed but c and f don't, because they have other connections
         CHECK(graph.GetOps() == std::vector<Op*>{ &B, &E, &G, &H, &Z });
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &a, &c, &f, &i, &j, &q, &w });
+        CHECK(graph.GetBuffers() ==
+              std::vector<Buffer*>{ a.get(), c.get(), f.get(), i.get(), j.get(), q.get(), w.get() });
     }
     SECTION("Prune k")
     {
-        graph.RemoveAndPrune(&k);
+        graph.RemoveAndPrune(k.get());
         // The branch D-L gets removed but c and f don't, because they have other connections
         CHECK(graph.GetOps() == std::vector<Op*>{ &B, &E, &G, &H, &Z });
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &a, &c, &f, &i, &j, &q, &w });
+        CHECK(graph.GetBuffers() ==
+              std::vector<Buffer*>{ a.get(), c.get(), f.get(), i.get(), j.get(), q.get(), w.get() });
     }
     SECTION("Prune L")
     {
         graph.RemoveAndPrune(&L);
         // The branch D-L gets removed but c and f don't, because they have other connections
         CHECK(graph.GetOps() == std::vector<Op*>{ &B, &E, &G, &H, &Z });
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &a, &c, &f, &i, &j, &q, &w });
+        CHECK(graph.GetBuffers() ==
+              std::vector<Buffer*>{ a.get(), c.get(), f.get(), i.get(), j.get(), q.get(), w.get() });
     }
 
     SECTION("Prune E")
@@ -726,15 +745,16 @@ TEST_CASE("OpGraph RemoveAndPrune")
         graph.RemoveAndPrune(&E);
         // Only E gets removed but c and f don't, because they have other connections
         CHECK(graph.GetOps() == std::vector<Op*>{ &B, &D, &G, &H, &L, &Z });
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &a, &c, &f, &i, &j, &k, &q, &w });
+        CHECK(graph.GetBuffers() ==
+              std::vector<Buffer*>{ a.get(), c.get(), f.get(), i.get(), j.get(), k.get(), q.get(), w.get() });
     }
 
     SECTION("Prune f")
     {
-        graph.RemoveAndPrune(&f);
+        graph.RemoveAndPrune(f.get());
         // The entire left sub-graph gets pruned
         CHECK(graph.GetOps() == std::vector<Op*>{ &Z });
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &q, &w });
+        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ q.get(), w.get() });
     }
 
     SECTION("Prune G")
@@ -742,36 +762,38 @@ TEST_CASE("OpGraph RemoveAndPrune")
         graph.RemoveAndPrune(&G);
         // Only G gets removed but f doesn't, because it has other connections
         CHECK(graph.GetOps() == std::vector<Op*>{ &B, &D, &E, &H, &L, &Z });
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &a, &c, &f, &i, &j, &k, &q, &w });
+        CHECK(graph.GetBuffers() ==
+              std::vector<Buffer*>{ a.get(), c.get(), f.get(), i.get(), j.get(), k.get(), q.get(), w.get() });
     }
     SECTION("Prune H")
     {
         graph.RemoveAndPrune(&H);
         // Only H gets removed but f doesn't, because it has other connections
         CHECK(graph.GetOps() == std::vector<Op*>{ &B, &D, &E, &G, &L, &Z });
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &a, &c, &f, &i, &j, &k, &q, &w });
+        CHECK(graph.GetBuffers() ==
+              std::vector<Buffer*>{ a.get(), c.get(), f.get(), i.get(), j.get(), k.get(), q.get(), w.get() });
     }
 
     SECTION("Prune q")
     {
-        graph.RemoveAndPrune(&q);
+        graph.RemoveAndPrune(q.get());
         // The entire right sub-graph gets pruned
         CHECK(graph.GetOps() == std::vector<Op*>{ &B, &D, &E, &G, &H, &L });
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &a, &c, &f, &i, &j, &k });
+        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ a.get(), c.get(), f.get(), i.get(), j.get(), k.get() });
     }
     SECTION("Prune Z")
     {
         graph.RemoveAndPrune(&Z);
         // The entire right sub-graph gets pruned
         CHECK(graph.GetOps() == std::vector<Op*>{ &B, &D, &E, &G, &H, &L });
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &a, &c, &f, &i, &j, &k });
+        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ a.get(), c.get(), f.get(), i.get(), j.get(), k.get() });
     }
     SECTION("Prune w")
     {
-        graph.RemoveAndPrune(&w);
+        graph.RemoveAndPrune(w.get());
         // The entire right sub-graph gets pruned
         CHECK(graph.GetOps() == std::vector<Op*>{ &B, &D, &E, &G, &H, &L });
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &a, &c, &f, &i, &j, &k });
+        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ a.get(), c.get(), f.get(), i.get(), j.get(), k.get() });
     }
 }
 
@@ -814,35 +836,48 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Linear")
     DmaOp J(CascadingBufferFormat::NHWCB);
     DmaOp L(CascadingBufferFormat::NHWCB);
     DmaOp N(CascadingBufferFormat::NHWCB);
-    SramBuffer c;
-    c.m_Format      = CascadingBufferFormat::NHWCB;
-    c.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    c.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    c.m_Order       = TraversalOrder::Xyz;
-    DramBuffer e;
-    e.m_Format      = CascadingBufferFormat::NHWCB;
-    e.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    SramBuffer g;
-    g.m_Format      = CascadingBufferFormat::NHWCB;
-    g.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    g.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    g.m_Order       = TraversalOrder::Xyz;
-    DramBuffer i;
-    i.m_Format      = CascadingBufferFormat::NHWCB;
-    i.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    SramBuffer k;
-    k.m_Format      = CascadingBufferFormat::NHWCB;
-    k.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    k.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    k.m_Order       = TraversalOrder::Xyz;
-    DramBuffer m;
-    m.m_Format      = CascadingBufferFormat::NHWCB;
-    m.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    SramBuffer o;
-    o.m_Format      = CascadingBufferFormat::NHWCB;
-    o.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    o.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    o.m_Order       = TraversalOrder::Xyz;
+
+    std::unique_ptr<SramBuffer> c = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(2)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> e =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+
+    std::unique_ptr<SramBuffer> g = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(2)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> i =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+
+    std::unique_ptr<SramBuffer> k = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(2)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> m =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+
+    std::unique_ptr<SramBuffer> o = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(2)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
     graph.AddOp(&D);
     graph.AddOp(&F);
     graph.AddOp(&H);
@@ -851,26 +886,26 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Linear")
     graph.AddOp(&N);
 
     // Add the buffers in a weird order, to confirm that the topological sort works
-    graph.AddBuffer(&g);
-    graph.AddBuffer(&e);
-    graph.AddBuffer(&c);
-    graph.AddBuffer(&i);
-    graph.AddBuffer(&m);
-    graph.AddBuffer(&k);
-    graph.AddBuffer(&o);
+    graph.AddBuffer(g.get());
+    graph.AddBuffer(e.get());
+    graph.AddBuffer(c.get());
+    graph.AddBuffer(i.get());
+    graph.AddBuffer(m.get());
+    graph.AddBuffer(k.get());
+    graph.AddBuffer(o.get());
 
-    graph.AddConsumer(&c, &D, 0);
-    graph.AddProducer(&e, &D);
-    graph.AddConsumer(&e, &F, 0);
-    graph.AddProducer(&g, &F);
-    graph.AddConsumer(&g, &H, 0);
-    graph.AddProducer(&i, &H);
-    graph.AddConsumer(&i, &J, 0);
-    graph.AddProducer(&k, &J);
-    graph.AddConsumer(&k, &L, 0);
-    graph.AddProducer(&m, &L);
-    graph.AddConsumer(&m, &N, 0);
-    graph.AddProducer(&o, &N);
+    graph.AddConsumer(c.get(), &D, 0);
+    graph.AddProducer(e.get(), &D);
+    graph.AddConsumer(e.get(), &F, 0);
+    graph.AddProducer(g.get(), &F);
+    graph.AddConsumer(g.get(), &H, 0);
+    graph.AddProducer(i.get(), &H);
+    graph.AddConsumer(i.get(), &J, 0);
+    graph.AddProducer(k.get(), &J);
+    graph.AddConsumer(k.get(), &L, 0);
+    graph.AddProducer(m.get(), &L);
+    graph.AddConsumer(m.get(), &N, 0);
+    graph.AddProducer(o.get(), &N);
 
     bool debug = false;
     if (debug)
@@ -901,13 +936,13 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Linear")
         //     |
         //  o (Sram)
         //
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &c, &m, &o });
+        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ c.get(), m.get(), o.get() });
         CHECK(graph.GetOps() == std::vector<Op*>{ &D, &N });
 
-        CHECK(graph.GetConsumers(&c) == OpGraph::ConsumersList{ { &D, 0 } });
-        CHECK(graph.GetProducers(&m) == std::vector<Op*>{ &D });
-        CHECK(graph.GetConsumers(&m) == OpGraph::ConsumersList{ { &N, 0 } });
-        CHECK(graph.GetProducers(&o) == std::vector<Op*>{ &N });
+        CHECK(graph.GetConsumers(c.get()) == OpGraph::ConsumersList{ { &D, 0 } });
+        CHECK(graph.GetProducers(m.get()) == std::vector<Op*>{ &D });
+        CHECK(graph.GetConsumers(m.get()) == OpGraph::ConsumersList{ { &N, 0 } });
+        CHECK(graph.GetProducers(o.get()) == std::vector<Op*>{ &N });
     }
 
     SECTION("Chain shortened due to incompatible DMA")
@@ -916,7 +951,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Linear")
         // starting SRAM buffer as it would require a depth split which NHWC doesn't support.
         // This means the chain will be shortened to the previous DRAM buffer.
         L.m_TransferFormat = CascadingBufferFormat::NHWC;
-        m.m_Format         = CascadingBufferFormat::NHWC;
+        m->m_Format        = CascadingBufferFormat::NHWC;
 
         graph.RemoveRedundantCopies();
 
@@ -940,17 +975,17 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Linear")
         //     |
         //  o (Sram)
         //
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &c, &i, &m, &k, &o });
+        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ c.get(), i.get(), m.get(), k.get(), o.get() });
         CHECK(graph.GetOps() == std::vector<Op*>{ &D, &J, &L, &N });
 
-        CHECK(graph.GetConsumers(&c) == OpGraph::ConsumersList{ { &D, 0 } });
-        CHECK(graph.GetProducers(&i) == std::vector<Op*>{ &D });
-        CHECK(graph.GetConsumers(&i) == OpGraph::ConsumersList{ { &J, 0 } });
-        CHECK(graph.GetProducers(&k) == std::vector<Op*>{ &J });
-        CHECK(graph.GetConsumers(&k) == OpGraph::ConsumersList{ { &L, 0 } });
-        CHECK(graph.GetProducers(&m) == std::vector<Op*>{ &L });
-        CHECK(graph.GetConsumers(&m) == OpGraph::ConsumersList{ { &N, 0 } });
-        CHECK(graph.GetProducers(&o) == std::vector<Op*>{ &N });
+        CHECK(graph.GetConsumers(c.get()) == OpGraph::ConsumersList{ { &D, 0 } });
+        CHECK(graph.GetProducers(i.get()) == std::vector<Op*>{ &D });
+        CHECK(graph.GetConsumers(i.get()) == OpGraph::ConsumersList{ { &J, 0 } });
+        CHECK(graph.GetProducers(k.get()) == std::vector<Op*>{ &J });
+        CHECK(graph.GetConsumers(k.get()) == OpGraph::ConsumersList{ { &L, 0 } });
+        CHECK(graph.GetProducers(m.get()) == std::vector<Op*>{ &L });
+        CHECK(graph.GetConsumers(m.get()) == OpGraph::ConsumersList{ { &N, 0 } });
+        CHECK(graph.GetProducers(o.get()) == std::vector<Op*>{ &N });
     }
 }
 
@@ -990,30 +1025,40 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Linear")
     F.m_Offset = TensorShape{ 0, 0, 0, 32 };
     DmaOp H(CascadingBufferFormat::NHWCB);
     DmaOp J(CascadingBufferFormat::NHWCB);
-    DramBuffer a;
-    a.m_Format      = CascadingBufferFormat::FCAF_DEEP;
-    a.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    SramBuffer c;
-    c.m_Format      = CascadingBufferFormat::NHWCB;
-    c.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    c.m_StripeShape = TensorShape{ 1, 16, 16, 32 };
-    c.m_Order       = TraversalOrder::Xyz;
-    DramBuffer e;
-    e.m_Format      = CascadingBufferFormat::NHWCB;
-    e.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    SramBuffer g;
-    g.m_Format      = CascadingBufferFormat::NHWCB;
-    g.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    g.m_StripeShape = TensorShape{ 1, 16, 16, 32 };
-    g.m_Order       = TraversalOrder::Xyz;
-    DramBuffer i;
-    i.m_Format      = CascadingBufferFormat::NHWCB;
-    i.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    SramBuffer k;
-    k.m_Format      = CascadingBufferFormat::NHWCB;
-    k.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    k.m_StripeShape = TensorShape{ 1, 16, 16, 32 };
-    k.m_Order       = TraversalOrder::Xyz;
+
+    std::unique_ptr<DramBuffer> a =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::FCAF_DEEP).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+
+    std::unique_ptr<SramBuffer> c = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 32 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 32)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> e =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+
+    std::unique_ptr<SramBuffer> g = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 32 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 32)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> i =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+
+    std::unique_ptr<SramBuffer> k = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 32 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 32)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
     graph.AddOp(&B);
     graph.AddOp(&D);
     graph.AddOp(&F);
@@ -1021,23 +1066,23 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Linear")
     graph.AddOp(&J);
 
     // Add the buffers in a weird order, to confirm that the topological sort works
-    graph.AddBuffer(&g);
-    graph.AddBuffer(&e);
-    graph.AddBuffer(&c);
-    graph.AddBuffer(&a);
-    graph.AddBuffer(&k);
-    graph.AddBuffer(&i);
+    graph.AddBuffer(g.get());
+    graph.AddBuffer(e.get());
+    graph.AddBuffer(c.get());
+    graph.AddBuffer(a.get());
+    graph.AddBuffer(k.get());
+    graph.AddBuffer(i.get());
 
-    graph.AddConsumer(&a, &B, 0);
-    graph.AddProducer(&c, &B);
-    graph.AddConsumer(&c, &D, 0);
-    graph.AddProducer(&e, &D);
-    graph.AddConsumer(&e, &F, 0);
-    graph.AddProducer(&g, &F);
-    graph.AddConsumer(&g, &H, 0);
-    graph.AddProducer(&i, &H);
-    graph.AddConsumer(&i, &J, 0);
-    graph.AddProducer(&k, &J);
+    graph.AddConsumer(a.get(), &B, 0);
+    graph.AddProducer(c.get(), &B);
+    graph.AddConsumer(c.get(), &D, 0);
+    graph.AddProducer(e.get(), &D);
+    graph.AddConsumer(e.get(), &F, 0);
+    graph.AddProducer(g.get(), &F);
+    graph.AddConsumer(g.get(), &H, 0);
+    graph.AddProducer(i.get(), &H);
+    graph.AddConsumer(i.get(), &J, 0);
+    graph.AddProducer(k.get(), &J);
 
     bool debug = true;
     if (debug)
@@ -1065,11 +1110,11 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Linear")
         //     |
         //  k (Sram)
         //
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &a, &k });
+        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ a.get(), k.get() });
         CHECK(graph.GetOps() == std::vector<Op*>{ &J });
 
-        CHECK(graph.GetConsumers(&a) == OpGraph::ConsumersList{ { &J, 0 } });
-        CHECK(graph.GetProducers(&k) == std::vector<Op*>{ &J });
+        CHECK(graph.GetConsumers(a.get()) == OpGraph::ConsumersList{ { &J, 0 } });
+        CHECK(graph.GetProducers(k.get()) == std::vector<Op*>{ &J });
     }
 
     SECTION("Chain shortened due to incompatible DMA")
@@ -1077,7 +1122,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Linear")
         // Change the last SRAM to use packed boundary data, which is then incompatible with the
         // starting DRAM buffer as it FCAF and we don't support packed boundary data with FCAF.
         // This means the chain will be shortened to the next SRAM buffer.
-        k.m_PackedBoundaryThickness = { 1, 1, 1, 1 };
+        k->m_PackedBoundaryThickness = { 1, 1, 1, 1 };
 
         graph.RemoveRedundantCopies();
 
@@ -1103,15 +1148,15 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Linear")
         //     |
         //  k (Sram)
         //
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &g, &a, &k, &i });
+        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ g.get(), a.get(), k.get(), i.get() });
         CHECK(graph.GetOps() == std::vector<Op*>{ &F, &H, &J });
 
-        CHECK(graph.GetConsumers(&a) == OpGraph::ConsumersList{ { &F, 0 } });
-        CHECK(graph.GetProducers(&g) == std::vector<Op*>{ &F });
-        CHECK(graph.GetConsumers(&g) == OpGraph::ConsumersList{ { &H, 0 } });
-        CHECK(graph.GetProducers(&i) == std::vector<Op*>{ &H });
-        CHECK(graph.GetConsumers(&i) == OpGraph::ConsumersList{ { &J, 0 } });
-        CHECK(graph.GetProducers(&k) == std::vector<Op*>{ &J });
+        CHECK(graph.GetConsumers(a.get()) == OpGraph::ConsumersList{ { &F, 0 } });
+        CHECK(graph.GetProducers(g.get()) == std::vector<Op*>{ &F });
+        CHECK(graph.GetConsumers(g.get()) == OpGraph::ConsumersList{ { &H, 0 } });
+        CHECK(graph.GetProducers(i.get()) == std::vector<Op*>{ &H });
+        CHECK(graph.GetConsumers(i.get()) == OpGraph::ConsumersList{ { &J, 0 } });
+        CHECK(graph.GetProducers(k.get()) == std::vector<Op*>{ &J });
     }
 }
 
@@ -1143,44 +1188,51 @@ TEST_CASE("OpGraph RemoveRedundantCopies Reshape")
     DmaOp D(CascadingBufferFormat::NHWC);
     DmaOp F(CascadingBufferFormat::NHWC);
     DmaOp H(CascadingBufferFormat::NHWC);
-    DramBuffer a;
-    a.m_Format      = CascadingBufferFormat::NHWC;
-    a.m_TensorShape = TensorShape{ 1, 10, 10, 10 };
-    SramBuffer c;
-    c.m_Format      = CascadingBufferFormat::NHWCB;
-    c.m_TensorShape = TensorShape{ 1, 10, 10, 10 };
-    c.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    c.m_Order       = TraversalOrder::Xyz;
-    DramBuffer e;
-    e.m_Format      = CascadingBufferFormat::NHWC;
-    e.m_TensorShape = TensorShape{ 1, 100, 10, 1 };
-    SramBuffer g;
-    g.m_Format      = CascadingBufferFormat::NHWCB;
-    g.m_TensorShape = TensorShape{ 1, 100, 10, 1 };
-    g.m_StripeShape = TensorShape{ 1, 112, 16, 16 };
-    g.m_Order       = TraversalOrder::Xyz;
-    DramBuffer i;
-    i.m_Format      = CascadingBufferFormat::NHWC;
-    i.m_TensorShape = TensorShape{ 1, 1, 1000, 1 };
+
+    std::unique_ptr<DramBuffer> a =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 10, 10, 30 });
+
+    std::unique_ptr<SramBuffer> c = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 10, 10, 10 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> e =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 100, 10, 1 });
+
+    std::unique_ptr<SramBuffer> g = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 100, 10, 1 })
+                                        .AddStripeShape(TensorShape{ 1, 112, 16, 16 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 112 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> i =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 1, 1000, 1 });
+
     graph.AddOp(&B);
     graph.AddOp(&D);
     graph.AddOp(&F);
     graph.AddOp(&H);
 
-    graph.AddBuffer(&a);
-    graph.AddBuffer(&c);
-    graph.AddBuffer(&e);
-    graph.AddBuffer(&g);
-    graph.AddBuffer(&i);
+    graph.AddBuffer(a.get());
+    graph.AddBuffer(c.get());
+    graph.AddBuffer(e.get());
+    graph.AddBuffer(g.get());
+    graph.AddBuffer(i.get());
 
-    graph.AddConsumer(&a, &B, 0);
-    graph.AddProducer(&c, &B);
-    graph.AddConsumer(&c, &D, 0);
-    graph.AddProducer(&e, &D);
-    graph.AddConsumer(&e, &F, 0);
-    graph.AddProducer(&g, &F);
-    graph.AddConsumer(&g, &H, 0);
-    graph.AddProducer(&i, &H);
+    graph.AddConsumer(a.get(), &B, 0);
+    graph.AddProducer(c.get(), &B);
+    graph.AddConsumer(c.get(), &D, 0);
+    graph.AddProducer(e.get(), &D);
+    graph.AddConsumer(e.get(), &F, 0);
+    graph.AddProducer(g.get(), &F);
+    graph.AddConsumer(g.get(), &H, 0);
+    graph.AddProducer(i.get(), &H);
 
     bool debug = false;
     if (debug)
@@ -1209,13 +1261,13 @@ TEST_CASE("OpGraph RemoveRedundantCopies Reshape")
     //     |
     //  i (Dram)
     //
-    CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &a, &c, &i });
+    CHECK(graph.GetBuffers() == std::vector<Buffer*>{ a.get(), c.get(), i.get() });
     CHECK(graph.GetOps() == std::vector<Op*>{ &B, &D });
 
-    CHECK(graph.GetConsumers(&a) == OpGraph::ConsumersList{ { &B, 0 } });
-    CHECK(graph.GetProducers(&c) == std::vector<Op*>{ &B });
-    CHECK(graph.GetConsumers(&c) == OpGraph::ConsumersList{ { &D, 0 } });
-    CHECK(graph.GetProducers(&i) == std::vector<Op*>{ &D });
+    CHECK(graph.GetConsumers(a.get()) == OpGraph::ConsumersList{ { &B, 0 } });
+    CHECK(graph.GetProducers(c.get()) == std::vector<Op*>{ &B });
+    CHECK(graph.GetConsumers(c.get()) == OpGraph::ConsumersList{ { &D, 0 } });
+    CHECK(graph.GetProducers(i.get()) == std::vector<Op*>{ &D });
 }
 
 TEST_CASE("OpGraph RemoveRedundantCopies Invalid Buffers and Ops")
@@ -1246,44 +1298,51 @@ TEST_CASE("OpGraph RemoveRedundantCopies Invalid Buffers and Ops")
     DmaOp D(CascadingBufferFormat::NHWC);
     DmaOp F(CascadingBufferFormat::NHWC);
     DmaOp H(CascadingBufferFormat::NHWC);
-    DramBuffer a;
-    a.m_Format      = CascadingBufferFormat::NHWC;
-    a.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
-    SramBuffer c;
-    c.m_Format      = CascadingBufferFormat::NHWCB;
-    c.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
-    c.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    c.m_Order       = TraversalOrder::Xyz;
-    DramBuffer e;
-    e.m_Format      = CascadingBufferFormat::NHWC;
-    e.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
-    SramBuffer g;
-    g.m_Format      = CascadingBufferFormat::NHWCB;
-    g.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
-    g.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    g.m_Order       = TraversalOrder::Xyz;
-    DramBuffer i;
-    i.m_Format      = CascadingBufferFormat::NHWC;
-    i.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+
+    std::unique_ptr<DramBuffer> a =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+
+    std::unique_ptr<SramBuffer> c = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> e =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+
+    std::unique_ptr<SramBuffer> g = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> i =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+
     graph.AddOp(&B);
     graph.AddOp(&D);
     graph.AddOp(&F);
     graph.AddOp(&H);
 
-    graph.AddBuffer(&a);
-    graph.AddBuffer(&c);
-    graph.AddBuffer(&e);
-    graph.AddBuffer(&g);
-    graph.AddBuffer(&i);
+    graph.AddBuffer(a.get());
+    graph.AddBuffer(c.get());
+    graph.AddBuffer(e.get());
+    graph.AddBuffer(g.get());
+    graph.AddBuffer(i.get());
 
-    graph.AddConsumer(&a, &B, 0);
-    graph.AddProducer(&c, &B);
-    graph.AddConsumer(&c, &D, 0);
-    graph.AddProducer(&e, &D);
-    graph.AddConsumer(&e, &F, 0);
-    graph.AddProducer(&g, &F);
-    graph.AddConsumer(&g, &H, 0);
-    graph.AddProducer(&i, &H);
+    graph.AddConsumer(a.get(), &B, 0);
+    graph.AddProducer(c.get(), &B);
+    graph.AddConsumer(c.get(), &D, 0);
+    graph.AddProducer(e.get(), &D);
+    graph.AddConsumer(e.get(), &F, 0);
+    graph.AddProducer(g.get(), &F);
+    graph.AddConsumer(g.get(), &H, 0);
+    graph.AddProducer(i.get(), &H);
 
     bool debug = false;
     if (debug)
@@ -1315,25 +1374,27 @@ TEST_CASE("OpGraph RemoveRedundantCopies Invalid Buffers and Ops")
 
     SECTION("Buffers not in DRAM/SRAM")
     {
-        PleInputSramBuffer c2;
-        c2.m_Format      = CascadingBufferFormat::NHWCB;
-        c2.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
-        c2.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-        graph.AddBuffer(&c2);
-        graph.RemoveProducer(&c, &B);
-        graph.AddProducer(&c2, &B);
-        graph.RemoveConsumer(&c, &D, 0);
-        graph.AddConsumer(&c2, &D, 0);
+        std::unique_ptr<PleInputSramBuffer> c2 = PleInputSramBuffer::Build()
+                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
+                                                     .AddStripeShape(TensorShape{ 1, 16, 16, 16 });
 
-        PleInputSramBuffer g2;
-        g2.m_Format      = CascadingBufferFormat::NHWCB;
-        g2.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
-        g2.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-        graph.AddBuffer(&g2);
-        graph.RemoveProducer(&g, &F);
-        graph.AddProducer(&g2, &F);
-        graph.RemoveConsumer(&g, &H, 0);
-        graph.AddConsumer(&g2, &H, 0);
+        graph.AddBuffer(c2.get());
+        graph.RemoveProducer(c.get(), &B);
+        graph.AddProducer(c2.get(), &B);
+        graph.RemoveConsumer(c.get(), &D, 0);
+        graph.AddConsumer(c2.get(), &D, 0);
+
+        std::unique_ptr<PleInputSramBuffer> g2 = PleInputSramBuffer::Build()
+                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
+                                                     .AddStripeShape(TensorShape{ 1, 16, 16, 16 });
+
+        graph.AddBuffer(g2.get());
+        graph.RemoveProducer(g.get(), &F);
+        graph.AddProducer(g2.get(), &F);
+        graph.RemoveConsumer(g.get(), &H, 0);
+        graph.AddConsumer(g2.get(), &H, 0);
 
         size_t origNumBuffers = graph.GetBuffers().size();
         size_t origNumOps     = graph.GetOps().size();
@@ -1348,12 +1409,12 @@ TEST_CASE("OpGraph RemoveRedundantCopies Invalid Buffers and Ops")
     {
         // Replace D with something that's not a DMA op
         MceOp newD;
-        graph.RemoveConsumer(&c, &D, 0);
-        graph.RemoveProducer(&e, &D);
+        graph.RemoveConsumer(c.get(), &D, 0);
+        graph.RemoveProducer(e.get(), &D);
         graph.RemoveAndPrune(&D);
         graph.AddOp(&newD);
-        graph.AddConsumer(&c, &newD, 0);
-        graph.AddProducer(&e, &newD);
+        graph.AddConsumer(c.get(), &newD, 0);
+        graph.AddProducer(e.get(), &newD);
 
         graph.RemoveRedundantCopies();
 
@@ -1377,11 +1438,11 @@ TEST_CASE("OpGraph RemoveRedundantCopies Invalid Buffers and Ops")
     SECTION("Subtensor and Rehape")
     {
         // Change c -> e to be a reshape, and e -> g to be a subtensor
-        e.m_TensorShape = { 1, 256, 1, 16 };
-        F.m_Offset      = { 0, 128, 0, 0 };
-        g.m_TensorShape = { 1, 128, 1, 16 };
-        g.m_StripeShape = { 1, 128, 8, 16 };
-        i.m_TensorShape = { 1, 128, 1, 16 };
+        e->m_TensorShape = { 1, 256, 1, 16 };
+        F.m_Offset       = { 0, 128, 0, 0 };
+        g->m_TensorShape = { 1, 128, 1, 16 };
+        g->m_StripeShape = { 1, 128, 8, 16 };
+        i->m_TensorShape = { 1, 128, 1, 16 };
 
         graph.RemoveRedundantCopies();
 
@@ -1420,55 +1481,68 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Multiple Concat")
     H.m_Offset = TensorShape{ 0, 0, 0, 0 };
     DmaOp K(CascadingBufferFormat::NHWCB);
     K.m_Offset = TensorShape{ 0, 0, 0, 16 };
-    SramBuffer a;
-    a.m_Format      = CascadingBufferFormat::NHWCB;
-    a.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
-    a.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    a.m_Order       = TraversalOrder::Xyz;
-    SramBuffer b;
-    b.m_Format      = CascadingBufferFormat::NHWCB;
-    b.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
-    b.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    b.m_Order       = TraversalOrder::Xyz;
-    DramBuffer e;
-    e.m_Format      = CascadingBufferFormat::NHWCB;
-    e.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    SramBuffer f;
-    f.m_Format      = CascadingBufferFormat::NHWCB;
-    f.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
-    f.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    f.m_Order       = TraversalOrder::Xyz;
-    DramBuffer i;
-    i.m_Format      = CascadingBufferFormat::NHWCB;
-    i.m_TensorShape = TensorShape{ 1, 16, 16, 48 };
-    SramBuffer j;
-    j.m_Format      = CascadingBufferFormat::NHWCB;
-    j.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    j.m_StripeShape = TensorShape{ 1, 16, 16, 32 };
-    j.m_Order       = TraversalOrder::Xyz;
+
+    std::unique_ptr<SramBuffer> a = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<SramBuffer> b = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> e =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+
+    std::unique_ptr<SramBuffer> f = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> i =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 48 });
+
+    std::unique_ptr<SramBuffer> j = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 32 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 32)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
     graph.AddOp(&C);
     graph.AddOp(&D);
     graph.AddOp(&G);
     graph.AddOp(&H);
     graph.AddOp(&K);
 
-    graph.AddBuffer(&a);
-    graph.AddBuffer(&b);
-    graph.AddBuffer(&e);
-    graph.AddBuffer(&f);
-    graph.AddBuffer(&i);
-    graph.AddBuffer(&j);
+    graph.AddBuffer(a.get());
+    graph.AddBuffer(b.get());
+    graph.AddBuffer(e.get());
+    graph.AddBuffer(f.get());
+    graph.AddBuffer(i.get());
+    graph.AddBuffer(j.get());
 
-    graph.AddConsumer(&a, &C, 0);
-    graph.AddConsumer(&b, &D, 0);
-    graph.AddProducer(&e, &C);
-    graph.AddProducer(&e, &D);
-    graph.AddConsumer(&e, &G, 0);
-    graph.AddProducer(&j, &G);
-    graph.AddConsumer(&j, &K, 0);
-    graph.AddConsumer(&f, &H, 0);
-    graph.AddProducer(&i, &K);
-    graph.AddProducer(&i, &H);
+    graph.AddConsumer(a.get(), &C, 0);
+    graph.AddConsumer(b.get(), &D, 0);
+    graph.AddProducer(e.get(), &C);
+    graph.AddProducer(e.get(), &D);
+    graph.AddConsumer(e.get(), &G, 0);
+    graph.AddProducer(j.get(), &G);
+    graph.AddConsumer(j.get(), &K, 0);
+    graph.AddConsumer(f.get(), &H, 0);
+    graph.AddProducer(i.get(), &K);
+    graph.AddProducer(i.get(), &H);
 
     bool debug = true;
     if (debug)
@@ -1503,13 +1577,13 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Multiple Concat")
         //              \ |       /
         //                i (Dram)
         //
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &a, &b, &f, &i });
+        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ a.get(), b.get(), f.get(), i.get() });
         CHECK(graph.GetOps() == std::vector<Op*>{ &C, &D, &H });
 
-        CHECK(graph.GetConsumers(&a) == OpGraph::ConsumersList{ { &C, 0 } });
-        CHECK(graph.GetConsumers(&b) == OpGraph::ConsumersList{ { &D, 0 } });
-        CHECK(graph.GetConsumers(&f) == OpGraph::ConsumersList{ { &H, 0 } });
-        CHECK(graph.GetProducers(&i) == std::vector<Op*>{ &H, &C, &D });
+        CHECK(graph.GetConsumers(a.get()) == OpGraph::ConsumersList{ { &C, 0 } });
+        CHECK(graph.GetConsumers(b.get()) == OpGraph::ConsumersList{ { &D, 0 } });
+        CHECK(graph.GetConsumers(f.get()) == OpGraph::ConsumersList{ { &H, 0 } });
+        CHECK(graph.GetProducers(i.get()) == std::vector<Op*>{ &H, &C, &D });
 
         CHECK(C.m_Offset == TensorShape{ 0, 0, 0, 16 });
         CHECK(D.m_Offset == TensorShape{ 0, 0, 0, 32 });
@@ -1520,10 +1594,10 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Multiple Concat")
     {
         // Change the graph so that not all of the input data makes it into the output buffer, making
         // the optimisation not possible
-        G.m_Offset      = TensorShape{ 0, 0, 0, 16 };      // From 0,0,0,0
-        j.m_TensorShape = TensorShape{ 1, 16, 16, 16 };    // Down from 32 depth
-        j.m_StripeShape = TensorShape{ 1, 16, 16, 16 };    // Down from 32 depth
-        i.m_TensorShape = TensorShape{ 1, 16, 16, 32 };    // Down from 48 depth
+        G.m_Offset       = TensorShape{ 0, 0, 0, 16 };      // From 0,0,0,0
+        j->m_TensorShape = TensorShape{ 1, 16, 16, 16 };    // Down from 32 depth
+        j->m_StripeShape = TensorShape{ 1, 16, 16, 16 };    // Down from 32 depth
+        i->m_TensorShape = TensorShape{ 1, 16, 16, 32 };    // Down from 48 depth
 
         graph.RemoveRedundantCopies();
 
@@ -1537,7 +1611,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Multiple Concat")
         // Add a second consumer to e, which should prevent the optimisation
         DmaOp newConsumer(CascadingBufferFormat::NHWCB);
         graph.AddOp(&newConsumer);
-        graph.AddConsumer(&e, &newConsumer, 0);
+        graph.AddConsumer(e.get(), &newConsumer, 0);
 
         graph.RemoveRedundantCopies();
 
@@ -1581,37 +1655,53 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Multiple Split")
     DmaOp K(CascadingBufferFormat::NHWCB);
     K.m_Offset = TensorShape{ 0, 0, 0, 16 };
     DmaOp L(CascadingBufferFormat::NHWCB);
-    SramBuffer a;
-    a.m_Format      = CascadingBufferFormat::NHWCB;
-    a.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
-    a.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    a.m_Order       = TraversalOrder::Xyz;
-    SramBuffer b;
-    b.m_Format      = CascadingBufferFormat::NHWCB;
-    b.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
-    b.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    b.m_Order       = TraversalOrder::Xyz;
-    DramBuffer e;
-    e.m_Format      = CascadingBufferFormat::NHWCB;
-    e.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    SramBuffer f;
-    f.m_Format      = CascadingBufferFormat::NHWCB;
-    f.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
-    f.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    f.m_Order       = TraversalOrder::Xyz;
-    DramBuffer i;
-    i.m_Format      = CascadingBufferFormat::NHWCB;
-    i.m_TensorShape = TensorShape{ 1, 16, 16, 48 };
-    SramBuffer j;
-    j.m_Format      = CascadingBufferFormat::NHWCB;
-    j.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
-    j.m_StripeShape = TensorShape{ 1, 16, 16, 32 };
-    j.m_Order       = TraversalOrder::Xyz;
-    SramBuffer m;
-    m.m_Format      = CascadingBufferFormat::NHWCB;
-    m.m_TensorShape = TensorShape{ 1, 16, 16, 48 };
-    m.m_StripeShape = TensorShape{ 1, 16, 16, 48 };
-    m.m_Order       = TraversalOrder::Xyz;
+
+    std::unique_ptr<SramBuffer> a = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<SramBuffer> b = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> e =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+
+    std::unique_ptr<SramBuffer> f = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> i =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 48 });
+
+    std::unique_ptr<SramBuffer> j = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 32 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 32)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<SramBuffer> m = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 48 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 48 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 48)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
     graph.AddOp(&C);
     graph.AddOp(&D);
     graph.AddOp(&G);
@@ -1619,26 +1709,26 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Multiple Split")
     graph.AddOp(&K);
     graph.AddOp(&L);
 
-    graph.AddBuffer(&a);
-    graph.AddBuffer(&b);
-    graph.AddBuffer(&e);
-    graph.AddBuffer(&f);
-    graph.AddBuffer(&i);
-    graph.AddBuffer(&j);
-    graph.AddBuffer(&m);
+    graph.AddBuffer(a.get());
+    graph.AddBuffer(b.get());
+    graph.AddBuffer(e.get());
+    graph.AddBuffer(f.get());
+    graph.AddBuffer(i.get());
+    graph.AddBuffer(j.get());
+    graph.AddBuffer(m.get());
 
-    graph.AddProducer(&a, &C);
-    graph.AddProducer(&b, &D);
-    graph.AddConsumer(&e, &C, 0);
-    graph.AddConsumer(&e, &D, 0);
-    graph.AddProducer(&e, &G);
-    graph.AddConsumer(&j, &G, 0);
-    graph.AddProducer(&j, &K);
-    graph.AddProducer(&f, &H);
-    graph.AddConsumer(&i, &K, 0);
-    graph.AddConsumer(&i, &H, 0);
-    graph.AddProducer(&i, &L);
-    graph.AddConsumer(&m, &L, 0);
+    graph.AddProducer(a.get(), &C);
+    graph.AddProducer(b.get(), &D);
+    graph.AddConsumer(e.get(), &C, 0);
+    graph.AddConsumer(e.get(), &D, 0);
+    graph.AddProducer(e.get(), &G);
+    graph.AddConsumer(j.get(), &G, 0);
+    graph.AddProducer(j.get(), &K);
+    graph.AddProducer(f.get(), &H);
+    graph.AddConsumer(i.get(), &K, 0);
+    graph.AddConsumer(i.get(), &H, 0);
+    graph.AddProducer(i.get(), &L);
+    graph.AddConsumer(m.get(), &L, 0);
 
     bool debug = true;
     if (debug)
@@ -1677,15 +1767,15 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Multiple Split")
         //     |          |
         //  a (Sram)   b (Sram)
         //
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &a, &b, &f, &i, &m });
+        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ a.get(), b.get(), f.get(), i.get(), m.get() });
         CHECK(graph.GetOps() == std::vector<Op*>{ &C, &D, &H, &L });
 
-        CHECK(graph.GetConsumers(&i) == OpGraph::ConsumersList{ { &H, 0 }, { &D, 0 }, { &C, 0 } });
-        CHECK(graph.GetProducers(&a) == std::vector<Op*>{ &C });
-        CHECK(graph.GetProducers(&b) == std::vector<Op*>{ &D });
-        CHECK(graph.GetProducers(&f) == std::vector<Op*>{ &H });
-        CHECK(graph.GetConsumers(&m) == OpGraph::ConsumersList{ { &L, 0 } });
-        CHECK(graph.GetProducers(&i) == std::vector<Op*>{ &L });
+        CHECK(graph.GetConsumers(i.get()) == OpGraph::ConsumersList{ { &H, 0 }, { &D, 0 }, { &C, 0 } });
+        CHECK(graph.GetProducers(a.get()) == std::vector<Op*>{ &C });
+        CHECK(graph.GetProducers(b.get()) == std::vector<Op*>{ &D });
+        CHECK(graph.GetProducers(f.get()) == std::vector<Op*>{ &H });
+        CHECK(graph.GetConsumers(m.get()) == OpGraph::ConsumersList{ { &L, 0 } });
+        CHECK(graph.GetProducers(i.get()) == std::vector<Op*>{ &L });
 
         CHECK(C.m_Offset == TensorShape{ 0, 0, 0, 16 });
         CHECK(D.m_Offset == TensorShape{ 0, 0, 0, 32 });
@@ -1696,12 +1786,12 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Multiple Split")
     {
         // Change the graph so that some of an output buffer doesn't come from the input buffer, making
         // the optimisation not possible
-        G.m_Offset      = TensorShape{ 0, 0, 0, 16 };      // From 0,0,0,0
-        j.m_TensorShape = TensorShape{ 1, 16, 16, 16 };    // Down from 32 depth
-        j.m_StripeShape = TensorShape{ 1, 16, 16, 16 };    // Down from 32 depth
-        i.m_TensorShape = TensorShape{ 1, 16, 16, 32 };    // Down from 48 depth
-        m.m_TensorShape = TensorShape{ 1, 16, 16, 32 };    // Down from 48 depth
-        m.m_StripeShape = TensorShape{ 1, 16, 16, 32 };    // Down from 48 depth
+        G.m_Offset       = TensorShape{ 0, 0, 0, 16 };      // From 0,0,0,0
+        j->m_TensorShape = TensorShape{ 1, 16, 16, 16 };    // Down from 32 depth
+        j->m_StripeShape = TensorShape{ 1, 16, 16, 16 };    // Down from 32 depth
+        i->m_TensorShape = TensorShape{ 1, 16, 16, 32 };    // Down from 48 depth
+        m->m_TensorShape = TensorShape{ 1, 16, 16, 32 };    // Down from 48 depth
+        m->m_StripeShape = TensorShape{ 1, 16, 16, 32 };    // Down from 48 depth
 
         graph.RemoveRedundantCopies();
 
@@ -1715,7 +1805,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Multiple Split")
         // Add a second producer to e, which should prevent the optimisation
         DmaOp newProducer(CascadingBufferFormat::NHWCB);
         graph.AddOp(&newProducer);
-        graph.AddProducer(&e, &newProducer);
+        graph.AddProducer(e.get(), &newProducer);
 
         graph.RemoveRedundantCopies();
 
@@ -1754,46 +1844,56 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Concat one branch invalid")
     D.m_Offset = TensorShape{ 0, 10, 0, 0 };
     DmaOp G(CascadingBufferFormat::NHWC);
     DmaOp K(CascadingBufferFormat::NHWC);
-    SramBuffer a;
-    a.m_Format      = CascadingBufferFormat::NHWCB;
-    a.m_TensorShape = TensorShape{ 1, 10, 16, 16 };
-    a.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    a.m_Order       = TraversalOrder::Xyz;
-    SramBuffer b;
-    b.m_Format      = CascadingBufferFormat::NHWCB;
-    b.m_TensorShape = TensorShape{ 1, 6, 16, 16 };
-    b.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    b.m_Order       = TraversalOrder::Xyz;
-    DramBuffer e;
-    e.m_Format      = CascadingBufferFormat::NHWC;
-    e.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
-    SramBuffer j;
-    j.m_Format      = CascadingBufferFormat::NHWCB;
-    j.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
-    j.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    j.m_Order       = TraversalOrder::Xyz;
-    DramBuffer i;
-    i.m_Format      = CascadingBufferFormat::NHWC;
-    i.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+
+    std::unique_ptr<SramBuffer> a = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 10, 16, 16 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<SramBuffer> b = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 6, 16, 16 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> e =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+
+    std::unique_ptr<SramBuffer> j = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> i =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+
     graph.AddOp(&C);
     graph.AddOp(&D);
     graph.AddOp(&G);
     graph.AddOp(&K);
 
-    graph.AddBuffer(&a);
-    graph.AddBuffer(&b);
-    graph.AddBuffer(&e);
-    graph.AddBuffer(&j);
-    graph.AddBuffer(&i);
+    graph.AddBuffer(a.get());
+    graph.AddBuffer(b.get());
+    graph.AddBuffer(e.get());
+    graph.AddBuffer(j.get());
+    graph.AddBuffer(i.get());
 
-    graph.AddConsumer(&a, &C, 0);
-    graph.AddConsumer(&b, &D, 0);
-    graph.AddProducer(&e, &C);
-    graph.AddProducer(&e, &D);
-    graph.AddConsumer(&e, &G, 0);
-    graph.AddProducer(&j, &G);
-    graph.AddConsumer(&j, &K, 0);
-    graph.AddProducer(&i, &K);
+    graph.AddConsumer(a.get(), &C, 0);
+    graph.AddConsumer(b.get(), &D, 0);
+    graph.AddProducer(e.get(), &C);
+    graph.AddProducer(e.get(), &D);
+    graph.AddConsumer(e.get(), &G, 0);
+    graph.AddProducer(j.get(), &G);
+    graph.AddConsumer(j.get(), &K, 0);
+    graph.AddProducer(i.get(), &K);
 
     bool debug = true;
     if (debug)
@@ -1828,7 +1928,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Concat one branch invalid")
     {
         // We can no longer DMA straight from b -> i, as you can't start at H offset 10 into NHWCB
         K.m_TransferFormat = CascadingBufferFormat::NHWCB;
-        i.m_Format         = CascadingBufferFormat::NHWCB;
+        i->m_Format        = CascadingBufferFormat::NHWCB;
 
         graph.RemoveRedundantCopies();
 
@@ -1869,46 +1969,56 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Split one branch invalid")
     D.m_Offset = TensorShape{ 0, 10, 0, 0 };
     DmaOp G(CascadingBufferFormat::NHWC);
     DmaOp K(CascadingBufferFormat::NHWC);
-    SramBuffer a;
-    a.m_Format      = CascadingBufferFormat::NHWCB;
-    a.m_TensorShape = TensorShape{ 1, 10, 16, 16 };
-    a.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    a.m_Order       = TraversalOrder::Xyz;
-    SramBuffer b;
-    b.m_Format      = CascadingBufferFormat::NHWCB;
-    b.m_TensorShape = TensorShape{ 1, 6, 16, 16 };
-    b.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    b.m_Order       = TraversalOrder::Xyz;
-    DramBuffer e;
-    e.m_Format      = CascadingBufferFormat::NHWC;
-    e.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
-    SramBuffer j;
-    j.m_Format      = CascadingBufferFormat::NHWCB;
-    j.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
-    j.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
-    j.m_Order       = TraversalOrder::Xyz;
-    DramBuffer i;
-    i.m_Format      = CascadingBufferFormat::NHWC;
-    i.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+
+    std::unique_ptr<SramBuffer> a = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 10, 16, 16 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<SramBuffer> b = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 6, 16, 16 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> e =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+
+    std::unique_ptr<SramBuffer> j = SramBuffer::Build()
+                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
+                                        .AddNumStripes(1)
+                                        .AddSlotSize(1 * 16 * 16 * 16)
+                                        .AddTraversalOrder(TraversalOrder::Xyz);
+
+    std::unique_ptr<DramBuffer> i =
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+
     graph.AddOp(&C);
     graph.AddOp(&D);
     graph.AddOp(&G);
     graph.AddOp(&K);
 
-    graph.AddBuffer(&a);
-    graph.AddBuffer(&b);
-    graph.AddBuffer(&e);
-    graph.AddBuffer(&j);
-    graph.AddBuffer(&i);
+    graph.AddBuffer(a.get());
+    graph.AddBuffer(b.get());
+    graph.AddBuffer(e.get());
+    graph.AddBuffer(j.get());
+    graph.AddBuffer(i.get());
 
-    graph.AddProducer(&a, &C);
-    graph.AddProducer(&b, &D);
-    graph.AddConsumer(&e, &C, 0);
-    graph.AddConsumer(&e, &D, 0);
-    graph.AddProducer(&e, &G);
-    graph.AddConsumer(&j, &G, 0);
-    graph.AddProducer(&j, &K);
-    graph.AddConsumer(&i, &K, 0);
+    graph.AddProducer(a.get(), &C);
+    graph.AddProducer(b.get(), &D);
+    graph.AddConsumer(e.get(), &C, 0);
+    graph.AddConsumer(e.get(), &D, 0);
+    graph.AddProducer(e.get(), &G);
+    graph.AddConsumer(j.get(), &G, 0);
+    graph.AddProducer(j.get(), &K);
+    graph.AddConsumer(i.get(), &K, 0);
 
     bool debug = true;
     if (debug)
@@ -1943,7 +2053,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Split one branch invalid")
     {
         // We can no longer DMA straight from i -> b, as you can't start at H offset 10 into NHWCB
         K.m_TransferFormat = CascadingBufferFormat::NHWCB;
-        i.m_Format         = CascadingBufferFormat::NHWCB;
+        i->m_Format        = CascadingBufferFormat::NHWCB;
 
         graph.RemoveRedundantCopies();
 
@@ -1971,16 +2081,16 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Split one branch invalid")
         //  a (Sram)  b (Sram)
         //
 
-        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ &a, &b, &e, &j, &i });
+        CHECK(graph.GetBuffers() == std::vector<Buffer*>{ a.get(), b.get(), e.get(), j.get(), i.get() });
         CHECK(graph.GetOps() == std::vector<Op*>{ &C, &D, &G, &K });
 
-        CHECK(graph.GetConsumers(&i) == OpGraph::ConsumersList{ { &K, 0 }, { &C, 0 } });
-        CHECK(graph.GetProducers(&a) == std::vector<Op*>{ &C });
-        CHECK(graph.GetProducers(&j) == std::vector<Op*>{ &K });
-        CHECK(graph.GetConsumers(&j) == OpGraph::ConsumersList{ { &G, 0 } });
-        CHECK(graph.GetProducers(&e) == std::vector<Op*>{ &G });
-        CHECK(graph.GetConsumers(&e) == OpGraph::ConsumersList{ { &D, 0 } });
-        CHECK(graph.GetProducers(&b) == std::vector<Op*>{ &D });
+        CHECK(graph.GetConsumers(i.get()) == OpGraph::ConsumersList{ { &K, 0 }, { &C, 0 } });
+        CHECK(graph.GetProducers(a.get()) == std::vector<Op*>{ &C });
+        CHECK(graph.GetProducers(j.get()) == std::vector<Op*>{ &K });
+        CHECK(graph.GetConsumers(j.get()) == OpGraph::ConsumersList{ { &G, 0 } });
+        CHECK(graph.GetProducers(e.get()) == std::vector<Op*>{ &G });
+        CHECK(graph.GetConsumers(e.get()) == OpGraph::ConsumersList{ { &D, 0 } });
+        CHECK(graph.GetProducers(b.get()) == std::vector<Op*>{ &D });
 
         CHECK(C.m_Offset == TensorShape{ 0, 0, 0, 0 });
         CHECK(C.m_TransferFormat == CascadingBufferFormat::NHWCB);

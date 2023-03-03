@@ -4,6 +4,7 @@
 //
 
 #include "OpGraph.hpp"
+#include "PartUtils.hpp"
 #include "PleKernelDatabase.hpp"
 #include "StripeHelper.hpp"
 
@@ -708,6 +709,11 @@ SramBuffer::SramBuffer()
     , m_ForbidFcafWide(false)
 {}
 
+SramBufferBuilder SramBuffer::Build()
+{
+    return SramBufferBuilder();
+}
+
 DotAttributes SramBuffer::GetDotAttributes(DetailLevel detail) const
 {
     DotAttributes result = Buffer::GetDotAttributes(detail);
@@ -732,9 +738,88 @@ DotAttributes SramBuffer::GetDotAttributes(DetailLevel detail) const
     return result;
 }
 
+SramBufferBuilder::SramBufferBuilder()
+    : BufferBuilder()
+{}
+
+SramBufferBuilder& SramBufferBuilder::AddStripeShape(const TensorShape& shape)
+{
+    m_Buffer->m_StripeShape = shape;
+    return *this;
+}
+
+SramBufferBuilder& SramBufferBuilder::AddTraversalOrder(TraversalOrder order)
+{
+    m_Buffer->m_Order = order;
+    return *this;
+}
+
+SramBufferBuilder&
+    SramBufferBuilder::AddPackedBoundaryThickness(const command_stream::cascading::PackedBoundaryThickness& boundary)
+{
+    m_Buffer->m_PackedBoundaryThickness = boundary;
+    return *this;
+}
+
+SramBufferBuilder& SramBufferBuilder::AddNumLoads(uint32_t loads)
+{
+    m_Buffer->m_NumLoads = loads;
+    return *this;
+}
+
+SramBufferBuilder& SramBufferBuilder::ForbidFcaf(bool forbid)
+{
+    m_Buffer->m_ForbidFcafWide = forbid;
+    return *this;
+}
+
+SramBufferBuilder& SramBufferBuilder::AddSlotSize(uint32_t slotSize)
+{
+    m_Buffer->m_SlotSizeInBytes = slotSize;
+    return *this;
+}
+
+SramBufferBuilder& SramBufferBuilder::AddNumStripes(uint32_t numStripes)
+{
+    m_Buffer->m_NumStripes = numStripes;
+    return *this;
+}
+
+SramBufferBuilder& SramBufferBuilder::AddFromTileSize(const impl::TileSizeCalculation& tile)
+{
+    m_Buffer->m_SizeInBytes     = tile.sizeInBytes;
+    m_Buffer->m_SlotSizeInBytes = tile.slotSizeInBytes;
+    m_Buffer->m_ForbidFcafWide  = tile.forbidFcafWide;
+    return *this;
+}
+
+SramBufferBuilder::operator std::unique_ptr<SramBuffer>()
+{
+    if (m_Buffer->m_SizeInBytes == 0)
+    {
+        // Attempt to set size if not already set
+        m_Buffer->m_SizeInBytes = m_Buffer->m_NumStripes * m_Buffer->m_SlotSizeInBytes;
+    }
+
+    ValidateCommon();
+    assert(m_Buffer->m_SizeInBytes > 0);
+    assert((m_Buffer->m_StripeShape != TensorShape()));
+    assert((TraversalOrder::Xyz <= m_Buffer->m_Order) && (m_Buffer->m_Order <= TraversalOrder::Zxy));
+    assert(m_Buffer->m_SlotSizeInBytes > 0);
+    assert(m_Buffer->m_NumStripes > 0);
+    assert(m_Buffer->m_NumLoads > 0);
+
+    return std::move(m_Buffer);
+}
+
 DramBuffer::DramBuffer()
     : Buffer("DramBuffer", Location::Dram)
 {}
+
+DramBufferBuilder DramBuffer::Build()
+{
+    return DramBufferBuilder();
+}
 
 DotAttributes DramBuffer::GetDotAttributes(DetailLevel detail) const
 {
@@ -767,11 +852,71 @@ DotAttributes DramBuffer::GetDotAttributes(DetailLevel detail) const
     return result;
 }
 
+DramBufferBuilder::DramBufferBuilder()
+    : BufferBuilder()
+{}
+
+DramBufferBuilder& DramBufferBuilder::AddBufferType(const utils::Optional<BufferType>& type)
+{
+    m_Buffer->m_BufferType = type;
+    return *this;
+}
+
+DramBufferBuilder& DramBufferBuilder::AddOperationId(const utils::Optional<uint32_t>& id)
+{
+    m_Buffer->m_OperationId = id;
+    return *this;
+}
+
+DramBufferBuilder& DramBufferBuilder::AddProducerOutputIndex(const utils::Optional<uint32_t>& index)
+{
+    m_Buffer->m_ProducerOutputIndx = index;
+    return *this;
+}
+
+DramBufferBuilder& DramBufferBuilder::AddEncodedWeights(std::shared_ptr<EncodedWeights> weights)
+{
+    m_Buffer->m_EncodedWeights = std::move(weights);
+    return *this;
+}
+
+DramBufferBuilder& DramBufferBuilder::AddConstantData(std::shared_ptr<std::vector<uint8_t>> constant)
+{
+    m_Buffer->m_ConstantData = std::move(constant);
+    return *this;
+}
+
+DramBufferBuilder::operator std::unique_ptr<DramBuffer>()
+{
+    if (m_Buffer->m_SizeInBytes == 0)
+    {
+        // Attempt to set size if not already set
+        if (m_Buffer->m_EncodedWeights)
+        {
+            m_Buffer->m_SizeInBytes = static_cast<uint32_t>(m_Buffer->m_EncodedWeights->m_Data.size());
+        }
+        else
+        {
+            m_Buffer->m_SizeInBytes = utils::CalculateBufferSize(m_Buffer->m_TensorShape, m_Buffer->m_Format);
+        }
+    }
+
+    ValidateCommon();
+    assert(m_Buffer->m_SizeInBytes > 0);
+
+    return std::move(m_Buffer);
+}
+
 PleInputSramBuffer::PleInputSramBuffer()
     : Buffer("PleInputSramBuffer", Location::PleInputSram)
     , m_StripeShape({ 0, 0, 0, 0 })
     , m_NumStripes(0)
 {}
+
+PleInputSramBufferBuilder PleInputSramBuffer::Build()
+{
+    return PleInputSramBufferBuilder();
+}
 
 DotAttributes PleInputSramBuffer::GetDotAttributes(DetailLevel detail) const
 {
@@ -782,6 +927,31 @@ DotAttributes PleInputSramBuffer::GetDotAttributes(DetailLevel detail) const
         result.m_Label += "Num. Stripes = " + ToString(m_NumStripes) + "\n";
     }
     return result;
+}
+
+PleInputSramBufferBuilder::PleInputSramBufferBuilder()
+    : BufferBuilder()
+{}
+
+PleInputSramBufferBuilder& PleInputSramBufferBuilder::AddStripeShape(const TensorShape& shape)
+{
+    m_Buffer->m_StripeShape = shape;
+    return *this;
+}
+
+PleInputSramBufferBuilder& PleInputSramBufferBuilder::AddNumStripes(uint32_t numStripes)
+{
+    m_Buffer->m_NumStripes = numStripes;
+    return *this;
+}
+
+PleInputSramBufferBuilder::operator std::unique_ptr<PleInputSramBuffer>()
+{
+    ValidateCommon();
+    assert((m_Buffer->m_StripeShape != TensorShape()));
+    // m_NumStripes not checked as it is explicitly set to 0 in some cases
+
+    return std::move(m_Buffer);
 }
 
 namespace remove_redundant_copies_impl

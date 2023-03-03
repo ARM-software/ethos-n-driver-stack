@@ -136,19 +136,18 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
             TileSizeCalculation tileSize =
                 impl::CalculateTileSize(m_Capabilities, m_InputTensorShapes.at(i), outputStripeShape,
                                         command_stream::cascading::PackedBoundaryThickness{ 0, 0, 0, 0 }, 2u, true);
-            SramBuffer* buffer        = opGraph.AddBuffer(std::make_unique<SramBuffer>());
-            buffer->m_NumStripes      = 2;
-            buffer->m_StripeShape     = outputStripeShape;
-            buffer->m_SlotSizeInBytes = tileSize.slotSizeInBytes;
-            buffer->m_Format          = CascadingBufferFormat::NHWCB;
-            buffer->m_TensorShape     = m_InputTensorShapes.at(i);
 
-            buffer->m_DataType       = m_DataType;
-            buffer->m_SizeInBytes    = tileSize.sizeInBytes;
-            buffer->m_ForbidFcafWide = tileSize.forbidFcafWide;
+            std::unique_ptr<SramBuffer> buffer = SramBufferBuilder()
+                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddDataType(m_DataType)
+                                                     .AddTensorShape(m_InputTensorShapes.at(i))
+                                                     .AddQuantization(m_InputQuantizationInfos.at(i))
+                                                     .AddStripeShape(outputStripeShape)
+                                                     .AddNumStripes(2)
+                                                     .AddFromTileSize(tileSize);
 
-            buffer->m_QuantizationInfo = m_InputQuantizationInfos.at(i);
-            pleInputBuffers[i]         = buffer;
+            SramBuffer* bufferRaw = opGraph.AddBuffer(std::move(buffer));
+            pleInputBuffers[i]    = bufferRaw;
         }
 
         // Output buffer

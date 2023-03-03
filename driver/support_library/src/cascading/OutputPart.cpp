@@ -42,18 +42,19 @@ void OutputPart::CreatePlanForOutputPart(Plans& plans) const
     PartOutputMapping outputMappings;
     OwnedOpGraph opGraph;
 
-    CascadingBufferFormat format       = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
-    std::unique_ptr<DramBuffer> buffer = std::make_unique<DramBuffer>();
-    buffer->m_Format                   = format;
-    buffer->m_DataType                 = m_InputDataType;
-    buffer->m_TensorShape              = m_InputTensorShape;
-    buffer->m_SizeInBytes              = utils::CalculateBufferSize(m_InputTensorShape, format);
-    buffer->m_QuantizationInfo         = m_InputQuantizationInfo;
-    buffer->m_OperationId              = *m_CorrespondingOperationIds.begin();
-    buffer->m_ProducerOutputIndx       = m_ProducerOutputIndx;
-    buffer->m_BufferType               = BufferType::Output;
-    inputMappings[buffer.get()]        = PartInputSlot{ m_PartId, 0 };
-    opGraph.AddBuffer(std::move(buffer));
+    CascadingBufferFormat format = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
+
+    std::unique_ptr<DramBuffer> buffer = DramBuffer::Build()
+                                             .AddFormat(format)
+                                             .AddDataType(m_InputDataType)
+                                             .AddTensorShape(m_InputTensorShape)
+                                             .AddQuantization(m_InputQuantizationInfo)
+                                             .AddBufferType(BufferType::Output)
+                                             .AddOperationId(*m_CorrespondingOperationIds.begin())
+                                             .AddProducerOutputIndex(m_ProducerOutputIndx);
+
+    DramBuffer* bufferRaw    = opGraph.AddBuffer(std::move(buffer));
+    inputMappings[bufferRaw] = PartInputSlot{ m_PartId, 0 };
 
     AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
 }

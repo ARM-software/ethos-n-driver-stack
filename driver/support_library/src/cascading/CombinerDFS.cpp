@@ -338,16 +338,17 @@ Combination Combiner::AddTempGlues(const Combination& combination)
                     // performance estimates due to chunking.
                     CascadingBufferFormat dramFormat =
                         impl::GetBestDramBufferFormat({ buffer->Sram() }, m_CompilationOptions);
-                    auto dramBuffer                = std::make_unique<DramBuffer>();
-                    dramBuffer->m_Format           = dramFormat;
-                    dramBuffer->m_TensorShape      = buffer->m_TensorShape;
-                    dramBuffer->m_SizeInBytes      = utils::TotalSizeBytesNHWCB(buffer->m_TensorShape);
-                    dramBuffer->m_QuantizationInfo = buffer->m_QuantizationInfo;
-                    dramBuffer->m_DataType         = buffer->m_DataType;
-                    dramBuffer->m_BufferType       = BufferType::Intermediate;
-                    Buffer* dramBufferRaw          = dramBuffer.get();
-                    auto dma                       = std::make_unique<DmaOp>(buffer->m_Format);
-                    DmaOp* dmaRaw                  = dma.get();
+
+                    std::unique_ptr<DramBuffer> dramBuffer = DramBuffer::Build()
+                                                                 .AddFormat(dramFormat)
+                                                                 .AddDataType(buffer->m_DataType)
+                                                                 .AddTensorShape(buffer->m_TensorShape)
+                                                                 .AddQuantization(buffer->m_QuantizationInfo)
+                                                                 .AddBufferType(BufferType::Intermediate);
+
+                    Buffer* dramBufferRaw = dramBuffer.get();
+                    auto dma              = std::make_unique<DmaOp>(buffer->m_Format);
+                    DmaOp* dmaRaw         = dma.get();
                     startingGlue->m_Graph.AddBuffer(std::move(dramBuffer));
                     startingGlue->m_Graph.AddOp(std::move(dma));
                     startingGlue->m_Graph.AddConsumer(dramBufferRaw, dmaRaw, 0);
@@ -375,16 +376,17 @@ Combination Combiner::AddTempGlues(const Combination& combination)
                     // performance estimates due to chunking.
                     CascadingBufferFormat dramFormat =
                         impl::GetBestDramBufferFormat({ buffer->Sram() }, m_CompilationOptions);
-                    auto dramBuffer                = std::make_unique<DramBuffer>();
-                    dramBuffer->m_Format           = dramFormat;
-                    dramBuffer->m_TensorShape      = buffer->m_TensorShape;
-                    dramBuffer->m_SizeInBytes      = utils::TotalSizeBytesNHWCB(buffer->m_TensorShape);
-                    dramBuffer->m_QuantizationInfo = buffer->m_QuantizationInfo;
-                    dramBuffer->m_DataType         = buffer->m_DataType;
-                    dramBuffer->m_BufferType       = BufferType::Intermediate;
-                    Buffer* dramBufferRaw          = dramBuffer.get();
-                    auto dma                       = std::make_unique<DmaOp>(buffer->m_Format);
-                    DmaOp* dmaRaw                  = dma.get();
+
+                    std::unique_ptr<DramBuffer> dramBuffer = DramBuffer::Build()
+                                                                 .AddFormat(dramFormat)
+                                                                 .AddDataType(buffer->m_DataType)
+                                                                 .AddTensorShape(buffer->m_TensorShape)
+                                                                 .AddQuantization(buffer->m_QuantizationInfo)
+                                                                 .AddBufferType(BufferType::Intermediate);
+
+                    Buffer* dramBufferRaw = dramBuffer.get();
+                    auto dma              = std::make_unique<DmaOp>(buffer->m_Format);
+                    DmaOp* dmaRaw         = dma.get();
                     endingGlue->m_Graph.AddBuffer(std::move(dramBuffer));
                     endingGlue->m_Graph.AddOp(std::move(dma));
                     endingGlue->m_Graph.SetProducer(dramBufferRaw, dmaRaw);
@@ -558,14 +560,14 @@ Combination
     // Adds a new DRAM buffer of the given format to the ending glue, so that it can be used in any starting glues of consumers.
     // Also adds the DmaOps to connect this buffer to where it is copied from.
     auto addNewBuffer = [&](CascadingBufferFormat format, Buffer* copiedFrom) {
-        auto dramBuffer                = std::make_unique<DramBuffer>();
-        dramBuffer->m_Format           = format;
-        dramBuffer->m_TensorShape      = producedBuffer->m_TensorShape;
-        dramBuffer->m_SizeInBytes      = CalculateBufferSize(producedBuffer->m_TensorShape, format);
-        dramBuffer->m_QuantizationInfo = producedBuffer->m_QuantizationInfo;
-        dramBuffer->m_DataType         = producedBuffer->m_DataType;
-        dramBuffer->m_BufferType       = BufferType::Intermediate;
-        DramBuffer* dramBufferRaw      = dramBuffer.get();
+        std::unique_ptr<DramBuffer> dramBuffer = DramBuffer::Build()
+                                                     .AddFormat(format)
+                                                     .AddDataType(producedBuffer->m_DataType)
+                                                     .AddTensorShape(producedBuffer->m_TensorShape)
+                                                     .AddQuantization(producedBuffer->m_QuantizationInfo)
+                                                     .AddBufferType(BufferType::Intermediate);
+
+        DramBuffer* dramBufferRaw = dramBuffer.get();
         endingGlue.m_Graph.AddBuffer(std::move(dramBuffer));
 
         // If the new buffer is being copied from the original producedBuffer, then the connections to the DmaOp
@@ -705,19 +707,20 @@ Combination
                      consumerBuffer->m_TensorShape == producedBuffer->m_TensorShape &&
                      consumerBuffer->m_SizeInBytes == producedBuffer->m_SizeInBytes)
             {
-                std::unique_ptr<DramBuffer> mergedBuffer = std::make_unique<DramBuffer>();
-                mergedBuffer->m_Format                   = consumerBuffer->m_Format;
-                mergedBuffer->m_TensorShape              = consumerBuffer->m_TensorShape;
-                mergedBuffer->m_SizeInBytes              = consumerBuffer->m_SizeInBytes;
-                mergedBuffer->m_QuantizationInfo         = consumerBuffer->m_QuantizationInfo;
-                mergedBuffer->m_DebugTag                 = "Merged " + consumerBuffer->m_DebugTag;
-                mergedBuffer->m_BufferType               = consumerBuffer->Dram()->m_BufferType;
-                mergedBuffer->m_OperationId              = consumerBuffer->Dram()->m_OperationId;
-                mergedBuffer->m_ProducerOutputIndx       = consumerBuffer->Dram()->m_ProducerOutputIndx;
-                mergedBuffer->m_DataType                 = consumerBuffer->m_DataType;
-                Buffer* mergedBufferRaw                  = mergedBuffer.get();
+                std::unique_ptr<DramBuffer> mergedBuffer =
+                    DramBuffer::Build()
+                        .AddFormat(consumerBuffer->m_Format)
+                        .AddDataType(consumerBuffer->m_DataType)
+                        .AddTensorShape(consumerBuffer->m_TensorShape)
+                        .AddQuantization(consumerBuffer->m_QuantizationInfo)
+                        .AddBufferType(consumerBuffer->Dram()->m_BufferType)
+                        .AddSizeInBytes(consumerBuffer->m_SizeInBytes)
+                        .AddDebugTag("Merged " + consumerBuffer->m_DebugTag)
+                        .AddOperationId(consumerBuffer->Dram()->m_OperationId)
+                        .AddProducerOutputIndex(consumerBuffer->Dram()->m_ProducerOutputIndx);
 
-                endingGlue.m_Graph.AddBuffer(std::move(mergedBuffer));
+                Buffer* mergedBufferRaw = endingGlue.m_Graph.AddBuffer(std::move(mergedBuffer));
+
                 // Mark both buffers as being replaced by the new merged buffer (the other is done later)
                 endingGlue.m_ExternalConnections.m_ReplacementBuffers.insert({ producedBuffer, mergedBufferRaw });
                 startingGlue.m_ExternalConnections.m_ReplacementBuffers.insert({ consumerBuffer, mergedBufferRaw });

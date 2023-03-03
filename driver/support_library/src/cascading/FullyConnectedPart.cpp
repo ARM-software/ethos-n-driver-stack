@@ -206,15 +206,18 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                     convData.biasInfo   = m_BiasInfo;
                     convData.biasData   = m_BiasData;
 
-                    DramBuffer* dramInput    = opGraph.AddBuffer(std::make_unique<DramBuffer>());
-                    dramInput->m_Format      = CascadingBufferFormat::NHWC;
-                    dramInput->m_DataType    = m_InputDataType;
-                    dramInput->m_TensorShape = m_OriginalInputShape;
                     // The input buffer size of fully connected must be rounded up to the next 1024.
-                    dramInput->m_SizeInBytes = utils::RoundUpToNearestMultiple(
-                        utils::CalculateBufferSize(m_OriginalInputShape, CascadingBufferFormat::NHWC), 1024);
-                    dramInput->m_QuantizationInfo = m_InputQuantizationInfo;
-                    dramInput->m_BufferType       = BufferType::Intermediate;
+                    std::unique_ptr<DramBuffer> dramInput =
+                        DramBuffer::Build()
+                            .AddFormat(CascadingBufferFormat::NHWC)
+                            .AddDataType(m_InputDataType)
+                            .AddTensorShape(m_OriginalInputShape)
+                            .AddQuantization(m_InputQuantizationInfo)
+                            .AddBufferType(BufferType::Intermediate)
+                            .AddSizeInBytes(utils::RoundUpToNearestMultiple(
+                                utils::CalculateBufferSize(m_OriginalInputShape, CascadingBufferFormat::NHWC), 1024));
+
+                    DramBuffer* dramInputRaw = opGraph.AddBuffer(std::move(dramInput));
 
                     // Use NHWCB specifically for Fully connected as the format in SRAM needs to be copied from an NHWC buffer byte by byte
                     Op* dmaOp             = opGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
@@ -228,7 +231,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                         continue;    // Weight compression failed (too big for SRAM) - abandon this plan
                     }
 
-                    opGraph.AddConsumer(dramInput, dmaOp, 0);
+                    opGraph.AddConsumer(dramInputRaw, dmaOp, 0);
                     opGraph.SetProducer(sramInputAndMceOp.first, dmaOp);
 
                     auto pleInBuffer = impl::AddPleInputSramBuffer(opGraph, numPleInputStripes, m_OutputTensorShape,
@@ -245,7 +248,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                         opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(pleOp),
                         m_OutputTensorShape, m_OutputQuantizationInfo, m_OutputDataType, m_CorrespondingOperationIds);
                     opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
-                    inputMappings[dramInput]                = PartInputSlot{ m_PartId, 0 };
+                    inputMappings[dramInputRaw]             = PartInputSlot{ m_PartId, 0 };
                     outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
                     AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), ret, false,
                                true);

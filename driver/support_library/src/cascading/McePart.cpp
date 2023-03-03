@@ -367,40 +367,44 @@ Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
         return nullptr;    // Weight compression failed (too big for SRAM) - abandon this plan
     }
 
+    auto weightShape = convData.weightInfo.m_Dimensions;
+    weightShape[2]   = GetNumSubmapChannels(weightShape[2], wp.strideX, wp.strideY, m_Capabilities);
+
+    CascadingBufferFormat formatInSram = GetCascadingBufferFormatFromCompilerDataFormat(CompilerDataFormat::WEIGHT);
+
+    std::unique_ptr<SramBuffer> sramWeightBuffer = SramBufferBuilder()
+                                                       .AddFormat(formatInSram)
+                                                       .AddDataType(convData.weightInfo.m_DataType)
+                                                       .AddTensorShape(weightShape)
+                                                       .AddQuantization(convData.weightInfo.m_QuantizationInfo)
+                                                       .AddStripeShape(memoryWeightStripe)
+                                                       .AddNumStripes(numMemoryWeightStripes)
+                                                       .AddNumLoads(numLoads)
+                                                       .AddSlotSize(encodedWeights->m_MaxSize)
+                                                       .AddTraversalOrder(TraversalOrder::Xyz);
+
     CascadingBufferFormat formatInDram = impl::GetCascadingBufferFormatFromCompilerDataFormat(
         ConvertExternalToCompilerDataFormat(convData.weightInfo.m_DataFormat));
-    DramBuffer* dramWeightBuffer    = opGraph.AddBuffer(std::make_unique<DramBuffer>());
-    dramWeightBuffer->m_Format      = formatInDram;
-    dramWeightBuffer->m_DataType    = convData.weightInfo.m_DataType;
-    dramWeightBuffer->m_TensorShape = convData.weightInfo.m_Dimensions;
-    dramWeightBuffer->m_TensorShape[2] =
-        GetNumSubmapChannels(dramWeightBuffer->m_TensorShape[2], wp.strideX, wp.strideY, m_Capabilities);
-    dramWeightBuffer->m_EncodedWeights   = std::move(encodedWeights);
-    dramWeightBuffer->m_SizeInBytes      = static_cast<uint32_t>(dramWeightBuffer->m_EncodedWeights->m_Data.size());
-    dramWeightBuffer->m_QuantizationInfo = convData.weightInfo.m_QuantizationInfo;
-    dramWeightBuffer->m_BufferType       = BufferType::ConstantDma;
 
-    CascadingBufferFormat formatInSram   = GetCascadingBufferFormatFromCompilerDataFormat(CompilerDataFormat::WEIGHT);
-    SramBuffer* sramWeightBuffer         = opGraph.AddBuffer(std::make_unique<SramBuffer>());
-    sramWeightBuffer->m_Format           = formatInSram;
-    sramWeightBuffer->m_Order            = TraversalOrder::Xyz;
-    sramWeightBuffer->m_DataType         = convData.weightInfo.m_DataType;
-    sramWeightBuffer->m_TensorShape      = dramWeightBuffer->m_TensorShape;
-    sramWeightBuffer->m_StripeShape      = memoryWeightStripe;
-    sramWeightBuffer->m_QuantizationInfo = convData.weightInfo.m_QuantizationInfo;
-    sramWeightBuffer->m_NumStripes       = numMemoryWeightStripes;
-    sramWeightBuffer->m_SizeInBytes      = dramWeightBuffer->m_EncodedWeights->m_MaxSize * numMemoryWeightStripes;
-    sramWeightBuffer->m_SlotSizeInBytes  = dramWeightBuffer->m_EncodedWeights->m_MaxSize;
-    sramWeightBuffer->m_NumLoads         = numLoads;
+    std::unique_ptr<DramBuffer> dramWeightBuffer = DramBuffer::Build()
+                                                       .AddFormat(formatInDram)
+                                                       .AddDataType(convData.weightInfo.m_DataType)
+                                                       .AddTensorShape(weightShape)
+                                                       .AddQuantization(convData.weightInfo.m_QuantizationInfo)
+                                                       .AddBufferType(BufferType::ConstantDma)
+                                                       .AddEncodedWeights(std::move(encodedWeights));
+
+    DramBuffer* dramWeightBufferRaw = opGraph.AddBuffer(std::move(dramWeightBuffer));
+    SramBuffer* sramWeightBufferRaw = opGraph.AddBuffer(std::move(sramWeightBuffer));
 
     Op* dmaOp             = opGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::WEIGHT));
     dmaOp->m_OperationIds = m_CorrespondingOperationIds;
 
-    opGraph.AddConsumer(dramWeightBuffer, dmaOp, 0);
-    opGraph.SetProducer(sramWeightBuffer, dmaOp);
+    opGraph.AddConsumer(dramWeightBufferRaw, dmaOp, 0);
+    opGraph.SetProducer(sramWeightBufferRaw, dmaOp);
 
     // Use the encoded weights to determine the size of the sram and dram buffers
-    return sramWeightBuffer;
+    return sramWeightBufferRaw;
 }
 
 std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
@@ -439,22 +443,25 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
 
     const TraversalOrder ifmTraversalOrder =
         m_Operation == command_stream::MceOperation::DEPTHWISE_CONVOLUTION ? TraversalOrder::Xyz : TraversalOrder::Zxy;
-    SramBuffer* sramInBuffer    = opGraph.AddBuffer(std::make_unique<SramBuffer>());
-    sramInBuffer->m_Format      = CascadingBufferFormat::NHWCB;
-    sramInBuffer->m_Order       = ifmTraversalOrder;
-    sramInBuffer->m_DataType    = m_InputDataType;
-    sramInBuffer->m_TensorShape = inputShape;
-    sramInBuffer->m_StripeShape = memoryStripesInfo.m_Input.m_Shape;
-    sramInBuffer->m_NumStripes  = numMemoryStripes.m_Input;
-    TileSizeCalculation tile    = CalculateTileSize(
-        m_Capabilities, sramInBuffer->m_TensorShape, sramInBuffer->m_StripeShape,
-        memoryStripesInfo.m_Input.m_PackedBoundaryThickness, sramInBuffer->m_NumStripes, couldSourceBeFcaf);
-    sramInBuffer->m_SlotSizeInBytes         = tile.slotSizeInBytes;
-    sramInBuffer->m_SizeInBytes             = tile.sizeInBytes;
-    sramInBuffer->m_ForbidFcafWide          = tile.forbidFcafWide;
-    sramInBuffer->m_QuantizationInfo        = inputQuantInfo;
-    sramInBuffer->m_PackedBoundaryThickness = memoryStripesInfo.m_Input.m_PackedBoundaryThickness;
-    sramInBuffer->m_NumLoads                = memoryStripesInfo.m_Input.m_NumLoads;
+
+    TileSizeCalculation tile = CalculateTileSize(m_Capabilities, inputShape, memoryStripesInfo.m_Input.m_Shape,
+                                                 memoryStripesInfo.m_Input.m_PackedBoundaryThickness,
+                                                 numMemoryStripes.m_Input, couldSourceBeFcaf);
+
+    std::unique_ptr<SramBuffer> sramInBuffer =
+        SramBufferBuilder()
+            .AddFormat(CascadingBufferFormat::NHWCB)
+            .AddDataType(m_InputDataType)
+            .AddTensorShape(inputShape)
+            .AddQuantization(inputQuantInfo)
+            .AddStripeShape(memoryStripesInfo.m_Input.m_Shape)
+            .AddNumStripes(numMemoryStripes.m_Input)
+            .AddNumLoads(memoryStripesInfo.m_Input.m_NumLoads)
+            .AddPackedBoundaryThickness(memoryStripesInfo.m_Input.m_PackedBoundaryThickness)
+            .AddTraversalOrder(ifmTraversalOrder)
+            .AddFromTileSize(tile);
+
+    SramBuffer* sramInBufferRaw = opGraph.AddBuffer(std::move(sramInBuffer));
 
     Buffer* sramWeightBuffer = AddWeightBuffersAndDmaOpToMceOp(
         opGraph, mceStripeInfo, numMemoryStripes.m_Weight, memoryStripesInfo.m_Weight.m_Shape,
@@ -476,10 +483,10 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
     }
     Op* op             = opGraph.AddOp(std::move(mceOp));
     op->m_OperationIds = m_CorrespondingOperationIds;
-    opGraph.AddConsumer(sramInBuffer, op, 0);
+    opGraph.AddConsumer(sramInBufferRaw, op, 0);
     opGraph.AddConsumer(sramWeightBuffer, op, 1);
 
-    return { sramInBuffer, op };
+    return { sramInBufferRaw, op };
 };
 
 void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,

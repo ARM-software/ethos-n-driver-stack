@@ -29,21 +29,23 @@ ethosn::support_library::Plans
 
     if (m_HasInput)
     {
-        DramBuffer* buffer         = opGraph.AddBuffer(std::make_unique<DramBuffer>());
-        buffer->m_Format           = CascadingBufferFormat::NHWCB;
-        buffer->m_TensorShape      = { 1, 16, 16, 16 };
-        buffer->m_SizeInBytes      = 16 * 16 * 16;
-        buffer->m_QuantizationInfo = { 0, 1.f };
+        std::unique_ptr<DramBuffer> bufferPtr = DramBuffer::Build()
+                                                    .AddFormat(CascadingBufferFormat::NHWCB)
+                                                    .AddTensorShape({ 1, 16, 16, 16 })
+                                                    .AddSizeInBytes(16 * 16 * 16)
+                                                    .AddQuantization({ 0, 1.f });
+        DramBuffer* buffer = opGraph.AddBuffer(std::move(bufferPtr));
 
         inputMappings[buffer] = PartInputSlot{ m_PartId, 0 };
     }
     if (m_HasOutput)
     {
-        DramBuffer* buffer         = opGraph.AddBuffer(std::make_unique<DramBuffer>());
-        buffer->m_Format           = CascadingBufferFormat::NHWCB;
-        buffer->m_TensorShape      = { 1, 16, 16, 16 };
-        buffer->m_SizeInBytes      = 16 * 16 * 16;
-        buffer->m_QuantizationInfo = { 0, 1.f };
+        std::unique_ptr<DramBuffer> bufferPtr = DramBuffer::Build()
+                                                    .AddFormat(CascadingBufferFormat::NHWCB)
+                                                    .AddTensorShape({ 1, 16, 16, 16 })
+                                                    .AddSizeInBytes(16 * 16 * 16)
+                                                    .AddQuantization({ 0, 1.f });
+        DramBuffer* buffer = opGraph.AddBuffer(std::move(bufferPtr));
 
         outputMappings[buffer] = PartOutputSlot{ m_PartId, 0 };
     }

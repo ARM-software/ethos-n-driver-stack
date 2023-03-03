@@ -50,28 +50,32 @@ void EstimateOnlyPart::CreatePlanForEstimateOnlyPart(Plans& plans) const
 
     for (uint32_t inputIndex = 0; inputIndex < m_InputTensorsInfo.size(); inputIndex++)
     {
-        DramBuffer* inputBuffer         = opGraph.AddBuffer(std::make_unique<DramBuffer>());
-        inputBuffer->m_Format           = format;
-        inputBuffer->m_DataType         = m_InputTensorsInfo[inputIndex].m_DataType;
-        inputBuffer->m_TensorShape      = m_InputTensorsInfo[inputIndex].m_Dimensions;
-        inputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(inputBuffer->m_TensorShape, format);
-        inputBuffer->m_QuantizationInfo = m_InputTensorsInfo[inputIndex].m_QuantizationInfo;
-        inputBuffer->m_BufferType       = BufferType::Intermediate;
-        opGraph.AddConsumer(inputBuffer, op, inputIndex);
-        inputMappings[inputBuffer] = PartInputSlot{ m_PartId, inputIndex };
+        std::unique_ptr<DramBuffer> inputBuffer =
+            DramBuffer::Build()
+                .AddFormat(format)
+                .AddDataType(m_InputTensorsInfo[inputIndex].m_DataType)
+                .AddTensorShape(m_InputTensorsInfo[inputIndex].m_Dimensions)
+                .AddQuantization(m_InputTensorsInfo[inputIndex].m_QuantizationInfo)
+                .AddBufferType(BufferType::Intermediate);
+
+        DramBuffer* inputBufferRaw = opGraph.AddBuffer(std::move(inputBuffer));
+        opGraph.AddConsumer(inputBufferRaw, op, inputIndex);
+        inputMappings[inputBufferRaw] = PartInputSlot{ m_PartId, inputIndex };
     }
 
     for (uint32_t outputIndex = 0; outputIndex < m_OutputTensorsInfo.size(); outputIndex++)
     {
-        DramBuffer* outputBuffer         = opGraph.AddBuffer(std::make_unique<DramBuffer>());
-        outputBuffer->m_Format           = format;
-        outputBuffer->m_DataType         = m_OutputTensorsInfo[outputIndex].m_DataType;
-        outputBuffer->m_TensorShape      = m_OutputTensorsInfo[outputIndex].m_Dimensions;
-        outputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(outputBuffer->m_TensorShape, format);
-        outputBuffer->m_QuantizationInfo = m_OutputTensorsInfo[outputIndex].m_QuantizationInfo;
-        outputBuffer->m_BufferType       = BufferType::Intermediate;
-        opGraph.SetProducer(outputBuffer, op);
-        outputMappings[outputBuffer] = PartOutputSlot{ m_PartId, outputIndex };
+        std::unique_ptr<DramBuffer> outputBuffer =
+            DramBuffer::Build()
+                .AddFormat(format)
+                .AddDataType(m_OutputTensorsInfo[outputIndex].m_DataType)
+                .AddTensorShape(m_OutputTensorsInfo[outputIndex].m_Dimensions)
+                .AddQuantization(m_OutputTensorsInfo[outputIndex].m_QuantizationInfo)
+                .AddBufferType(BufferType::Intermediate);
+
+        DramBuffer* outputBufferRaw = opGraph.AddBuffer(std::move(outputBuffer));
+        opGraph.SetProducer(outputBufferRaw, op);
+        outputMappings[outputBufferRaw] = PartOutputSlot{ m_PartId, outputIndex };
     }
 
     AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);

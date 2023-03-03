@@ -978,11 +978,15 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
     auto endingGlueA = std::make_shared<EndingGlue>();
     endingGlueA->m_Graph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
     endingGlueA->m_Graph.GetOps()[0]->m_DebugTag = "InputDma";
-    DramBuffer* dramBuffer                       = endingGlueA->m_Graph.AddBuffer(std::make_unique<DramBuffer>());
-    dramBuffer->m_Format                         = CascadingBufferFormat::NHWCB;
-    dramBuffer->m_TensorShape                    = TensorShape{ 1, 17, 16, 16 };
-    dramBuffer->m_BufferType                     = BufferType::Intermediate;
-    dramBuffer->m_DebugTag                       = "DramBuffer";
+
+    std::unique_ptr<DramBuffer> dramBufferPtr = DramBuffer::Build()
+                                                    .AddFormat(CascadingBufferFormat::NHWCB)
+                                                    .AddTensorShape(TensorShape{ 1, 17, 16, 16 })
+                                                    .AddBufferType(BufferType::Intermediate)
+                                                    .AddDebugTag("DramBuffer");
+
+    DramBuffer* dramBuffer = endingGlueA->m_Graph.AddBuffer(std::move(dramBufferPtr));
+
     endingGlueA->m_Graph.SetProducer(dramBuffer, endingGlueA->m_Graph.GetOps()[0]);
     endingGlueA->m_ExternalConnections.m_BuffersToOps.insert({ outputSramA, endingGlueA->m_Graph.GetOp(0) });
 
@@ -1156,21 +1160,25 @@ TEST_CASE("GetOpGraphForDfsMISOSramsToDrams", "[CombinerDFS]")
 
     // Plan C
     Plan planC;
-    DramBuffer* input0DramC    = planC.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    input0DramC->m_Format      = CascadingBufferFormat::NHWCB;
-    input0DramC->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    input0DramC->m_SizeInBytes = 4;
-    input0DramC->m_BufferType  = BufferType::Intermediate;
-    input0DramC->m_DebugTag    = "Input0DramC";
-    DramBuffer* input1DramC    = planC.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    input1DramC->m_Format      = CascadingBufferFormat::NHWCB;
-    input1DramC->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    input1DramC->m_SizeInBytes = 4;
-    input1DramC->m_BufferType  = BufferType::Intermediate;
-    input1DramC->m_DebugTag    = "Input1DramC";
-    planC.m_InputMappings      = { { input0DramC, partCInputSlot0 }, { input1DramC, partCInputSlot1 } };
-    auto dummyOpC              = std::make_unique<DummyOp>();
-    dummyOpC->m_DebugTag       = "DummyC";
+    std::unique_ptr<DramBuffer> input0DramCPtr = DramBuffer::Build()
+                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                     .AddSizeInBytes(4)
+                                                     .AddBufferType(BufferType::Intermediate)
+                                                     .AddDebugTag("Input0DramC");
+    DramBuffer* input0DramC = planC.m_OpGraph.AddBuffer(std::move(input0DramCPtr));
+
+    std::unique_ptr<DramBuffer> input1DramCPtr = DramBuffer::Build()
+                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                     .AddSizeInBytes(4)
+                                                     .AddBufferType(BufferType::Intermediate)
+                                                     .AddDebugTag("Input1DramC");
+    DramBuffer* input1DramC = planC.m_OpGraph.AddBuffer(std::move(input1DramCPtr));
+
+    planC.m_InputMappings = { { input0DramC, partCInputSlot0 }, { input1DramC, partCInputSlot1 } };
+    auto dummyOpC         = std::make_unique<DummyOp>();
+    dummyOpC->m_DebugTag  = "DummyC";
     planC.m_OpGraph.AddOp(std::move(dummyOpC));
 
     auto startingGlueC_A = std::make_shared<StartingGlue>();
@@ -1274,29 +1282,33 @@ TEST_CASE("GetOpGraphForDfsMISODramsToSrams", "[CombinerDFS]")
 
     // Plan A
     Plan planA;
-    DramBuffer* outputSramA    = planA.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    outputSramA->m_Format      = CascadingBufferFormat::NHWCB;
-    outputSramA->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    outputSramA->m_SizeInBytes = 4;
-    outputSramA->m_BufferType  = BufferType::Intermediate;
-    outputSramA->m_DebugTag    = "OutputSramA";
-    planA.m_OutputMappings     = { { outputSramA, partAOutputSlot } };
-    auto dummyOpA              = std::make_unique<DummyOp>();
-    dummyOpA->m_DebugTag       = "DummyA";
+    std::unique_ptr<DramBuffer> outputSramAPtr = DramBuffer::Build()
+                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                     .AddSizeInBytes(4)
+                                                     .AddBufferType(BufferType::Intermediate)
+                                                     .AddDebugTag("OutputSramA");
+    DramBuffer* outputSramA = planA.m_OpGraph.AddBuffer(std::move(outputSramAPtr));
+
+    planA.m_OutputMappings = { { outputSramA, partAOutputSlot } };
+    auto dummyOpA          = std::make_unique<DummyOp>();
+    dummyOpA->m_DebugTag   = "DummyA";
     planA.m_OpGraph.AddOp(std::move(dummyOpA));
     planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers().back(), planA.m_OpGraph.GetOps().back());
 
     // Plan B
     Plan planB;
-    DramBuffer* outputSramB    = planB.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    outputSramB->m_Format      = CascadingBufferFormat::NHWCB;
-    outputSramB->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    outputSramB->m_SizeInBytes = 4;
-    outputSramB->m_BufferType  = BufferType::Intermediate;
-    outputSramB->m_DebugTag    = "OutputSramB";
-    planB.m_OutputMappings     = { { outputSramB, partBOutputSlot } };
-    auto dummyOpB              = std::make_unique<DummyOp>();
-    dummyOpB->m_DebugTag       = "DummyB";
+    std::unique_ptr<DramBuffer> outputSramBPtr = DramBuffer::Build()
+                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                     .AddSizeInBytes(4)
+                                                     .AddBufferType(BufferType::Intermediate)
+                                                     .AddDebugTag("OutputSramB");
+    DramBuffer* outputSramB = planB.m_OpGraph.AddBuffer(std::move(outputSramBPtr));
+
+    planB.m_OutputMappings = { { outputSramB, partBOutputSlot } };
+    auto dummyOpB          = std::make_unique<DummyOp>();
+    dummyOpB->m_DebugTag   = "DummyB";
     planB.m_OpGraph.AddOp(std::move(dummyOpB));
     planB.m_OpGraph.SetProducer(outputSramB, planB.m_OpGraph.GetOps().back());
 
@@ -1487,12 +1499,14 @@ TEST_CASE("Add shared glue between Dram and Sram", "[CombinerDFS]")
 
     // Plan D
     Plan planD;
-    DramBuffer* inputDramD     = planD.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    inputDramD->m_Format       = CascadingBufferFormat::NHWCB;
-    inputDramD->m_TensorShape  = TensorShape{ 1, 64, 64, 64 };
-    inputDramD->m_SizeInBytes  = 4;
-    inputDramD->m_DebugTag     = "InputDramD";
-    inputDramD->m_BufferType   = BufferType::Intermediate;
+    std::unique_ptr<DramBuffer> inputDramDPtr = DramBuffer::Build()
+                                                    .AddFormat(CascadingBufferFormat::NHWCB)
+                                                    .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                    .AddSizeInBytes(4)
+                                                    .AddBufferType(BufferType::Intermediate)
+                                                    .AddDebugTag("InputDramD");
+    planD.m_OpGraph.AddBuffer(std::move(inputDramDPtr));
+
     SramBuffer* outputSramD    = planD.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
     outputSramD->m_Format      = CascadingBufferFormat::NHWCB;
     outputSramD->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
@@ -1577,13 +1591,16 @@ TEST_CASE("GetOpGraphCombinationDramSramConversion", "[CombinerDFS]")
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
-    DramBuffer* startingDramBuffer    = planA.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    startingDramBuffer->m_Format      = CascadingBufferFormat::NHWC;
-    startingDramBuffer->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    startingDramBuffer->m_SizeInBytes = 4;
-    startingDramBuffer->m_DebugTag    = "StartingDramBuffer";
-    planA.m_OutputMappings            = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
-    Buffer* startingBuffer            = planA.m_OpGraph.GetBuffers().back();
+    std::unique_ptr<DramBuffer> startingDramBufferPtr = DramBuffer::Build()
+                                                            .AddFormat(CascadingBufferFormat::NHWC)
+                                                            .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                            .AddSizeInBytes(4)
+                                                            .AddBufferType(BufferType::Intermediate)
+                                                            .AddDebugTag("StartingDramBuffer");
+    planA.m_OpGraph.AddBuffer(std::move(startingDramBufferPtr));
+
+    planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
+    Buffer* startingBuffer = planA.m_OpGraph.GetBuffers().back();
 
     // Plan B
     Plan planB;
@@ -1690,23 +1707,27 @@ TEST_CASE("GetOpGraphCombinationDramDramMerge", "[CombinerDFS]")
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
-    DramBuffer* startingDramBuffer    = planA.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    startingDramBuffer->m_Format      = CascadingBufferFormat::NHWC;
-    startingDramBuffer->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    startingDramBuffer->m_SizeInBytes = 4;
-    startingDramBuffer->m_DebugTag    = "StartingDramBuffer";
-    startingDramBuffer->m_BufferType  = BufferType::Intermediate;
-    planA.m_OutputMappings            = { { startingDramBuffer, partAOutputSlot } };
+    std::unique_ptr<DramBuffer> startingDramBufferPtr = DramBuffer::Build()
+                                                            .AddFormat(CascadingBufferFormat::NHWC)
+                                                            .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                            .AddSizeInBytes(4)
+                                                            .AddBufferType(BufferType::Intermediate)
+                                                            .AddDebugTag("StartingDramBuffer");
+    DramBuffer* startingDramBuffer = planA.m_OpGraph.AddBuffer(std::move(startingDramBufferPtr));
+
+    planA.m_OutputMappings = { { startingDramBuffer, partAOutputSlot } };
 
     // Plan B
     Plan planB;
-    DramBuffer* finalDramBuffer    = planB.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    finalDramBuffer->m_Format      = CascadingBufferFormat::NHWC;
-    finalDramBuffer->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    finalDramBuffer->m_SizeInBytes = 4;
-    finalDramBuffer->m_DebugTag    = "FinalDramBuffer";
-    finalDramBuffer->m_BufferType  = BufferType::Output;
-    planB.m_InputMappings          = { { finalDramBuffer, partBInputSlot } };
+    std::unique_ptr<DramBuffer> finalDramBufferPtr = DramBuffer::Build()
+                                                         .AddFormat(CascadingBufferFormat::NHWC)
+                                                         .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                         .AddSizeInBytes(4)
+                                                         .AddBufferType(BufferType::Output)
+                                                         .AddDebugTag("FinalDramBuffer");
+    DramBuffer* finalDramBuffer = planB.m_OpGraph.AddBuffer(std::move(finalDramBufferPtr));
+
+    planB.m_InputMappings = { { finalDramBuffer, partBInputSlot } };
 
     // Create Combination with all the plans and glues
     Combination combA(partA.GetPartId(), std::move(planA));
@@ -1913,12 +1934,14 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     graph.AddConnection(partGInputSlot1, partDEOutputSlot1);
 
     Plan planA;
-    DramBuffer* inputDram    = planA.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    inputDram->m_Format      = CascadingBufferFormat::NHWCB;
-    inputDram->m_TensorShape = TensorShape{ 1, 17, 16, 16 };
-    inputDram->m_BufferType  = BufferType::Input;
-    inputDram->m_DebugTag    = "InputDram";
-    planA.m_OutputMappings   = { { inputDram, partAOutputSlot0 } };
+    std::unique_ptr<DramBuffer> inputDramPtr = DramBuffer::Build()
+                                                   .AddFormat(CascadingBufferFormat::NHWCB)
+                                                   .AddTensorShape(TensorShape{ 1, 17, 16, 16 })
+                                                   .AddBufferType(BufferType::Input)
+                                                   .AddDebugTag("InputDram");
+    DramBuffer* inputDram = planA.m_OpGraph.AddBuffer(std::move(inputDramPtr));
+
+    planA.m_OutputMappings = { { inputDram, partAOutputSlot0 } };
 
     // Part consisting of node B
     Plan planB;
@@ -1975,35 +1998,44 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
 
     // Part consisting of node F
     Plan planF;
-    DramBuffer* outputDram1    = planF.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    outputDram1->m_Format      = CascadingBufferFormat::NHWCB;
-    outputDram1->m_TensorShape = TensorShape{ 1, 17, 16, 16 };
-    outputDram1->m_BufferType  = BufferType::Output;
-    outputDram1->m_DebugTag    = "OutputDram1";
-    planF.m_InputMappings      = { { planF.m_OpGraph.GetBuffers()[0], partFInputSlot0 } };
+    std::unique_ptr<DramBuffer> outputDram1Ptr = DramBuffer::Build()
+                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddTensorShape(TensorShape{ 1, 17, 16, 16 })
+                                                     .AddBufferType(BufferType::Output)
+                                                     .AddDebugTag("OutputDram1");
+    planF.m_OpGraph.AddBuffer(std::move(outputDram1Ptr));
+
+    planF.m_InputMappings = { { planF.m_OpGraph.GetBuffers()[0], partFInputSlot0 } };
 
     // Part consisting of node G
     Plan planG;
-    DramBuffer* outputDram2    = planG.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    outputDram2->m_Format      = CascadingBufferFormat::NHWCB;
-    outputDram2->m_TensorShape = TensorShape{ 1, 17, 16, 16 };
-    outputDram2->m_BufferType  = BufferType::Output;
-    outputDram2->m_DebugTag    = "OutputDram2";
-    DramBuffer* outputDram3    = planG.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    outputDram3->m_Format      = CascadingBufferFormat::NHWCB;
-    outputDram3->m_TensorShape = TensorShape{ 1, 17, 16, 16 };
-    outputDram3->m_BufferType  = BufferType::Output;
-    outputDram3->m_DebugTag    = "OutputDram3";
-    planG.m_InputMappings      = { { planG.m_OpGraph.GetBuffers()[0], partGInputSlot0 },
+    std::unique_ptr<DramBuffer> outputDram2Ptr = DramBuffer::Build()
+                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddTensorShape(TensorShape{ 1, 17, 16, 16 })
+                                                     .AddBufferType(BufferType::Output)
+                                                     .AddDebugTag("OutputDram2");
+    planG.m_OpGraph.AddBuffer(std::move(outputDram2Ptr));
+
+    std::unique_ptr<DramBuffer> outputDram3Ptr = DramBuffer::Build()
+                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddTensorShape(TensorShape{ 1, 17, 16, 16 })
+                                                     .AddBufferType(BufferType::Output)
+                                                     .AddDebugTag("OutputDram3");
+    planG.m_OpGraph.AddBuffer(std::move(outputDram3Ptr));
+
+    planG.m_InputMappings = { { planG.m_OpGraph.GetBuffers()[0], partGInputSlot0 },
                               { planG.m_OpGraph.GetBuffers()[1], partGInputSlot1 } };
 
     // The end glueing of A is empty. But the starting glue of B has the connections.
-    auto startingGlueA               = std::make_shared<StartingGlue>();
-    auto endingGlueA                 = std::make_shared<EndingGlue>();
-    DramBuffer* replacementBuffer    = endingGlueA->m_Graph.AddBuffer(std::make_unique<DramBuffer>());
-    replacementBuffer->m_Format      = CascadingBufferFormat::NHWCB;
-    replacementBuffer->m_TensorShape = TensorShape{ 1, 17, 16, 16 };
-    replacementBuffer->m_DebugTag    = "ReplacementBuffer";
+    auto startingGlueA = std::make_shared<StartingGlue>();
+    auto endingGlueA   = std::make_shared<EndingGlue>();
+
+    std::unique_ptr<DramBuffer> replacementBufferPtr = DramBuffer::Build()
+                                                           .AddFormat(CascadingBufferFormat::NHWCB)
+                                                           .AddTensorShape(TensorShape{ 1, 17, 16, 16 })
+                                                           .AddDebugTag("ReplacementBuffer");
+    DramBuffer* replacementBuffer = endingGlueA->m_Graph.AddBuffer(std::move(replacementBufferPtr));
+
     endingGlueA->m_ExternalConnections.m_ReplacementBuffers.insert(
         { planA.m_OpGraph.GetBuffers()[0], replacementBuffer });
 
@@ -2438,13 +2470,15 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
     planC.m_InputMappings  = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
 
     Plan planD;
-    DramBuffer* bufferD    = planD.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    bufferD->m_Format      = CascadingBufferFormat::NHWCB;
-    bufferD->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    bufferD->m_SizeInBytes = 4;
-    planD.m_InputMappings  = { { planD.m_OpGraph.GetBuffers()[0], partDInputSlot } };
-    auto dummyOpD          = std::make_unique<DummyOp>();
-    dummyOpD->m_DebugTag   = "DummyD";
+    std::unique_ptr<DramBuffer> bufferDPtr = DramBuffer::Build()
+                                                 .AddFormat(CascadingBufferFormat::NHWCB)
+                                                 .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                 .AddSizeInBytes(4);
+    planD.m_OpGraph.AddBuffer(std::move(bufferDPtr));
+
+    planD.m_InputMappings = { { planD.m_OpGraph.GetBuffers()[0], partDInputSlot } };
+    auto dummyOpD         = std::make_unique<DummyOp>();
+    dummyOpD->m_DebugTag  = "DummyD";
     planD.m_OpGraph.AddOp(std::move(dummyOpD));
     planD.m_OpGraph.AddConsumer(planD.m_OpGraph.GetBuffers().back(), planD.m_OpGraph.GetOps().back(), 0);
 
@@ -2615,18 +2649,22 @@ TEST_CASE("GluePartToCombinationBranch2", "[CombinerDFS]")
     planC.m_InputMappings  = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
 
     Plan planD;
-    DramBuffer* bufferD    = planD.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    bufferD->m_Format      = CascadingBufferFormat::NHWC;
-    bufferD->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    bufferD->m_SizeInBytes = 4;
-    planD.m_InputMappings  = { { planD.m_OpGraph.GetBuffers()[0], partDInputSlot } };
+    std::unique_ptr<DramBuffer> bufferDPtr = DramBuffer::Build()
+                                                 .AddFormat(CascadingBufferFormat::NHWC)
+                                                 .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                 .AddSizeInBytes(4);
+    planD.m_OpGraph.AddBuffer(std::move(bufferDPtr));
+
+    planD.m_InputMappings = { { planD.m_OpGraph.GetBuffers()[0], partDInputSlot } };
 
     Plan planE;
-    DramBuffer* bufferE    = planE.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    bufferE->m_Format      = CascadingBufferFormat::NHWCB;
-    bufferE->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    bufferE->m_SizeInBytes = 4;
-    planE.m_InputMappings  = { { planE.m_OpGraph.GetBuffers()[0], partDInputSlot } };
+    std::unique_ptr<DramBuffer> bufferEPtr = DramBuffer::Build()
+                                                 .AddFormat(CascadingBufferFormat::NHWCB)
+                                                 .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                 .AddSizeInBytes(4);
+    planE.m_OpGraph.AddBuffer(std::move(bufferEPtr));
+
+    planE.m_InputMappings = { { planE.m_OpGraph.GetBuffers()[0], partDInputSlot } };
 
     Combination combA(partA.GetPartId(), std::move(planA));
     Combination combB(partB.GetPartId(), std::move(planB));
@@ -2744,20 +2782,24 @@ TEST_CASE("GluePartToCombinationDramToDramAndSramShare", "[CombinerDFS]")
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
-    DramBuffer* bufferA    = planA.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    bufferA->m_Format      = CascadingBufferFormat::NHWC;
-    bufferA->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    bufferA->m_SizeInBytes = 4;
-    bufferA->m_BufferType  = BufferType::Intermediate;
+    std::unique_ptr<DramBuffer> bufferAPtr = DramBuffer::Build()
+                                                 .AddFormat(CascadingBufferFormat::NHWC)
+                                                 .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                 .AddSizeInBytes(4)
+                                                 .AddBufferType(BufferType::Intermediate);
+    planA.m_OpGraph.AddBuffer(std::move(bufferAPtr));
+
     planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
     Plan planB;
-    DramBuffer* bufferB    = planB.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    bufferB->m_Format      = CascadingBufferFormat::NHWCB;
-    bufferB->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    bufferB->m_SizeInBytes = 4;
-    bufferB->m_BufferType  = BufferType::Intermediate;
-    planB.m_InputMappings  = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
+    std::unique_ptr<DramBuffer> bufferBPtr = DramBuffer::Build()
+                                                 .AddFormat(CascadingBufferFormat::NHWCB)
+                                                 .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                 .AddSizeInBytes(4)
+                                                 .AddBufferType(BufferType::Intermediate);
+    planB.m_OpGraph.AddBuffer(std::move(bufferBPtr));
+
+    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
     Plan planC;
     SramBuffer* bufferC    = planC.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
@@ -2863,20 +2905,24 @@ TEST_CASE("GluePartToCombinationDramToDramAndSramMergeShare", "[CombinerDFS]")
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
-    DramBuffer* bufferA    = planA.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    bufferA->m_Format      = CascadingBufferFormat::NHWCB;
-    bufferA->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    bufferA->m_SizeInBytes = 4;
-    bufferA->m_BufferType  = BufferType::Intermediate;
+    std::unique_ptr<DramBuffer> bufferAPtr = DramBuffer::Build()
+                                                 .AddFormat(CascadingBufferFormat::NHWCB)
+                                                 .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                 .AddSizeInBytes(4)
+                                                 .AddBufferType(BufferType::Intermediate);
+    DramBuffer* bufferA = planA.m_OpGraph.AddBuffer(std::move(bufferAPtr));
+
     planA.m_OutputMappings = { { bufferA, partAOutputSlot } };
 
     Plan planB;
-    DramBuffer* bufferB    = planB.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    bufferB->m_Format      = CascadingBufferFormat::NHWCB;
-    bufferB->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    bufferB->m_SizeInBytes = 4;
-    bufferB->m_BufferType  = BufferType::Intermediate;
-    planB.m_InputMappings  = { { bufferB, partBInputSlot } };
+    std::unique_ptr<DramBuffer> bufferBPtr = DramBuffer::Build()
+                                                 .AddFormat(CascadingBufferFormat::NHWCB)
+                                                 .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                 .AddSizeInBytes(4)
+                                                 .AddBufferType(BufferType::Intermediate);
+    DramBuffer* bufferB = planB.m_OpGraph.AddBuffer(std::move(bufferBPtr));
+
+    planB.m_InputMappings = { { bufferB, partBInputSlot } };
 
     Plan planC;
     SramBuffer* bufferC    = planC.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
@@ -2999,28 +3045,36 @@ TEST_CASE("GluePartToCombinationDramToDramsMerge", "[CombinerDFS]")
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
-    DramBuffer* bufferA    = planA.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    bufferA->m_Format      = CascadingBufferFormat::NHWCB;
-    bufferA->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    bufferA->m_SizeInBytes = 4;
-    bufferA->m_BufferType  = BufferType::Intermediate;
+    std::unique_ptr<DramBuffer> bufferAPtr = DramBuffer::Build()
+                                                 .AddFormat(CascadingBufferFormat::NHWCB)
+                                                 .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                 .AddSizeInBytes(4)
+                                                 .AddBufferType(BufferType::Intermediate);
+    planA.m_OpGraph.AddBuffer(std::move(bufferAPtr));
+
     planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
     Plan planB;
-    DramBuffer* bufferB    = planB.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    bufferB->m_Format      = CascadingBufferFormat::NHWCB;
-    bufferB->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    bufferB->m_SizeInBytes = 4;
-    bufferB->m_BufferType  = isBOutput ? BufferType::Output : BufferType::Intermediate;
-    planB.m_InputMappings  = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
+    std::unique_ptr<DramBuffer> bufferBPtr =
+        DramBuffer::Build()
+            .AddFormat(CascadingBufferFormat::NHWCB)
+            .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+            .AddSizeInBytes(4)
+            .AddBufferType(isBOutput ? BufferType::Output : BufferType::Intermediate);
+    planB.m_OpGraph.AddBuffer(std::move(bufferBPtr));
+
+    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
     Plan planC;
-    DramBuffer* bufferC    = planC.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    bufferC->m_Format      = CascadingBufferFormat::NHWCB;
-    bufferC->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    bufferC->m_SizeInBytes = 4;
-    bufferC->m_BufferType  = isCOutput ? BufferType::Output : BufferType::Intermediate;
-    planC.m_InputMappings  = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
+    std::unique_ptr<DramBuffer> bufferCPtr =
+        DramBuffer::Build()
+            .AddFormat(CascadingBufferFormat::NHWCB)
+            .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+            .AddSizeInBytes(4)
+            .AddBufferType(isCOutput ? BufferType::Output : BufferType::Intermediate);
+    planC.m_OpGraph.AddBuffer(std::move(bufferCPtr));
+
+    planC.m_InputMappings = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
 
     Combination combA(partA.GetPartId(), std::move(planA));
     Combination combB(partB.GetPartId(), std::move(planB));
@@ -3150,20 +3204,26 @@ TEST_CASE("GluePartToCombinationSramToDramsMerge", "[CombinerDFS]")
     planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
     Plan planB;
-    DramBuffer* bufferB    = planB.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    bufferB->m_Format      = CascadingBufferFormat::NHWCB;
-    bufferB->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    bufferB->m_SizeInBytes = 4;
-    bufferB->m_BufferType  = isBOutput ? BufferType::Output : BufferType::Intermediate;
-    planB.m_InputMappings  = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
+    std::unique_ptr<DramBuffer> bufferBPtr =
+        DramBuffer::Build()
+            .AddFormat(CascadingBufferFormat::NHWCB)
+            .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+            .AddSizeInBytes(4)
+            .AddBufferType(isBOutput ? BufferType::Output : BufferType::Intermediate);
+    planB.m_OpGraph.AddBuffer(std::move(bufferBPtr));
+
+    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
     Plan planC;
-    DramBuffer* bufferC    = planC.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    bufferC->m_Format      = CascadingBufferFormat::NHWCB;
-    bufferC->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    bufferC->m_SizeInBytes = 4;
-    bufferC->m_BufferType  = isCOutput ? BufferType::Output : BufferType::Intermediate;
-    planC.m_InputMappings  = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
+    std::unique_ptr<DramBuffer> bufferCPtr =
+        DramBuffer::Build()
+            .AddFormat(CascadingBufferFormat::NHWCB)
+            .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+            .AddSizeInBytes(4)
+            .AddBufferType(isCOutput ? BufferType::Output : BufferType::Intermediate);
+    planC.m_OpGraph.AddBuffer(std::move(bufferCPtr));
+
+    planC.m_InputMappings = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
 
     Combination combA(partA.GetPartId(), std::move(planA));
     Combination combB(partB.GetPartId(), std::move(planB));
@@ -3276,12 +3336,14 @@ TEST_CASE("GluePartToCombinationSramToDramConversion", "[CombinerDFS]")
     planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
     Plan planB;
-    DramBuffer* bufferB    = planB.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    bufferB->m_Format      = CascadingBufferFormat::NHWC;
-    bufferB->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
-    bufferB->m_SizeInBytes = 4;
-    bufferB->m_BufferType  = BufferType::Intermediate;
-    planB.m_InputMappings  = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
+    std::unique_ptr<DramBuffer> bufferBPtr = DramBuffer::Build()
+                                                 .AddFormat(CascadingBufferFormat::NHWC)
+                                                 .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
+                                                 .AddSizeInBytes(4)
+                                                 .AddBufferType(BufferType::Intermediate);
+    planB.m_OpGraph.AddBuffer(std::move(bufferBPtr));
+
+    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
     Combination combA(partA.GetPartId(), std::move(planA));
     Combination combB(partB.GetPartId(), std::move(planB));

@@ -293,6 +293,10 @@ class SramBuffer;
 class DramBuffer;
 class PleInputSramBuffer;
 
+class SramBufferBuilder;
+class DramBufferBuilder;
+class PleInputSramBufferBuilder;
+
 class Buffer : public DebuggableObject
 {
 protected:
@@ -329,10 +333,93 @@ public:
     uint32_t m_SizeInBytes;
 };
 
+template <class TBuffer, class TBuilder>
+class BufferBuilder
+{
+protected:
+    BufferBuilder();
+
+    void ValidateCommon();
+
+    std::unique_ptr<TBuffer> m_Buffer;
+
+public:
+    TBuilder& AddDataType(DataType dataType);
+    TBuilder& AddFormat(CascadingBufferFormat format);
+    TBuilder& AddQuantization(const QuantizationInfo& info);
+    TBuilder& AddTensorShape(const TensorShape& shape);
+    TBuilder& AddDebugTag(std::string debug);
+    TBuilder& AddSizeInBytes(uint32_t size);
+
+    virtual operator std::unique_ptr<TBuffer>() = 0;
+};
+
+template <class TBuffer, class TBuilder>
+BufferBuilder<TBuffer, TBuilder>::BufferBuilder()
+    : m_Buffer(std::make_unique<TBuffer>())
+{}
+
+template <class TBuffer, class TBuilder>
+TBuilder& BufferBuilder<TBuffer, TBuilder>::AddDataType(DataType dataType)
+{
+    m_Buffer->m_DataType = dataType;
+    return static_cast<TBuilder&>(*this);
+}
+
+template <class TBuffer, class TBuilder>
+TBuilder& BufferBuilder<TBuffer, TBuilder>::AddFormat(CascadingBufferFormat format)
+{
+    m_Buffer->m_Format = format;
+    return static_cast<TBuilder&>(*this);
+}
+
+template <class TBuffer, class TBuilder>
+TBuilder& BufferBuilder<TBuffer, TBuilder>::AddQuantization(const QuantizationInfo& info)
+{
+    m_Buffer->m_QuantizationInfo = info;
+    return static_cast<TBuilder&>(*this);
+}
+
+template <class TBuffer, class TBuilder>
+TBuilder& BufferBuilder<TBuffer, TBuilder>::AddTensorShape(const TensorShape& shape)
+{
+    m_Buffer->m_TensorShape = shape;
+    return static_cast<TBuilder&>(*this);
+}
+
+template <class TBuffer, class TBuilder>
+TBuilder& BufferBuilder<TBuffer, TBuilder>::AddDebugTag(std::string debug)
+{
+    m_Buffer->m_DebugTag = std::move(debug);
+    return static_cast<TBuilder&>(*this);
+}
+
+template <class TBuffer, class TBuilder>
+TBuilder& BufferBuilder<TBuffer, TBuilder>::AddSizeInBytes(uint32_t size)
+{
+    m_Buffer->m_SizeInBytes = size;
+    return static_cast<TBuilder&>(*this);
+}
+
+template <class TBuffer, class TBuilder>
+void BufferBuilder<TBuffer, TBuilder>::ValidateCommon()
+{
+    assert((Location::Dram <= m_Buffer->m_Location) && (m_Buffer->m_Location <= Location::VirtualSram));
+    assert((DataType::UINT8_QUANTIZED <= m_Buffer->m_DataType) && (m_Buffer->m_DataType <= DataType::INT32_QUANTIZED));
+    assert((CascadingBufferFormat::NHWC <= m_Buffer->m_Format) &&
+           (m_Buffer->m_Format <= CascadingBufferFormat::FCAF_WIDE));
+    assert((m_Buffer->m_TensorShape != TensorShape()));
+    // m_QuantizationInfo is initialized to a valid value by default
+    // m_SizeInBytes may be zero, asserts added in derived classes where it must be non-zero
+}
+
 class DramBuffer : public Buffer
 {
-public:
+private:
     DramBuffer();
+
+public:
+    static DramBufferBuilder Build();
 
     DotAttributes GetDotAttributes(DetailLevel) const override;
 
@@ -347,12 +434,31 @@ public:
 
     /// Relevant only if this is a constant buffer.
     std::shared_ptr<std::vector<uint8_t>> m_ConstantData;
+
+    friend std::unique_ptr<DramBuffer> std::make_unique<DramBuffer>();
+};
+
+class DramBufferBuilder : public BufferBuilder<DramBuffer, DramBufferBuilder>
+{
+public:
+    DramBufferBuilder();
+
+    DramBufferBuilder& AddBufferType(const utils::Optional<BufferType>& type);
+    DramBufferBuilder& AddOperationId(const utils::Optional<uint32_t>& id);
+    DramBufferBuilder& AddProducerOutputIndex(const utils::Optional<uint32_t>& index);
+    DramBufferBuilder& AddEncodedWeights(std::shared_ptr<EncodedWeights> weights);
+    DramBufferBuilder& AddConstantData(std::shared_ptr<std::vector<uint8_t>> constant);
+
+    operator std::unique_ptr<DramBuffer>();
 };
 
 class SramBuffer : public Buffer
 {
-public:
+private:
     SramBuffer();
+
+public:
+    static SramBufferBuilder Build();
 
     DotAttributes GetDotAttributes(DetailLevel) const override;
 
@@ -388,12 +494,41 @@ public:
     /// This value could be calculated based on other properties, but it's a bit complicated
     /// so we prefer to calculate it once when we first work out the buffer size.
     bool m_ForbidFcafWide;
+
+    friend std::unique_ptr<SramBuffer> std::make_unique<SramBuffer>();
+};
+
+namespace impl
+{
+struct TileSizeCalculation;
+}
+
+class SramBufferBuilder : public BufferBuilder<SramBuffer, SramBufferBuilder>
+{
+public:
+    SramBufferBuilder();
+
+    SramBufferBuilder& AddStripeShape(const TensorShape& shape);
+    SramBufferBuilder& AddTraversalOrder(TraversalOrder order);
+    SramBufferBuilder& AddPackedBoundaryThickness(const command_stream::cascading::PackedBoundaryThickness& boundary);
+    SramBufferBuilder& AddNumLoads(uint32_t loads);
+    SramBufferBuilder& ForbidFcaf(bool forbid);
+    SramBufferBuilder& AddSlotSize(uint32_t slotSize);
+    SramBufferBuilder& AddNumStripes(uint32_t numStripes);
+
+    // TileSizeCalculation covers forbid fcaf, buffer size, and slot size
+    SramBufferBuilder& AddFromTileSize(const impl::TileSizeCalculation& tile);
+
+    operator std::unique_ptr<SramBuffer>();
 };
 
 class PleInputSramBuffer : public Buffer
 {
-public:
+private:
     PleInputSramBuffer();
+
+public:
+    static PleInputSramBufferBuilder Build();
 
     TensorShape m_StripeShape;
 
@@ -402,6 +537,19 @@ public:
     uint32_t m_NumStripes;
 
     DotAttributes GetDotAttributes(DetailLevel) const override;
+
+    friend std::unique_ptr<PleInputSramBuffer> std::make_unique<PleInputSramBuffer>();
+};
+
+class PleInputSramBufferBuilder : public BufferBuilder<PleInputSramBuffer, PleInputSramBufferBuilder>
+{
+public:
+    PleInputSramBufferBuilder();
+
+    PleInputSramBufferBuilder& AddStripeShape(const TensorShape& shape);
+    PleInputSramBufferBuilder& AddNumStripes(uint32_t numStripes);
+
+    operator std::unique_ptr<PleInputSramBuffer>();
 };
 
 }    // namespace support_library

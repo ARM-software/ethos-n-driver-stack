@@ -19,15 +19,14 @@ Plans ReshapePart::GetPlans(CascadeType cascadeType, ethosn::command_stream::Blo
 
     if (cascadeType == CascadeType::Lonely)
     {
-        auto inputBuffer                = std::make_unique<DramBuffer>();
-        inputBuffer->m_Format           = CascadingBufferFormat::NHWC;
-        inputBuffer->m_TensorShape      = m_InputTensorShape;
-        inputBuffer->m_SizeInBytes      = utils::TotalSizeBytes(m_InputTensorShape);
-        inputBuffer->m_QuantizationInfo = m_OutputQuantizationInfo;
+        std::unique_ptr<DramBuffer> inputBuffer = DramBuffer::Build()
+                                                      .AddFormat(CascadingBufferFormat::NHWC)
+                                                      .AddDataType(m_DataType)
+                                                      .AddTensorShape(m_InputTensorShape)
+                                                      .AddQuantization(m_OutputQuantizationInfo)
+                                                      .AddBufferType(BufferType::Intermediate);
 
-        inputBuffer->m_BufferType = BufferType::Intermediate;
-        inputBuffer->m_DataType   = m_DataType;
-        Buffer* inputBufferRaw    = inputBuffer.get();
+        Buffer* inputBufferRaw = inputBuffer.get();
 
         auto dma1            = std::make_unique<DmaOp>(CascadingBufferFormat::NHWC);
         dma1->m_OperationIds = m_CorrespondingOperationIds;
@@ -44,14 +43,14 @@ Plans ReshapePart::GetPlans(CascadeType cascadeType, ethosn::command_stream::Blo
         dma2->m_OperationIds  = m_CorrespondingOperationIds;
         DmaOp* dma2Raw        = dma2.get();
 
-        auto outputBuffer                = std::make_unique<DramBuffer>();
-        outputBuffer->m_Format           = CascadingBufferFormat::NHWC;
-        outputBuffer->m_TensorShape      = m_OutputTensorShape;
-        outputBuffer->m_SizeInBytes      = utils::TotalSizeBytes(m_OutputTensorShape);
-        outputBuffer->m_QuantizationInfo = m_OutputQuantizationInfo;
-        outputBuffer->m_BufferType       = BufferType::Intermediate;
-        outputBuffer->m_DataType         = m_DataType;
-        Buffer* outputBufferRaw          = outputBuffer.get();
+        std::unique_ptr<DramBuffer> outputBuffer = DramBuffer::Build()
+                                                       .AddFormat(CascadingBufferFormat::NHWC)
+                                                       .AddDataType(m_DataType)
+                                                       .AddTensorShape(m_OutputTensorShape)
+                                                       .AddQuantization(m_OutputQuantizationInfo)
+                                                       .AddBufferType(BufferType::Intermediate);
+
+        Buffer* outputBufferRaw = outputBuffer.get();
 
         OwnedOpGraph graph;
         graph.AddOp(std::move(dma1));
