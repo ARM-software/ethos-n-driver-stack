@@ -254,12 +254,37 @@ WeightEncoderCache::WeightEncoderCache(const HardwareCapabilities& caps,
 
 bool WeightEncoderCache::Params::operator==(const Params& r) const
 {
-    return weightsTensorInfo == r.weightsTensorInfo && *weightsData == *r.weightsData &&
-           biasTensorInfo == r.biasTensorInfo && biasData == r.biasData &&
-           inputQuantizationInfo == r.inputQuantizationInfo && outputQuantizationInfo == r.outputQuantizationInfo &&
-           stripeDepth == r.stripeDepth && strideY == r.strideY && strideX == r.strideX && paddingTop == r.paddingTop &&
-           paddingLeft == r.paddingLeft && iterationSize == r.iterationSize && operation == r.operation &&
-           algorithm == r.algorithm;
+    // Compare things in an order such that we avoid comparing the big data (weights and bias) until
+    // we absolutely need to
+    bool same = weightsTensorInfo == r.weightsTensorInfo && biasTensorInfo == r.biasTensorInfo &&
+                inputQuantizationInfo == r.inputQuantizationInfo &&
+                outputQuantizationInfo == r.outputQuantizationInfo && stripeDepth == r.stripeDepth &&
+                strideY == r.strideY && strideX == r.strideX && paddingTop == r.paddingTop &&
+                paddingLeft == r.paddingLeft && iterationSize == r.iterationSize && operation == r.operation &&
+                algorithm == r.algorithm;
+    if (!same)
+    {
+        return false;
+    }
+
+    // At this point just bias and weights need to be compared. Do bias first because it's smaller.
+    if (biasData != r.biasData)
+    {
+        return false;
+    }
+
+    // Now just need to compare weights, but we can skip this if the shared_ptrs are the same
+    if (weightsData == r.weightsData)
+    {
+        return true;
+    }
+
+    if (*weightsData != *r.weightsData)
+    {
+        return false;
+    }
+
+    return true;
 }
 
 std::shared_ptr<ethosn::support_library::EncodedWeights> WeightEncoderCache::Encode(const Params& params)
