@@ -83,9 +83,9 @@ public:
     /// multiple producers, use GetProducers instead.
     Op* GetSingleProducer(Buffer* buffer) const;
     OpList GetProducers(Buffer* buffer) const;
-    ConsumersList GetConsumers(Buffer* buffer) const;
+    const ConsumersList& GetConsumers(Buffer* buffer) const;
     std::pair<Op*, uint32_t> GetConsumer(Buffer* buffer, uint32_t index) const;
-    BufferList GetInputs(Op* op) const;
+    const BufferList& GetInputs(Op* op) const;
     Buffer* GetOutput(Op* op) const;
     /// @}
 

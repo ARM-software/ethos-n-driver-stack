@@ -96,10 +96,11 @@ OpGraph::OpList OpGraph::GetProducers(Buffer* buffer) const
     }
 }
 
-OpGraph::ConsumersList OpGraph::GetConsumers(Buffer* buffer) const
+const OpGraph::ConsumersList& OpGraph::GetConsumers(Buffer* buffer) const
 {
+    static OpGraph::ConsumersList empty;    // So that we can return a ref
     auto it = m_BufferConsumers.find(buffer);
-    return it != m_BufferConsumers.end() ? it->second : OpGraph::ConsumersList{};
+    return it != m_BufferConsumers.end() ? it->second : empty;
 }
 
 std::pair<Op*, uint32_t> OpGraph::GetConsumer(Buffer* buffer, uint32_t index) const
@@ -117,10 +118,11 @@ std::pair<Op*, uint32_t> OpGraph::GetConsumer(Buffer* buffer, uint32_t index) co
     }
 }
 
-OpGraph::BufferList OpGraph::GetInputs(Op* op) const
+const OpGraph::BufferList& OpGraph::GetInputs(Op* op) const
 {
+    static OpGraph::BufferList empty;    // So that we can return a ref
     auto it = m_OpInputs.find(op);
-    return it != m_OpInputs.end() ? it->second : OpGraph::BufferList{};
+    return it != m_OpInputs.end() ? it->second : empty;
 }
 
 Buffer* OpGraph::GetOutput(Op* op) const
