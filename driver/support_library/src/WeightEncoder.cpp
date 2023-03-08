@@ -1976,6 +1976,12 @@ std::vector<std::vector<uint8_t>> WeightEncoder::MergeStreamsOg(const std::vecto
         const std::vector<uint32_t>& group = groups[groupIdx];
         std::vector<uint8_t>& mergedGroup  = result[groupIdx];
 
+        // Pre-allocate a conservative estimate of capacity, to reduce number of reallocations as the vector grows.
+        if (group.size() > 0)
+        {
+            mergedGroup.reserve(group.size() * streams[group[0]].m_EncodedWeights.size() * 2);
+        }
+
         uint32_t numBitsStream = 0;
 
         for (uint32_t streamIdxWithinGroup = 0; streamIdxWithinGroup < group.size(); ++streamIdxWithinGroup)
