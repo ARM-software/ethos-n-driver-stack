@@ -217,6 +217,8 @@ public:
         return false;
     }
 
+    void ChangePartId(PartId newId);
+
 protected:
     PartId m_PartId;
     std::set<uint32_t> m_CorrespondingOperationIds;

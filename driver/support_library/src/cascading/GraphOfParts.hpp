@@ -167,6 +167,12 @@ public:
         return currId;
     }
 
+    /// Sort the Parts into a topological order suitable for further compilation steps, and compact the Part IDs
+    /// such that they are contiguous and start from zero. This is important as some parts may have been
+    /// removed as part of other optimisation steps, leaving "gaps" in the part IDs. Having contiguous
+    /// Part IDs makes them easier to use for further compilation steps.
+    void SortAndCompact();
+
 private:
     Parts m_Parts;
     std::unordered_map<PartInputSlot, PartOutputSlot> m_Connections;

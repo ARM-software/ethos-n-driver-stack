@@ -48,6 +48,13 @@ bool IsPlanValid(const HardwareCapabilities& caps, const Plan& plan)
     return true;
 }
 
+void BasePart::ChangePartId(PartId newId)
+{
+    m_PartId      = newId;
+    size_t offset = m_DebugTag.find_last_of(' ');
+    m_DebugTag    = m_DebugTag.substr(0, offset) + " " + std::to_string(newId);
+}
+
 void BasePart::AddNewPlan(PartInputMapping&& inputMappings,
                           PartOutputMapping&& outputMappings,
                           OwnedOpGraph&& opGraph,

@@ -59,6 +59,8 @@ GraphOfParts CreateGraphOfParts(const Network& network,
     // Perform some optimizations on the GraphOfParts, to simplify it before generating any plans
     g.MergeChannelSelectors();
 
+    g.SortAndCompact();
+
     debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "Cascaded_GraphOfParts.dot",
                           [&](std::ofstream& s) { SaveGraphOfPartsToDot(g, s, DetailLevel::Low); });
     debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "Cascaded_GraphOfPartsDetailed.dot",

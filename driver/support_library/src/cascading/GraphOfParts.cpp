@@ -271,5 +271,66 @@ void GraphOfParts::MergeChannelSelectors()
     }
 }
 
+void GraphOfParts::SortAndCompact()
+{
+    // Find a topological sort of the part IDs
+    std::vector<PartId> targets;
+    for (auto&& part : m_Parts)
+    {
+        if (GetPartOutputs(part.first).size() == 0)
+        {
+            targets.push_back(part.first);
+        }
+    }
+
+    auto GetIncomingEdges = [&](PartId p) -> std::vector<PartId> {
+        std::vector<PartId> result;
+        for (const PartConnection& c : GetSourceConnections(p))
+        {
+            result.push_back(c.m_Source.m_PartId);
+        }
+        return result;
+    };
+
+    std::vector<PartId> sorted;
+    bool success = utils::GraphTopologicalSort<PartId, std::vector<PartId>>(targets, GetIncomingEdges, sorted);
+    if (!success)
+    {
+        throw InternalErrorException("Topological sort failed");
+    }
+
+    // Use the sorted list to re-number the parts, updating the Part IDs stored in the Parts themselves
+    // as well as all the connections between them.
+    std::map<PartId, PartId> oldToNew;
+    for (PartId newId = 0; newId < sorted.size(); ++newId)
+    {
+        oldToNew[sorted[newId]] = newId;
+    }
+
+    Parts oldParts = std::move(m_Parts);
+    m_Parts.clear();
+    for (std::pair<const PartId, std::unique_ptr<BasePart>>& p : oldParts)
+    {
+        PartId oldPartId = p.first;
+        PartId newPartId = oldToNew[oldPartId];
+        p.second->ChangePartId(newPartId);
+        m_Parts[newPartId] = std::move(p.second);
+    }
+
+    std::unordered_map<PartInputSlot, PartOutputSlot> oldConnections = std::move(m_Connections);
+    m_Connections.clear();
+    for (const std::pair<const PartInputSlot, PartOutputSlot>& c : oldConnections)
+    {
+        PartId oldDestPartId = c.first.m_PartId;
+        PartId newDestPartId = oldToNew[oldDestPartId];
+
+        PartId oldSrcPartId = c.second.m_PartId;
+        PartId newSrcPartId = oldToNew[oldSrcPartId];
+
+        m_Connections[PartInputSlot{ newDestPartId, c.first.m_InputIndex }] =
+            PartOutputSlot{ newSrcPartId, c.second.m_OutputIndex };
+    }
+}
+
 }    // namespace support_library
 }    // namespace ethosn

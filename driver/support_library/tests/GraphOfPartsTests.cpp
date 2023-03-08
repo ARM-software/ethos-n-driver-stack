@@ -283,3 +283,51 @@ TEST_CASE("GraphOfParts/MergeChannelSelectors/MergeAfter")
     CHECK(g.GetAllConnections().size() == 1);
     CHECK(g.GetAllConnections().at(PartInputSlot{ 3, 0 }) == PartOutputSlot{ 1, 0 });
 }
+
+TEST_CASE("GraphOfParts/SortAndCompact")
+{
+    GraphOfParts g;
+
+    // 3 -> 1 -> 5
+
+    auto part3 = std::make_unique<MockPart>(3);
+    part3->AddOperationId(3);
+    part3->m_DebugTag = "Part 3";
+    g.AddPart(std::move(part3));
+
+    auto part1 = std::make_unique<MockPart>(1);
+    part1->AddOperationId(1);
+    part1->m_DebugTag = "Part 1";
+    g.AddPart(std::move(part1));
+
+    auto part5 = std::make_unique<MockPart>(5);
+    part5->AddOperationId(5);
+    part5->m_DebugTag = "Part 5";
+    g.AddPart(std::move(part5));
+
+    g.AddConnection(PartInputSlot{ 1, 0 }, PartOutputSlot{ 3, 0 });
+    g.AddConnection(PartInputSlot{ 5, 0 }, PartOutputSlot{ 1, 0 });
+
+    g.SortAndCompact();
+
+    // 3 is the first in the graph, so becomes Part 0, 1 stays the same and 5 becomes 2
+    CHECK(g.GetParts().size() == 3);
+
+    CHECK(g.GetParts().at(0)->GetPartId() == 0);
+    // Debug tag is renamed, so it's consistent with the Part ID
+    CHECK(g.GetParts().at(0)->m_DebugTag == "Part 0");
+    // But the other data (e.g. operation IDs remains the same)
+    CHECK(static_cast<MockPart&>(*g.GetParts().at(0)).GetOperationIds() == std::set<uint32_t>{ 3 });
+
+    CHECK(g.GetParts().at(1)->GetPartId() == 1);
+    CHECK(g.GetParts().at(1)->m_DebugTag == "Part 1");
+    CHECK(static_cast<MockPart&>(*g.GetParts().at(1)).GetOperationIds() == std::set<uint32_t>{ 1 });
+
+    CHECK(g.GetParts().at(2)->GetPartId() == 2);
+    CHECK(g.GetParts().at(2)->m_DebugTag == "Part 2");
+    CHECK(static_cast<MockPart&>(*g.GetParts().at(2)).GetOperationIds() == std::set<uint32_t>{ 5 });
+
+    CHECK(g.GetAllConnections().size() == 2);
+    CHECK(g.GetAllConnections().at(PartInputSlot{ 1, 0 }) == PartOutputSlot{ 0, 0 });
+    CHECK(g.GetAllConnections().at(PartInputSlot{ 2, 0 }) == PartOutputSlot{ 1, 0 });
+}
