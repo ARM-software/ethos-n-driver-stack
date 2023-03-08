@@ -747,123 +747,6 @@ void Combiner::DeallocateUnusedBuffers(const Buffer& prevPlanBuffer, SectionCont
     }
 }
 
-// Try to end a section of the combination.
-// This is called only when a section needs to be ended since the plan
-// requirements are different to ContinueSection
-//
-// See diagram in StartSection.
-Combination Combiner::EndSection(const BasePart& part,
-                                 const BasePart& sPart,
-                                 const Combination& comb,
-                                 const SectionContext& context,
-                                 uint32_t prevNumWeightStripes,
-                                 bool prevDoubleBuffered,
-                                 uint32_t totalAgents)
-{
-    UpdateStats(StatsType::EndSection);
-
-    Combination result = {};
-
-    if (IsPartSi(part))
-    {
-        std::vector<PartConnection> connections =
-            m_GraphOfParts.GetConnectionsBetween(sPart.GetPartId(), part.GetPartId());
-
-        // Sanity check: section is continued. It must be the single output of
-        // its source part.
-        assert(connections.size() == 1);
-
-        const Plan& sPlan = GetPlanForPartFromCombination(sPart, comb);
-
-        const PartConnection& connection = connections.at(0);
-
-        ethosn::command_stream::BlockConfig blkConfig = sPlan.GetBlockConfigures(connection.m_Source);
-        Buffer* sramBuffer                            = sPlan.GetOutputBuffer(connection.m_Source);
-
-        SectionContext contextCopy = context;
-        DeallocateUnusedBuffers(*sramBuffer, contextCopy);
-
-        // Check if this Part can double buffer.
-        // By default, no double buffering is performed.
-        uint32_t currNumWeightStripesMax = g_NumWeightStripesMin;
-        if (part.CanDoubleBufferWeights() && !prevDoubleBuffered)
-        {
-            currNumWeightStripesMax = g_NumWeightStripesMax;
-        }
-
-        // Double buffering is performed on a per Section basis, i.e. either the entire Section double buffers weights
-        // (if the Parts allow it) or the Section single buffers weights. This double buffering is considered when the
-        // Part being evaluated can be double buffered.
-        for (uint32_t currNumWeightStripes = g_NumWeightStripesMin; currNumWeightStripes <= currNumWeightStripesMax;
-             ++currNumWeightStripes)
-        {
-            // Determine which numWeightStripes to use, based on the history of double-buffering.
-            // If previous Part was double-buffered, then:
-            //      1. Pass that number of weightStripes during current plan generation
-            //      2. Pass the same number to the next Parts, during the recursive plan generation calls.
-            // Otherwise, pass the current weightStripe number from the local for-loop.
-            // This is necessary, because if there was no double-buffering in the past and there is the possibility
-            // to double buffer now, then multiple plans must be created for both single buffering and double buffering weights.
-            uint32_t numWeightStripes = prevDoubleBuffered ? prevNumWeightStripes : currNumWeightStripes;
-            Plans plans               = part.GetPlans(CascadeType::End, blkConfig, sramBuffer, numWeightStripes);
-
-            for (Plan& plan : plans)
-            {
-                // Make a copy of the allocator since every plan needs to have its own,
-                // each potential section won't allocate from the same allocator.
-                SectionContext tempContext = contextCopy;
-
-                if (!ArePlansAllowedToMerge(sPlan, plan))
-                {
-                    continue;
-                }
-
-                if (!IsPlanAllocated(tempContext, plan, sramBuffer, StatsType::EndSection))
-                {
-                    continue;
-                }
-
-                if (!IsSectionSizeSupported(StatsType::EndSection, plan, totalAgents))
-                {
-                    continue;
-                }
-
-                // Add current part and plan to the combination
-                StartingGlue startingGlue;
-                EndingGlue endingGlue;
-                startingGlue.m_ExternalConnections.m_ReplacementBuffers.insert(
-                    { plan.GetInputBuffer(connection.m_Destination), sramBuffer });
-                Combination section =
-                    comb + Combination(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first);
-                section.SetStartingGlue(std::move(startingGlue), connection.m_Destination);
-                section.AddEndingGlue(std::move(endingGlue), connection.m_Source);
-
-                Combinations options = { result, section };
-                result               = GetBestCombinationSafe(options);
-            }
-        }
-
-        //  Next part in the graph
-        const BasePart* nextPartGraph = GetNextPart(&part);
-
-        if (!result.m_Elems.empty() && nextPartGraph != nullptr)
-        {
-            result = result + FindBestCombinationForPart(*nextPartGraph);
-
-            // Each of it destination part will start its own new section.
-            // Therefore they all need to be glued with their source.
-            std::vector<PartConnection> destConnections = m_GraphOfParts.GetDestinationConnections(part.GetPartId());
-
-            if (destConnections.empty() == false)
-            {
-                result = GluePartToCombinationSrcToDests(part, result, destConnections);
-            }
-        }
-    }
-
-    return result;
-}
-
 bool Combiner::IsSectionSizeSupported(const StatsType sectionInfo, const Plan& plan, uint32_t& totalAgents)
 {
     bool result = true;
@@ -925,6 +808,108 @@ bool Combiner::IsSectionSizeSupported(const StatsType sectionInfo, const Plan& p
     }
 
     result &= totalAgents <= m_Caps.GetAgentWindowSize();
+    return result;
+}
+
+// This is a single part not merged with any other part.
+// It does not need to check if the plan is compatible
+// with the available SRAM since only valid plans are generated.
+//
+// - - - ---            -----------------------------            --- - - -
+//          |          |                             |          |
+//          |          |           -------           |          |
+//          |  ------  |  ------  |       |  ------  |  ------  |
+//          |-| DRAM |-|-| SRAM |-|   Y   |-| SRAM |-|-| DRAM |-|
+//          |  ------  |  ------  |       |  ------  |  ------  |
+//          |          |           -------           |          |
+//          |          |                             |          |
+// - - - ---            -----------------------------            --- - - -
+//                                    ^
+//                                    |
+//                            Single part section
+//
+Combination Combiner::SinglePartSection(const BasePart& part)
+{
+    UpdateStats(StatsType::SinglePartSection);
+
+    // Check if this Part can double buffer.
+    // By default, no double buffering is performed.
+    uint32_t currNumWeightStripesMax = g_NumWeightStripesMin;
+    if (part.CanDoubleBufferWeights())
+    {
+        currNumWeightStripesMax = g_NumWeightStripesMax;
+    }
+
+    Combinations options;
+
+    // Double buffering is performed on a per Section basis, i.e. either the entire Section double buffers weights
+    // (if the Parts allow it) or the Section single buffers weights. This double buffering is considered when the
+    // Part being evaluated can be double buffered.
+    for (uint32_t currNumWeightStripes = g_NumWeightStripesMin; currNumWeightStripes <= currNumWeightStripesMax;
+         ++currNumWeightStripes)
+    {
+        Plans plans =
+            part.GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, currNumWeightStripes);
+
+        for (Plan& plan : plans)
+        {
+            SramAllocator alloc(m_Caps.GetTotalSramSize() / m_Caps.GetNumberOfSrams());
+            PleOperations pleOps = {};
+            SectionContext context{ alloc, pleOps, {} };
+
+            if (!IsPlanAllocated(context, plan, nullptr, StatsType::SinglePartSection))
+            {
+                continue;
+            }
+            // Start counting total agents from 0 because this is a single part section
+            uint32_t totalAgents = 0;
+            if (!IsSectionSizeSupported(StatsType::SinglePartSection, plan, totalAgents))
+            {
+                continue;
+            }
+            // Glue will be added later on.
+            // In this case local optimum = global optimum so
+            // it can get the best plan for the part.
+            Combination head(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first);
+            options.push_back(std::move(head));
+        }
+    }
+
+    Combination result;
+    // There should always be at least one valid plan, but for testability we support the case where
+    // no lonely plans are valid.
+    if (options.size() > 0)
+    {
+        BestCombinationResults bestCombinationResults = GetBestCombination(options);
+        // Include the part debug tag so that we know what type of part it is, but prepend the part ID so that
+        // the folders are displayed in the right order.
+        DumpDebugInfo(options, bestCombinationResults, m_DebuggingContext,
+                      std::string("Lonely/") + std::to_string(part.GetPartId()) + " - " + part.m_DebugTag);
+        result = options[bestCombinationResults.m_BestIdx];
+    }
+
+    //  Next part in the graph
+    const BasePart* nextPartGraph = GetNextPart(&part);
+
+    if (!result.m_Elems.empty() && nextPartGraph != nullptr)
+    {
+        result = result + FindBestCombinationForPart(*nextPartGraph);
+
+        // Each of it destination part will start its own new section.
+        // Therefore they all need to be glued with their source.
+        auto outputSlots = m_GraphOfParts.GetPartOutputs(part.GetPartId());
+        for (PartOutputSlot outputSlot : outputSlots)
+        {
+            std::vector<PartConnection> conns;
+            std::vector<PartInputSlot> inputSlots = m_GraphOfParts.GetConnectedInputSlots(outputSlot);
+            for (auto inputSlot : inputSlots)
+            {
+                conns.push_back({ inputSlot, outputSlot });
+            }
+            result = GluePartToCombinationSrcToDests(part, result, conns);
+        }
+    }
+
     return result;
 }
 
@@ -1027,108 +1012,6 @@ Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPar
                 Combinations options  = { result, continued, ended };
                 result                = GetBestCombinationSafe(options);
             }
-        }
-    }
-
-    return result;
-}
-
-// This is a single part not merged with any other part.
-// It does not need to check if the plan is compatible
-// with the available SRAM since only valid plans are generated.
-//
-// - - - ---            -----------------------------            --- - - -
-//          |          |                             |          |
-//          |          |           -------           |          |
-//          |  ------  |  ------  |       |  ------  |  ------  |
-//          |-| DRAM |-|-| SRAM |-|   Y   |-| SRAM |-|-| DRAM |-|
-//          |  ------  |  ------  |       |  ------  |  ------  |
-//          |          |           -------           |          |
-//          |          |                             |          |
-// - - - ---            -----------------------------            --- - - -
-//                                    ^
-//                                    |
-//                            Single part section
-//
-Combination Combiner::SinglePartSection(const BasePart& part)
-{
-    UpdateStats(StatsType::SinglePartSection);
-
-    // Check if this Part can double buffer.
-    // By default, no double buffering is performed.
-    uint32_t currNumWeightStripesMax = g_NumWeightStripesMin;
-    if (part.CanDoubleBufferWeights())
-    {
-        currNumWeightStripesMax = g_NumWeightStripesMax;
-    }
-
-    Combinations options;
-
-    // Double buffering is performed on a per Section basis, i.e. either the entire Section double buffers weights
-    // (if the Parts allow it) or the Section single buffers weights. This double buffering is considered when the
-    // Part being evaluated can be double buffered.
-    for (uint32_t currNumWeightStripes = g_NumWeightStripesMin; currNumWeightStripes <= currNumWeightStripesMax;
-         ++currNumWeightStripes)
-    {
-        Plans plans =
-            part.GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, currNumWeightStripes);
-
-        for (Plan& plan : plans)
-        {
-            SramAllocator alloc(m_Caps.GetTotalSramSize() / m_Caps.GetNumberOfSrams());
-            PleOperations pleOps = {};
-            SectionContext context{ alloc, pleOps, {} };
-
-            if (!IsPlanAllocated(context, plan, nullptr, StatsType::SinglePartSection))
-            {
-                continue;
-            }
-            // Start counting total agents from 0 because this is a single part section
-            uint32_t totalAgents = 0;
-            if (!IsSectionSizeSupported(StatsType::SinglePartSection, plan, totalAgents))
-            {
-                continue;
-            }
-            // Glue will be added later on.
-            // In this case local optimum = global optimum so
-            // it can get the best plan for the part.
-            Combination head(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first);
-            options.push_back(std::move(head));
-        }
-    }
-
-    Combination result;
-    // There should always be at least one valid plan, but for testability we support the case where
-    // no lonely plans are valid.
-    if (options.size() > 0)
-    {
-        BestCombinationResults bestCombinationResults = GetBestCombination(options);
-        // Include the part debug tag so that we know what type of part it is, but prepend the part ID so that
-        // the folders are displayed in the right order.
-        DumpDebugInfo(options, bestCombinationResults, m_DebuggingContext,
-                      std::string("Lonely/") + std::to_string(part.GetPartId()) + " - " + part.m_DebugTag);
-        result = options[bestCombinationResults.m_BestIdx];
-    }
-
-    //  Next part in the graph
-    const BasePart* nextPartGraph = GetNextPart(&part);
-
-    if (!result.m_Elems.empty() && nextPartGraph != nullptr)
-    {
-        result = result + FindBestCombinationForPart(*nextPartGraph);
-
-        // Each of it destination part will start its own new section.
-        // Therefore they all need to be glued with their source.
-        auto outputSlots = m_GraphOfParts.GetPartOutputs(part.GetPartId());
-        for (PartOutputSlot outputSlot : outputSlots)
-        {
-            std::vector<PartConnection> conns;
-            std::vector<PartInputSlot> inputSlots = m_GraphOfParts.GetConnectedInputSlots(outputSlot);
-            for (auto inputSlot : inputSlots)
-            {
-                conns.push_back({ inputSlot, outputSlot });
-            }
-            result = GluePartToCombinationSrcToDests(part, result, conns);
         }
     }
 
@@ -1279,6 +1162,123 @@ Combination Combiner::ContinueSection(const BasePart& part,
                 options               = { result, continued, ended };
 
                 result = GetBestCombinationSafe(options);
+            }
+        }
+    }
+
+    return result;
+}
+
+// Try to end a section of the combination.
+// This is called only when a section needs to be ended since the plan
+// requirements are different to ContinueSection
+//
+// See diagram in StartSection.
+Combination Combiner::EndSection(const BasePart& part,
+                                 const BasePart& sPart,
+                                 const Combination& comb,
+                                 const SectionContext& context,
+                                 uint32_t prevNumWeightStripes,
+                                 bool prevDoubleBuffered,
+                                 uint32_t totalAgents)
+{
+    UpdateStats(StatsType::EndSection);
+
+    Combination result = {};
+
+    if (IsPartSi(part))
+    {
+        std::vector<PartConnection> connections =
+            m_GraphOfParts.GetConnectionsBetween(sPart.GetPartId(), part.GetPartId());
+
+        // Sanity check: section is continued. It must be the single output of
+        // its source part.
+        assert(connections.size() == 1);
+
+        const Plan& sPlan = GetPlanForPartFromCombination(sPart, comb);
+
+        const PartConnection& connection = connections.at(0);
+
+        ethosn::command_stream::BlockConfig blkConfig = sPlan.GetBlockConfigures(connection.m_Source);
+        Buffer* sramBuffer                            = sPlan.GetOutputBuffer(connection.m_Source);
+
+        SectionContext contextCopy = context;
+        DeallocateUnusedBuffers(*sramBuffer, contextCopy);
+
+        // Check if this Part can double buffer.
+        // By default, no double buffering is performed.
+        uint32_t currNumWeightStripesMax = g_NumWeightStripesMin;
+        if (part.CanDoubleBufferWeights() && !prevDoubleBuffered)
+        {
+            currNumWeightStripesMax = g_NumWeightStripesMax;
+        }
+
+        // Double buffering is performed on a per Section basis, i.e. either the entire Section double buffers weights
+        // (if the Parts allow it) or the Section single buffers weights. This double buffering is considered when the
+        // Part being evaluated can be double buffered.
+        for (uint32_t currNumWeightStripes = g_NumWeightStripesMin; currNumWeightStripes <= currNumWeightStripesMax;
+             ++currNumWeightStripes)
+        {
+            // Determine which numWeightStripes to use, based on the history of double-buffering.
+            // If previous Part was double-buffered, then:
+            //      1. Pass that number of weightStripes during current plan generation
+            //      2. Pass the same number to the next Parts, during the recursive plan generation calls.
+            // Otherwise, pass the current weightStripe number from the local for-loop.
+            // This is necessary, because if there was no double-buffering in the past and there is the possibility
+            // to double buffer now, then multiple plans must be created for both single buffering and double buffering weights.
+            uint32_t numWeightStripes = prevDoubleBuffered ? prevNumWeightStripes : currNumWeightStripes;
+            Plans plans               = part.GetPlans(CascadeType::End, blkConfig, sramBuffer, numWeightStripes);
+
+            for (Plan& plan : plans)
+            {
+                // Make a copy of the allocator since every plan needs to have its own,
+                // each potential section won't allocate from the same allocator.
+                SectionContext tempContext = contextCopy;
+
+                if (!ArePlansAllowedToMerge(sPlan, plan))
+                {
+                    continue;
+                }
+
+                if (!IsPlanAllocated(tempContext, plan, sramBuffer, StatsType::EndSection))
+                {
+                    continue;
+                }
+
+                if (!IsSectionSizeSupported(StatsType::EndSection, plan, totalAgents))
+                {
+                    continue;
+                }
+
+                // Add current part and plan to the combination
+                StartingGlue startingGlue;
+                EndingGlue endingGlue;
+                startingGlue.m_ExternalConnections.m_ReplacementBuffers.insert(
+                    { plan.GetInputBuffer(connection.m_Destination), sramBuffer });
+                Combination section =
+                    comb + Combination(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first);
+                section.SetStartingGlue(std::move(startingGlue), connection.m_Destination);
+                section.AddEndingGlue(std::move(endingGlue), connection.m_Source);
+
+                Combinations options = { result, section };
+                result               = GetBestCombinationSafe(options);
+            }
+        }
+
+        //  Next part in the graph
+        const BasePart* nextPartGraph = GetNextPart(&part);
+
+        if (!result.m_Elems.empty() && nextPartGraph != nullptr)
+        {
+            result = result + FindBestCombinationForPart(*nextPartGraph);
+
+            // Each of it destination part will start its own new section.
+            // Therefore they all need to be glued with their source.
+            std::vector<PartConnection> destConnections = m_GraphOfParts.GetDestinationConnections(part.GetPartId());
+
+            if (destConnections.empty() == false)
+            {
+                result = GluePartToCombinationSrcToDests(part, result, destConnections);
             }
         }
     }
