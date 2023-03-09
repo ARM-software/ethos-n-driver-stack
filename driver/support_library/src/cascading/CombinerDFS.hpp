@@ -150,7 +150,7 @@ using Combinations = std::vector<Combination>;
 class Combiner
 {
 public:
-    Combiner(const GraphOfParts& graphOfParts,
+    Combiner(const FrozenGraphOfParts& graphOfParts,
              const HardwareCapabilities& capabilities,
              const CompilationOptions& compilationOptions,
              const EstimationOptions& estOpt,
@@ -210,7 +210,7 @@ private:
                        const Combiner::BestCombinationResults& bestCombinationResults,
                        const std::string folder);
 
-    const GraphOfParts& m_GraphOfParts;
+    const FrozenGraphOfParts& m_GraphOfParts;
     const HardwareCapabilities& m_Caps;
     const CompilationOptions& m_CompilationOptions;
     const EstimationOptions& m_EstOpt;
@@ -220,7 +220,7 @@ private:
     OpGraph m_MergedOpGraphForBestCombination;
 };
 
-OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfParts& parts);
+OpGraph GetOpGraphForCombination(const Combination& combination, const FrozenGraphOfParts& parts);
 
 }    // namespace support_library
 }    // namespace ethosn

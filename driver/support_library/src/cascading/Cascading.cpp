@@ -40,11 +40,11 @@ bool IsNodeOfType(const Node* node)
 
 }    // namespace
 
-GraphOfParts CreateGraphOfParts(const Network& network,
-                                const HardwareCapabilities& capabilities,
-                                const EstimationOptions& estOpt,
-                                const CompilationOptions& compOpt,
-                                DebuggingContext& debuggingContext)
+FrozenGraphOfParts CreateGraphOfParts(const Network& network,
+                                      const HardwareCapabilities& capabilities,
+                                      const EstimationOptions& estOpt,
+                                      const CompilationOptions& compOpt,
+                                      DebuggingContext& debuggingContext)
 {
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(network, capabilities, estOpt, compOpt,
                                                                   debuggingContext);
@@ -66,7 +66,7 @@ GraphOfParts CreateGraphOfParts(const Network& network,
     debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "Cascaded_GraphOfPartsDetailed.dot",
                           [&](std::ofstream& s) { SaveGraphOfPartsToDot(g, s, DetailLevel::High); });
 
-    return g;
+    return FrozenGraphOfParts(std::move(g));
 }
 
 RunCascadingResult RunCascading(const Network& network,
@@ -98,7 +98,7 @@ RunCascadingResult RunCascading(const Network& network,
 
     auto startTime = std::chrono::high_resolution_clock::now();
 
-    GraphOfParts graphOfParts = CreateGraphOfParts(network, caps, estimationOptions, compOpt, debuggingContext);
+    FrozenGraphOfParts graphOfParts = CreateGraphOfParts(network, caps, estimationOptions, compOpt, debuggingContext);
 
     auto duration = std::chrono::high_resolution_clock::now() - startTime;
     g_Logger.Debug("CreateGraphOfParts: %llu ms", duration.count() / (1000ULL * 1000ULL));

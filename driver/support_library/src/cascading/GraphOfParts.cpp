@@ -135,6 +135,11 @@ const Parts& GraphOfParts::GetParts() const
     return m_Parts;
 }
 
+Parts GraphOfParts::ReleaseParts()
+{
+    return std::move(m_Parts);
+}
+
 void GraphOfParts::AddPart(std::unique_ptr<BasePart> p)
 {
     PartId id                               = p->GetPartId();
@@ -333,6 +338,139 @@ void GraphOfParts::SortAndCompact()
         m_Connections[PartInputSlot{ newDestPartId, c.first.m_InputIndex }] =
             PartOutputSlot{ newSrcPartId, c.second.m_OutputIndex };
     }
+}
+
+FrozenGraphOfParts::FrozenGraphOfParts(GraphOfParts graph)
+{
+    // Take ownership of all the Parts from the GraphOfParts
+    for (auto&& p : graph.ReleaseParts())
+    {
+        m_Parts.push_back(std::move(p.second));
+    }
+
+    // Copy all the connection information in our arrays for fast lookups
+    for (const auto& c : graph.GetAllConnections())
+    {
+        m_Connections.insert(c);
+    }
+
+    m_PartInputs.resize(m_Parts.size());
+    for (PartId p = 0; p < m_Parts.size(); ++p)
+    {
+        m_PartInputs[p] = graph.GetPartInputs(p);
+    }
+
+    m_PartOutputs.resize(m_Parts.size());
+    for (PartId p = 0; p < m_Parts.size(); ++p)
+    {
+        m_PartOutputs[p] = graph.GetPartOutputs(p);
+    }
+
+    m_SourceParts.resize(m_Parts.size());
+    for (PartId p = 0; p < m_Parts.size(); ++p)
+    {
+        m_SourceParts[p] = graph.GetSourceParts(p);
+    }
+
+    m_DestinationParts.resize(m_Parts.size());
+    for (PartId p = 0; p < m_Parts.size(); ++p)
+    {
+        m_DestinationParts[p] = graph.GetDestinationParts(p);
+    }
+
+    m_SourceConnections.resize(m_Parts.size());
+    for (PartId p = 0; p < m_Parts.size(); ++p)
+    {
+        m_SourceConnections[p] = graph.GetSourceConnections(p);
+    }
+
+    m_DestinationConnections.resize(m_Parts.size());
+    for (PartId p = 0; p < m_Parts.size(); ++p)
+    {
+        m_DestinationConnections[p] = graph.GetDestinationConnections(p);
+    }
+
+    m_ConnectedInputSlots.resize(m_Parts.size());
+    for (PartId p = 0; p < m_Parts.size(); ++p)
+    {
+        const std::vector<PartOutputSlot> outputSlots = graph.GetPartOutputs(p);
+        m_ConnectedInputSlots[p].resize(outputSlots.size());
+        for (PartOutputSlot slot : graph.GetPartOutputs(p))
+        {
+            m_ConnectedInputSlots[p][slot.m_OutputIndex] = graph.GetConnectedInputSlots(slot);
+        }
+    }
+
+    m_ConnectedOutputSlot.resize(m_Parts.size());
+    for (PartId p = 0; p < m_Parts.size(); ++p)
+    {
+        const std::vector<PartInputSlot> inputSlots = graph.GetPartInputs(p);
+        m_ConnectedOutputSlot[p].resize(inputSlots.size());
+        for (PartInputSlot slot : graph.GetPartInputs(p))
+        {
+            m_ConnectedOutputSlot[p][slot.m_InputIndex] = graph.GetConnectedOutputSlot(slot);
+        }
+    }
+}
+
+size_t FrozenGraphOfParts::GetNumParts() const
+{
+    return m_Parts.size();
+}
+
+const BasePart& FrozenGraphOfParts::GetPart(const PartId id) const
+{
+    return *m_Parts[id];
+}
+
+const std::vector<std::unique_ptr<BasePart>>& FrozenGraphOfParts::GetParts() const
+{
+    return m_Parts;
+}
+
+const std::unordered_map<PartInputSlot, PartOutputSlot>& FrozenGraphOfParts::GetAllConnections() const
+{
+    return m_Connections;
+}
+
+const std::vector<PartInputSlot>& FrozenGraphOfParts::GetPartInputs(PartId p) const
+{
+    return m_PartInputs[p];
+}
+
+const std::vector<PartOutputSlot>& FrozenGraphOfParts::GetPartOutputs(PartId p) const
+{
+    return m_PartOutputs[p];
+}
+
+const std::vector<PartOutputSlot>& FrozenGraphOfParts::GetSourceParts(PartId p) const
+{
+    return m_SourceParts[p];
+}
+
+const std::vector<PartInputSlot>& FrozenGraphOfParts::GetDestinationParts(PartId p) const
+{
+    return m_DestinationParts[p];
+}
+
+const std::vector<PartConnection>& FrozenGraphOfParts::GetSourceConnections(PartId p) const
+{
+    return m_SourceConnections[p];
+}
+
+const std::vector<PartConnection>& FrozenGraphOfParts::GetDestinationConnections(PartId p) const
+{
+    return m_DestinationConnections[p];
+}
+
+const std::vector<PartInputSlot>& FrozenGraphOfParts::GetConnectedInputSlots(const PartOutputSlot& outputSlot) const
+{
+    return m_ConnectedInputSlots[outputSlot.m_PartId][outputSlot.m_OutputIndex];
+}
+
+const utils::Optional<PartOutputSlot>& FrozenGraphOfParts::GetConnectedOutputSlot(const PartInputSlot& inputSlot) const
+{
+    return m_ConnectedOutputSlot[inputSlot.m_PartId][inputSlot.m_InputIndex];
 }
 
 }    // namespace support_library

@@ -115,7 +115,7 @@ void Combination::SetMetric(double metric)
     m_Metric = metric;
 }
 
-Combiner::Combiner(const GraphOfParts& graphOfParts,
+Combiner::Combiner(const FrozenGraphOfParts& graphOfParts,
                    const HardwareCapabilities& caps,
                    const CompilationOptions& compilationOptions,
                    const EstimationOptions& estOpt,
@@ -312,17 +312,17 @@ bool Combiner::ArePlansAllowedToMerge(const Plan& reference, const Plan& current
 
 Combination Combiner::AddTempGlues(const Combination& combination)
 {
-    Combination result        = combination;
-    const GraphOfParts& parts = m_GraphOfParts;
+    Combination result              = combination;
+    const FrozenGraphOfParts& parts = m_GraphOfParts;
     for (PartId partId = result.GetFirstPartId(); partId < result.GetEndPartId(); ++partId)
     {
         Elem& elem       = result.GetElem(partId);
         const Plan& plan = *elem.m_Plan;
 
-        std::vector<PartInputSlot> inputSlots = parts.GetPartInputs(partId);
+        const std::vector<PartInputSlot>& inputSlots = parts.GetPartInputs(partId);
         const std::unordered_map<PartInputSlot, std::shared_ptr<StartingGlue>>& startingGlues = elem.m_StartingGlues;
         // All parts needs starting glues in order to be estimated / create an opgraph
-        for (PartInputSlot& inputSlot : inputSlots)
+        for (const PartInputSlot& inputSlot : inputSlots)
         {
             // If there isn't a starting glue on an input slot we have to add a temporary one
             if (startingGlues.find(inputSlot) == startingGlues.end())
@@ -357,9 +357,9 @@ Combination Combiner::AddTempGlues(const Combination& combination)
             }
         }
 
-        std::vector<PartOutputSlot> outputSlots = parts.GetPartOutputs(partId);
+        const std::vector<PartOutputSlot>& outputSlots = parts.GetPartOutputs(partId);
         const std::unordered_map<PartOutputSlot, std::shared_ptr<EndingGlue>>& endingGlues = elem.m_EndingGlues;
-        for (PartOutputSlot& outputSlot : outputSlots)
+        for (const PartOutputSlot& outputSlot : outputSlots)
         {
             // Same for output slots and ending glue
             if (endingGlues.find(outputSlot) == endingGlues.end())
@@ -1412,7 +1412,7 @@ std::vector<Combination> Combiner::CalculateSectionsOfAllLengths(const BasePart&
 //                      OpGraph in order to select the best combination between two
 //                      or more
 //  - Estimation logic: it can only estimate OpGraphs and not raw combinations.
-OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfParts& parts)
+OpGraph GetOpGraphForCombination(const Combination& combination, const FrozenGraphOfParts& parts)
 {
     OpGraph result;
 
@@ -1434,8 +1434,8 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
 
         // Add any starting glues for each incoming edge of this Part
         const std::unordered_map<PartInputSlot, std::shared_ptr<StartingGlue>>& startingGlues = elem.m_StartingGlues;
-        std::vector<PartInputSlot> inputSlots = parts.GetPartInputs(partId);
-        for (PartInputSlot& inputSlot : inputSlots)
+        const std::vector<PartInputSlot>& inputSlots = parts.GetPartInputs(partId);
+        for (const PartInputSlot& inputSlot : inputSlots)
         {
             const StartingGlue* glue = startingGlues.at(inputSlot).get();
             result.MergeOpGraph(glue->m_Graph);
@@ -1503,7 +1503,7 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
 
         // Connect the starting glue to the previous plan (and/or its ending glue),
         // and the starting glue to the current plan.
-        for (PartInputSlot& inputSlot : inputSlots)
+        for (const PartInputSlot& inputSlot : inputSlots)
         {
             // Get the glue for the input buffer
             const StartingGlue* glue = startingGlues.at(inputSlot).get();

@@ -128,6 +128,9 @@ public:
     const BasePart& GetPart(const PartId id) const;
     const Parts& GetParts() const;
 
+    /// Takes ownership of the internal array of parts, leaving this object empty.
+    Parts ReleaseParts();
+
     void AddPart(std::unique_ptr<BasePart> p);
 
     const std::unordered_map<PartInputSlot, PartOutputSlot>& GetAllConnections() const;
@@ -177,6 +180,54 @@ private:
     Parts m_Parts;
     std::unordered_map<PartInputSlot, PartOutputSlot> m_Connections;
     PartId m_NextPartId = 0;
+};
+
+/// An immutable equivalent of GraphOfParts, with faster accessors.
+/// This stores cached versions of all the accessor methods, so it makes the accessors much faster
+/// at the expense of not being able to change any parts or connections.
+class FrozenGraphOfParts
+{
+public:
+    /// Takes a GraphOfParts and "freezes" it.
+    explicit FrozenGraphOfParts(GraphOfParts graph);
+    FrozenGraphOfParts(const FrozenGraphOfParts& rhs) = delete;
+    FrozenGraphOfParts(FrozenGraphOfParts&&)          = default;
+
+    size_t GetNumParts() const;
+    const BasePart& GetPart(const PartId id) const;
+    const std::vector<std::unique_ptr<BasePart>>& GetParts() const;
+
+    const std::unordered_map<PartInputSlot, PartOutputSlot>& GetAllConnections() const;
+
+    /// Methods to retrieve the input / output slots for a part
+    const std::vector<PartInputSlot>& GetPartInputs(PartId p) const;
+    const std::vector<PartOutputSlot>& GetPartOutputs(PartId p) const;
+
+    /// Methods to retrieve the corresponding output / input slots for adjacent parts
+    /// Retrieves the OutputSlots for the parts which are sources to Part p
+    const std::vector<PartOutputSlot>& GetSourceParts(PartId p) const;
+    /// Retrieves the InputSlots for the parts which are destinations to Part p
+    const std::vector<PartInputSlot>& GetDestinationParts(PartId p) const;
+
+    /// Methods to retrieve the connections for the source and destination parts of p
+    const std::vector<PartConnection>& GetSourceConnections(PartId p) const;
+    const std::vector<PartConnection>& GetDestinationConnections(PartId p) const;
+
+    /// Methods to get the corresponding connected input/output slots of an input/output slot
+    const std::vector<PartInputSlot>& GetConnectedInputSlots(const PartOutputSlot& outputSlot) const;
+    const utils::Optional<PartOutputSlot>& GetConnectedOutputSlot(const PartInputSlot& inputSlot) const;
+
+private:
+    std::vector<std::unique_ptr<BasePart>> m_Parts;
+    std::unordered_map<PartInputSlot, PartOutputSlot> m_Connections;
+    std::vector<std::vector<PartInputSlot>> m_PartInputs;
+    std::vector<std::vector<PartOutputSlot>> m_PartOutputs;
+    std::vector<std::vector<PartOutputSlot>> m_SourceParts;
+    std::vector<std::vector<PartInputSlot>> m_DestinationParts;
+    std::vector<std::vector<PartConnection>> m_SourceConnections;
+    std::vector<std::vector<PartConnection>> m_DestinationConnections;
+    std::vector<std::vector<std::vector<PartInputSlot>>> m_ConnectedInputSlots;
+    std::vector<std::vector<utils::Optional<PartOutputSlot>>> m_ConnectedOutputSlot;
 };
 
 }    // namespace support_library

@@ -192,7 +192,8 @@ TEST_CASE("IsPartSiso", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     REQUIRE(combiner.IsPartSiso(partA) == false);
     REQUIRE(combiner.IsPartSiso(partB) == true);
@@ -265,7 +266,8 @@ TEST_CASE("IsPartSo", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     REQUIRE(combiner.IsPartSo(partA) == true);
 
@@ -344,7 +346,8 @@ TEST_CASE("DoubleBufferingTestVariant_PleKernelsOnly", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
     combiner.Run();
     Combination comb = combiner.GetBestCombination();
 
@@ -421,7 +424,8 @@ TEST_CASE("DoubleBufferingTestVariant_SinglePartSection", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
     combiner.Run();
     Combination comb = combiner.GetBestCombination();
 
@@ -500,7 +504,8 @@ TEST_CASE("DoubleBufferingTestVariant_McePleMce", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
     combiner.Run();
     Combination comb = combiner.GetBestCombination();
 
@@ -577,7 +582,8 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMce", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
     combiner.Run();
     Combination comb = combiner.GetBestCombination();
 
@@ -664,7 +670,8 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMcePle", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
     combiner.Run();
     Combination comb = combiner.GetBestCombination();
 
@@ -758,7 +765,8 @@ TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     SectionContext context = {
         {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {}, 0, false, 0
@@ -864,7 +872,8 @@ TEST_CASE("BufferDeallocationTest_CascadeOps", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     SectionContext context = {
         {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {}, 0, false, 0
@@ -1012,7 +1021,8 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
     }
 
     // Call function under test
-    OpGraph combOpGraph = GetOpGraphForCombination(comb, graph);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    OpGraph combOpGraph            = GetOpGraphForCombination(comb, frozenGraph);
 
     bool dumpToFile = true;
     if (dumpToFile)
@@ -1190,7 +1200,8 @@ TEST_CASE("GetOpGraphForDfsMISOSramsToDrams", "[CombinerDFS]")
     }
 
     // Call function under test
-    OpGraph combOpGraph = GetOpGraphForCombination(comb, graph);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    OpGraph combOpGraph            = GetOpGraphForCombination(comb, frozenGraph);
 
     bool dumpToFile = false;
     if (dumpToFile)
@@ -1350,7 +1361,8 @@ TEST_CASE("GetOpGraphForDfsMISODramsToSrams", "[CombinerDFS]")
     }
 
     // Call function under test
-    OpGraph combOpGraph = GetOpGraphForCombination(comb, graph);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    OpGraph combOpGraph            = GetOpGraphForCombination(comb, frozenGraph);
 
     bool dumpToFile = false;
     if (dumpToFile)
@@ -1502,7 +1514,8 @@ TEST_CASE("Add shared glue between Dram and Sram", "[CombinerDFS]")
     // Merge the combinations
     Combination comb = combA + combB + combC + combD;
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, 0);
 
@@ -1591,7 +1604,8 @@ TEST_CASE("GetOpGraphCombinationDramSramConversion", "[CombinerDFS]")
     // Merge the combinations
     Combination comb = combA + combB;
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     std::vector<PartConnection> destPartEdge;
 
@@ -1616,7 +1630,7 @@ TEST_CASE("GetOpGraphCombinationDramSramConversion", "[CombinerDFS]")
     }
 
     // Call function under test
-    OpGraph combOpGraph = GetOpGraphForCombination(combGlued, graph);
+    OpGraph combOpGraph = GetOpGraphForCombination(combGlued, frozenGraph);
 
     bool dumpToFile = false;
     if (dumpToFile)
@@ -1701,7 +1715,8 @@ TEST_CASE("GetOpGraphCombinationDramDramMerge", "[CombinerDFS]")
     // Merge the combinations
     Combination comb = combA + combB;
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     // Part B and the edge that connects to its source Part A
     Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, 0);
@@ -1714,7 +1729,7 @@ TEST_CASE("GetOpGraphCombinationDramDramMerge", "[CombinerDFS]")
     }
 
     // Call function under test
-    OpGraph combOpGraph = GetOpGraphForCombination(combGlued, graph);
+    OpGraph combOpGraph = GetOpGraphForCombination(combGlued, frozenGraph);
 
     bool dumpToFile = false;
     if (dumpToFile)
@@ -1821,7 +1836,8 @@ TEST_CASE("GetOpGraphForDfsCombinationMergedBuffer", "[CombinerDFS]")
     }
 
     // Call function under test
-    OpGraph combOpGraph = GetOpGraphForCombination(comb, graph);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    OpGraph combOpGraph            = GetOpGraphForCombination(comb, frozenGraph);
 
     bool dumpToFile = false;
     if (dumpToFile)
@@ -2069,7 +2085,8 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     }
 
     // Call function under test
-    OpGraph combOpGraph = GetOpGraphForCombination(comb, graph);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    OpGraph combOpGraph            = GetOpGraphForCombination(comb, frozenGraph);
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump the output to a file
     if (dumpToFile)
@@ -2297,7 +2314,8 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
         REQUIRE(comb.GetElem(idAndPart.first).m_StartingGlues.size() == 0);
     }
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, 0);
 
@@ -2306,7 +2324,7 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
 
     REQUIRE(combGlued.GetEndPartId() - combGlued.GetFirstPartId() == 3);
 
-    OpGraph opGraph = GetOpGraphForCombination(combGlued, graph);
+    OpGraph opGraph = GetOpGraphForCombination(combGlued, frozenGraph);
 
     bool dumpToFile = false;
     if (dumpToFile)
@@ -2445,7 +2463,8 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
         REQUIRE(comb.GetElem(idAndPart.first).m_StartingGlues.size() == 0);
     }
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     std::vector<PartConnection> destPartEdge;
 
@@ -2625,7 +2644,8 @@ TEST_CASE("GluePartToCombinationBranch2", "[CombinerDFS]")
         REQUIRE(comb.GetElem(idAndPart.first).m_StartingGlues.size() == 0);
     }
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, 0);
 
@@ -2755,7 +2775,8 @@ TEST_CASE("GluePartToCombinationDramToDramAndSramShare", "[CombinerDFS]")
     // Merge the combinations
     Combination comb = combA + combB + combC;
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, 0);
 
@@ -2873,7 +2894,8 @@ TEST_CASE("GluePartToCombinationDramToDramAndSramMergeShare", "[CombinerDFS]")
     // Merge the combinations
     Combination comb = combA + combB + combC;
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, 0);
 
@@ -2914,7 +2936,7 @@ TEST_CASE("GluePartToCombinationDramToDramAndSramMergeShare", "[CombinerDFS]")
             opGraphC.GetBuffers()[0]);
 
     // Check that the replacements are handled correctly when converting to an OpGraph
-    OpGraph combOpGraph = GetOpGraphForCombination(combGlued, graph);
+    OpGraph combOpGraph = GetOpGraphForCombination(combGlued, frozenGraph);
 
     if (dumpToFile)
     {
@@ -3007,7 +3029,8 @@ TEST_CASE("GluePartToCombinationDramToDramsMerge", "[CombinerDFS]")
     // Merge the combinations
     Combination comb = combA + combB + combC;
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, 0);
 
@@ -3149,7 +3172,8 @@ TEST_CASE("GluePartToCombinationSramToDramsMerge", "[CombinerDFS]")
     // Merge the combinations
     Combination comb = combA + combB + combC;
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, 0);
 
@@ -3265,7 +3289,8 @@ TEST_CASE("GluePartToCombinationSramToDramConversion", "[CombinerDFS]")
     // Merge the combinations
     Combination comb = combA + combB;
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, 0);
 
@@ -3353,7 +3378,8 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
     ethosn::support_library::impl::NumMemoryStripes numMemoryStripes;
     const std::set<uint32_t> operationIds = { 0 };
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     SectionContext context = {
         {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {}, 0, false, 0
@@ -3441,7 +3467,8 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
         const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
         const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-        CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+        FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+        CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
         SectionContext context = {
             {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {}, 0, false, 0
         };
@@ -3554,7 +3581,8 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
         const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
         const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-        CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+        FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+        CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
         SectionContext context = {
             {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {}, 0, false, 0
         };
@@ -3913,7 +3941,8 @@ TEST_CASE("ArePlansAllowedToMerge IdentityParts", "[CombinerDFS]")
     planB.m_OpGraph.AddConsumer(planB.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetOps()[0], 0);
     planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot0 } };
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     REQUIRE(combiner.ArePlansAllowedToMerge(planA, planB) == true);
 
@@ -4039,7 +4068,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         {
             const HardwareCapabilities hwCaps = GetHwCapabilitiesWithFwOverrides(
                 EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef + 1, {}, {});
-            CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+            CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(true, false, plans[0], totalAgents) == true);
             REQUIRE(combiner.IsSectionSizeSupported(false, false, plans[1], totalAgents) == true);
@@ -4049,7 +4078,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         {
             const HardwareCapabilities hwCaps =
                 GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef, {}, {});
-            CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+            CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(true, false, plans[0], totalAgents) == true);
             REQUIRE(combiner.IsSectionSizeSupported(false, false, plans[1], totalAgents) == true);
@@ -4060,7 +4089,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         {
             const HardwareCapabilities hwCaps = GetHwCapabilitiesWithFwOverrides(
                 EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef - 1, {}, {});
-            CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+            CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(true, false, plans[0], totalAgents) == true);
             WHEN("All Ops are Cascade")
@@ -4100,7 +4129,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         {
             const HardwareCapabilities hwCaps =
                 GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 3, {}, {});
-            CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+            CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(true, false, plans[0], totalAgents) == false);
             REQUIRE(combiner.IsSectionSizeSupported(false, false, plans[1], totalAgents) == false);
@@ -4113,7 +4142,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         {
             const HardwareCapabilities hwCaps =
                 GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 16, {}, {});
-            CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+            CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(true, true, plans[0], totalAgents) == true);
         }
@@ -4121,7 +4150,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         {
             const HardwareCapabilities hwCaps =
                 GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 2, {}, {});
-            CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+            CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(true, true, plans[0], totalAgents) == false);
         }
@@ -4129,7 +4158,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         {
             const HardwareCapabilities hwCaps =
                 GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 4, {}, {});
-            CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+            CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
             for (Buffer* b : plans[0].m_OpGraph.GetBuffers())
             {
                 if (b->m_Location == Location::PleInputSram)
@@ -4183,7 +4212,8 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
             Plans concatPlans =
                 concatPart.GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 0);
 
-            CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+            FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+            CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(true, true, concatPlans[0], totalAgents) == true);
 

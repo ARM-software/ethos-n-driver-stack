@@ -1348,7 +1348,8 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
     // Merge the combinations
     Combination comb = combA + combB + combC + combD;
 
-    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
+    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
+    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
     Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, 0);
 
