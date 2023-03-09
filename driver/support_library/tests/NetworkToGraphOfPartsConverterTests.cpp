@@ -901,7 +901,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
     // Checks on Parts generated from MeanXy Visitor.
     REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(0)) != nullptr);
     REQUIRE(graph.GetPartInputs(0).size() == 0);
-    REQUIRE(graph.GetPartOutputs(0).size() == 2);
+    REQUIRE(graph.GetPartOutputs(0).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 0, 0 }).has_value() == false);
 
     const FusedPlePart* meanxyPlePart_7x7 = dynamic_cast<const FusedPlePart*>(&graph.GetPart(1));
@@ -945,7 +945,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
     // Checks on Parts generated from MeanXy Visitor.
     REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(5)) != nullptr);
     REQUIRE(graph.GetPartInputs(5).size() == 0);
-    REQUIRE(graph.GetPartOutputs(5).size() == 2);
+    REQUIRE(graph.GetPartOutputs(5).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 5, 0 }).has_value() == false);
 
     const FusedPlePart* meanxyPlePart_8x8 = dynamic_cast<const FusedPlePart*>(&graph.GetPart(6));
@@ -1055,7 +1055,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest LeakyRelu Sigmoid Tanh")
 
     REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(0)) != nullptr);
     REQUIRE(graph.GetPartInputs(0).size() == 0);
-    REQUIRE(graph.GetPartOutputs(0).size() == 3);
+    REQUIRE(graph.GetPartOutputs(0).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 0, 0 }).has_value() == false);
 
     const FusedPlePart* tanhPlePart = dynamic_cast<const FusedPlePart*>(&graph.GetPart(1));

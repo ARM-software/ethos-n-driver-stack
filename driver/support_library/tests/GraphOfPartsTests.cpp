@@ -131,7 +131,7 @@ TEST_CASE("GraphOfParts GetPartInputs/Outputs")
         auto inputSlots = graph.GetPartInputs(p1Id);
         REQUIRE(inputSlots.size() == 0);
         auto outputSlots = graph.GetPartOutputs(p1Id);
-        REQUIRE(outputSlots.size() == 3);
+        REQUIRE(outputSlots.size() == 2);
     }
     {
         auto inputSlots = graph.GetPartInputs(p2Id);

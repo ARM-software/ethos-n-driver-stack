@@ -166,13 +166,13 @@ bool Combiner::IsPartSi(const BasePart& part) const
 
 bool Combiner::IsPartSo(const BasePart& part) const
 {
-    return (m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() == 1);
+    return (m_GraphOfParts.GetDestinationParts(part.GetPartId()).size() == 1);
 }
 
 bool Combiner::IsPartSiso(const BasePart& part) const
 {
     return (m_GraphOfParts.GetPartInputs(part.GetPartId()).size() == 1 &&
-            m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() == 1);
+            m_GraphOfParts.GetDestinationParts(part.GetPartId()).size() == 1);
 }
 
 // Check if there is sufficient SRAM for plan to fit
@@ -1298,12 +1298,7 @@ void Combiner::Run()
     // Add glues at section boundaries - these are only needed at the end as they don't affect any of the other decisions
     for (PartId p = 0; p < static_cast<PartId>(numParts); ++p)
     {
-        std::vector<PartOutputSlot> outputSlots = m_GraphOfParts.GetPartOutputs(p);
-        // GetPartOutputs will return duplicate values if the output slot has multiple connections.
-        // The below logic requires not to have duplicates, so we remove these first.
-        auto newEnd = std::unique(outputSlots.begin(), outputSlots.end());
-        outputSlots.resize(std::distance(outputSlots.begin(), newEnd));
-
+        const std::vector<PartOutputSlot>& outputSlots = m_GraphOfParts.GetPartOutputs(p);
         for (uint32_t outputIndex = 0; outputIndex < outputSlots.size(); ++outputIndex)
         {
             if (m_BestCombination.GetElem(p).m_EndingGlues.find(PartOutputSlot{ p, outputIndex }) ==
@@ -1499,11 +1494,7 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
         // Note that the order of iteration here needs to be deterministic because we may add some Ops
         // to the OpGraph (and these need to be added in a consistent order).
         // Therefore we don't use plan.m_OutputMappings directly, as it does not have a deterministic order.
-        std::vector<PartOutputSlot> outputSlots = parts.GetPartOutputs(partId);
-        // GetPartOutputs will return duplicate values if the output slot has multiple connections.
-        // The below logic requires not to have duplicates, so we remove these first.
-        auto newEnd = std::unique(outputSlots.begin(), outputSlots.end());
-        outputSlots.resize(std::distance(outputSlots.begin(), newEnd));
+        const std::vector<PartOutputSlot>& outputSlots = parts.GetPartOutputs(partId);
         for (auto outputSlot : outputSlots)
         {
             const EndingGlue* glue = endingGlues.at(outputSlot).get();

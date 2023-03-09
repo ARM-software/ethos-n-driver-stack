@@ -44,7 +44,10 @@ std::vector<PartOutputSlot> GraphOfParts::GetPartOutputs(PartId p) const
     {
         if (part.second.m_PartId == p)
         {
-            res.push_back(part.second);
+            if (std::find(res.begin(), res.end(), part.second) == res.end())
+            {
+                res.push_back(part.second);
+            }
         }
     }
     std::sort(res.begin(), res.end());
