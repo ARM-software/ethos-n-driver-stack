@@ -1386,12 +1386,12 @@ static int protected_firmware_map(struct ethosn_core *core)
 	 * already setup.
 	 */
 	if (core->firmware) {
-		dev_dbg(core->dev, "Protected firmware already mapped\n");
+		dev_info(core->dev, "Protected firmware already mapped\n");
 
 		return 0;
 	}
 
-	dev_dbg(core->dev, "Mapping protected firmware\n");
+	dev_info(core->dev, "Mapping protected firmware\n");
 
 	core->firmware = ethosn_dma_firmware_from_protected(
 		core->main_allocator, firmware->addr, firmware->size);
@@ -1499,12 +1499,12 @@ static int firmware_load(struct ethosn_core *core)
 		goto release_fw;
 	}
 
-	dev_dbg(core->dev,
-		"Found FW. arch_min=0x%08x, arch_max=0x%08x, offset=0x%08x, size=0x%08x\n",
-		big_fw->arch_min,
-		big_fw->arch_max,
-		big_fw->offset,
-		big_fw->size);
+	dev_info(core->dev,
+		 "Found FW. arch_min=0x%08x, arch_max=0x%08x, offset=0x%08x, size=0x%08x\n",
+		 big_fw->arch_min,
+		 big_fw->arch_max,
+		 big_fw->offset,
+		 big_fw->size);
 	dev_dbg(core->dev, "Firmware asset offsets+sizes:\n");
 
 	dev_dbg(core->dev, "  Code: 0x%08x + 0x%08x\n",
