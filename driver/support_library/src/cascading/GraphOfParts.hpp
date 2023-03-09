@@ -150,9 +150,6 @@ public:
     std::vector<PartInputSlot> GetConnectedInputSlots(const PartOutputSlot& outputSlot) const;
     utils::Optional<PartOutputSlot> GetConnectedOutputSlot(const PartInputSlot& inputSlot) const;
 
-    /// Retrieves the connections between source and dest PartIds
-    std::vector<PartConnection> GetConnectionsBetween(PartId source, PartId dest) const;
-
     /// Adds a connection between input slot and output slot to the graph of parts
     /// asserts if the input slot is already connected to an output slot.
     void AddConnection(PartInputSlot inputSlot, PartOutputSlot outputSlot);

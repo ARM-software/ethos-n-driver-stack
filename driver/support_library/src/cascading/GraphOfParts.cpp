@@ -170,21 +170,6 @@ utils::Optional<PartOutputSlot> GraphOfParts::GetConnectedOutputSlot(const PartI
     return res;
 }
 
-std::vector<PartConnection> GraphOfParts::GetConnectionsBetween(PartId source, PartId dest) const
-{
-    std::vector<PartConnection> res;
-    res.reserve(1);
-    auto inOutSlots = GetDestinationConnections(source);
-    for (auto&& inOut : inOutSlots)
-    {
-        if (inOut.m_Destination.m_PartId == dest)
-        {
-            res.push_back(inOut);
-        }
-    }
-    return res;
-}
-
 void GraphOfParts::AddConnection(PartInputSlot inputSlot, PartOutputSlot outputSlot)
 {
     assert(m_Connections.count(inputSlot) == 0);
