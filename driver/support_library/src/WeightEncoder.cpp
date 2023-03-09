@@ -2003,74 +2003,97 @@ std::vector<std::vector<uint8_t>> WeightEncoder::MergeStreamsOg(const std::vecto
             uint16_t headerLength = static_cast<uint16_t>(endWord - startWord);
             uint8_t* headerPtr    = reinterpret_cast<uint8_t*>(&headerLength);
 
-            if ((numBitsStream % 8) == 0)
+            // 2 x header bytes for new stream
+            const uint8_t h1 = headerPtr[0];
+            const uint8_t h2 = headerPtr[1];
+
+            // We need to append the new `stream` onto `mergedGroup` bit-by-bit.
+            const uint32_t bitPos = numBitsStream % 8;
+            if (bitPos == 0)
             {
-                // if the last bit stream's end position is byte aligned
-                // then replaces the first two bytes with ofm stream length
-                // in word.
-                mergedGroup.push_back(headerPtr[0]);
-                mergedGroup.push_back(headerPtr[1]);
+                // Simple case where we are byte-aligned, and can do a regular copy
+                // First two bytes are the header
+                mergedGroup.push_back(h1);
+                mergedGroup.push_back(h2);
+                // Then the rest of the data
                 std::copy(stream.begin() + 2, stream.end(), std::back_inserter(mergedGroup));
             }
             else
             {
-                //otherwise, merging the first byte of the new bit stream
-                // with the last byte of the new bit stream.
+                // Otherwise, we need to shuffle around the bits when appending.
+                // Note that least-significant-bits are considered as "first" (little endian), which is left-most/position 0 in this diagram:
+                //
+                // This diagram shows the alignment between the two sets of bytes, for the case where `bitPos` = 6.
+                //
+                //  |---------------|
+                //  |0 1 2 3 4 5 - -| <-     output bit stream (`mergedGroup`), before appending the new stream.
+                //  |---------------|        Last two bits are not yet set.
+                //
+                //                   new byte 0        new byte 1       new byte 2
+                //              |---------------|---------------|---------------|
+                //              |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|    <- bit stream being appended (`stream`)
+                //              |---------------|---------------|---------------|
+                //
+                //
+                //  |---------------|---------------|---------------|
+                //  |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|    <- output bit stream (`mergedGroup`) after new stream appended
+                //  |---------------|---------------|---------------|
+                //
+                //  * The first bit of the new stream is placed at bit position 6 in the already-existing final byte of `mergedGroup`
+                //  * the second bit of the new stream is placed at bit position 7 in the same byte
+                //  * The third bit of the new stream is placed in a new byte in `mergedGroup`, at bit position 0
 
-                std::vector<uint8_t> tempStream;
-                // take the last element of the previous ofm in the same OG.
-                uint32_t elemByte = static_cast<uint32_t>(mergedGroup.back());
+                const uint32_t invBitPos = 8 - bitPos;
 
-                // remove the last element which will be merged with the new stream
-                mergedGroup.pop_back();
+                // Function to construct the left/least-significant-bits of an output byte
+                // This comes from the right/most-significant-bits of the previous byte in the new stream
+                auto firstPart = [&](uint8_t prevStreamByte) -> uint8_t {
+                    return static_cast<uint8_t>(prevStreamByte >> invBitPos);
+                };
+                // Function to construct the right/most-significant-bits of an output byte
+                // This comes from the left/least-significant-bits of the next byte in the new stream
+                auto secondPart = [&](uint8_t nextStreamByte) -> uint8_t {
+                    return static_cast<uint8_t>(((nextStreamByte & ((1 << invBitPos) - 1)) << (bitPos)));
+                };
 
-                // current bit position in the merged bit stream
-                uint32_t bitPos     = numBitsStream & 7;
-                uint32_t remNumBits = streams[streamIdx].m_NumOfBits;
+                // Get the last element of the merged stream, as we'll need to append some bits to this and update it
+                uint8_t lastByte = static_cast<uint8_t>(mergedGroup.back());
+                // Merge with new header byte (the first byte of the new stream is `h1`)
+                lastByte           = static_cast<uint8_t>(lastByte | secondPart(h1));
+                mergedGroup.back() = lastByte;
 
-                for (uint32_t i = 0; i < static_cast<uint32_t>(stream.size()); ++i)
+                // Add a new byte containing the second part of `h1` and the first part of `h2`
+                const uint8_t firstNewByte = firstPart(h1) | secondPart(h2);
+                mergedGroup.push_back(firstNewByte);
+
+                // Add a new byte containing the second part of `h2` and the first part of the first data byte in the new stream
+                const uint8_t firstStreamByte = stream[2];    // Skip the placeholder header bytes at 0 at 1
+                const uint8_t secondNewByte   = firstPart(h2) | secondPart(firstStreamByte);
+                mergedGroup.push_back(secondNewByte);
+
+                // Loop byte-by-byte appending each of the rest of the bytes of the new stream
+                // This might be faster to do multiple bytes at a time (e.g. 64-bit words). Would need to be careful about alignment though.
+                uint8_t prevStreamByte = firstStreamByte;
+                for (size_t i = 3; i < stream.size() - 0; ++i)
                 {
-                    uint32_t numBits = std::min<uint32_t>(8, remNumBits);
-                    uint32_t newByte;
+                    const uint8_t nextStreamByte = stream[i];
+                    const uint8_t newByte        = firstPart(prevStreamByte) | secondPart(nextStreamByte);
+                    mergedGroup.push_back(newByte);
 
-                    if (i < 2)
-                    {
-                        // first two bytes are headers
-                        newByte = headerPtr[i];
-                        assert(uint32_t(stream[i]) == 0xff);
-                    }
-                    else
-                    {
-                        // then body
-                        newByte = stream[i];
-                    }
-
-                    for (uint32_t j = 0; j < numBits; ++j)
-                    {
-                        uint32_t bit = newByte & 1;
-                        elemByte |= bit << bitPos;
-                        newByte >>= 1;
-
-                        bitPos = (bitPos + 1) & 7;
-
-                        if (bitPos == 0)
-                        {
-                            tempStream.push_back(uint8_t(elemByte));
-                            elemByte = 0;
-                        }
-                    }
-
-                    remNumBits -= numBits;
+                    prevStreamByte = nextStreamByte;
                 }
 
-                assert(remNumBits == 0);
-
-                if (bitPos != 0)
+                // The second half of the final byte now needs adding, but this final byte
+                // might not be a full byte, so check if there's actually anything to add
+                uint32_t finalByteNumBits = streams[streamIdx].m_NumOfBits % 8;
+                if (finalByteNumBits == 0)
                 {
-                    tempStream.push_back(uint8_t(elemByte));
+                    finalByteNumBits = 8;
                 }
-
-                std::copy(tempStream.begin(), tempStream.end(), std::back_inserter(mergedGroup));
+                if (finalByteNumBits > invBitPos)
+                {
+                    mergedGroup.push_back(firstPart(prevStreamByte));
+                }
             }
 
             numBitsStream += streams[streamIdx].m_NumOfBits;
