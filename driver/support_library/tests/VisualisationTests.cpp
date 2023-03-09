@@ -1090,48 +1090,31 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     endingGlueF->m_ExternalConnections.m_ReplacementBuffers.insert(
         { planF.m_OpGraph.GetBuffers()[0], endingGlueF->m_Graph.GetBuffers()[0] });
 
-    Combination comb;
+    Combination combA(0, std::move(planA));
+    combA.SetEndingGlue(std::move(*endingGlueA), partAOutputSlot0);
 
-    Elem elemA;
-    elemA.m_Plan        = std::make_shared<Plan>(std::move(planA));
-    elemA.m_EndingGlues = { { partAOutputSlot0, endingGlueA } };
+    Combination combB(1, std::move(planB));
+    combB.SetStartingGlue(std::move(*startingGlueB), partBInputSlot0);
+    combB.SetEndingGlue(std::move(*endingGlueB), partBOutputSlot0);
 
-    Elem elemB;
-    elemB.m_Plan          = std::make_shared<Plan>(std::move(planB));
-    elemB.m_StartingGlues = { { partBInputSlot0, startingGlueB } };
-    elemB.m_EndingGlues   = { { partBOutputSlot0, endingGlueB } };
+    Combination combC(2, std::move(planC));
+    combC.SetStartingGlue(std::move(*startingGlueC), partCInputSlot0);
+    combC.SetEndingGlue(std::move(*endingGlueC), partCOutputSlot0);
 
-    Elem elemC;
-    elemC.m_Plan          = std::make_shared<Plan>(std::move(planC));
-    elemC.m_StartingGlues = { { partCInputSlot0, startingGlueC } };
-    elemC.m_EndingGlues   = { { partCOutputSlot0, endingGlueC } };
+    Combination combDE(3, std::move(planDE));
+    combDE.SetStartingGlue(std::move(*startingGlueDE), partDEInputSlot0);
+    combDE.SetEndingGlue(std::move(*endingGlueD), partDEOutputSlot0);
+    combDE.SetEndingGlue(std::move(*endingGlueE), partDEOutputSlot1);
 
-    Elem elemDE;
-    elemDE.m_Plan          = std::make_shared<Plan>(std::move(planDE));
-    elemDE.m_StartingGlues = { { partDEInputSlot0, startingGlueDE } };
-    elemDE.m_EndingGlues   = { { partDEOutputSlot0, endingGlueD }, { partDEOutputSlot1, endingGlueE } };
+    Combination combF(4, std::move(planF));
+    combF.SetStartingGlue(std::move(*startingGlueF), partFInputSlot0);
+    combF.SetEndingGlue(std::move(*endingGlueF), partFOutputSlot0);
 
-    Elem elemF;
-    elemF.m_Plan          = std::make_shared<Plan>(std::move(planF));
-    elemF.m_StartingGlues = { { partFInputSlot0, startingGlueF } };
-    elemF.m_EndingGlues   = { { partFOutputSlot0, endingGlueF } };
+    Combination combG(5, std::move(planG));
+    combG.SetStartingGlue(std::move(*startingGluefromDtoG), partGInputSlot0);
+    combG.SetStartingGlue(std::move(*startingGluefromEtoG), partGInputSlot1);
 
-    Elem elemG;
-    elemG.m_Plan          = std::make_shared<Plan>(std::move(planG));
-    elemG.m_StartingGlues = { { partGInputSlot0, startingGluefromDtoG }, { partGInputSlot1, startingGluefromEtoG } };
-
-    comb.m_Elems.insert(std::make_pair(0, elemA));
-    comb.m_PartIdsInOrder.push_back(0);
-    comb.m_Elems.insert(std::make_pair(1, elemB));
-    comb.m_PartIdsInOrder.push_back(1);
-    comb.m_Elems.insert(std::make_pair(2, elemC));
-    comb.m_PartIdsInOrder.push_back(2);
-    comb.m_Elems.insert(std::make_pair(3, elemDE));
-    comb.m_PartIdsInOrder.push_back(3);
-    comb.m_Elems.insert(std::make_pair(4, elemF));
-    comb.m_PartIdsInOrder.push_back(4);
-    comb.m_Elems.insert(std::make_pair(5, elemG));
-    comb.m_PartIdsInOrder.push_back(5);
+    Combination comb = combA + combB + combC + combDE + combF + combG;
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
     bool dumpToFile = false;
@@ -1357,44 +1340,21 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
     x->m_SizeInBytes      = 4;
     planD.m_InputMappings = { { planD.m_OpGraph.GetBuffers()[0], partDInputSlot } };
 
-    Combination combA(partA, std::move(planA), 0);
-    Combination combB(partB, std::move(planB), 1);
-    Combination combC(partC, std::move(planC), 2);
-    Combination combD(partD, std::move(planD), 3);
+    Combination combA(partA.GetPartId(), std::move(planA));
+    Combination combB(partB.GetPartId(), std::move(planB));
+    Combination combC(partC.GetPartId(), std::move(planC));
+    Combination combD(partD.GetPartId(), std::move(planD));
 
     // Merge the combinations
-    Combination comb = combB + combD + combC + combA;
+    Combination comb = combA + combB + combC + combD;
 
-    REQUIRE(combA.m_PartIdsInOrder[0] == 0);
-    REQUIRE(combA.m_HeadOrderRank == 0);
-    REQUIRE(combB.m_PartIdsInOrder[0] == 1);
-    REQUIRE(combB.m_HeadOrderRank == 1);
-    REQUIRE(combC.m_PartIdsInOrder[0] == 2);
-    REQUIRE(combC.m_HeadOrderRank == 2);
-    REQUIRE(combD.m_PartIdsInOrder[0] == 3);
-    REQUIRE(combD.m_HeadOrderRank == 3);
-    REQUIRE(comb.m_PartIdsInOrder[0] == 0);
-    REQUIRE(comb.m_HeadOrderRank == 0);
+    CombinerTest combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
-    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
-
-    std::vector<PartConnection> destPartEdge;
-
-    // Part B and the edge that connects to its source Part A
-    PartConnection edgeA2B = graph.GetConnectionsBetween(partA.GetPartId(), partB.GetPartId()).at(0);
-    destPartEdge.push_back(edgeA2B);
-    // Part C and the edge that connects to its source Part A
-    PartConnection edgeA2C = graph.GetConnectionsBetween(partA.GetPartId(), partC.GetPartId()).at(0);
-    destPartEdge.push_back(edgeA2C);
-    // Part D and the edge that connects to its source Part A
-    PartConnection edgeA2D = graph.GetConnectionsBetween(partA.GetPartId(), partD.GetPartId()).at(0);
-    destPartEdge.push_back(edgeA2D);
-
-    Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, destPartEdge);
+    Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, 0);
 
     // One glue shared by A-B, A-C (SRAM - SRAM) and A-D (SRAM - DRAM)
     // The glue has (1) 1 x input DMA (2) DRAM buffer (3) 2 x ouput DMA
-    REQUIRE(combGlued.m_Elems.size() == 4);
+    REQUIRE(combGlued.GetEndPartId() - combGlued.GetFirstPartId() == 4);
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
     bool dumpToFile = false;
@@ -1442,18 +1402,6 @@ DmaOp_15[label = "DmaOp 15", shape = oval, color = darkgoldenrod]
 }
 DramBuffer_13 -> DmaOp_15
 DmaOp_15 -> SramBuffer_7
-subgraph clusterPlan_10
-{
-label="Part 3: Plan 10"
-labeljust=l
-DramBuffer_11[label = "DramBuffer 11", shape = box, color = brown]
-}
-subgraph clusterPart_3_Plan_10_Starting_Glue
-{
-label="Part 3 Plan 10 Starting Glue"
-labeljust=l
-}
-DmaOp_12 -> DramBuffer_11
 subgraph clusterPlan_8
 {
 label="Part 2: Plan 8"
@@ -1468,6 +1416,18 @@ DmaOp_16[label = "DmaOp 16", shape = oval, color = darkgoldenrod]
 }
 DramBuffer_13 -> DmaOp_16
 DmaOp_16 -> SramBuffer_9
+subgraph clusterPlan_10
+{
+label="Part 3: Plan 10"
+labeljust=l
+DramBuffer_11[label = "DramBuffer 11", shape = box, color = brown]
+}
+subgraph clusterPart_3_Plan_10_Starting_Glue
+{
+label="Part 3 Plan 10 Starting Glue"
+labeljust=l
+}
+DmaOp_12 -> DramBuffer_11
 }
 )";
     std::string output = stream.str();

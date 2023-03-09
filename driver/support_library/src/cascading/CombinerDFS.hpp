@@ -16,8 +16,6 @@ namespace ethosn
 namespace support_library
 {
 
-using PlanCache = std::unordered_map<PartId, Plans>;
-
 // Store the connections between the glues
 struct GlueConnections
 {
@@ -84,110 +82,67 @@ struct Elem
     std::unordered_map<PartOutputSlot, std::shared_ptr<EndingGlue>> m_EndingGlues;
 };
 
-constexpr size_t g_InvalidCombRank = std::numeric_limits<size_t>::max();
-
 using PleOperations = std::vector<std::pair<command_stream::cascading::PleKernelId, uint32_t>>;
 
-/// Information about a section, passed down from StartSection through Continue/EndSection.
+/// A Combination stores which Plans have been chosen for a set of Parts.
+/// It also stores Glues which connect adjacent Plans to each other.
+/// The Parts that it stores Plans for must have contiguous IDs (e.g. Parts 1, 2 and 3).
+class Combination
+{
+public:
+    /// Creates an empty/invalid Combination, which contains no chosen Plans.
+    Combination();
+
+    /// Creates a Combination storing a single Part with an associated Plan.
+    /// No Glues are needed, as there is only a single Plan.
+    Combination(PartId partId, Plan&& plan);
+
+    /// Combines this Combination and another into a new Combination, containing the chosen Plans
+    /// and glues from each. The `rhs` must contain Parts that continue the contiguous ID numbering
+    /// from the current Combination, e.g. { 1, 2, 3 } + { 4, 5 } is valid, but { 1, 2, 3 } + { 5, 6 } is not.
+    Combination operator+(const Combination& rhs) const;
+
+    /// Sets the ending or starting Glue for a given Part in this Combination.
+    /// This can only be done once - a Glue can't be changed once set.
+    /// @{
+    void SetEndingGlue(EndingGlue&& glue, PartOutputSlot outputSlot);
+    void SetStartingGlue(StartingGlue&& glue, PartInputSlot inputSlot);
+    /// @}
+
+    bool IsEmpty() const;
+
+    /// Gets the first/last Part ID which this Combination is storing a Plan for.
+    /// All Parts inbetween these will also have a Plan stored, because we always store a contiguous range.
+    /// @{
+    PartId GetFirstPartId() const;
+    PartId GetEndPartId() const;
+    /// @}
+
+    Elem& GetElem(PartId partId);
+    const Elem& GetElem(PartId partId) const;
+
+    double GetMetric() const;
+    void SetMetric(double metric);
+
+private:
+    /// The ID of the first Part that we're storing a Plan for.
+    PartId m_PartIdOffset;
+    /// The Plans and Glues for each Part in the contiguous range of Parts that we're storing.
+    std::vector<Elem> m_Elems;
+    /// The combined estimated performance metric for the set of Plans that we're storing.
+    double m_Metric;
+};
+
+/// Information about a section.
 struct SectionContext
 {
+    Combination comb;
     SramAllocator alloc;
     PleOperations pleOps;
     std::vector<SramBuffer*> allocatedBuffers;
-};
-
-struct Combination
-{
-    Combination()
-    {}
-
-    Combination(const BasePart& part)
-        : Combination(part, Plan(), SIZE_MAX)
-    {}
-
-    // Create a combination with a single element plan
-    Combination(const BasePart& part, Plan&& plan, size_t orderRank)
-    {
-        // Create a new element
-        Elem elem = { std::make_shared<Plan>(std::move(plan)), {}, {} };
-        m_Elems.insert({ part.GetPartId(), elem });
-
-        // Update the Header's rank in topological order
-        m_HeadOrderRank = orderRank;
-
-        // The partId is not pushed to the part ID list
-        // if this is a glue.
-        if (orderRank != g_InvalidCombRank)
-        {
-            m_PartIdsInOrder.push_back(part.GetPartId());
-        }
-    }
-
-    Combination operator+(const Combination& rhs) const
-    {
-        Combination result = *this;
-
-        // The header order rank decides the order
-        // how part ID vectors are merged.
-        if (result.m_HeadOrderRank > rhs.m_HeadOrderRank)
-        {
-            result.m_HeadOrderRank = rhs.m_HeadOrderRank;
-            result.m_PartIdsInOrder.insert(result.m_PartIdsInOrder.begin(), rhs.m_PartIdsInOrder.begin(),
-                                           rhs.m_PartIdsInOrder.end());
-        }
-        else if (!rhs.m_PartIdsInOrder.empty())
-        {
-            result.m_PartIdsInOrder.insert(result.m_PartIdsInOrder.end(), rhs.m_PartIdsInOrder.begin(),
-                                           rhs.m_PartIdsInOrder.end());
-        }
-
-        for (auto& rhsElemIt : rhs.m_Elems)
-        {
-            // Can't add combinations which share part id's.
-            assert(result.m_Elems.find(rhsElemIt.first) == result.m_Elems.end());
-            result.m_Elems.insert(rhsElemIt);
-        }
-        return result;
-    }
-
-    void AddEndingGlue(EndingGlue&& glue, PartOutputSlot outputSlot)
-    {
-        const auto& it = m_Elems.find(outputSlot.m_PartId);
-        assert(it != m_Elems.end());
-        it->second.m_EndingGlues.insert({ outputSlot, std::make_shared<EndingGlue>(std::move(glue)) });
-    }
-
-    void SetStartingGlue(StartingGlue&& glue, PartInputSlot inputSlot)
-    {
-        const auto& it = m_Elems.find(inputSlot.m_PartId);
-        assert(it != m_Elems.end());
-        it->second.m_StartingGlues.insert({ inputSlot, std::make_shared<StartingGlue>(std::move(glue)) });
-    }
-
-    using Elems          = std::unordered_map<PartId, Elem>;
-    Combination& operator=(const Combination& c) = default;
-
-    /// Helpers
-    /// @{
-    size_t GetNumElems() const
-    {
-        return m_Elems.size();
-    }
-    /// @}
-
-    Elems m_Elems;
-    size_t m_HeadOrderRank = g_InvalidCombRank;
-    std::vector<PartId> m_PartIdsInOrder;
-};
-
-enum class StatsType
-{
-    SinglePartSection,
-    StartSection,
-    ContinueSection,
-    EndSection,
-    FindBestCombinationForPart,
-    NumStats,
+    uint32_t currNumWeightStripes;
+    bool hasSectionDoubleBuffered;
+    uint32_t totalAgents;
 };
 
 using Combinations = std::vector<Combination>;
@@ -201,30 +156,35 @@ public:
              const EstimationOptions& estOpt,
              const DebuggingContext& debuggingContext);
 
-    bool IsPartInput(const BasePart& part) const;
-    bool IsPartOutput(const BasePart& part) const;
+    const Combination& GetBestCombination() const;
+    OpGraph GetMergedOpGraphForBestCombination() const;
 
+    void Run();
+
+protected:
     bool IsPartSi(const BasePart& part) const;
     bool IsPartSo(const BasePart& part) const;
-    bool IsPartMo(const BasePart& part) const;
     bool IsPartSiso(const BasePart& part) const;
-    bool IsPartSimo(const BasePart& part) const;
-    bool IsPartMiso(const BasePart& part) const;
-    bool IsPartMimo(const BasePart& part) const;
 
     bool IsPlanAllocated(SectionContext& context,
                          const Plan& plan,
                          const Buffer* const outBufOfPrevPlanInSection,
-                         const StatsType sectionType) const;
+                         bool inputBufferNeedAllocation) const;
     bool ArePlansAllowedToMerge(const Plan& reference, const Plan& current) const;
     void DeallocateUnusedBuffers(const Buffer& prevPlanBuffer, SectionContext& context);
 
-    const Combination& GetBestCombination() const;
-    OpGraph GetMergedOpGraphForBestCombination() const;
+    bool IsSectionSizeSupported(bool startOrSinglePartSection,
+                                bool endOrSinglePartSection,
+                                const Plan& plan,
+                                uint32_t& totalAgents);
 
+    Combination GluePartToCombinationSrcToDests(const BasePart& sPart, const Combination& comb, uint32_t outputSlotIdx);
+
+private:
     struct BestCombinationResults
     {
         size_t m_BestIdx;
+        double m_BestMetric;
         /// Only used for debugging
         /// @{
         std::vector<Combination> m_CompletedCombinations;
@@ -232,83 +192,32 @@ public:
         std::vector<EstimatedOpGraph> m_EstimatedOpGraphs;
         /// @}
     };
-    BestCombinationResults GetBestCombination(const Combinations& combs);
-    Combination GetBestCombinationSafe(Combinations& combs);
+    BestCombinationResults EstimateAndChooseBestCombination(const Combinations& combs);
 
-    const Plan& GetPlanForPartFromCombination(const BasePart& part, const Combination& comb) const;
+    Combination ChooseBestLonelyPlan(const BasePart& part);
 
-    Combination FindBestCombinationForPart(const BasePart& part);
-    virtual Combination FindBestCombinationForPartImpl(const BasePart& part);
+    std::vector<SectionContext> StartSection(const BasePart& part);
+    std::vector<SectionContext> ContinueSection(const BasePart& part, const SectionContext& context);
+    std::vector<SectionContext> EndSection(const BasePart& part, const SectionContext& context);
 
-    Combination ContinueSection(const BasePart& part,
-                                const BasePart& sPart,
-                                const Combination& comb,
-                                const SectionContext& context,
-                                uint32_t prevNumWeightStripes,
-                                bool prevDoubleBuffered,
-                                uint32_t totalAgents);
+    std::vector<Combination> CalculateSectionsOfAllLengths(const BasePart& startingPart);
 
-    Combination SinglePartSection(const BasePart& part);
-
-    Combination EndSection(const BasePart& part,
-                           const BasePart& sPart,
-                           const Combination& comb,
-                           const SectionContext& context,
-                           uint32_t prevNumWeightStripes,
-                           bool prevDoubleBuffered,
-                           uint32_t totalAgents);
-
-    Combination StartSection(const BasePart& part, const BasePart& nextPart);
-
-    Combination GluePartToCombinationSrcToDests(const BasePart& sPart,
-                                                const Combination& comb,
-                                                const std::vector<PartConnection>& destPartEdge);
-
-    const BasePart* GetNextPart(const BasePart* part)
-    {
-        return m_PartOrderTable[part->GetPartId()].second;
-    }
-
-    void UpdateStats(const StatsType type);
-
-    void Run();
-
-    enum class PartState
-    {
-        Visiting,
-        Visited,
-    };
-
-    bool Visit(const BasePart* current,
-               std::vector<const BasePart*>& outSorted,
-               std::map<const BasePart*, PartState>& partStates);
-
-    bool TopologicalSortParts();
-
-    bool IsSectionSizeSupported(const StatsType sectionInfo, const Plan& plan, uint32_t& totalAgents);
-    bool DoAgentsInGraphFitInsideWindow(const OpGraph& opGraph, Buffer* inputBuffer, uint32_t& totalAgents);
-
-private:
     // Add glue to input slots and output slots which do not have glue already
     // This is needed so it can estimate partial combinations
     Combination AddTempGlues(const Combination& combination);
+
+    void DumpDebugInfo(const Combinations& combs,
+                       const Combiner::BestCombinationResults& bestCombinationResults,
+                       const std::string folder);
+
     const GraphOfParts& m_GraphOfParts;
     const HardwareCapabilities& m_Caps;
     const CompilationOptions& m_CompilationOptions;
     const EstimationOptions& m_EstOpt;
     const DebuggingContext& m_DebuggingContext;
 
-    const BasePart* m_FirstPartAfterSort = nullptr;
-    std::unordered_map<size_t, std::pair<size_t, const BasePart*>> m_PartOrderTable;
-
     Combination m_BestCombination;
     OpGraph m_MergedOpGraphForBestCombination;
-    bool m_MergedOpGraphReady;
-
-    std::vector<StartingAndEndingGlues> m_GluesVector;
-    std::unordered_map<const BasePart*, const Combination> m_CombinationPerPartMap;
-
-    std::vector<size_t> m_Stats{ std::vector<size_t>(static_cast<size_t>(StatsType::NumStats), 0) };
 };
 
 OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfParts& parts);

@@ -7,6 +7,7 @@
 
 #include "../include/ethosn_support_library/Support.hpp"
 #include "../src/Utils.hpp"
+#include "../src/cascading/CombinerDFS.hpp"
 #include "../src/cascading/Part.hpp"
 #include "../src/cascading/Plan.hpp"
 
@@ -123,6 +124,56 @@ public:
 bool IsEstimateOnlyOp(const Op* const op);
 bool IsMceOp(const Op* const op);
 bool IsPleOp(const Op* const op);
+
+class CombinerTest : public Combiner
+{
+public:
+    using Combiner::Combiner;
+
+    bool IsPartSi(const BasePart& part) const
+    {
+        return Combiner::IsPartSi(part);
+    }
+    bool IsPartSo(const BasePart& part) const
+    {
+        return Combiner::IsPartSo(part);
+    }
+    bool IsPartSiso(const BasePart& part) const
+    {
+        return Combiner::IsPartSiso(part);
+    }
+
+    bool IsPlanAllocated(SectionContext& context,
+                         const Plan& plan,
+                         const Buffer* const outBufOfPrevPlanInSection,
+                         bool inputBufferNeedAllocation) const
+    {
+        return Combiner::IsPlanAllocated(context, plan, outBufOfPrevPlanInSection, inputBufferNeedAllocation);
+    }
+
+    bool ArePlansAllowedToMerge(const Plan& reference, const Plan& current) const
+    {
+        return Combiner::ArePlansAllowedToMerge(reference, current);
+    }
+
+    void DeallocateUnusedBuffers(const Buffer& prevPlanBuffer, SectionContext& context)
+    {
+        return Combiner::DeallocateUnusedBuffers(prevPlanBuffer, context);
+    }
+
+    bool IsSectionSizeSupported(bool startOrSinglePartSection,
+                                bool endOrSinglePartSection,
+                                const Plan& plan,
+                                uint32_t& totalAgents)
+    {
+        return Combiner::IsSectionSizeSupported(startOrSinglePartSection, endOrSinglePartSection, plan, totalAgents);
+    }
+
+    Combination GluePartToCombinationSrcToDests(const BasePart& sPart, const Combination& comb, uint32_t outputSlotIdx)
+    {
+        return Combiner::GluePartToCombinationSrcToDests(sPart, comb, outputSlotIdx);
+    }
+};
 
 }    // namespace support_library
 }    // namespace ethosn

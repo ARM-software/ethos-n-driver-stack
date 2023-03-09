@@ -31,7 +31,7 @@ class Buffer;
 class GraphOfParts;
 class Plan;
 struct EstimatedOpGraph;
-struct Combination;
+class Combination;
 enum class Location;
 enum class CascadingBufferFormat;
 enum class CompilerDataFormat;

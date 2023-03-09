@@ -1492,13 +1492,10 @@ void SaveCombinationToDot(const Combination& combination, std::ostream& stream, 
     NodeIds nodeIds;
     std::unordered_map<PartInputSlot, std::string> edgeInputs;
 
-    assert(combination.m_PartIdsInOrder.size() == combination.m_Elems.size());
-
-    for (auto& partId : combination.m_PartIdsInOrder)
+    for (PartId partId = combination.GetFirstPartId(); partId < combination.GetEndPartId(); ++partId)
     {
-        auto elemIt = combination.m_Elems.find(partId);
-        assert(elemIt != combination.m_Elems.end());
-        const Plan& plan = *elemIt->second.m_Plan;
+        const Elem& elem = combination.GetElem(partId);
+        const Plan& plan = *elem.m_Plan;
 
         // Save Plans as isolated subgraph
         DotAttributes attr = GetDotAttributes(&plan, detailLevel);
@@ -1510,8 +1507,7 @@ void SaveCombinationToDot(const Combination& combination, std::ostream& stream, 
                << "\n";
 
         // Construct an ordered map from the unordered map so we have consistent visualisation output
-        const std::unordered_map<PartInputSlot, std::shared_ptr<StartingGlue>>& startingGlues =
-            elemIt->second.m_StartingGlues;
+        const std::unordered_map<PartInputSlot, std::shared_ptr<StartingGlue>>& startingGlues = elem.m_StartingGlues;
         std::map<PartInputSlot, std::shared_ptr<StartingGlue>> startingGluesOrdered(startingGlues.begin(),
                                                                                     startingGlues.end());
         for (const std::pair<PartInputSlot, std::shared_ptr<StartingGlue>>& slotAndStartingGlue : startingGluesOrdered)
@@ -1537,8 +1533,7 @@ void SaveCombinationToDot(const Combination& combination, std::ostream& stream, 
             DumpMapInSortedOrderReverse(startingGlue->m_ExternalConnections.m_ReplacementBuffers, stream, nodeIds,
                                         "[style = dashed, label=\"Replaced by\", dir=\"back\"]");
         }
-        const std::unordered_map<PartOutputSlot, std::shared_ptr<EndingGlue>>& endingGlues =
-            elemIt->second.m_EndingGlues;
+        const std::unordered_map<PartOutputSlot, std::shared_ptr<EndingGlue>>& endingGlues = elem.m_EndingGlues;
         std::map<PartOutputSlot, std::shared_ptr<EndingGlue>> endingGluesOrdered(endingGlues.begin(),
                                                                                  endingGlues.end());
         for (const std::pair<PartOutputSlot, std::shared_ptr<EndingGlue>>& slotAndEndingGlue : endingGluesOrdered)
