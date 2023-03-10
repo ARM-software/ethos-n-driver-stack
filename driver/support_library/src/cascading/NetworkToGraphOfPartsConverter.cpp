@@ -55,7 +55,7 @@ std::unique_ptr<McePart> NetworkToGraphOfPartsConverter::CreateIdentityMcePart(c
     params.m_Op             = command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
     params.m_OperationIds   = std::set<uint32_t>{ operationId };
     params.m_UpscaleFactor  = 1;
-    params.m_UpsampleType   = command_stream::cascading::UpsampleType::OFF;
+    params.m_UpsampleType   = MceUpsampleType::OFF;
     params.m_InputDataType  = inputDataType;
     params.m_OutputDataType = outputDataType;
     params.m_LowerBound     = outputDataType == DataType::UINT8_QUANTIZED ? 0 : -128;
@@ -127,7 +127,7 @@ std::unique_ptr<McePart>
     params.m_Op                = command_stream::MceOperation::CONVOLUTION;
     params.m_OperationIds      = std::set<uint32_t>{ operationId };
     params.m_UpscaleFactor     = 1;
-    params.m_UpsampleType      = command_stream::cascading::UpsampleType::OFF;
+    params.m_UpsampleType      = MceUpsampleType::OFF;
     params.m_InputDataType     = inputDataType;
     params.m_OutputDataType    = outputDataType;
     params.m_LowerBound        = outputDataType == DataType::UINT8_QUANTIZED ? 0 : -128;
@@ -194,7 +194,7 @@ std::unique_ptr<McePart>
     params.m_Op                = command_stream::MceOperation::CONVOLUTION;
     params.m_OperationIds      = std::set<uint32_t>{ operationId };
     params.m_UpscaleFactor     = 1;
-    params.m_UpsampleType      = command_stream::cascading::UpsampleType::OFF;
+    params.m_UpsampleType      = MceUpsampleType::OFF;
     params.m_InputDataType     = inputDataType;
     params.m_OutputDataType    = outputDataType;
     params.m_LowerBound        = outputDataType == DataType::UINT8_QUANTIZED ? 0 : -128;
@@ -1166,9 +1166,8 @@ std::vector<BasePart*> NetworkToGraphOfPartsConverter::CreateTransposeConv(const
     // The stride of the convolution operation underneath is always 1.
     // The stride comes in as a vector {x, y} where x = y (validated by IsSupported checks)
     assert(stride.m_X == stride.m_Y);
-    uint32_t upscaleFactor = stride.m_X;
-    ethosn::command_stream::cascading::UpsampleType upsampleType =
-        ethosn::command_stream::cascading::UpsampleType::TRANSPOSE;
+    uint32_t upscaleFactor          = stride.m_X;
+    MceUpsampleType upsampleType    = MceUpsampleType::TRANSPOSE;
     const TensorShape& weightsShape = weightsInfo.m_Dimensions;
 
     // The padding of a TransposeConvolution affects the convolution operation underneath, but requires modification.
@@ -1261,7 +1260,7 @@ std::vector<BasePart*> NetworkToGraphOfPartsConverter::CreateTransposeConv(const
         m_GraphOfParts.AddPart(std::move(identityDepthwisePart));
 
         upscaleFactor = 1;
-        upsampleType  = ethosn::command_stream::cascading::UpsampleType::OFF;
+        upsampleType  = MceUpsampleType::OFF;
         inputShape    = intermediateOutputShape;
     }
 

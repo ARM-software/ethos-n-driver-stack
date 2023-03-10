@@ -21,137 +21,42 @@ namespace command_stream
 namespace cascading
 {
 
-/// Slot info for data in SRAM
-struct Tile
-{
-    uint32_t baseAddr;
-    uint16_t numSlots;
-    uint32_t slotSize;
-};
-
-ETHOSN_DECL_SV_VECTOR_STRUCT(SupertensorSize, width, channels)
-ETHOSN_DECL_SV_VECTOR_STRUCT(TensorSize, height, width, channels)
-
-/// Ifm/Ofm Data type
-enum class FmsDataType : uint8_t
-{
-    NHWC,
-    FCAF_WIDE,
-    FCAF_DEEP,
-    NHWCB,
-};
-
-/// FCAF Compression Info
-struct FcafInfo
-{
-    /// Zero point info needed for FCAF
-    int16_t zeroPoint;
-    /// Signed activation info needed for FCAF
-    bool signedActivation;
-};
-
-/// Ifm/Ofm Streamer common data
-struct FmSData
-{
-    /// Starting offset of the tensor inside the supertensor
-    uint32_t dramOffset;
-    /// Buffer ID of the supertensor
-    uint16_t bufferId;
-    /// IFM/OFM data type
-    FmsDataType dataType;
-    /// FCAF Compression Info
-    FcafInfo fcafInfo;
-    /// IFM/OFM SRAM tile info
-    Tile tile;
-    /// Default stripe size. Actual stripe size could be smaller at the tensor edges
-    TensorSize<uint16_t> dfltStripeSize;
-    /// Size of the stripes at the edge of each dimension
-    TensorSize<uint16_t> edgeStripeSize;
-    /// Size of the supertensor in number of cells in the width and channels dimensions.
-    /// Cells are 1x1x1 (NHWC/NCHW), 8x8x16 (NHWCB), 8x16x16 (FCAF_WIDE) or 8x8x32 (FCAF_DEEP)
-    SupertensorSize<uint16_t> supertensorSizeInCells;
-    /// Number of unique stripes in each tensor dimension (numStripesTotal will be
-    /// a larger multiple of the product of all dimensions if reloading is needed)
-    TensorSize<uint16_t> numStripes;
-    /// Stride info for stripe ID (scalar) to stripe coord (ND) conversion
-    TensorSize<uint16_t> stripeIdStrides;
-};
-
-struct PackedBoundaryThickness
-{
-    uint8_t left;
-    uint8_t top;
-    uint8_t right;
-    uint8_t bottom;
-    ETHOSN_USE_AS_SV_VECTOR(PackedBoundaryThickness, uint8_t, 4)
-};
-
-/// Ifm Streamer data
+/// Ifm Streamer data, which is the same for every stripe of this agent.
 struct IfmS
 {
-    FmSData fmData;
-    /// How much (if any) boundary data on each side should be loaded and packed into the same slot as the
-    /// central (non-boundary) data. This is expected to be used for streaming strategies that split
-    /// the IFM in both width and height, and therefore need boundary data that cannot be re-used.
-    PackedBoundaryThickness packedBoundaryThickness;
-    /// For some valid padding cases when using packed boundary data, the IfmS will not need to load
-    /// the final stripe of data on the right/bottom edge and so the numStripes will be one smaller,
-    /// but this extra data will still need to be included the packed boundary data for the second-to-last
-    /// row/column.
+    /// Identifies which DRAM buffer in the buffer table is copied from.
+    uint16_t bufferId;
+
+    /// Register values for the DMA, which are set the same for every stripe of this agent.
     /// @{
-    uint8_t isExtraPackedBoundaryDataOnRightEdge;
-    uint8_t isExtraPackedBoundaryDataOnBottomEdge;
+    uint32_t DMA_COMP_CONFIG0;
+    uint32_t DMA_STRIDE1;
+    uint32_t DMA_STRIDE2;
     /// @}
 };
 
-/// Output Streamer data
+/// Output Streamer data, which is the same for every stripe of this agent.
 struct OfmS
 {
-    FmSData fmData;
-    // add write-specific fields as needed
+    /// Identifies which DRAM buffer in the buffer table is copied to.
+    uint16_t bufferId;
+
+    /// Register values for the DMA, which are set the same for every stripe of this agent.
+    /// @{
+    uint32_t DMA_COMP_CONFIG0;
+    uint32_t DMA_STRIDE1;
+    uint32_t DMA_STRIDE2;
+    /// @}
 };
 
-/// Offset and size of weight data for a particular stripe inside the corresponding weight DRAM buffer.
-struct WeightsMetadata
-{
-    uint32_t offset;
-    uint32_t size;
-};
-
-/// Weight Streamer work size
-ETHOSN_DECL_SV_VECTOR_STRUCT(WgtSWorkSize, ofmChannels, ifmChannels)
-
-/// Weight Streamer data
+/// Weight Streamer data, which is the same for every stripe
 struct WgtS
 {
-    using WorkSize = WgtSWorkSize<uint16_t>;
-
-    /// Buffer ID of the weights tensor
+    /// Identifies which DRAM buffer in the buffer table is copied from.
     uint16_t bufferId;
-    /// Buffer ID of the weights metadata array of (offset, size) pairs (WeightsMetadata)
-    uint16_t metadataBufferId;
-    /// Weight SRAM tile info
-    Tile tile;
-    /// Number of stripes for each "work" dimension
-    WorkSize numStripes;
-    /// Stride info for stripe ID (scalar) to stripe coord (ND) conversion
-    WorkSize stripeIdStrides;
 };
 
-struct BlockSize
-{
-    uint8_t width;
-    uint8_t height;
-};
-
-struct ReluActivation
-{
-    int16_t min;
-    int16_t max;
-};
-
-ETHOSN_DECL_SV_VECTOR_STRUCT(StrideXy, x, y);
-
+/// The type of MCE operation this is (regular convolution/depthwise/fully connected)
 enum class MceOperation : uint8_t
 {
     CONVOLUTION,
@@ -159,139 +64,36 @@ enum class MceOperation : uint8_t
     FULLY_CONNECTED,
 };
 
-/// Mce Scheduler work size
-ETHOSN_DECL_SV_VECTOR_STRUCT(MceSWorkSize, ofmHeight, ofmWidth, ofmChannels, ifmChannels)
-
-struct FilterShape
-{
-    uint8_t width;
-    uint8_t height;
-    ETHOSN_USE_AS_SV_VECTOR(FilterShape, uint8_t, 2)
-};
-
-struct Padding
-{
-    uint8_t left;
-    uint8_t top;
-    ETHOSN_USE_AS_SV_VECTOR(Padding, uint8_t, 2)
-};
-
-struct IfmDelta
-{
-    int8_t width;
-    int8_t height;
-    ETHOSN_USE_AS_SV_VECTOR(IfmDelta, int8_t, 2)
-};
-
-struct IfmStripeShape
-{
-    uint16_t width;
-    uint16_t height;
-    ETHOSN_USE_AS_SV_VECTOR(IfmStripeShape, uint16_t, 2)
-};
-
-enum class MceAlgorithm : uint8_t
-{
-    DIRECT,
-    WINOGRAD,
-};
-
-enum class UpsampleType : uint8_t
-{
-    OFF,
-    BILINEAR,
-    NEAREST_NEIGHBOUR,
-    TRANSPOSE,
-};
-
-enum class UpsampleEdgeMode : uint8_t
-{
-    GENERATE,
-    DROP,
-};
-
-struct UpsampleEdgeModeType
-{
-    UpsampleEdgeMode row;
-    UpsampleEdgeMode col;
-};
-
-/// Mce Scheduler data
+/// Mce Scheduler data, which is the same for every stripe
 struct MceS
 {
-    using WorkSize = MceSWorkSize<uint16_t>;
-
-    /// IFM SRAM tile info
-    Tile ifmTile;
-    /// Weight SRAM tile info
-    Tile wgtTile;
-    /// Mce block size
-    BlockSize blockSize;
-    /// Default stripe size in elements granularity
-    WorkSize dfltStripeSize;
-    /// Last stripe size in each dimension in elements granularity
-    WorkSize edgeStripeSize;
-    /// Number of stripes for each "work" dimension
-    WorkSize numStripes;
-    /// Stride info for stripe ID (scalar) to stripe coord (ND) conversion
-    WorkSize stripeIdStrides;
-    /// Conv stride
-    StrideXy<uint8_t> convStrideXy;
-    /// Ifm zero point
-    int16_t ifmZeroPoint;
-    /// Is Ifm signed
-    uint8_t isIfmSigned;
-    /// Is Ofm signed
-    uint8_t isOfmSigned;
-    /// Upsample type
-    UpsampleType upsampleType;
-    /// Upsample edge mode
-    UpsampleEdgeModeType upsampleEdgeMode;
-    /// Mce Op mode can be: conv, depthwise, fully connected
+    /// The type of MCE operation this is (regular convolution/depthwise/fully connected)
     MceOperation mceOpMode;
-    MceAlgorithm algorithm;
-    uint8_t isWideFilter;
-    uint8_t isExtraIfmStripeAtRightEdge;
-    uint8_t isExtraIfmStripeAtBottomEdge;
-    /// Does the IFM tile contain boundary data packed in the X-direction.
-    uint8_t isPackedBoundaryX;
-    /// Does the IFM tile contain boundary data packed in the Y-direction.
-    uint8_t isPackedBoundaryY;
-    std::array<FilterShape, static_cast<uint8_t>(4U)> filterShape;
-    std::array<Padding, static_cast<uint8_t>(4U)> padding;
-    /// The amount of extra IFM valid (not padding) data available to the right/bottom of the central OFM stripe.
-    /// The values may differ across the OFM, so there are separate values for each possibility, based on how
-    /// close the OFM stripe is to the edge of the tensor.
-    /// @{
-    std::array<IfmDelta, static_cast<uint8_t>(4U)> ifmDeltaDefault;
-    std::array<IfmDelta, static_cast<uint8_t>(4U)> ifmDeltaOneFromEdge;
-    std::array<IfmDelta, static_cast<uint8_t>(4U)> ifmDeltaEdge;
-    /// @}
-    /// The width/height (in elements) of IFM slots.
-    /// This would typically be the same as dfltStripeSize, but may be different in cases of
-    /// upsampling, VALID padding and/or packed boundary data.
-    IfmStripeShape ifmStripeShapeDefault;
-    IfmStripeShape ifmStripeShapeEdge;
-    /// Relu activation values
-    ReluActivation reluActiv;
-    /// ID of the PLE kernel
+    /// Which PLE kernel will be used to process the output of the MCE.
     PleKernelId pleKernelId;
+
+    /// Register values for the MCE, which are set the same for every stripe of this agent.
+    /// @{
+    uint32_t ACTIVATION_CONFIG;
+    uint32_t WIDE_KERNEL_CONTROL;
+    uint32_t FILTER;
+    uint32_t IFM_ZERO_POINT;
+    uint32_t IFM_DEFAULT_SLOT_SIZE;
+    uint32_t IFM_SLOT_STRIDE;
+    uint32_t STRIPE_BLOCK_CONFIG;
+    uint32_t DEPTHWISE_CONTROL;
+    uint32_t IFM_SLOT_BASE_ADDRESS;
+    /// @}
+
+    /// Register value for the MCEIF, which is the same for every stripe of this agent.
+    uint32_t PLE_MCEIF_CONFIG;
 };
 
-/// PLE Loader data
+/// PLE Loader data, which is the same for every stripe
 struct PleL
 {
-    /// ID of the kernel used
+    /// ID of the kernel that should be loaded into SRAM.
     PleKernelId pleKernelId;
-    /// Destination SRAM address
-    uint32_t sramAddr;
-};
-
-struct PleIfmInfo
-{
-    int16_t zeroPoint;
-    uint16_t multiplier;
-    uint16_t shift;
 };
 
 /// MCE operation by fused PLE, or only PLE
@@ -306,38 +108,15 @@ enum class PleInputMode : uint8_t
     SRAM_TWO_INPUTS,
 };
 
-/// PLE Scheduler data
+/// PLE Scheduler data, which is the same for every stripe
 struct PleS
 {
-    /// Output tile
-    Tile ofmTile;
-    /// Output zero correction
-    int16_t ofmZeroPoint;
-    /// Default ofm stripe size
-    TensorSize<uint16_t> dfltStripeSize;
-    /// Edge ofm stripe size
-    TensorSize<uint16_t> edgeStripeSize;
-    /// Number of unique stripes in each ofm tensor dimension
-    TensorSize<uint16_t> numStripes;
-    /// Stride info for stripe ID (scalar) to stripe coord (ND) conversion
-    TensorSize<uint16_t> stripeIdStrides;
     /// Source of input data to PLE
     PleInputMode inputMode;
-    /// ID of the PLE kernel used
+    /// ID of the kernel that should be loaded into and executed on the PLE.
     PleKernelId pleKernelId;
     /// PLE kernel location in SRAM
     uint32_t pleKernelSramAddr;
-
-    // Additional fields to be used only if inputMode is SRAM
-
-    /// First input tile
-    Tile ifmTile0;
-    /// First input zero correction, multiplier and shift
-    PleIfmInfo ifmInfo0;
-    /// Second input tile
-    Tile ifmTile1;
-    /// Second input zero correction, multiplier and shift
-    PleIfmInfo ifmInfo1;
 };
 
 /// Enum tag for agent data
@@ -416,6 +195,78 @@ struct Agent
     AgentData data;
 };
 
+// "Extra data" can be associated with Commands.
+// This can be different for each stripe in an agent, as opposed to data in the Agent types (e.g. IfmS)
+// which is the same across all stripes.
+
+/// Extra data associated with LoadIfmStripe, LoadWgtStripe, LoadPleCode and StoreOfmStripe Commands,
+/// which is different for every stripe
+struct DmaExtraData
+{
+    /// Offset in bytes into the DRAM buffer to start the DMA.
+    uint32_t m_DramOffset;
+
+    /// Register values for the DMA, which are set differently for each stripe of the agent.
+    /// @{
+    uint32_t SRAM_ADDR;
+    uint32_t DMA_SRAM_STRIDE;
+    uint32_t DMA_STRIDE0;
+    uint32_t DMA_STRIDE3;
+    uint32_t DMA_CHANNELS;
+
+    uint32_t DMA_EMCS;
+    uint32_t DMA_TOTAL_BYTES;
+    uint32_t DMA_CMD;
+    /// @}
+
+    /// Some stripes require multiple DMA commands (each called a 'chunk').
+    /// This field indicates if this is the last chunk for the stripe, otherwise further commands
+    /// need to be completed before the stripe is complete.
+    uint8_t m_IsLastChunk;
+};
+
+/// Extra data associated with ProgramMceStripe Commands,
+/// which is different for every stripe
+struct ProgramMceExtraData
+{
+    /// Register values for the MCE, which are set differently for each stripe of the agent.
+    /// @{
+    uint32_t CE_CONTROL;
+    std::array<std::array<uint32_t, 4>, 8> MUL_ENABLE;    // Indexed by CE then OG
+    uint32_t IFM_ROW_STRIDE;
+    uint32_t IFM_CONFIG1;
+    std::array<std::array<uint32_t, 2>, 4> IFM_PAD;    // Indexed by subfilter number then IG
+    uint32_t WIDE_KERNEL_OFFSET;
+    uint32_t IFM_TOP_SLOTS;
+    uint32_t IFM_MID_SLOTS;
+    uint32_t IFM_BOTTOM_SLOTS;
+    uint32_t IFM_SLOT_PAD_CONFIG;
+    uint32_t OFM_STRIPE_SIZE;
+    uint32_t OFM_CONFIG;
+    std::array<uint32_t, 4> WEIGHT_BASE_ADDR;              // Indexed by OG
+    std::array<std::array<uint32_t, 2>, 8> IFM_CONFIG2;    // Indexed by CE then IG
+    /// @}
+
+    /// How many blocks will this MCE command send to the PLE.
+    uint32_t m_NumBlocksProgrammedForMce;
+};
+
+/// Extra data associated with StartMceStripe Commands,
+/// which is different for every stripe
+struct StartMceExtraData
+{
+    /// Register value.
+    uint32_t CE_ENABLES;
+};
+
+/// Extra data associated with StartPleStripe Commands,
+/// which is different for every stripe
+struct StartPleExtraData
+{
+    /// Register values.
+    std::array<uint32_t, 8> SCRATCH;
+};
+
 enum class CommandType : uint32_t
 {
     WaitForAgent,
@@ -434,6 +285,32 @@ struct Command
     CommandType type;
     uint32_t agentId;
     uint32_t stripeId;
+    /// Some types of command have extra associated data, which is stored in a different array
+    /// in the command stream.
+    /// This offset (in bytes) is from the start of this Command struct to the start of that struct.
+    /// The type of the extra data depends on the type of this Command.
+    /// Some Commands don't have any extra data, in which case this would be set to zero.
+    uint32_t extraDataOffset;
+
+    /// Helpers to get access to any extra data. No type checking is performed (see above)!
+    /// @{
+    const DmaExtraData& GetDmaExtraData() const
+    {
+        return *reinterpret_cast<const DmaExtraData*>(reinterpret_cast<const char*>(this) + extraDataOffset);
+    }
+    const ProgramMceExtraData& GetProgramMceExtraData() const
+    {
+        return *reinterpret_cast<const ProgramMceExtraData*>(reinterpret_cast<const char*>(this) + extraDataOffset);
+    }
+    const StartMceExtraData& GetStartMceExtraData() const
+    {
+        return *reinterpret_cast<const StartMceExtraData*>(reinterpret_cast<const char*>(this) + extraDataOffset);
+    }
+    const StartPleExtraData& GetStartPleExtraData() const
+    {
+        return *reinterpret_cast<const StartPleExtraData*>(reinterpret_cast<const char*>(this) + extraDataOffset);
+    }
+    /// @}
 };
 
 }    // namespace cascading

@@ -15,29 +15,20 @@ TEST_CASE("Cascading/CommandStream")
 
     csbuffer.EmplaceBack(McePle{});
 
-    Cascade cascade;
-    cascade.TotalSize           = sizeof(Cascade) + 5 * sizeof(cascading::Agent) + 4 * sizeof(cascading::Command);
-    cascade.AgentsOffset        = sizeof(Cascade);
-    cascade.NumAgents           = 5;
-    cascade.DmaRdCommandsOffset = sizeof(Cascade) + 5 * sizeof(cascading::Agent) + 0 * sizeof(cascading::Command);
-    cascade.NumDmaRdCommands    = 1;
-    cascade.DmaWrCommandsOffset = sizeof(Cascade) + 5 * sizeof(cascading::Agent) + 1 * sizeof(cascading::Command);
-    cascade.NumDmaWrCommands    = 1;
-    cascade.MceCommandsOffset   = sizeof(Cascade) + 5 * sizeof(cascading::Agent) + 2 * sizeof(cascading::Command);
-    cascade.NumMceCommands      = 1;
-    cascade.PleCommandsOffset   = sizeof(Cascade) + 5 * sizeof(cascading::Agent) + 3 * sizeof(cascading::Command);
-    cascade.NumPleCommands      = 1;
-
-    csbuffer.EmplaceBack(cascade);
-    csbuffer.EmplaceBack(cascading::Agent{ 0, cascading::IfmS{} });
-    csbuffer.EmplaceBack(cascading::Agent{ 0, cascading::WgtS{} });
-    csbuffer.EmplaceBack(cascading::Agent{ 0, cascading::MceS{} });
-    csbuffer.EmplaceBack(cascading::Agent{ 0, cascading::PleS{} });
-    csbuffer.EmplaceBack(cascading::Agent{ 0, cascading::OfmS{} });
-    csbuffer.EmplaceBack(cascading::Command{ cascading::CommandType::LoadIfmStripe, 0, 0 });
-    csbuffer.EmplaceBack(cascading::Command{ cascading::CommandType::StoreOfmStripe, 2, 3 });
-    csbuffer.EmplaceBack(cascading::Command{ cascading::CommandType::StartMceStripe, 0, 0 });
-    csbuffer.EmplaceBack(cascading::Command{ cascading::CommandType::WaitForAgent, 0, 0 });
+    AddCascade(csbuffer,
+               {
+                   cascading::Agent{ 0, cascading::IfmS{} },
+                   cascading::Agent{ 0, cascading::WgtS{} },
+                   cascading::Agent{ 0, cascading::MceS{} },
+                   cascading::Agent{ 0, cascading::PleS{} },
+                   cascading::Agent{ 0, cascading::OfmS{} },
+               },
+               { { cascading::Command{ cascading::CommandType::LoadIfmStripe, 0, 0, 0 } } },
+               { { cascading::Command{ cascading::CommandType::StoreOfmStripe, 2, 3, 0 } } },
+               { { cascading::Command{ cascading::CommandType::StartMceStripe, 0, 0, 0 } } },
+               { { cascading::Command{ cascading::CommandType::WaitForAgent, 0, 0, 0 } } },
+               { { cascading::DmaExtraData{} } }, { { cascading::ProgramMceExtraData{} } },
+               { { cascading::StartMceExtraData{} } }, { { cascading::StartPleExtraData{} } });
 
     csbuffer.EmplaceBack(Fence{});
     csbuffer.EmplaceBack(McePle{});

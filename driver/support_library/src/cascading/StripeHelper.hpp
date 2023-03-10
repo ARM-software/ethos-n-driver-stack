@@ -179,15 +179,13 @@ struct MemoryStripeInfo
 struct InputMemoryStripeInfo : public MemoryStripeInfo
 {
     InputMemoryStripeInfo() = default;
-    InputMemoryStripeInfo(const MemoryStripeInfo& m,
-                          const command_stream::cascading::PackedBoundaryThickness& t,
-                          uint32_t l)
+    InputMemoryStripeInfo(const MemoryStripeInfo& m, const PackedBoundaryThickness& t, uint32_t l)
         : MemoryStripeInfo(m)
         , m_PackedBoundaryThickness(t)
         , m_NumLoads(l)
     {}
 
-    command_stream::cascading::PackedBoundaryThickness m_PackedBoundaryThickness;
+    PackedBoundaryThickness m_PackedBoundaryThickness;
     uint32_t m_NumLoads;
     bool operator<(const InputMemoryStripeInfo& rhs) const;
 };
@@ -482,14 +480,13 @@ bool IsSramBufferCompatibleWithDramBuffer(const SramBuffer& sramBuffer,
                                           CascadingBufferFormat dramFormat,
                                           const TensorShape& dramTensorShape,
                                           const TensorShape& dramOffset);
-bool IsSramBufferCompatibleWithDramBuffer(
-    const TensorShape& sramTensorShape,
-    const TensorShape& stripeShape,
-    bool forbidFcafWide,
-    const command_stream::cascading::PackedBoundaryThickness& packedBoundaryThickness,
-    CascadingBufferFormat dramFormat,
-    const TensorShape& dramTensorShape,
-    const TensorShape& dramOffset);
+bool IsSramBufferCompatibleWithDramBuffer(const TensorShape& sramTensorShape,
+                                          const TensorShape& stripeShape,
+                                          bool forbidFcafWide,
+                                          const PackedBoundaryThickness& packedBoundaryThickness,
+                                          CascadingBufferFormat dramFormat,
+                                          const TensorShape& dramTensorShape,
+                                          const TensorShape& dramOffset);
 /// @}
 
 /// Returns the most efficient DRAM buffer format to use, that is compatible with being copied to/from

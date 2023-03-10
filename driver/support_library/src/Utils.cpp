@@ -442,23 +442,6 @@ command_stream::UpsampleType ConvertResizeAlgorithmToCommand(const ResizeAlgorit
     }
 }
 
-command_stream::cascading::UpsampleType ConvertResizeAlgorithmToCascadingCommand(const ResizeAlgorithm algorithm)
-{
-    if (algorithm == ResizeAlgorithm::BILINEAR)
-    {
-        return command_stream::cascading::UpsampleType::BILINEAR;
-    }
-    else if (algorithm == ResizeAlgorithm::NEAREST_NEIGHBOUR)
-    {
-        return command_stream::cascading::UpsampleType::NEAREST_NEIGHBOUR;
-    }
-    else
-    {
-        assert(false);
-        return command_stream::cascading::UpsampleType::OFF;
-    }
-}
-
 bool IsCompressionFormatCompatibleWithStripeShapeLegacy(CompilerDataCompressedFormat compressionFormat,
                                                         const TensorShape& stripeShape)
 {
@@ -766,21 +749,6 @@ bool IsFullTensor(const TensorShape& tensorShape, const TensorShape& stripeShape
 {
     return GetHeight(stripeShape) >= GetHeight(tensorShape) && GetWidth(stripeShape) >= GetWidth(tensorShape) &&
            GetChannels(stripeShape) >= GetChannels(tensorShape);
-}
-
-/// Helper function to check if any packed boundary data is being used.
-/// We can't use the SmallVector Any(x > 0) function, because it requires C++ 17 :(
-bool AnyPackedBoundaryData(const command_stream::cascading::PackedBoundaryThickness& t)
-{
-    return t.left > 0 || t.top > 0 || t.right > 0 || t.bottom > 0;
-}
-
-/// Helper function to check if two packed boundary data structs are equal.
-/// We can't use the SmallVector All(a == b) function, because it requires C++ 17 :(
-bool EqualPackedBoundaryData(const command_stream::cascading::PackedBoundaryThickness& a,
-                             const command_stream::cascading::PackedBoundaryThickness& b)
-{
-    return a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom;
 }
 
 ethosn::command_stream::DumpDram GetDumpDramCommand(

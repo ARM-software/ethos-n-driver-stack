@@ -235,7 +235,7 @@ public:
     uint32_t m_PadLeft;
     uint32_t m_PadTop;
     uint32_t m_UpscaleFactor;
-    command_stream::cascading::UpsampleType m_UpsampleType;
+    MceUpsampleType m_UpsampleType;
     int16_t m_LowerBound;
     int16_t m_UpperBound;
     utils::Optional<TensorShape> m_uninterleavedInputShape;
@@ -478,7 +478,7 @@ public:
     uint32_t m_NumStripes;
 
     /// Defines how much boundary data on each side is packed into each stripe in this buffer.
-    command_stream::cascading::PackedBoundaryThickness m_PackedBoundaryThickness;
+    PackedBoundaryThickness m_PackedBoundaryThickness;
 
     /// How many times the tensor is loaded into this buffer. Normally this would be 1,
     /// as we stream data in or out once. However, we sometimes need to re-load the same data
@@ -510,7 +510,7 @@ public:
 
     SramBufferBuilder& AddStripeShape(const TensorShape& shape);
     SramBufferBuilder& AddTraversalOrder(TraversalOrder order);
-    SramBufferBuilder& AddPackedBoundaryThickness(const command_stream::cascading::PackedBoundaryThickness& boundary);
+    SramBufferBuilder& AddPackedBoundaryThickness(const PackedBoundaryThickness& boundary);
     SramBufferBuilder& AddNumLoads(uint32_t loads);
     SramBufferBuilder& ForbidFcaf(bool forbid);
     SramBufferBuilder& AddSlotSize(uint32_t slotSize);

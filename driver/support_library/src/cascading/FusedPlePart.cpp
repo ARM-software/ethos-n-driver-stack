@@ -461,9 +461,9 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
         TensorShape mceWeightStripe    = { kernelHeight, kernelWidth, mceInputStripe[3], 1 };
         TensorShape memoryWeightStripe = mceWeightStripe;
 
-        command_stream::cascading::PackedBoundaryThickness packedBoundaryThickness = { 0, 0, 0, 0 };
-        const uint32_t numIfmLoads                                                 = 1;
-        const uint32_t numWeightLoads                                              = 1;
+        PackedBoundaryThickness packedBoundaryThickness = { 0, 0, 0, 0 };
+        const uint32_t numIfmLoads                      = 1;
+        const uint32_t numWeightLoads                   = 1;
 
         MceAndPleInfo mceAndPleInfo;
 

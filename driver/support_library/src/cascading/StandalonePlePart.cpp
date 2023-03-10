@@ -135,7 +135,7 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
         {
             TileSizeCalculation tileSize =
                 impl::CalculateTileSize(m_Capabilities, m_InputTensorShapes.at(i), outputStripeShape,
-                                        command_stream::cascading::PackedBoundaryThickness{ 0, 0, 0, 0 }, 2u, true);
+                                        PackedBoundaryThickness{ 0, 0, 0, 0 }, 2u, true);
 
             std::unique_ptr<SramBuffer> buffer = SramBufferBuilder()
                                                      .AddFormat(CascadingBufferFormat::NHWCB)

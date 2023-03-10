@@ -371,14 +371,13 @@ bool IsSramBufferCompatibleWithDramBuffer(const SramBuffer& sramBuffer,
                                                 dramFormat, dramTensorShape, dramOffset);
 }
 
-bool IsSramBufferCompatibleWithDramBuffer(
-    const TensorShape& sramTensorShape,
-    const TensorShape& stripeShape,
-    bool forbidFcafWide,
-    const command_stream::cascading::PackedBoundaryThickness& packedBoundaryThickness,
-    CascadingBufferFormat dramFormat,
-    const TensorShape& dramTensorShape,
-    const TensorShape& dramOffset)
+bool IsSramBufferCompatibleWithDramBuffer(const TensorShape& sramTensorShape,
+                                          const TensorShape& stripeShape,
+                                          bool forbidFcafWide,
+                                          const PackedBoundaryThickness& packedBoundaryThickness,
+                                          CascadingBufferFormat dramFormat,
+                                          const TensorShape& dramTensorShape,
+                                          const TensorShape& dramOffset)
 {
     // If the copy involves a reshape (tensor shape changes to one with the same number of elements,
     // not the same as a sub-tensor which has different number of elements), then it must be NHWC
@@ -447,7 +446,7 @@ bool IsSramBufferCompatibleWithDramBuffer(
     }
 
     // Packed boundary data only supported with NHWCB
-    if (dramFormat != CascadingBufferFormat::NHWCB && utils::AnyPackedBoundaryData(packedBoundaryThickness))
+    if (dramFormat != CascadingBufferFormat::NHWCB && packedBoundaryThickness.AnyNonZero())
     {
         return false;
     }
@@ -844,7 +843,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                                           (GetChannels(mceInputStripe) < GetChannels(inputShape));
         const bool packBoundaryHorizontal = (GetChannels(mceInputStripe) < GetChannels(inputShape));
 
-        command_stream::cascading::PackedBoundaryThickness packedBoundaryThickness;
+        PackedBoundaryThickness packedBoundaryThickness;
         packedBoundaryThickness.left   = (packBoundaryHorizontal && needBoundaryX.m_Before) ? 8 : 0;
         packedBoundaryThickness.top    = (packBoundaryVertical && needBoundaryY.m_Before) ? 8 : 0;
         packedBoundaryThickness.right  = (packBoundaryHorizontal && needBoundaryX.m_After) ? 8 : 0;

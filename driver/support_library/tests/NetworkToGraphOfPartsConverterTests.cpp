@@ -2200,7 +2200,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Resize")
     REQUIRE(IsMceOp(maybeMceOp));
     MceOp* mceOp = static_cast<MceOp*>(maybeMceOp);
     CHECK(mceOp->m_UpscaleFactor == 2);
-    CHECK(mceOp->m_UpsampleType == ethosn::command_stream::cascading::UpsampleType::BILINEAR);
+    CHECK(mceOp->m_UpsampleType == MceUpsampleType::BILINEAR);
 }
 
 TEST_CASE("NetworkToGraphOfPartsConverter Relu")
@@ -2631,7 +2631,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution")
     REQUIRE(IsMceOp(maybeMceOp));
     MceOp* mceOp = static_cast<MceOp*>(maybeMceOp);
     CHECK(mceOp->m_UpscaleFactor == 2);
-    CHECK(mceOp->m_UpsampleType == ethosn::command_stream::cascading::UpsampleType::TRANSPOSE);
+    CHECK(mceOp->m_UpsampleType == MceUpsampleType::TRANSPOSE);
     CHECK(mceOp->m_PadTop == 2);
     CHECK(mceOp->m_PadLeft == 2);
     CHECK(mceOp->m_Stride == Stride{ 1, 1 });
@@ -2693,7 +2693,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution Large Weights")
     REQUIRE(IsMceOp(maybeMceOp1));
     MceOp* mceOp1 = static_cast<MceOp*>(maybeMceOp1);
     CHECK(mceOp1->m_UpscaleFactor == 2);
-    CHECK(mceOp1->m_UpsampleType == ethosn::command_stream::cascading::UpsampleType::TRANSPOSE);
+    CHECK(mceOp1->m_UpsampleType == MceUpsampleType::TRANSPOSE);
     CHECK(mceOp1->m_PadTop == 0);
     CHECK(mceOp1->m_PadLeft == 0);
     CHECK(mceOp1->m_Stride == Stride{ 1, 1 });
@@ -2706,7 +2706,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution Large Weights")
     REQUIRE(IsMceOp(maybeMceOp2));
     MceOp* mceOp2 = static_cast<MceOp*>(maybeMceOp2);
     CHECK(mceOp2->m_UpscaleFactor == 1);
-    CHECK(mceOp2->m_UpsampleType == ethosn::command_stream::cascading::UpsampleType::OFF);
+    CHECK(mceOp2->m_UpsampleType == MceUpsampleType::OFF);
     CHECK(mceOp2->m_PadTop == 4);
     CHECK(mceOp2->m_PadLeft == 4);
     CHECK(mceOp2->m_Stride == Stride{ 1, 1 });
@@ -3278,7 +3278,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter DepthToSpace")
     REQUIRE(IsMceOp(maybeMceOp));
     MceOp* mceOp = static_cast<MceOp*>(maybeMceOp);
     CHECK(mceOp->m_UpscaleFactor == 2);
-    CHECK(mceOp->m_UpsampleType == ethosn::command_stream::cascading::UpsampleType::TRANSPOSE);
+    CHECK(mceOp->m_UpsampleType == MceUpsampleType::TRANSPOSE);
     CHECK(mceOp->m_PadTop == 1);
     CHECK(mceOp->m_PadLeft == 1);
     CHECK(mceOp->m_Stride == Stride{ 1, 1 });

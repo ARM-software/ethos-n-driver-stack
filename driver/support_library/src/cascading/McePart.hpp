@@ -47,13 +47,13 @@ public:
         const CompilationOptions& m_CompOpt;
         const HardwareCapabilities& m_Capabilities;
         std::set<uint32_t> m_OperationIds;
-        DataType m_InputDataType                               = DataType::UINT8_QUANTIZED;
-        DataType m_OutputDataType                              = DataType::UINT8_QUANTIZED;
-        uint32_t m_UpscaleFactor                               = 1;
-        command_stream::cascading::UpsampleType m_UpsampleType = command_stream::cascading::UpsampleType::OFF;
-        int16_t m_LowerBound                                   = 0;
-        int16_t m_UpperBound                                   = 255;
-        bool m_IsChannelSelector                               = false;
+        DataType m_InputDataType       = DataType::UINT8_QUANTIZED;
+        DataType m_OutputDataType      = DataType::UINT8_QUANTIZED;
+        uint32_t m_UpscaleFactor       = 1;
+        MceUpsampleType m_UpsampleType = MceUpsampleType::OFF;
+        int16_t m_LowerBound           = 0;
+        int16_t m_UpperBound           = 255;
+        bool m_IsChannelSelector       = false;
         DebuggingContext& m_DebuggingContext;
     };
 
@@ -90,7 +90,7 @@ public:
         , m_BiasData(std::forward<Biases>(biasData))
         , m_Stride(stride)
         , m_UpscaleFactor(1U)
-        , m_UpsampleType(command_stream::cascading::UpsampleType::OFF)
+        , m_UpsampleType(MceUpsampleType::OFF)
         , m_PadTop(padTop)
         , m_PadLeft(padLeft)
         , m_Operation(op)
@@ -200,7 +200,7 @@ protected:
     std::vector<int32_t> m_BiasData;
     Stride m_Stride;
     uint32_t m_UpscaleFactor;
-    ethosn::command_stream::cascading::UpsampleType m_UpsampleType;
+    MceUpsampleType m_UpsampleType;
     uint32_t m_PadTop;
     uint32_t m_PadLeft;
     command_stream::MceOperation m_Operation;

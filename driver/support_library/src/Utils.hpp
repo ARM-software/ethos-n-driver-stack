@@ -668,7 +668,6 @@ constexpr DataTypeRange GetTypeLimits()
 }
 
 command_stream::UpsampleType ConvertResizeAlgorithmToCommand(const ResizeAlgorithm algorithm);
-command_stream::cascading::UpsampleType ConvertResizeAlgorithmToCascadingCommand(const ResizeAlgorithm algorithm);
 
 bool IsCompressionFormatCompatibleWithStripeShapeLegacy(CompilerDataCompressedFormat compressionFormat,
                                                         const TensorShape& stripeShape);
@@ -737,10 +736,6 @@ std::pair<uint32_t, uint32_t>
 std::tuple<bool, bool, bool> IsSplitting(const TensorShape& tensorShape, const TensorShape& stripeShape);
 
 bool IsFullTensor(const TensorShape& tensorShape, const TensorShape& stripeShape);
-
-bool AnyPackedBoundaryData(const command_stream::cascading::PackedBoundaryThickness& t);
-bool EqualPackedBoundaryData(const command_stream::cascading::PackedBoundaryThickness& a,
-                             const command_stream::cascading::PackedBoundaryThickness& b);
 
 ethosn::command_stream::DumpDram GetDumpDramCommand(
     const TensorShape& shape, uint32_t bufferId, DataType dataType, int32_t zeroPoint, const char* format);

@@ -8,6 +8,8 @@
 #include "../../include/ethosn_support_library/Support.hpp"
 
 #include "../Utils.hpp"
+#include "DmaRegisters.hpp"
+#include "MceRegisters.hpp"
 
 #include <ethosn_command_stream/CommandData.hpp>
 #include <ethosn_command_stream/CommandStream.hpp>
@@ -68,8 +70,8 @@ std::string ToStringHex(const uint32_t v);
 std::string ToString(DataType t);
 std::string ToString(const utils::ShapeMultiplier& m);
 std::string ToString(const utils::Fraction& f);
-std::string ToString(command_stream::cascading::UpsampleType t);
-std::string ToString(command_stream::cascading::PackedBoundaryThickness t);
+std::string ToString(MceUpsampleType t);
+std::string ToString(PackedBoundaryThickness t);
 std::string ToString(const BufferType& t);
 
 /// Replaces any illegal characters to form a valid .dot file "ID".

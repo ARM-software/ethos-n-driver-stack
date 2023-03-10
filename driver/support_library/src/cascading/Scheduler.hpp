@@ -7,7 +7,9 @@
 
 #include <vector>
 
-#include <ethosn_command_stream/cascading/CommandStream.hpp>
+#include "DmaRegisters.hpp"
+#include "MceRegisters.hpp"
+#include "PleRegisters.hpp"
 
 #include "../include/ethosn_support_library/Optional.hpp"
 
@@ -69,9 +71,64 @@ struct AgentDependencyInfo
     std::vector<Dependency> writeDependencies;
 };
 
-struct AgentAndDeps
+/// This is the support library's intermediate representation of an agent, which contains more details than
+/// the final command stream representation.
+struct AgentDesc
 {
-    command_stream::cascading::Agent agent;
+    uint16_t numStripesTotal;
+
+    command_stream::cascading::AgentType type;
+
+    union
+    {
+        IfmSDesc ifm;
+        WgtSDesc wgt;
+        MceSDesc mce;
+        PleLDesc pleL;
+        PleSDesc pleS;
+        OfmSDesc ofm;
+    };
+
+    explicit AgentDesc(uint16_t numStripesTotal, const IfmSDesc& data)
+        : numStripesTotal(numStripesTotal)
+        , type{ command_stream::cascading::AgentType::IFM_STREAMER }
+        , ifm{ data }
+    {}
+
+    explicit AgentDesc(uint16_t numStripesTotal, const WgtSDesc& data)
+        : numStripesTotal(numStripesTotal)
+        , type{ command_stream::cascading::AgentType::WGT_STREAMER }
+        , wgt{ data }
+    {}
+
+    explicit AgentDesc(uint16_t numStripesTotal, const MceSDesc& data)
+        : numStripesTotal(numStripesTotal)
+        , type{ command_stream::cascading::AgentType::MCE_SCHEDULER }
+        , mce{ data }
+    {}
+
+    explicit AgentDesc(uint16_t numStripesTotal, const PleLDesc& data)
+        : numStripesTotal(numStripesTotal)
+        , type{ command_stream::cascading::AgentType::PLE_LOADER }
+        , pleL{ data }
+    {}
+
+    explicit AgentDesc(uint16_t numStripesTotal, const PleSDesc& data)
+        : numStripesTotal(numStripesTotal)
+        , type{ command_stream::cascading::AgentType::PLE_SCHEDULER }
+        , pleS{ data }
+    {}
+
+    explicit AgentDesc(uint16_t numStripesTotal, const OfmSDesc& data)
+        : numStripesTotal(numStripesTotal)
+        , type{ command_stream::cascading::AgentType::OFM_STREAMER }
+        , ofm{ data }
+    {}
+};
+
+struct AgentDescAndDeps
+{
+    AgentDesc agent;
     AgentDependencyInfo deps;
 };
 
@@ -80,7 +137,7 @@ struct AgentAndDeps
 class Scheduler
 {
 public:
-    Scheduler(const std::vector<AgentAndDeps>& agents);
+    Scheduler(const std::vector<AgentDescAndDeps>& agents);
 
     void Schedule();
 
@@ -129,7 +186,7 @@ private:
     void ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t stripeId);
 
     /// The list of agents that this Scheduler will process.
-    const std::vector<AgentAndDeps>& m_Agents;
+    const std::vector<AgentDescAndDeps>& m_Agents;
 
     /// Keeps track of the next stripe that needs to be scheduled for each agent.
     std::vector<uint32_t> m_AgentProgress;

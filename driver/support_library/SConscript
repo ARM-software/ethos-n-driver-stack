@@ -84,6 +84,9 @@ srcs = [
     os.path.join("src", "cascading", "CascadingCommandStreamGenerator.cpp"),
     os.path.join("src", "cascading", "Scheduler.cpp"),
     os.path.join("src", "cascading", "WeightEncoderCache.cpp"),
+    os.path.join("src", "cascading", "DmaRegisters.cpp"),
+    os.path.join("src", "cascading", "MceRegisters.cpp"),
+    os.path.join("src", "cascading", "PleRegisters.cpp"),
 ]
 
 ethosn_support_lib = env.StaticLibrary("libEthosNSupport", srcs)

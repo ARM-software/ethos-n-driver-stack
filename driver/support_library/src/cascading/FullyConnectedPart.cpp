@@ -45,9 +45,9 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
     Plans ret;
 
     // Fully connected only supports 8x8 block configs
-    const BlockConfig blockConfig                                              = { 8u, 8u };
-    command_stream::cascading::PackedBoundaryThickness packedBoundaryThickness = { 0, 0, 0, 0 };
-    const uint32_t numWeightLoads                                              = 1;
+    const BlockConfig blockConfig                   = { 8u, 8u };
+    PackedBoundaryThickness packedBoundaryThickness = { 0, 0, 0, 0 };
+    const uint32_t numWeightLoads                   = 1;
 
     StripeInfos stripeInfos;
     // Full IFM and Full OFM

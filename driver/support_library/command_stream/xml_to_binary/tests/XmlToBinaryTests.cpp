@@ -328,279 +328,44 @@ const std::string g_XmlStr =
                 <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
                 <WGT_STREAMER>
                     <BUFFER_ID>3</BUFFER_ID>
-                    <METADATA_BUFFER_ID>128</METADATA_BUFFER_ID>
-                    <TILE>
-                        <BASE_ADDR>32</BASE_ADDR>
-                        <NUM_SLOTS>2</NUM_SLOTS>
-                        <SLOT_SIZE>1024</SLOT_SIZE>
-                    </TILE>
-                    <NUM_STRIPES>
-                        <OFM_CHANNELS>4</OFM_CHANNELS>
-                        <IFM_CHANNELS>2</IFM_CHANNELS>
-                    </NUM_STRIPES>
-                    <STRIPE_ID_STRIDES>
-                        <OFM_CHANNELS>2</OFM_CHANNELS>
-                        <IFM_CHANNELS>1</IFM_CHANNELS>
-                    </STRIPE_ID_STRIDES>
                 </WGT_STREAMER>
             </AGENT>
             <!-- Agent 1 -->
             <AGENT>
                 <NUM_STRIPES_TOTAL>96</NUM_STRIPES_TOTAL>
                 <IFM_STREAMER>
-                    <DRAM_OFFSET>512</DRAM_OFFSET>
                     <BUFFER_ID>3</BUFFER_ID>
-                    <DATA_TYPE>NHWC</DATA_TYPE>
-                    <FCAF_INFO>
-                        <ZERO_POINT>0</ZERO_POINT>
-                        <SIGNED_ACTIVATION>0</SIGNED_ACTIVATION>
-                    </FCAF_INFO>
-                    <TILE>
-                        <BASE_ADDR>512</BASE_ADDR>
-                        <NUM_SLOTS>2</NUM_SLOTS>
-                        <SLOT_SIZE>512</SLOT_SIZE>
-                    </TILE>
-                    <DFLT_STRIPE_SIZE>
-                        <HEIGHT>8</HEIGHT>
-                        <WIDTH>4</WIDTH>
-                        <CHANNELS>1</CHANNELS>
-                    </DFLT_STRIPE_SIZE>
-                    <EDGE_STRIPE_SIZE>
-                        <HEIGHT>4</HEIGHT>
-                        <WIDTH>4</WIDTH>
-                        <CHANNELS>1</CHANNELS>
-                    </EDGE_STRIPE_SIZE>
-                    <SUPERTENSOR_SIZE_IN_CELLS>
-                        <WIDTH>1</WIDTH>
-                        <CHANNELS>2</CHANNELS>
-                    </SUPERTENSOR_SIZE_IN_CELLS>
-                    <NUM_STRIPES>
-                        <HEIGHT>512</HEIGHT>
-                        <WIDTH>128</WIDTH>
-                        <CHANNELS>8</CHANNELS>
-                    </NUM_STRIPES>
-                    <STRIPE_ID_STRIDES>
-                        <HEIGHT>4</HEIGHT>
-                        <WIDTH>1</WIDTH>
-                        <CHANNELS>2</CHANNELS>
-                    </STRIPE_ID_STRIDES>
-                    <PACKED_BOUNDARY_THICKNESS>
-                        <LEFT>5</LEFT>
-                        <TOP>6</TOP>
-                        <RIGHT>7</RIGHT>
-                        <BOTTOM>8</BOTTOM>
-                    </PACKED_BOUNDARY_THICKNESS>
-                    <IS_EXTRA_PACKED_BOUNDARY_DATA_ON_RIGHT_EDGE>1</IS_EXTRA_PACKED_BOUNDARY_DATA_ON_RIGHT_EDGE>
-                    <IS_EXTRA_PACKED_BOUNDARY_DATA_ON_BOTTOM_EDGE>0</IS_EXTRA_PACKED_BOUNDARY_DATA_ON_BOTTOM_EDGE>
+                    <DMA_COMP_CONFIG0>0x3534265</DMA_COMP_CONFIG0>
+                    <DMA_STRIDE1>0x23424</DMA_STRIDE1>
+                    <DMA_STRIDE2>0x213426</DMA_STRIDE2>
                 </IFM_STREAMER>
             </AGENT>
             <!-- Agent 2 -->
             <AGENT>
                 <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
                 <OFM_STREAMER>
-                    <DRAM_OFFSET>512</DRAM_OFFSET>
                     <BUFFER_ID>0</BUFFER_ID>
-                    <DATA_TYPE>NHWC</DATA_TYPE>
-                    <FCAF_INFO>
-                        <ZERO_POINT>0</ZERO_POINT>
-                        <SIGNED_ACTIVATION>0</SIGNED_ACTIVATION>
-                    </FCAF_INFO>
-                    <TILE>
-                        <BASE_ADDR>0</BASE_ADDR>
-                        <NUM_SLOTS>0</NUM_SLOTS>
-                        <SLOT_SIZE>0</SLOT_SIZE>
-                    </TILE>
-                    <DFLT_STRIPE_SIZE>
-                        <HEIGHT>8</HEIGHT>
-                        <WIDTH>8</WIDTH>
-                        <CHANNELS>8</CHANNELS>
-                    </DFLT_STRIPE_SIZE>
-                    <EDGE_STRIPE_SIZE>
-                        <HEIGHT>8</HEIGHT>
-                        <WIDTH>8</WIDTH>
-                        <CHANNELS>8</CHANNELS>
-                    </EDGE_STRIPE_SIZE>
-                    <SUPERTENSOR_SIZE_IN_CELLS>
-                        <WIDTH>8</WIDTH>
-                        <CHANNELS>8</CHANNELS>
-                    </SUPERTENSOR_SIZE_IN_CELLS>
-                    <NUM_STRIPES>
-                        <HEIGHT>8</HEIGHT>
-                        <WIDTH>8</WIDTH>
-                        <CHANNELS>8</CHANNELS>
-                    </NUM_STRIPES>
-                    <STRIPE_ID_STRIDES>
-                        <HEIGHT>8</HEIGHT>
-                        <WIDTH>8</WIDTH>
-                        <CHANNELS>8</CHANNELS>
-                    </STRIPE_ID_STRIDES>
+                    <DMA_COMP_CONFIG0>0x89679</DMA_COMP_CONFIG0>
+                    <DMA_STRIDE1>0x12346</DMA_STRIDE1>
+                    <DMA_STRIDE2>0x209347f</DMA_STRIDE2>
                 </OFM_STREAMER>
-            </AGENT>)"
-    R"(
+            </AGENT>
             <!-- Agent 3 -->
             <AGENT>
                 <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
                 <MCE_SCHEDULER>
-                    <IFM_TILE>
-                        <BASE_ADDR>0</BASE_ADDR>
-                        <NUM_SLOTS>0</NUM_SLOTS>
-                        <SLOT_SIZE>0</SLOT_SIZE>
-                    </IFM_TILE>
-                    <WGT_TILE>
-                        <BASE_ADDR>0</BASE_ADDR>
-                        <NUM_SLOTS>0</NUM_SLOTS>
-                        <SLOT_SIZE>0</SLOT_SIZE>
-                    </WGT_TILE>
-                    <BLOCK_SIZE>
-                        <HEIGHT>0</HEIGHT>
-                        <WIDTH>0</WIDTH>
-                    </BLOCK_SIZE>
-                    <DFLT_STRIPE_SIZE>
-                        <OFM_HEIGHT>8</OFM_HEIGHT>
-                        <OFM_WIDTH>8</OFM_WIDTH>
-                        <OFM_CHANNELS>8</OFM_CHANNELS>
-                        <IFM_CHANNELS>8</IFM_CHANNELS>
-                    </DFLT_STRIPE_SIZE>
-                    <EDGE_STRIPE_SIZE>
-                        <OFM_HEIGHT>8</OFM_HEIGHT>
-                        <OFM_WIDTH>8</OFM_WIDTH>
-                        <OFM_CHANNELS>8</OFM_CHANNELS>
-                        <IFM_CHANNELS>8</IFM_CHANNELS>
-                    </EDGE_STRIPE_SIZE>
-                    <NUM_STRIPES>
-                        <OFM_HEIGHT>8</OFM_HEIGHT>
-                        <OFM_WIDTH>8</OFM_WIDTH>
-                        <OFM_CHANNELS>8</OFM_CHANNELS>
-                        <IFM_CHANNELS>8</IFM_CHANNELS>
-                    </NUM_STRIPES>
-                    <STRIPE_ID_STRIDES>
-                        <OFM_HEIGHT>8</OFM_HEIGHT>
-                        <OFM_WIDTH>8</OFM_WIDTH>
-                        <OFM_CHANNELS>8</OFM_CHANNELS>
-                        <IFM_CHANNELS>8</IFM_CHANNELS>
-                    </STRIPE_ID_STRIDES>
-                    <CONV_STRIDE_XY>
-                        <X>2</X>
-                        <Y>2</Y>
-                    </CONV_STRIDE_XY>
-                    <IFM_ZERO_POINT>-2</IFM_ZERO_POINT>
-                    <IS_IFM_SIGNED>1</IS_IFM_SIGNED>
-                    <IS_OFM_SIGNED>0</IS_OFM_SIGNED>
-                    <UPSAMPLE_TYPE>TRANSPOSE</UPSAMPLE_TYPE>
-                    <UPSAMPLE_EDGE_MODE>
-                        <ROW>DROP</ROW>
-                        <COL>GENERATE</COL>
-                    </UPSAMPLE_EDGE_MODE>
                     <MCE_OP_MODE>DEPTHWISE_CONVOLUTION</MCE_OP_MODE>
-                    <ALGORITHM>WINOGRAD</ALGORITHM>
-                    <IS_WIDE_FILTER>1</IS_WIDE_FILTER>
-                    <IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>1</IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>
-                    <IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>1</IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>
-                    <IS_PACKED_BOUNDARY_X>1</IS_PACKED_BOUNDARY_X>
-                    <IS_PACKED_BOUNDARY_Y>1</IS_PACKED_BOUNDARY_Y>
-                    <FILTER_SHAPE>
-                        <VALUE_0>
-                            <WIDTH>2</WIDTH>
-                            <HEIGHT>2</HEIGHT>
-                        </VALUE_0>
-                        <VALUE_1>
-                            <WIDTH>2</WIDTH>
-                            <HEIGHT>1</HEIGHT>
-                        </VALUE_1>
-                        <VALUE_2>
-                            <WIDTH>1</WIDTH>
-                            <HEIGHT>2</HEIGHT>
-                        </VALUE_2>
-                        <VALUE_3>
-                            <WIDTH>1</WIDTH>
-                            <HEIGHT>1</HEIGHT>
-                        </VALUE_3>
-                    </FILTER_SHAPE>
-                    <PADDING>
-                        <VALUE_0>
-                            <LEFT>12</LEFT>
-                            <TOP>15</TOP>
-                        </VALUE_0>
-                        <VALUE_1>
-                            <LEFT>15</LEFT>
-                            <TOP>12</TOP>
-                        </VALUE_1>
-                        <VALUE_2>
-                            <LEFT>0</LEFT>
-                            <TOP>8</TOP>
-                        </VALUE_2>
-                        <VALUE_3>
-                            <LEFT>8</LEFT>
-                            <TOP>0</TOP>
-                        </VALUE_3>
-                    </PADDING>
-                    <IFM_DELTA_DEFAULT>
-                        <VALUE_0>
-                            <WIDTH>3</WIDTH>
-                            <HEIGHT>-3</HEIGHT>
-                        </VALUE_0>
-                        <VALUE_1>
-                            <WIDTH>-3</WIDTH>
-                            <HEIGHT>3</HEIGHT>
-                        </VALUE_1>
-                        <VALUE_2>
-                            <WIDTH>2</WIDTH>
-                            <HEIGHT>-2</HEIGHT>
-                        </VALUE_2>
-                        <VALUE_3>
-                            <WIDTH>-2</WIDTH>
-                            <HEIGHT>2</HEIGHT>
-                        </VALUE_3>
-                    </IFM_DELTA_DEFAULT>
-                    <IFM_DELTA_ONE_FROM_EDGE>
-                        <VALUE_0>
-                            <WIDTH>4</WIDTH>
-                            <HEIGHT>-4</HEIGHT>
-                        </VALUE_0>
-                        <VALUE_1>
-                            <WIDTH>-4</WIDTH>
-                            <HEIGHT>4</HEIGHT>
-                        </VALUE_1>
-                        <VALUE_2>
-                            <WIDTH>5</WIDTH>
-                            <HEIGHT>-5</HEIGHT>
-                        </VALUE_2>
-                        <VALUE_3>
-                            <WIDTH>-5</WIDTH>
-                            <HEIGHT>5</HEIGHT>
-                        </VALUE_3>
-                    </IFM_DELTA_ONE_FROM_EDGE>
-                    <IFM_DELTA_EDGE>
-                        <VALUE_0>
-                            <WIDTH>1</WIDTH>
-                            <HEIGHT>-2</HEIGHT>
-                        </VALUE_0>
-                        <VALUE_1>
-                            <WIDTH>-2</WIDTH>
-                            <HEIGHT>1</HEIGHT>
-                        </VALUE_1>
-                        <VALUE_2>
-                            <WIDTH>1</WIDTH>
-                            <HEIGHT>1</HEIGHT>
-                        </VALUE_2>
-                        <VALUE_3>
-                            <WIDTH>-1</WIDTH>
-                            <HEIGHT>-1</HEIGHT>
-                        </VALUE_3>
-                    </IFM_DELTA_EDGE>
-                    <IFM_STRIPE_SHAPE_DEFAULT>
-                        <WIDTH>10</WIDTH>
-                        <HEIGHT>11</HEIGHT>
-                    </IFM_STRIPE_SHAPE_DEFAULT>
-                    <IFM_STRIPE_SHAPE_EDGE>
-                        <WIDTH>5</WIDTH>
-                        <HEIGHT>6</HEIGHT>
-                    </IFM_STRIPE_SHAPE_EDGE>
-                    <RELU_ACTIV>
-                        <MIN>-3</MIN>
-                        <MAX>2</MAX>
-                    </RELU_ACTIV>
                     <PLE_KERNEL_ID>DOWNSAMPLE_2X2_16X16_1</PLE_KERNEL_ID>
+                    <ACTIVATION_CONFIG>0x12348235</ACTIVATION_CONFIG>
+                    <WIDE_KERNEL_CONTROL>0x87978</WIDE_KERNEL_CONTROL>
+                    <FILTER>0x1234675</FILTER>
+                    <IFM_ZERO_POINT>0x234235</IFM_ZERO_POINT>
+                    <IFM_DEFAULT_SLOT_SIZE>0x234</IFM_DEFAULT_SLOT_SIZE>
+                    <IFM_SLOT_STRIDE>0x8679</IFM_SLOT_STRIDE>
+                    <STRIPE_BLOCK_CONFIG>0x1845768</STRIPE_BLOCK_CONFIG>
+                    <DEPTHWISE_CONTROL>0x11234</DEPTHWISE_CONTROL>
+                    <IFM_SLOT_BASE_ADDRESS>0x32442335</IFM_SLOT_BASE_ADDRESS>
+                    <PLE_MCEIF_CONFIG>0x10098957</PLE_MCEIF_CONFIG>
                 </MCE_SCHEDULER>
             </AGENT>
             <!-- Agent 4 -->
@@ -608,66 +373,19 @@ const std::string g_XmlStr =
                 <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
                 <PLE_LOADER>
                     <PLE_KERNEL_ID>SIGMOID_16X8_1_S</PLE_KERNEL_ID>
-                    <SRAM_ADDR>4096</SRAM_ADDR>
                 </PLE_LOADER>
-            </AGENT>)"
-    R"(
+            </AGENT>
             <!-- Agent 5 -->
             <AGENT>
                 <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
                 <PLE_SCHEDULER>
-                    <OFM_TILE>
-                        <BASE_ADDR>0</BASE_ADDR>
-                        <NUM_SLOTS>0</NUM_SLOTS>
-                        <SLOT_SIZE>0</SLOT_SIZE>
-                    </OFM_TILE>
-                    <OFM_ZERO_POINT>3</OFM_ZERO_POINT>
-                    <DFLT_STRIPE_SIZE>
-                        <HEIGHT>8</HEIGHT>
-                        <WIDTH>8</WIDTH>
-                        <CHANNELS>8</CHANNELS>
-                    </DFLT_STRIPE_SIZE>
-                    <EDGE_STRIPE_SIZE>
-                        <HEIGHT>8</HEIGHT>
-                        <WIDTH>8</WIDTH>
-                        <CHANNELS>8</CHANNELS>
-                    </EDGE_STRIPE_SIZE>
-                    <NUM_STRIPES>
-                        <HEIGHT>8</HEIGHT>
-                        <WIDTH>8</WIDTH>
-                        <CHANNELS>8</CHANNELS>
-                    </NUM_STRIPES>
-                    <STRIPE_ID_STRIDES>
-                        <HEIGHT>8</HEIGHT>
-                        <WIDTH>8</WIDTH>
-                        <CHANNELS>8</CHANNELS>
-                    </STRIPE_ID_STRIDES>
                     <INPUT_MODE>MCE_ONE_OG</INPUT_MODE>
                     <PLE_KERNEL_ID>DOWNSAMPLE_2X2_16X16_1</PLE_KERNEL_ID>
                     <PLE_KERNEL_SRAM_ADDR>4096</PLE_KERNEL_SRAM_ADDR>
-                    <IFM_TILE_0>
-                        <BASE_ADDR>0</BASE_ADDR>
-                        <NUM_SLOTS>0</NUM_SLOTS>
-                        <SLOT_SIZE>0</SLOT_SIZE>
-                    </IFM_TILE_0>
-                    <IFM_INFO_0>
-                        <ZERO_POINT>0</ZERO_POINT>
-                        <MULTIPLIER>1</MULTIPLIER>
-                        <SHIFT>2</SHIFT>
-                    </IFM_INFO_0>
-                    <IFM_TILE_1>
-                        <BASE_ADDR>0</BASE_ADDR>
-                        <NUM_SLOTS>0</NUM_SLOTS>
-                        <SLOT_SIZE>0</SLOT_SIZE>
-                    </IFM_TILE_1>
-                    <IFM_INFO_1>
-                        <ZERO_POINT>0</ZERO_POINT>
-                        <MULTIPLIER>1</MULTIPLIER>
-                        <SHIFT>2</SHIFT>
-                    </IFM_INFO_1>
                 </PLE_SCHEDULER>
             </AGENT>
-        </AGENTS>
+        </AGENTS>)"
+    R"(
         <DMA_RD_COMMANDS>
             <!-- DmaRd Command 0 -->
             <COMMAND>
@@ -675,6 +393,18 @@ const std::string g_XmlStr =
                 <!-- Agent type is WGT_STREAMER -->
                 <AGENT_ID>0</AGENT_ID>
                 <STRIPE_ID>0</STRIPE_ID>
+                <DMA_EXTRA_DATA>
+                    <DRAM_OFFSET>0x123412</DRAM_OFFSET>
+                    <SRAM_ADDR>0x6543</SRAM_ADDR>
+                    <DMA_SRAM_STRIDE>0x2345</DMA_SRAM_STRIDE>
+                    <DMA_STRIDE0>0x7995</DMA_STRIDE0>
+                    <DMA_STRIDE3>0x23245</DMA_STRIDE3>
+                    <DMA_CHANNELS>0x12345</DMA_CHANNELS>
+                    <DMA_EMCS>0x989</DMA_EMCS>
+                    <DMA_TOTAL_BYTES>0xfea</DMA_TOTAL_BYTES>
+                    <DMA_CMD>0xa</DMA_CMD>
+                    <IS_LAST_CHUNK>1</IS_LAST_CHUNK>
+                </DMA_EXTRA_DATA>
             </COMMAND>
         </DMA_RD_COMMANDS>
         <DMA_WR_COMMANDS>
@@ -684,17 +414,153 @@ const std::string g_XmlStr =
                 <!-- Agent type is OFM_STREAMER -->
                 <AGENT_ID>2</AGENT_ID>
                 <STRIPE_ID>3</STRIPE_ID>
+                <DMA_EXTRA_DATA>
+                    <DRAM_OFFSET>0xabe</DRAM_OFFSET>
+                    <SRAM_ADDR>0x6ee</SRAM_ADDR>
+                    <DMA_SRAM_STRIDE>0xebbb5</DMA_SRAM_STRIDE>
+                    <DMA_STRIDE0>0x79aa</DMA_STRIDE0>
+                    <DMA_STRIDE3>0xdef</DMA_STRIDE3>
+                    <DMA_CHANNELS>0xffeed</DMA_CHANNELS>
+                    <DMA_EMCS>0xdd2</DMA_EMCS>
+                    <DMA_TOTAL_BYTES>0xfa12a</DMA_TOTAL_BYTES>
+                    <DMA_CMD>0x11a</DMA_CMD>
+                    <IS_LAST_CHUNK>0</IS_LAST_CHUNK>
+                </DMA_EXTRA_DATA>
             </COMMAND>
-        </DMA_WR_COMMANDS>
+        </DMA_WR_COMMANDS>)"
+    R"(
         <MCE_COMMANDS>
             <!-- Mce Command 0 -->
+            <COMMAND>
+                <TYPE>ProgramMceStripe</TYPE>
+                <!-- Agent type is WGT_STREAMER -->
+                <AGENT_ID>0</AGENT_ID>
+                <STRIPE_ID>0</STRIPE_ID>
+                <PROGRAM_MCE_EXTRA_DATA>
+                    <MUL_ENABLE_CE0>
+                        <OG0>0x45</OG0>
+                        <OG1>0x46</OG1>
+                        <OG2>0x47</OG2>
+                        <OG3>0x48</OG3>
+                    </MUL_ENABLE_CE0>
+                    <MUL_ENABLE_CE1>
+                        <OG0>0x49</OG0>
+                        <OG1>0x50</OG1>
+                        <OG2>0x51</OG2>
+                        <OG3>0x52</OG3>
+                    </MUL_ENABLE_CE1>
+                    <MUL_ENABLE_CE2>
+                        <OG0>0x53</OG0>
+                        <OG1>0x54</OG1>
+                        <OG2>0x55</OG2>
+                        <OG3>0x56</OG3>
+                    </MUL_ENABLE_CE2>
+                    <MUL_ENABLE_CE3>
+                        <OG0>0x57</OG0>
+                        <OG1>0x58</OG1>
+                        <OG2>0x59</OG2>
+                        <OG3>0x60</OG3>
+                    </MUL_ENABLE_CE3>
+                    <MUL_ENABLE_CE4>
+                        <OG0>0x61</OG0>
+                        <OG1>0x62</OG1>
+                        <OG2>0x63</OG2>
+                        <OG3>0x64</OG3>
+                    </MUL_ENABLE_CE4>
+                    <MUL_ENABLE_CE5>
+                        <OG0>0x65</OG0>
+                        <OG1>0x66</OG1>
+                        <OG2>0x67</OG2>
+                        <OG3>0x68</OG3>
+                    </MUL_ENABLE_CE5>
+                    <MUL_ENABLE_CE6>
+                        <OG0>0x69</OG0>
+                        <OG1>0x70</OG1>
+                        <OG2>0x71</OG2>
+                        <OG3>0x72</OG3>
+                    </MUL_ENABLE_CE6>
+                    <MUL_ENABLE_CE7>
+                        <OG0>0x73</OG0>
+                        <OG1>0x74</OG1>
+                        <OG2>0x75</OG2>
+                        <OG3>0x76</OG3>
+                    </MUL_ENABLE_CE7>
+                    <IFM_ROW_STRIDE>0x3423</IFM_ROW_STRIDE>
+                    <IFM_CONFIG1>0xaa8daa</IFM_CONFIG1>
+                    <IFM_PAD_NUM0>
+                        <IG0>0x45</IG0>
+                        <IG1>0x48</IG1>
+                    </IFM_PAD_NUM0>
+                    <IFM_PAD_NUM1>
+                        <IG0>0x41</IG0>
+                        <IG1>0x61</IG1>
+                    </IFM_PAD_NUM1>
+                    <IFM_PAD_NUM2>
+                        <IG0>0x42</IG0>
+                        <IG1>0x61</IG1>
+                    </IFM_PAD_NUM2>
+                    <IFM_PAD_NUM3>
+                        <IG0>0x45</IG0>
+                        <IG1>0x6a</IG1>
+                    </IFM_PAD_NUM3>
+                    <WIDE_KERNEL_OFFSET>0x998765</WIDE_KERNEL_OFFSET>
+                    <IFM_TOP_SLOTS>0xee31</IFM_TOP_SLOTS>
+                    <IFM_MID_SLOTS>0xe56654</IFM_MID_SLOTS>
+                    <IFM_BOTTOM_SLOTS>0xf787</IFM_BOTTOM_SLOTS>
+                    <IFM_SLOT_PAD_CONFIG>0x897</IFM_SLOT_PAD_CONFIG>
+                    <OFM_STRIPE_SIZE>0xbb6</OFM_STRIPE_SIZE>
+                    <OFM_CONFIG>0xa455435</OFM_CONFIG>
+                    <WEIGHT_BASE_ADDR_OG0>0x34587</WEIGHT_BASE_ADDR_OG0>
+                    <WEIGHT_BASE_ADDR_OG1>0xa</WEIGHT_BASE_ADDR_OG1>
+                    <WEIGHT_BASE_ADDR_OG2>0x342</WEIGHT_BASE_ADDR_OG2>
+                    <WEIGHT_BASE_ADDR_OG3>0xb</WEIGHT_BASE_ADDR_OG3>
+                    <IFM_CONFIG2_CE0>
+                        <IG0>0x145</IG0>
+                        <IG1>0x246</IG1>
+                    </IFM_CONFIG2_CE0>
+                    <IFM_CONFIG2_CE1>
+                        <IG0>0x149</IG0>
+                        <IG1>0x250</IG1>
+                    </IFM_CONFIG2_CE1>
+                    <IFM_CONFIG2_CE2>
+                        <IG0>0x153</IG0>
+                        <IG1>0x254</IG1>
+                    </IFM_CONFIG2_CE2>
+                    <IFM_CONFIG2_CE3>
+                        <IG0>0x157</IG0>
+                        <IG1>0x258</IG1>
+                    </IFM_CONFIG2_CE3>
+                    <IFM_CONFIG2_CE4>
+                        <IG0>0x161</IG0>
+                        <IG1>0x262</IG1>
+                    </IFM_CONFIG2_CE4>
+                    <IFM_CONFIG2_CE5>
+                        <IG0>0x165</IG0>
+                        <IG1>0x266</IG1>
+                    </IFM_CONFIG2_CE5>
+                    <IFM_CONFIG2_CE6>
+                        <IG0>0x169</IG0>
+                        <IG1>0x270</IG1>
+                    </IFM_CONFIG2_CE6>
+                    <IFM_CONFIG2_CE7>
+                        <IG0>0x173</IG0>
+                        <IG1>0x274</IG1>
+                    </IFM_CONFIG2_CE7>
+                    <NUM_BLOCKS_PROGRAMMED_FOR_MCE>0x80</NUM_BLOCKS_PROGRAMMED_FOR_MCE>
+                </PROGRAM_MCE_EXTRA_DATA>
+            </COMMAND>
+            <!-- Mce Command 1 -->
             <COMMAND>
                 <TYPE>StartMceStripe</TYPE>
                 <!-- Agent type is WGT_STREAMER -->
                 <AGENT_ID>0</AGENT_ID>
                 <STRIPE_ID>0</STRIPE_ID>
+                <START_MCE_EXTRA_DATA>
+                    <CE_ENABLES>74666</CE_ENABLES>
+                </START_MCE_EXTRA_DATA>
             </COMMAND>
-        </MCE_COMMANDS>
+        </MCE_COMMANDS>)"
+    R"(
         <PLE_COMMANDS>
             <!-- Ple Command 0 -->
             <COMMAND>
@@ -702,6 +568,23 @@ const std::string g_XmlStr =
                 <!-- Agent type is WGT_STREAMER -->
                 <AGENT_ID>0</AGENT_ID>
                 <STRIPE_ID>0</STRIPE_ID>
+            </COMMAND>
+            <!-- Ple Command 1 -->
+            <COMMAND>
+                <TYPE>StartPleStripe</TYPE>
+                <!-- Agent type is WGT_STREAMER -->
+                <AGENT_ID>0</AGENT_ID>
+                <STRIPE_ID>0</STRIPE_ID>
+                <START_PLE_EXTRA_DATA>
+                    <SCRATCH0>0x125aa</SCRATCH0>
+                    <SCRATCH1>0x126aa</SCRATCH1>
+                    <SCRATCH2>0x127aa</SCRATCH2>
+                    <SCRATCH3>0x128aa</SCRATCH3>
+                    <SCRATCH4>0x129aa</SCRATCH4>
+                    <SCRATCH5>0x130aa</SCRATCH5>
+                    <SCRATCH6>0x131aa</SCRATCH6>
+                    <SCRATCH7>0x132aa</SCRATCH7>
+                </START_PLE_EXTRA_DATA>
             </COMMAND>
         </PLE_COMMANDS>
     </CASCADE>
@@ -1113,64 +996,21 @@ TEST_CASE("XmlToBinary-BinaryToXml")
     cascading::Agent agent0 = {
         /* NumStripesTotal = */ uint16_t{ 64 },
         /* AgentData = */
-        cascading::AgentData{ cascading::WgtS{ /* BufferId = */ uint16_t{ 3 },
-                                               /* MetadataBufferId = */ uint16_t{ 128 },
-                                               /* Tile = */
-                                               cascading::Tile{ /* BaseAddress = */ uint32_t{ 32 },
-                                                                /* NumSlots = */ uint16_t{ 2 },
-                                                                /* SlotSize = */ uint32_t{ 1024 } },
-                                               /* NumStripes = */
-                                               cascading::WgtS::WorkSize{ /* OfmChannels = */ uint16_t{ 4 },
-                                                                          /* IfmChannels = */ uint16_t{ 2 } },
-                                               /* StripeIdStrides = */
-                                               cascading::WgtS::WorkSize{ /* OfmChannels = */ uint16_t{ 2 },
-                                                                          /* IfmChannels = */ uint16_t{ 1 } } } },
+        cascading::AgentData{ cascading::WgtS{
+            /* BufferId = */ uint16_t{ 3 },
+        } },
     };
 
     /* Agent 1 = */
     cascading::Agent agent1 = {
         /* NumStripesTotal = */ uint16_t{ 96 },
         /* AgentData = */
-        cascading::AgentData{
-            cascading::IfmS{ /* FmsData = */
-                             cascading::FmSData{ /* DramOffset = */ uint32_t{ 512 },
-                                                 /* BufferId = */ uint16_t{ 3 },
-                                                 /* DataType = */ cascading::FmsDataType::NHWC,
-                                                 /* FcafInfo = */
-                                                 cascading::FcafInfo{ /* ZeroPoint = */ int16_t{ 0 },
-                                                                      /* SignedActivation = */ false },
-                                                 /* Tile = */
-                                                 cascading::Tile{ /* BaseAddr = */ uint32_t{ 512 },
-                                                                  /* NumSlots = */ uint16_t{ 2 },
-                                                                  /* SlotSize = */ uint32_t{ 512 } },
-                                                 /* DfltStripeSize = */
-                                                 cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
-                                                                                  /* Width = */ uint16_t{ 4 },
-                                                                                  /* Channels = */ uint16_t{ 1 } },
-                                                 /* EdgeStripeSize = */
-                                                 cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 4 },
-                                                                                  /* Width = */ uint16_t{ 4 },
-                                                                                  /* Channels = */ uint16_t{ 1 } },
-                                                 /* SupertensorSizeInCells = */
-                                                 cascading::SupertensorSize<uint16_t>{ /* Width = */ uint16_t{ 1 },
-                                                                                       /* Channels = */ uint16_t{ 2 } },
-                                                 /* NumStripes = */
-                                                 cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 512 },
-                                                                                  /* Width = */ uint16_t{ 128 },
-                                                                                  /* Channels = */ uint16_t{ 8 } },
-                                                 /* StripeIdStrides = */
-                                                 cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 4 },
-                                                                                  /* Width = */ uint16_t{ 1 },
-                                                                                  /* Channels = */ uint16_t{ 2 } } },
-                             /* PackedBoundaryThickness = */
-                             cascading::PackedBoundaryThickness{ /* Left = */ uint8_t{ 5 },
-                                                                 /* Top = */ uint8_t{ 6 },
-                                                                 /* Right = */ uint8_t{ 7 },
-                                                                 /* Bottom = */ uint8_t{ 8 } },
-                             /* isExtraPackedBoundaryDataOnRightEdge = */
-                             uint8_t{ 1 },
-                             /* isExtraPackedBoundaryDataOnBottomEdge = */
-                             uint8_t{ 0 } } },
+        cascading::AgentData{ cascading::IfmS{
+            /* BufferId = */ uint16_t{ 3 },
+            /* DMA_COMP_CONFIG0 = */ uint32_t{ 0x3534265 },
+            /* DMA_STRIDE1 = */ uint32_t{ 0x23424 },
+            /* DMA_STRIDE2 = */ uint32_t{ 0x213426 },
+        } },
     };
 
     /* Agent 2 = */
@@ -1178,160 +1018,32 @@ TEST_CASE("XmlToBinary-BinaryToXml")
         /* NumStripesTotal = */ uint16_t{ 64 },
         /* AgentData = */
         cascading::AgentData{ cascading::OfmS{
-            /* FmsData = */
-            cascading::FmSData{ /* DramOffset = */ uint32_t{ 512 },
-                                /* BufferId = */ uint16_t{ 0 },
-                                /* DataType = */ cascading::FmsDataType::NHWC,
-                                /* FcafInfo = */
-                                cascading::FcafInfo{ /* ZeroPoint = */ int16_t{ 0 },
-                                                     /* SignedActivation = */ false },
-                                /* Tile = */
-                                cascading::Tile{ /* BaseAddr = */ uint32_t{ 0 },
-                                                 /* NumSlots = */ uint16_t{ 0 },
-                                                 /* SlotSize = */ uint32_t{ 0 } },
-                                /* DfltStripeSize = */
-                                cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
-                                                                 /* Width = */ uint16_t{ 8 },
-                                                                 /* Channels = */ uint16_t{ 8 } },
-                                /* EdgeStripeSize = */
-                                cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
-                                                                 /* Width = */ uint16_t{ 8 },
-                                                                 /* Channels = */ uint16_t{ 8 } },
-                                /* SupertensorSizeInCells = */
-                                cascading::SupertensorSize<uint16_t>{ /* Width = */ uint16_t{ 8 },
-                                                                      /* Channels = */ uint16_t{ 8 } },
-                                /* NumStripes = */
-                                cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
-                                                                 /* Width = */ uint16_t{ 8 },
-                                                                 /* Channels = */ uint16_t{ 8 } },
-                                /* StripeIdStrides = */
-                                cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
-                                                                 /* Width = */ uint16_t{ 8 },
-                                                                 /* Channels = */ uint16_t{ 8 } } } } },
+            /* BufferId = */ uint16_t{ 0 },
+            /* DMA_COMP_CONFIG0 = */ uint32_t{ 0x89679 },
+            /* DMA_STRIDE1 = */ uint32_t{ 0x12346 },
+            /* DMA_STRIDE2 = */ uint32_t{ 0x209347f },
+        } },
     };
 
     /* Agent 3 = */
     cascading::Agent agent3 = {
         /* NumStripesTotal = */ uint16_t{ 64 },
         /* AgentData = */
-        cascading::AgentData{
-            /* MceScheduler = */
-            cascading::MceS{ /* IfmTile = */
-                             cascading::Tile{ /* BaseAddr = */ uint32_t{ 0 },
-                                              /* NumSlots = */ uint16_t{ 0 },
-                                              /* SlotSize = */ uint32_t{ 0 } },
-                             /* WgtTile = */
-                             cascading::Tile{ /* BaseAddr = */ uint32_t{ 0 },
-                                              /* NumSlots = */ uint16_t{ 0 },
-                                              /* SlotSize = */ uint32_t{ 0 } },
-                             /* BlockSize = */
-                             cascading::BlockSize{ /* Height = */ uint8_t{ 0 },
-                                                   /* Width = */ uint8_t{ 0 } },
-                             /* DfltStripeSize = */
-                             cascading::MceS::WorkSize{
-                                 /* OfmHeight = */ uint16_t{ 8 },
-                                 /* OfmWidth = */ uint16_t{ 8 },
-                                 /* OfmChannels = */ uint16_t{ 8 },
-                                 /* IfmChannels = */ uint16_t{ 8 },
-                             },
-                             /* EdgeStripeSize = */
-                             cascading::MceS::WorkSize{
-                                 /* OfmHeight = */ uint16_t{ 8 },
-                                 /* OfmWidth = */ uint16_t{ 8 },
-                                 /* OfmChannels = */ uint16_t{ 8 },
-                                 /* IfmChannels = */ uint16_t{ 8 },
-                             },
-                             /* NumStripes = */
-                             cascading::MceS::WorkSize{
-                                 /* OfmHeight = */ uint16_t{ 8 },
-                                 /* OfmWidth = */ uint16_t{ 8 },
-                                 /* OfmChannels = */ uint16_t{ 8 },
-                                 /* IfmChannels = */ uint16_t{ 8 },
-                             },
-                             /* StripeIdStrides = */
-                             cascading::MceS::WorkSize{
-                                 /* OfmHeight = */ uint16_t{ 8 },
-                                 /* OfmWidth = */ uint16_t{ 8 },
-                                 /* OfmChannels = */ uint16_t{ 8 },
-                                 /* IfmChannels = */ uint16_t{ 8 },
-                             },
-                             /* ConvStrideXy = */
-                             cascading::StrideXy<uint8_t>{ /* X = */ uint8_t{ 2 },
-                                                           /* Y= */ uint8_t{ 2 } },
-                             /* IfmZeroPoint = */ int16_t{ -2 },
-                             /* IsIfmSigned = */ uint8_t{ 1 },
-                             /* IsOfmSigned = */ uint8_t{ 0 },
-                             /* UpsampleType = */ cascading::UpsampleType::TRANSPOSE,
-                             /* UpsampleEdgeMode = */
-                             cascading::UpsampleEdgeModeType{ /* Row = */ cascading::UpsampleEdgeMode::DROP,
-                                                              /* Column = */ cascading::UpsampleEdgeMode::GENERATE },
-                             /* MceOpMode = */ cascading::MceOperation::DEPTHWISE_CONVOLUTION,
-                             /* Algo = */ cascading::MceAlgorithm::WINOGRAD,
-                             /* IsWideFilter = */ uint8_t{ 1 },
-                             /* IsExtraIfmStripeAtRightEdge = */ uint8_t{ 1 },
-                             /* IsExtraIfmStripeAtBottomEdge = */ uint8_t{ 1 },
-                             /* IsPackedBoundaryX = */ uint8_t{ 1 },
-                             /* IsPackedBoundaryY = */ uint8_t{ 1 },
-                             /* FilterShape = */
-                             std::array<cascading::FilterShape, static_cast<uint8_t>(4U)>{
-                                 cascading::FilterShape{ /* Width = */ uint8_t{ 2 },
-                                                         /* Height = */ uint8_t{ 2 } },
-                                 cascading::FilterShape{ /* Width = */ uint8_t{ 2 },
-                                                         /* Height = */ uint8_t{ 1 } },
-                                 cascading::FilterShape{ /* Width = */ uint8_t{ 1 },
-                                                         /* Height = */ uint8_t{ 2 } },
-                                 cascading::FilterShape{ /* Width = */ uint8_t{ 1 },
-                                                         /* Height = */ uint8_t{ 1 } } },
-                             /* Padding = */
-                             std::array<cascading::Padding, static_cast<uint8_t>(4U)>{
-                                 cascading::Padding{ /* Left= */ uint8_t{ 12 },
-                                                     /* Top = */ uint8_t{ 15 } },
-                                 cascading::Padding{ /* Left= */ uint8_t{ 15 },
-                                                     /* Top = */ uint8_t{ 12 } },
-                                 cascading::Padding{ /* Left= */ uint8_t{ 0 },
-                                                     /* Top = */ uint8_t{ 8 } },
-                                 cascading::Padding{ /* Left= */ uint8_t{ 8 },
-                                                     /* Top = */ uint8_t{ 0 } } },
-                             /* IfmDeltaDefault = */
-                             std::array<cascading::IfmDelta, static_cast<uint8_t>(4U)>{
-                                 cascading::IfmDelta{ /* Width = */ int8_t{ 3 },
-                                                      /*Height = */ int8_t{ -3 } },
-                                 cascading::IfmDelta{ /* Width = */ int8_t{ -3 },
-                                                      /*Height = */ int8_t{ 3 } },
-                                 cascading::IfmDelta{ /* Width = */ int8_t{ 2 },
-                                                      /*Height = */ int8_t{ -2 } },
-                                 cascading::IfmDelta{ /* Width = */ int8_t{ -2 },
-                                                      /*Height = */ int8_t{ 2 } } },
-                             /* IfmDeltaOneFromEdge = */
-                             std::array<cascading::IfmDelta, static_cast<uint8_t>(4U)>{
-                                 cascading::IfmDelta{ /* Width = */ int8_t{ 4 },
-                                                      /*Height = */ int8_t{ -4 } },
-                                 cascading::IfmDelta{ /* Width = */ int8_t{ -4 },
-                                                      /*Height = */ int8_t{ 4 } },
-                                 cascading::IfmDelta{ /* Width = */ int8_t{ 5 },
-                                                      /*Height = */ int8_t{ -5 } },
-                                 cascading::IfmDelta{ /* Width = */ int8_t{ -5 },
-                                                      /*Height = */ int8_t{ 5 } } },
-                             /* IfmDeltaEdge = */
-                             std::array<cascading::IfmDelta, static_cast<uint8_t>(4U)>{
-                                 cascading::IfmDelta{ /* Width = */ int8_t{ 1 },
-                                                      /*Height = */ int8_t{ -2 } },
-                                 cascading::IfmDelta{ /* Width = */ int8_t{ -2 },
-                                                      /*Height = */ int8_t{ 1 } },
-                                 cascading::IfmDelta{ /* Width = */ int8_t{ 1 },
-                                                      /*Height = */ int8_t{ 1 } },
-                                 cascading::IfmDelta{ /* Width = */ int8_t{ -1 },
-                                                      /*Height = */ int8_t{ -1 } } },
-                             /* IfmStripeShapeDefault = */
-                             cascading::IfmStripeShape{ /* Width = */ uint16_t{ 10 },
-                                                        /* Height = */ uint16_t{ 11 } },
-                             /* IfmStripeShapeEdge = */
-                             cascading::IfmStripeShape{ /* Width = */ uint16_t{ 5 },
-                                                        /* Height = */ uint16_t{ 6 } },
-                             /* ReluActiv = */
-                             cascading::ReluActivation{ /* Min = */ int16_t{ -3 },
-                                                        /* Max = */ int16_t{ 2 } },
-                             /* PleKernelId = */ cascading::PleKernelId::DOWNSAMPLE_2X2_16X16_1 } },
+        cascading::AgentData{ /* MceScheduler = */
+                              cascading::MceS{
+                                  /* MceOpMode = */ cascading::MceOperation::DEPTHWISE_CONVOLUTION,
+                                  /* PleKernelId = */ cascading::PleKernelId::DOWNSAMPLE_2X2_16X16_1,
+                                  /* ACTIVATION_CONFIG = */ uint32_t{ 0x12348235 },
+                                  /* WIDE_KERNEL_CONTROL = */ uint32_t{ 0x87978 },
+                                  /* FILTER = */ uint32_t{ 0x1234675 },
+                                  /* IFM_ZERO_POINT = */ uint32_t{ 0x234235 },
+                                  /* IFM_DEFAULT_SLOT_SIZE = */ uint32_t{ 0x234 },
+                                  /* IFM_SLOT_STRIDE = */ uint32_t{ 0x8679 },
+                                  /* STRIPE_BLOCK_CONFIG = */ uint32_t{ 0x1845768 },
+                                  /* DEPTHWISE_CONTROL = */ uint32_t{ 0x11234 },
+                                  /* IFM_SLOT_BASE_ADDRESS = */ uint32_t{ 0x32442335 },
+                                  /* PLE_MCEIF_CONFIG = */ uint32_t{ 0x10098957 },
+                              } },
     };
 
     /* Agent 4 = */
@@ -1339,61 +1051,102 @@ TEST_CASE("XmlToBinary-BinaryToXml")
         /* NumStripesTotal = */ uint16_t{ 64 },
         /* AgentData = */
         cascading::AgentData{ /* PleLoader = */
-                              cascading::PleL{ /* PleKernelId = */ cascading::PleKernelId::SIGMOID_16X8_1_S,
-                                               /* SramAddr = */ uint32_t{ 4096 } } },
+                              cascading::PleL{
+                                  /* PleKernelId = */ cascading::PleKernelId::SIGMOID_16X8_1_S,
+                              } },
     };
 
     /* Agent 5 = */
     cascading::Agent agent5 = {
         /* NumStripesTotal = */ uint16_t{ 64 },
         /* AgentData = */
-        cascading::AgentData{                  /* PleScheduler = */
-                              cascading::PleS{ /* OfmTile = */
-                                               cascading::Tile{ /* BaseAddr = */ uint32_t{ 0 },
-                                                                /* NumSlots = */ uint16_t{ 0 },
-                                                                /* SlotSize = */ uint32_t{ 0 } },
-                                               /* OfmZeroPoint = */ int16_t{ 3 },
-                                               /* DfltStripeSize = */
-                                               cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
-                                                                                /* Width = */ uint16_t{ 8 },
-                                                                                /* Channels = */ uint16_t{ 8 } },
-                                               /* EdgeStripeSize = */
-                                               cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
-                                                                                /* Width = */ uint16_t{ 8 },
-                                                                                /* Channels = */ uint16_t{ 8 } },
-                                               /* NumStripes = */
-                                               cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
-                                                                                /* Width = */ uint16_t{ 8 },
-                                                                                /* Channels = */ uint16_t{ 8 } },
-                                               /* StripeIdStrides = */
-                                               cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
-                                                                                /* Width = */ uint16_t{ 8 },
-                                                                                /* Channels = */ uint16_t{ 8 } },
-                                               /* InputMode = */ cascading::PleInputMode::MCE_ONE_OG,
-                                               /* PleKernelId = */ cascading::PleKernelId::DOWNSAMPLE_2X2_16X16_1,
-                                               /* PleKernelSramAddress = */ uint32_t{ 4096 },
-                                               /* IfmTile0 = */
-                                               cascading::Tile{ /* BaseAddr = */ uint32_t{ 0 },
-                                                                /* NumSlots = */ uint16_t{ 0 },
-                                                                /* SlotSize = */ uint32_t{ 0 } },
-                                               /* IfmInfo0 = */
-                                               cascading::PleIfmInfo{ /* ZeroPoint = */ int16_t{ 0 },
-                                                                      /* Multiplier = */ uint16_t{ 1 },
-                                                                      /* Shift = */ uint16_t{ 2 } },
-                                               /* IfmTile1 = */
-                                               cascading::Tile{ /* BaseAddr = */ uint32_t{ 0 },
-                                                                /* NumSlots = */ uint16_t{ 0 },
-                                                                /* SlotSize = */ uint32_t{ 0 } },
-                                               /* IfmInfo1 = */
-                                               cascading::PleIfmInfo{ /* ZeroPoint = */ int16_t{ 0 },
-                                                                      /* Multiplier = */ uint16_t{ 1 },
-                                                                      /* Shift = */ uint16_t{ 2 } } } },
+        cascading::AgentData{ /* PleScheduler = */
+                              cascading::PleS{
+                                  /* InputMode = */ cascading::PleInputMode::MCE_ONE_OG,
+                                  /* PleKernelId = */ cascading::PleKernelId::DOWNSAMPLE_2X2_16X16_1,
+                                  /* PleKernelSramAddress = */ uint32_t{ 4096 },
+                              } },
     };
 
-    cascading::Command cascadingCommand1 = { cascading::CommandType::LoadIfmStripe, 0, 0 };
-    cascading::Command cascadingCommand2 = { cascading::CommandType::StoreOfmStripe, 2, 3 };
-    cascading::Command cascadingCommand3 = { cascading::CommandType::StartMceStripe, 0, 0 };
-    cascading::Command cascadingCommand4 = { cascading::CommandType::WaitForAgent, 0, 0 };
+    cascading::Command cascadingDmaRdCommand1 = { cascading::CommandType::LoadIfmStripe, 0, 0, 0 };
+    cascading::Command cascadingDmaWrCommand1 = { cascading::CommandType::StoreOfmStripe, 2, 3, 0 };
+    cascading::Command cascadingMceCommand1   = { cascading::CommandType::ProgramMceStripe, 0, 0, 0 };
+    cascading::Command cascadingMceCommand2   = { cascading::CommandType::StartMceStripe, 0, 0, 0 };
+    cascading::Command cascadingPleCommand1   = { cascading::CommandType::WaitForAgent, 0, 0, 0 };
+    cascading::Command cascadingPleCommand2   = { cascading::CommandType::StartPleStripe, 0, 0, 0 };
+
+    cascading::DmaExtraData cascadingDmaExtraData1 = {
+        /* m_DramOffset = */ uint32_t{ 0x123412 },
+        /* SRAM_ADDR = */ uint32_t{ 0x6543 },
+        /* DMA_SRAM_STRIDE = */ uint32_t{ 0x2345 },
+        /* DMA_STRIDE0 = */ uint32_t{ 0x7995 },
+        /* DMA_STRIDE3 = */ uint32_t{ 0x23245 },
+        /* DMA_CHANNELS = */ uint32_t{ 0x12345 },
+        /* DMA_EMCS = */ uint32_t{ 0x989 },
+        /* DMA_TOTAL_BYTES = */ uint32_t{ 0xfea },
+        /* DMA_CMD = */ uint32_t{ 0xa },
+        /* m_IsLastChunk = */ uint8_t{ 1 },
+    };
+    cascading::DmaExtraData cascadingDmaExtraData2 = {
+        /* m_DramOffset = */ uint32_t{ 0xabe },
+        /* SRAM_ADDR = */ uint32_t{ 0x6ee },
+        /* DMA_SRAM_STRIDE = */ uint32_t{ 0xebbb5 },
+        /* DMA_STRIDE0 = */ uint32_t{ 0x79aa },
+        /* DMA_STRIDE3 = */ uint32_t{ 0xdef },
+        /* DMA_CHANNELS = */ uint32_t{ 0xffeed },
+        /* DMA_EMCS = */ uint32_t{ 0xdd2 },
+        /* DMA_TOTAL_BYTES = */ uint32_t{ 0xfa12a },
+        /* DMA_CMD = */ uint32_t{ 0x11a },
+        /* m_IsLastChunk = */ uint8_t{ 0 },
+    };
+    cascading::ProgramMceExtraData cascadingProgramMceExtraData1 = {
+        /* CE_CONTROL = */ uint32_t{ 0x54768 },
+        /* MUL_ENABLE = */
+        std::array<std::array<uint32_t, 4>, 8>{
+            std::array<uint32_t, 4>{ 0x45, 0x46, 0x47, 0x48 },
+            std::array<uint32_t, 4>{ 0x49, 0x50, 0x51, 0x52 },
+            std::array<uint32_t, 4>{ 0x53, 0x54, 0x55, 0x56 },
+            std::array<uint32_t, 4>{ 0x57, 0x58, 0x59, 0x60 },
+            std::array<uint32_t, 4>{ 0x61, 0x62, 0x63, 0x64 },
+            std::array<uint32_t, 4>{ 0x65, 0x66, 0x67, 0x68 },
+            std::array<uint32_t, 4>{ 0x69, 0x70, 0x71, 0x72 },
+            std::array<uint32_t, 4>{ 0x73, 0x74, 0x75, 0x76 },
+        },
+        /* IFM_ROW_STRIDE = */ uint32_t{ 0x3423 },
+        /* IFM_CONFIG1 = */ uint32_t{ 0xaa8daa },
+        /* IFM_PAD = */
+        std::array<std::array<uint32_t, 2>, 4>{
+            std::array<uint32_t, 2>{ 0x45, 0x48 },
+            std::array<uint32_t, 2>{ 0x41, 0x61 },
+            std::array<uint32_t, 2>{ 0x42, 0x61 },
+            std::array<uint32_t, 2>{ 0x45, 0x6a },
+        },
+        /* WIDE_KERNEL_OFFSET = */ uint32_t{ 0x998765 },
+        /* IFM_TOP_SLOTS = */ uint32_t{ 0xee31 },
+        /* IFM_MID_SLOTS = */ uint32_t{ 0xe56654 },
+        /* IFM_BOTTOM_SLOTS = */ uint32_t{ 0xf787 },
+        /* IFM_SLOT_PAD_CONFIG = */ uint32_t{ 0x0897 },
+        /* OFM_STRIPE_SIZE = */ uint32_t{ 0xbb6 },
+        /* OFM_CONFIG = */ uint32_t{ 0xa455435 },
+        /* WEIGHT_BASE_ADDR = */ std::array<uint32_t, 4>{ 0x34587, 0xa, 0x342, 0xb },
+        /* IFM_CONFIG2 = */
+        std::array<std::array<uint32_t, 2>, 8>{
+            std::array<uint32_t, 2>{ 0x145, 0x246 },
+            std::array<uint32_t, 2>{ 0x149, 0x250 },
+            std::array<uint32_t, 2>{ 0x153, 0x254 },
+            std::array<uint32_t, 2>{ 0x157, 0x258 },
+            std::array<uint32_t, 2>{ 0x161, 0x262 },
+            std::array<uint32_t, 2>{ 0x165, 0x266 },
+            std::array<uint32_t, 2>{ 0x169, 0x270 },
+            std::array<uint32_t, 2>{ 0x173, 0x274 },
+        },
+        /* m_NumBlocksProgrammedForMce = */ uint32_t{ 128 },
+    };
+    cascading::StartMceExtraData cascadingStartMceExtraData1 = { /* CE_ENABLES = */ 0x123aa };
+    cascading::StartPleExtraData cascadingStartPleExtraData1 = { /* SCRATCH = */
+                                                                 0x125aa, 0x126aa, 0x127aa, 0x128aa,
+                                                                 0x129aa, 0x130aa, 0x131aa, 0x132aa
+    };
 
     std::string xmlStr = ReplaceVersionNumbers(g_XmlStr);
     std::stringstream inputXml(xmlStr);
@@ -1410,17 +1163,10 @@ TEST_CASE("XmlToBinary-BinaryToXml")
     buffer.EmplaceBack(conv1x1comm8);
     buffer.EmplaceBack(conv1x1comm9);
     buffer.EmplaceBack(conv1x1comm10);
-    buffer.EmplaceBack(conv1x1comm11);
-    buffer.EmplaceBack(agent0);
-    buffer.EmplaceBack(agent1);
-    buffer.EmplaceBack(agent2);
-    buffer.EmplaceBack(agent3);
-    buffer.EmplaceBack(agent4);
-    buffer.EmplaceBack(agent5);
-    buffer.EmplaceBack(cascadingCommand1);
-    buffer.EmplaceBack(cascadingCommand2);
-    buffer.EmplaceBack(cascadingCommand3);
-    buffer.EmplaceBack(cascadingCommand4);
+    AddCascade(buffer, { agent0, agent1, agent2, agent3, agent4, agent5 }, { cascadingDmaRdCommand1 },
+               { cascadingDmaWrCommand1 }, { cascadingMceCommand1, cascadingMceCommand2 },
+               { cascadingPleCommand1, cascadingPleCommand2 }, { cascadingDmaExtraData1, cascadingDmaExtraData2 },
+               { cascadingProgramMceExtraData1 }, { cascadingStartMceExtraData1 }, { cascadingStartPleExtraData1 });
     buffer.EmplaceBack(conv1x1comm12);
     const std::vector<uint32_t> commandStreamBinary = buffer.GetData();
 

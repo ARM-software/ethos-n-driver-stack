@@ -123,5 +123,8 @@ cc_library {
         "driver/support_library/src/cascading/CascadingCommandStreamGenerator.cpp",
         "driver/support_library/src/cascading/WeightEncoderCache.cpp",
         "driver/support_library/src/cascading/Scheduler.cpp",
+        "driver/support_library/src/cascading/DmaRegisters.cpp",
+        "driver/support_library/src/cascading/MceRegisters.cpp",
+        "driver/support_library/src/cascading/PleRegisters.cpp",
         ],
 }

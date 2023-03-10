@@ -365,7 +365,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
               { 9, 10, 11, 12 }, TraversalOrder::Zxy, Stride(10, 20), 30, 40, 100, 200);
     mce.m_DebugTag      = "Mce";
     mce.m_UpscaleFactor = 2;
-    mce.m_UpsampleType  = command_stream::cascading::UpsampleType::NEAREST_NEIGHBOUR;
+    mce.m_UpsampleType  = MceUpsampleType::NEAREST_NEIGHBOUR;
     graph.AddOp(&mce);
 
     DmaOp dma(CascadingBufferFormat::NHWCB);
@@ -752,7 +752,7 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     params.m_InputDataType          = DataType::UINT8_QUANTIZED;
     params.m_OutputDataType         = DataType::UINT8_QUANTIZED;
     params.m_UpscaleFactor          = 3;
-    params.m_UpsampleType           = command_stream::cascading::UpsampleType::NEAREST_NEIGHBOUR;
+    params.m_UpsampleType           = MceUpsampleType::NEAREST_NEIGHBOUR;
     auto mcePart                    = std::make_unique<McePart>(std::move(params));
     parts.AddPart(std::move(mcePart));
 

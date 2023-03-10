@@ -330,20 +330,20 @@ std::string ToString(const utils::Fraction& f)
     return ToString(f.m_Numerator) + "/" + ToString(f.m_Denominator);
 }
 
-std::string ToString(command_stream::cascading::UpsampleType t)
+std::string ToString(MceUpsampleType t)
 {
     switch (t)
     {
-        case command_stream::cascading::UpsampleType::OFF:
+        case MceUpsampleType::OFF:
             return "OFF";
-        case command_stream::cascading::UpsampleType::BILINEAR:
+        case MceUpsampleType::BILINEAR:
             return "BILINEAR";
-        case command_stream::cascading::UpsampleType::NEAREST_NEIGHBOUR:
+        case MceUpsampleType::NEAREST_NEIGHBOUR:
             return "NEAREST_NEIGHBOUR";
-        case command_stream::cascading::UpsampleType::TRANSPOSE:
+        case MceUpsampleType::TRANSPOSE:
             return "TRANSPOSE";
         default:
-            ETHOSN_FAIL_MSG("Unknown UpsampleType");
+            ETHOSN_FAIL_MSG("Unknown MceUpsampleType");
             return "";
     }
 }
@@ -671,7 +671,7 @@ std::string ToString(const BufferType& t)
     }
 }
 
-std::string ToString(command_stream::cascading::PackedBoundaryThickness t)
+std::string ToString(PackedBoundaryThickness t)
 {
     return "{ L: " + std::to_string(static_cast<int>(t.left)) + ", T: " + std::to_string(static_cast<int>(t.top)) +
            ", R: " + std::to_string(static_cast<int>(t.right)) + ", B: " + std::to_string(static_cast<int>(t.bottom)) +

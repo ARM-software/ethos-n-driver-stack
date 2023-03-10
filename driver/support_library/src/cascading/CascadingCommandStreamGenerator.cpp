@@ -7,6 +7,9 @@
 
 #include "CascadingCommandStreamGeneratorUtils.hpp"
 #include "Compiler.hpp"
+#include "DmaRegisters.hpp"
+#include "MceRegisters.hpp"
+#include "PleRegisters.hpp"
 #include "Scheduler.hpp"
 #include "Visualisation.hpp"
 
@@ -92,53 +95,131 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
     Scheduler scheduler(m_CommandStreamAgents);
     scheduler.Schedule();
 
-    // Store the arrays of agents and commands into the command for the command stream
-    command_stream::Cascade cascade;
-    uint32_t offset = sizeof(command_stream::Cascade);
+    // Generate register values for each command, and store them in the extra data
+    std::vector<DmaExtraData> dmaExtraData;
+    std::vector<ProgramMceExtraData> programMceExtraData;
+    std::vector<StartMceExtraData> startMceExtraData;
+    std::vector<StartPleExtraData> startPleExtraData;
+    uint32_t nextRdDmaCmdId = 0;
+    uint32_t nextWrDmaCmdId = 4;
 
-    cascade.AgentsOffset = offset;
-    cascade.NumAgents    = static_cast<uint32_t>(m_CommandStreamAgents.size());
-    offset += cascade.NumAgents * static_cast<uint32_t>(sizeof(Agent));
-
-    cascade.DmaRdCommandsOffset = offset;
-    cascade.NumDmaRdCommands    = static_cast<uint32_t>(scheduler.GetDmaRdCommands().size());
-    offset += cascade.NumDmaRdCommands * static_cast<uint32_t>(sizeof(Command));
-
-    cascade.DmaWrCommandsOffset = offset;
-    cascade.NumDmaWrCommands    = static_cast<uint32_t>(scheduler.GetDmaWrCommands().size());
-    offset += cascade.NumDmaWrCommands * static_cast<uint32_t>(sizeof(Command));
-
-    cascade.MceCommandsOffset = offset;
-    cascade.NumMceCommands    = static_cast<uint32_t>(scheduler.GetMceCommands().size());
-    offset += cascade.NumMceCommands * static_cast<uint32_t>(sizeof(Command));
-
-    cascade.PleCommandsOffset = offset;
-    cascade.NumPleCommands    = static_cast<uint32_t>(scheduler.GetPleCommands().size());
-    offset += cascade.NumPleCommands * static_cast<uint32_t>(sizeof(Command));
-
-    cascade.TotalSize = offset;
-
-    m_CommandStream.EmplaceBack(cascade);
-    for (auto& agent : m_CommandStreamAgents)
-    {
-        m_CommandStream.EmplaceBack<Agent>(agent.agent);
-    }
+    std::map<std::pair<uint32_t, uint32_t>, uint32_t> agentAndStripeToChunkRd;
     for (const Command& c : scheduler.GetDmaRdCommands())
     {
-        m_CommandStream.EmplaceBack(c);
+        if (c.type == CommandType::LoadIfmStripe)
+        {
+            uint32_t& chunkId = agentAndStripeToChunkRd[std::make_pair(c.agentId, c.stripeId)];
+            dmaExtraData.push_back(GenerateDmaExtraDataForLoadIfmStripe(
+                m_CommandStreamAgents[c.agentId].agent.ifm, c.stripeId, chunkId, m_Capabilities, nextRdDmaCmdId));
+
+            nextRdDmaCmdId = (nextRdDmaCmdId + 1) % 4;
+            ++chunkId;
+        }
+        else if (c.type == CommandType::LoadWgtStripe)
+        {
+            dmaExtraData.push_back(GenerateDmaExtraDataForLoadWgtStripe(m_CommandStreamAgents[c.agentId].agent.wgt,
+                                                                        c.stripeId, m_Capabilities, nextRdDmaCmdId));
+
+            nextRdDmaCmdId = (nextRdDmaCmdId + 1) % 4;
+        }
+        else if (c.type == CommandType::LoadPleCode)
+        {
+            dmaExtraData.push_back(GenerateDmaExtraDataForLoadPleCode(m_CommandStreamAgents[c.agentId].agent.pleL,
+                                                                      m_Capabilities, nextRdDmaCmdId));
+
+            nextRdDmaCmdId = (nextRdDmaCmdId + 1) % 4;
+        }
     }
+    std::map<std::pair<uint32_t, uint32_t>, uint32_t> agentAndStripeToChunkWr;
     for (const Command& c : scheduler.GetDmaWrCommands())
     {
-        m_CommandStream.EmplaceBack(c);
+        if (c.type == CommandType::StoreOfmStripe)
+        {
+            uint32_t& chunkId = agentAndStripeToChunkWr[std::make_pair(c.agentId, c.stripeId)];
+            dmaExtraData.push_back(GenerateDmaExtraDataForStoreOfmStripe(
+                m_CommandStreamAgents[c.agentId].agent.ofm, c.stripeId, chunkId, m_Capabilities, nextWrDmaCmdId));
+            nextWrDmaCmdId = 4 + ((nextWrDmaCmdId + 1) % 4);
+            ++chunkId;
+        }
     }
     for (const Command& c : scheduler.GetMceCommands())
     {
-        m_CommandStream.EmplaceBack(c);
+        if (c.type == CommandType::ProgramMceStripe)
+        {
+            programMceExtraData.push_back(
+                GenerateProgramMceExtraData(m_CommandStreamAgents[c.agentId].agent.mce, c.stripeId, m_Capabilities));
+        }
+        else if (c.type == CommandType::StartMceStripe)
+        {
+            startMceExtraData.push_back(
+                GenerateStartMceExtraData(m_CommandStreamAgents[c.agentId].agent.mce, c.stripeId, m_Capabilities));
+        }
     }
     for (const Command& c : scheduler.GetPleCommands())
     {
-        m_CommandStream.EmplaceBack(c);
+        if (c.type == CommandType::StartPleStripe)
+        {
+            startPleExtraData.push_back(
+                GenerateStartPleExtraData(m_CommandStreamAgents[c.agentId].agent.pleS, c.stripeId));
+        }
     }
+
+    // Convert the AgentDesc structs into Agents for the command stream
+    std::vector<Agent> agents;
+    for (const AgentDescAndDeps& agentAndDeps : m_CommandStreamAgents)
+    {
+        switch (agentAndDeps.agent.type)
+        {
+            case AgentType::IFM_STREAMER:
+            {
+                IfmS ifmS = CreateIfmS(agentAndDeps.agent.ifm);
+                agents.push_back({ agentAndDeps.agent.numStripesTotal, ifmS });
+                break;
+            }
+            case AgentType::WGT_STREAMER:
+            {
+                WgtS wgtS     = {};
+                wgtS.bufferId = agentAndDeps.agent.wgt.bufferId;
+                agents.push_back({ agentAndDeps.agent.numStripesTotal, wgtS });
+                break;
+            }
+            case AgentType::MCE_SCHEDULER:
+            {
+                MceS mceS = CreateMceS(agentAndDeps.agent.mce);
+                agents.push_back({ agentAndDeps.agent.numStripesTotal, mceS });
+                break;
+            }
+            case AgentType::PLE_LOADER:
+            {
+                PleL pleL        = {};
+                pleL.pleKernelId = agentAndDeps.agent.pleL.pleKernelId;
+                agents.push_back({ agentAndDeps.agent.numStripesTotal, pleL });
+                break;
+            }
+            case AgentType::PLE_SCHEDULER:
+            {
+                PleS pleS              = {};
+                pleS.inputMode         = agentAndDeps.agent.pleS.inputMode;
+                pleS.pleKernelId       = agentAndDeps.agent.pleS.pleKernelId;
+                pleS.pleKernelSramAddr = agentAndDeps.agent.pleS.pleKernelSramAddr;
+                agents.push_back({ agentAndDeps.agent.numStripesTotal, pleS });
+                break;
+            }
+            case AgentType::OFM_STREAMER:
+            {
+                OfmS ofmS = CreateOfmS(agentAndDeps.agent.ofm);
+                agents.push_back({ agentAndDeps.agent.numStripesTotal, ofmS });
+                break;
+            }
+            default:
+                assert(false);
+        }
+    }
+
+    // Store the arrays of agents, commands and extra data into the command for the command stream
+    command_stream::AddCascade(m_CommandStream, agents, scheduler.GetDmaRdCommands(), scheduler.GetDmaWrCommands(),
+                               scheduler.GetMceCommands(), scheduler.GetPleCommands(), dmaExtraData,
+                               programMceExtraData, startMceExtraData, startPleExtraData);
 
     // Add DUMP_DRAM commands to the command stream, if requested.
     if (m_DebuggingContext.m_DebugInfo.m_DumpRam)
@@ -287,7 +368,7 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
                 // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
                 AddReadAfterWriteDependency(
                     AgentType::IFM_STREAMER, ifmStreamerAgentId,
-                    m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForIfmS)].agent.data.type,
+                    m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForIfmS)].agent.type,
                     this->m_OpToAgentIdMapping.at(m_FenceOpForIfmS), m_FenceOpForIfmS);
                 m_FenceOpForIfmS = nullptr;
             }
@@ -303,7 +384,7 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
                 // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
                 AddReadAfterWriteDependency(
                     AgentType::WGT_STREAMER, weightStreamerAgentId,
-                    m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForWgtS)].agent.data.type,
+                    m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForWgtS)].agent.type,
                     this->m_OpToAgentIdMapping.at(m_FenceOpForWgtS), m_FenceOpForWgtS);
                 m_FenceOpForWgtS = nullptr;
             }
@@ -426,7 +507,7 @@ void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
             // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
             AddReadAfterWriteDependency(
                 AgentType::PLE_LOADER, pleLoaderAgentId,
-                m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForPleL)].agent.data.type,
+                m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForPleL)].agent.type,
                 this->m_OpToAgentIdMapping.at(m_FenceOpForPleL), m_FenceOpForPleL);
             m_FenceOpForPleL = nullptr;
         }
@@ -528,14 +609,14 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
 
         AgentIdType pleSchedulerAgentId = AddPleSchedulerToCommandStream(static_cast<PleOp*>(ptrPleOp));
 
-        AgentType input0AgentType = m_CommandStreamAgents[m_OpToAgentIdMapping[input0Producer]].agent.data.type;
+        AgentType input0AgentType = m_CommandStreamAgents[m_OpToAgentIdMapping[input0Producer]].agent.type;
 
         // Read After Write Dependency for [PleScheduler][IfmStreamer] or [PleScheduler][PleScheduler]
         AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input0AgentType,
                                     m_OpToAgentIdMapping[input0Producer], input0Producer);
         if (input1Producer != nullptr)
         {
-            AgentType input1AgentType = m_CommandStreamAgents[m_OpToAgentIdMapping[input1Producer]].agent.data.type;
+            AgentType input1AgentType = m_CommandStreamAgents[m_OpToAgentIdMapping[input1Producer]].agent.type;
             // Read After Write Dependency for [PleScheduler][IfmStreamer] or [PleScheduler][PleScheduler]
             AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input1AgentType,
                                         m_OpToAgentIdMapping[input1Producer], input1Producer);
@@ -554,7 +635,7 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
                 // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
                 AddReadAfterWriteDependency(
                     AgentType::PLE_LOADER, pleLoaderAgentId,
-                    m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForPleL)].agent.data.type,
+                    m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForPleL)].agent.type,
                     this->m_OpToAgentIdMapping.at(m_FenceOpForPleL), m_FenceOpForPleL);
                 m_FenceOpForPleL = nullptr;
             }
@@ -570,7 +651,7 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
 
         if (input1Producer != nullptr)
         {
-            AgentType input1AgentType = m_CommandStreamAgents[m_OpToAgentIdMapping[input1Producer]].agent.data.type;
+            AgentType input1AgentType = m_CommandStreamAgents[m_OpToAgentIdMapping[input1Producer]].agent.type;
 
             // Write After Read Dependency for [IfmStreamer][PleScheduler] or [PleScheduler][PleScheduler]
             AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input1AgentType,
@@ -632,7 +713,7 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(DmaOp
 {
     assert(inputSramBuffer->m_Format == CascadingBufferFormat::NHWCB);
 
-    IfmS ifmStreamerData = {};
+    IfmSDesc ifmStreamerData = {};
 
     ifmStreamerData.fmData.dramOffset = inputDramBufferOffset;
 
@@ -688,12 +769,12 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(DmaOp
         ifmStreamerData.fmData.numStripes.width * ifmStreamerData.fmData.numStripes.height *
         ifmStreamerData.fmData.numStripes.channels * inputSramBuffer->m_NumLoads);
 
-    Agent ifmStreamerAgent{ numStripesTotal, ifmStreamerData };
+    AgentDesc ifmStreamerAgent(numStripesTotal, ifmStreamerData);
 
     // Push the Ifm Streamer agent to the command stream
     AgentIdType agentId         = m_CommandStreamAgents.size();
     m_OpToAgentIdMapping[ptrOp] = agentId;
-    m_CommandStreamAgents.push_back(AgentAndDeps{ ifmStreamerAgent, dependencyInfo });
+    m_CommandStreamAgents.push_back(AgentDescAndDeps{ ifmStreamerAgent, dependencyInfo });
 
     return agentId;
 }
@@ -713,9 +794,10 @@ AgentIdType CascadingCommandStreamGenerator::AddWeightStreamerToCommandStream(Dm
     SramBuffer* ifmBuffer         = m_MergedOpGraph.GetInputs(weightBufferConsumer.first)[0]->Sram();
     PleInputSramBuffer* ofmBuffer = m_MergedOpGraph.GetOutput(weightBufferConsumer.first)->PleInputSram();
 
-    WgtS weightStreamerData = {};
+    EncodedWeights* encodedWeights = weightsDramBuffer->m_EncodedWeights.get();
 
-    EncodedWeights* encodedWeights          = weightsDramBuffer->m_EncodedWeights.get();
+    WgtSDesc weightStreamerData = {};
+
     std::vector<uint8_t>& compressedWeights = encodedWeights->m_Data;
     std::vector<uint8_t> metadataBytes;
     metadataBytes.assign(
@@ -723,8 +805,7 @@ AgentIdType CascadingCommandStreamGenerator::AddWeightStreamerToCommandStream(Dm
         reinterpret_cast<const uint8_t*>(encodedWeights->m_Metadata.data() + encodedWeights->m_Metadata.size()));
     weightStreamerData.bufferId = ethosn::utils::NumericCast<uint16_t>(
         m_BufferManager.AddDramConstant(BufferType::ConstantDma, compressedWeights));
-    weightStreamerData.metadataBufferId = ethosn::utils::NumericCast<uint16_t>(
-        m_BufferManager.AddDramConstant(BufferType::ConstantControlUnit, metadataBytes));
+    weightStreamerData.metadata = &encodedWeights->m_Metadata;
     CommonUtils::SetTileInfoForBuffer(m_Capabilities, weightStreamerData.tile, weightsSramBuffer);
 
     weightStreamerData.numStripes.ifmChannels =
@@ -740,12 +821,13 @@ AgentIdType CascadingCommandStreamGenerator::AddWeightStreamerToCommandStream(Dm
     uint16_t numStripesTotal = ethosn::utils::NumericCast<uint16_t>(
         utils::GetNumStripesTotal(weightsSramBuffer->m_TensorShape, weightsSramBuffer->m_StripeShape) *
         weightsSramBuffer->m_NumLoads);
-    Agent weightStreamerAgent{ numStripesTotal, weightStreamerData };
+
+    AgentDesc weightStreamerAgent(numStripesTotal, weightStreamerData);
 
     // Push the Weight Streamer agent to the command stream
     AgentIdType agentId            = m_CommandStreamAgents.size();
     m_OpToAgentIdMapping[ptrDmaOp] = agentId;
-    m_CommandStreamAgents.push_back(AgentAndDeps{ weightStreamerAgent, dependencyInfo });
+    m_CommandStreamAgents.push_back(AgentDescAndDeps{ weightStreamerAgent, dependencyInfo });
 
     return agentId;
 }
@@ -764,7 +846,7 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
     // Get the output buffer from the Mce Op
     PleInputSramBuffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrMceOp)->PleInputSram();
 
-    MceS mceSchedulerData = {};
+    MceSDesc mceSchedulerData = {};
 
     CommonUtils::SetTileInfoForBuffer(m_Capabilities, mceSchedulerData.ifmTile, inputBuffer);
 
@@ -783,10 +865,10 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
         // This is due to the reinterpretation that the hardware requires.
         const uint16_t w = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(g_BrickGroupShape));
         const uint16_t h = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(g_BrickGroupShape));
-        mceSchedulerData.edgeStripeSize.ofmWidth  = w;
-        mceSchedulerData.edgeStripeSize.ofmHeight = h;
-        mceSchedulerData.dfltStripeSize.ofmWidth  = w;
-        mceSchedulerData.dfltStripeSize.ofmHeight = h;
+        mceSchedulerData.edgeStripeSize.ofmWidth     = w;
+        mceSchedulerData.edgeStripeSize.ofmHeight    = h;
+        mceSchedulerData.defaultStripeSize.ofmWidth  = w;
+        mceSchedulerData.defaultStripeSize.ofmHeight = h;
     }
 
     MceSUtils::SetMcesOfmChannelsStripeInfo(mceSchedulerData, outputBuffer->m_TensorShape,
@@ -808,14 +890,14 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
     const uint32_t outputBufferWidth  = utils::GetWidth(outputBuffer->m_TensorShape);
     const uint32_t outputBufferHeight = utils::GetHeight(outputBuffer->m_TensorShape);
 
-    const bool isUpsample = mceSchedulerData.upsampleType != UpsampleType::OFF;
+    const bool isUpsample = mceSchedulerData.upsampleType != MceUpsampleType::OFF;
     if (isUpsample)
     {
         // As only 2x resize is supported, drop mode is only possible for odd output width/height.
         mceSchedulerData.upsampleEdgeMode.col =
-            (outputBufferWidth & 1) ? UpsampleEdgeMode::DROP : UpsampleEdgeMode::GENERATE;
+            (outputBufferWidth & 1) ? MceUpsampleEdgeMode::DROP : MceUpsampleEdgeMode::GENERATE;
         mceSchedulerData.upsampleEdgeMode.row =
-            (outputBufferHeight & 1) ? UpsampleEdgeMode::DROP : UpsampleEdgeMode::GENERATE;
+            (outputBufferHeight & 1) ? MceUpsampleEdgeMode::DROP : MceUpsampleEdgeMode::GENERATE;
     }
 
     MceSUtils::SetMcesConvolutionData(mceSchedulerData, m_MergedOpGraph, ptrMceOp,
@@ -848,12 +930,12 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
         mceSchedulerData.numStripes.ifmChannels * mceSchedulerData.numStripes.ofmChannels *
         mceSchedulerData.numStripes.ofmWidth * mceSchedulerData.numStripes.ofmHeight);
 
-    Agent mceSchedulerAgent{ numStripesTotal, mceSchedulerData };
+    AgentDesc mceSchedulerAgent(numStripesTotal, mceSchedulerData);
 
     // Push the Mce Scheduler agent to the command stream
     AgentIdType agentId            = m_CommandStreamAgents.size();
     m_OpToAgentIdMapping[ptrMceOp] = agentId;
-    m_CommandStreamAgents.push_back(AgentAndDeps{ mceSchedulerAgent, dependencyInfo });
+    m_CommandStreamAgents.push_back(AgentDescAndDeps{ mceSchedulerAgent, dependencyInfo });
 
     return agentId;
 }
@@ -862,19 +944,19 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
 AgentIdType CascadingCommandStreamGenerator::AddPleLoaderToCommandStream(PleOp* const ptrPleOp)
 {
     // Create a new Ple Loader agent
-    PleL pleLoaderData        = {};
+    PleLDesc pleLoaderData    = {};
     pleLoaderData.pleKernelId = ptrPleOp->m_PleKernelId;
     pleLoaderData.sramAddr    = ethosn::utils::NumericCast<uint32_t>(ptrPleOp->m_Offset.value());
 
     AgentDependencyInfo dependencyInfo = {};
     uint16_t numStripesTotal           = 1U;
 
-    Agent pleLoaderAgent{ numStripesTotal, pleLoaderData };
+    AgentDesc pleLoaderAgent(numStripesTotal, pleLoaderData);
 
     // Push the Ple Loader agent to the command stream
     AgentIdType agentId                                           = m_CommandStreamAgents.size();
     m_PleKernelToPleLoaderAgentIdMapping[ptrPleOp->m_PleKernelId] = agentId;
-    m_CommandStreamAgents.push_back(AgentAndDeps{ pleLoaderAgent, dependencyInfo });
+    m_CommandStreamAgents.push_back(AgentDescAndDeps{ pleLoaderAgent, dependencyInfo });
 
     return agentId;
 }
@@ -891,7 +973,7 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
     // Get the output buffer from the Ple Op
     SramBuffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrPleOp)->Sram();
 
-    PleS pleS = {};
+    PleSDesc pleS = {};
 
     pleS.ofmZeroPoint = ethosn::utils::NumericCast<int16_t>(outputBuffer->m_QuantizationInfo.GetZeroPoint());
 
@@ -953,18 +1035,16 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
         pleS.ifmInfo1.zeroPoint = ethosn::utils::NumericCast<int16_t>(inputBuffer1->m_QuantizationInfo.GetZeroPoint());
     }
 
-    AgentData agentData{ pleS };
-
     AgentDependencyInfo info = {};
     uint16_t numStripesTotal = ethosn::utils::NumericCast<uint16_t>(
         utils::GetNumStripesTotal(outputBuffer->m_TensorShape, ptrPleOp->m_OutputStripeShape));
 
-    Agent pleSchedulerAgent{ numStripesTotal, agentData };
+    AgentDesc pleSchedulerAgent(numStripesTotal, pleS);
 
     // Push the Ple Scheduler agent to the command stream
     AgentIdType agentId            = m_CommandStreamAgents.size();
     m_OpToAgentIdMapping[ptrPleOp] = agentId;
-    m_CommandStreamAgents.push_back(AgentAndDeps{ pleSchedulerAgent, info });
+    m_CommandStreamAgents.push_back(AgentDescAndDeps{ pleSchedulerAgent, info });
 
     return agentId;
 }
@@ -978,7 +1058,7 @@ AgentIdType CascadingCommandStreamGenerator::AddOfmStreamerToCommandStream(DmaOp
 {
     assert(outputSramBuffer->m_Format == CascadingBufferFormat::NHWCB);
 
-    OfmS ofmStreamerData = {};
+    OfmSDesc ofmStreamerData = {};
 
     ofmStreamerData.fmData.dramOffset = outputDramBufferOffset;
 
@@ -1022,12 +1102,12 @@ AgentIdType CascadingCommandStreamGenerator::AddOfmStreamerToCommandStream(DmaOp
     uint16_t numStripesTotal           = ethosn::utils::NumericCast<uint16_t>(
         utils::GetNumStripesTotal(outputSramBuffer->m_TensorShape, outputSramBuffer->m_StripeShape));
 
-    Agent ofmStreamerAgent{ numStripesTotal, ofmStreamerData };
+    AgentDesc ofmStreamerAgent(numStripesTotal, ofmStreamerData);
 
     // Push the Ofm Streamer agent to the command stream
     AgentIdType agentId         = m_CommandStreamAgents.size();
     m_OpToAgentIdMapping[ptrOp] = agentId;
-    m_CommandStreamAgents.push_back(AgentAndDeps{ ofmStreamerAgent, dependencyInfo });
+    m_CommandStreamAgents.push_back(AgentDescAndDeps{ ofmStreamerAgent, dependencyInfo });
 
     return agentId;
 }
@@ -1123,12 +1203,12 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
     const AgentIdType producerAgentId,
     const Op* producerOp) const
 {
-    const AgentAndDeps& consumerAgentAndDeps = m_CommandStreamAgents[consumerAgentId];
-    const AgentData& consumerAgentData       = consumerAgentAndDeps.agent.data;
-    const uint16_t consumerAgentNumStripes   = consumerAgentAndDeps.agent.numStripesTotal;
-    const AgentAndDeps& producerAgentAndDeps = m_CommandStreamAgents[producerAgentId];
-    const AgentData& producerAgentData       = producerAgentAndDeps.agent.data;
-    const uint16_t producerAgentNumStripes   = producerAgentAndDeps.agent.numStripesTotal;
+    const AgentDescAndDeps& consumerAgentAndDeps = m_CommandStreamAgents[consumerAgentId];
+    const AgentDesc& consumerAgentData           = consumerAgentAndDeps.agent;
+    const uint16_t consumerAgentNumStripes       = consumerAgentAndDeps.agent.numStripesTotal;
+    const AgentDescAndDeps& producerAgentAndDeps = m_CommandStreamAgents[producerAgentId];
+    const AgentDesc& producerAgentData           = producerAgentAndDeps.agent;
+    const uint16_t producerAgentNumStripes       = producerAgentAndDeps.agent.numStripesTotal;
 
     // Add a new 'Read After Write' dependency
     switch (consumerAgentType)
@@ -1186,7 +1266,7 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
             // Read After Write Dependency for [MceScheduler][IfmStreamer]
             if (producerAgentType == AgentType::IFM_STREAMER)
             {
-                DependencyUtils::CalculateIfmSMceSOuterRatio(consumerAgentAndDeps.agent, producerAgentAndDeps.agent,
+                DependencyUtils::CalculateIfmSMceSOuterRatio(consumerAgentData, producerAgentData,
                                                              consumerAgentDependency.outerRatio.self,
                                                              consumerAgentDependency.outerRatio.other);
 
@@ -1393,8 +1473,9 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                 consumerAgentDependency.outerRatio.self  = consumerAgentNumStripes;
 
                 // Inner ratio based on the stripe heights
-                consumerAgentDependency.innerRatio.other = ethosn::utils::NumericCast<uint16_t>(
-                    consumerAgentData.ofm.fmData.dfltStripeSize.height / producerAgentData.pleS.dfltStripeSize.height);
+                consumerAgentDependency.innerRatio.other =
+                    ethosn::utils::NumericCast<uint16_t>(consumerAgentData.ofm.fmData.defaultStripeSize.height /
+                                                         producerAgentData.pleS.defaultStripeSize.height);
                 consumerAgentDependency.innerRatio.self = 1;
 
                 command_stream::PleOperation pleOperation = static_cast<const PleOp*>(producerOp)->m_Op;
@@ -1443,12 +1524,12 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
     const Op* producerOp,
     DependencyType dependencyType) const
 {
-    const AgentAndDeps& consumerAgentAndDeps = m_CommandStreamAgents[consumerAgentId];
-    const AgentData& consumerAgentData       = consumerAgentAndDeps.agent.data;
-    const uint16_t consumerAgentNumStripes   = consumerAgentAndDeps.agent.numStripesTotal;
-    const AgentAndDeps& producerAgentAndDeps = m_CommandStreamAgents[producerAgentId];
-    const AgentData& producerAgentData       = producerAgentAndDeps.agent.data;
-    const uint16_t producerAgentNumStripes   = producerAgentAndDeps.agent.numStripesTotal;
+    const AgentDescAndDeps& consumerAgentAndDeps = m_CommandStreamAgents[consumerAgentId];
+    const AgentDesc& consumerAgentData           = consumerAgentAndDeps.agent;
+    const uint16_t consumerAgentNumStripes       = consumerAgentAndDeps.agent.numStripesTotal;
+    const AgentDescAndDeps& producerAgentAndDeps = m_CommandStreamAgents[producerAgentId];
+    const AgentDesc& producerAgentData           = producerAgentAndDeps.agent;
+    const uint16_t producerAgentNumStripes       = producerAgentAndDeps.agent.numStripesTotal;
 
     // Add a new 'Write After Read' dependency or
     // Add a new 'Schedule Time' dependency
@@ -1695,8 +1776,9 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                 producerAgentDependency.outerRatio.other = consumerAgentNumStripes;
                 producerAgentDependency.outerRatio.self  = producerAgentNumStripes;
 
-                producerAgentDependency.innerRatio.other = ethosn::utils::NumericCast<uint16_t>(
-                    producerAgentData.pleS.dfltStripeSize.height / consumerAgentData.ofm.fmData.dfltStripeSize.height);
+                producerAgentDependency.innerRatio.other =
+                    ethosn::utils::NumericCast<uint16_t>(producerAgentData.pleS.defaultStripeSize.height /
+                                                         consumerAgentData.ofm.fmData.defaultStripeSize.height);
                 producerAgentDependency.innerRatio.self = 1;
 
                 command_stream::PleOperation pleOperation = static_cast<const PleOp*>(producerOp)->m_Op;

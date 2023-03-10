@@ -237,9 +237,9 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     }
     numStripes.m_Output = { 1, maxOutputStripes };
 
-    command_stream::cascading::PackedBoundaryThickness packedBoundaryThickness = { 0, 0, 0, 0 };
-    const uint32_t numIfmLoads                                                 = 1;
-    const uint32_t numWeightLoads                                              = 1;
+    PackedBoundaryThickness packedBoundaryThickness = { 0, 0, 0, 0 };
+    const uint32_t numIfmLoads                      = 1;
+    const uint32_t numWeightLoads                   = 1;
 
     MceAndPleInfo mceAndPleInfo;
 
@@ -408,7 +408,7 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
     CompilerMceAlgorithm effectiveAlgo = CompilerMceAlgorithm::Direct;
     // Winograd and upscaling cannot be performed at the same time
     if (!m_CompilationOptions.m_DisableWinograd && m_Operation == command_stream::MceOperation::CONVOLUTION &&
-        m_Stride == Stride{ 1, 1 } && m_UpsampleType == command_stream::cascading::UpsampleType::OFF)
+        m_Stride == Stride{ 1, 1 } && m_UpsampleType == MceUpsampleType::OFF)
     {
         effectiveAlgo =
             utils::FindBestConvAlgorithm(m_Capabilities, m_WeightsInfo.m_Dimensions[0], m_WeightsInfo.m_Dimensions[1]);

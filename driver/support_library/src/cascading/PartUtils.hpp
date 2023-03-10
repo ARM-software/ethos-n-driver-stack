@@ -29,7 +29,7 @@ struct TileSizeCalculation
 TileSizeCalculation CalculateTileSize(const HardwareCapabilities& caps,
                                       const TensorShape& inputTensorShape,
                                       const TensorShape& inputStripeShape,
-                                      command_stream::cascading::PackedBoundaryThickness packedBoundaryThickness,
+                                      PackedBoundaryThickness packedBoundaryThickness,
                                       uint32_t numStripes,
                                       bool couldSourceBeFcaf);
 

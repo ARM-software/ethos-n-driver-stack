@@ -346,7 +346,7 @@ TEST_CASE("Fully Connected")
     fully_connected.m_MceData().m_OutputShape()             = { 1, 1, 1, numOutputs };
     fully_connected.m_MceData().m_OutputStripeShape()       = { 1, 8, 8, 8 };
     fully_connected.m_MceData().m_Operation()               = ethosn::command_stream::MceOperation::FULLY_CONNECTED;
-    fully_connected.m_MceData().m_Algorithm()               = MceAlgorithm::DIRECT;
+    fully_connected.m_MceData().m_Algorithm()               = ethosn::command_stream::MceAlgorithm::DIRECT;
     fully_connected.m_MceData().m_ActivationMin()           = 0;
     fully_connected.m_MceData().m_ActivationMax()           = 255;
     fully_connected.m_MceData().m_UpsampleType()            = UpsampleType::OFF;

@@ -496,7 +496,7 @@ MceOp::MceOp()
     , m_PadLeft(0)
     , m_PadTop(0)
     , m_UpscaleFactor(1)
-    , m_UpsampleType(command_stream::cascading::UpsampleType::OFF)
+    , m_UpsampleType(MceUpsampleType::OFF)
     , m_LowerBound(0)
     , m_UpperBound(255)
 {}
@@ -525,7 +525,7 @@ MceOp::MceOp(MceOperation op,
     , m_PadLeft(padLeft)
     , m_PadTop(padTop)
     , m_UpscaleFactor(1)
-    , m_UpsampleType(command_stream::cascading::UpsampleType::OFF)
+    , m_UpsampleType(MceUpsampleType::OFF)
     , m_LowerBound(lowerBound)
     , m_UpperBound(upperBound)
 {}
@@ -754,8 +754,7 @@ SramBufferBuilder& SramBufferBuilder::AddTraversalOrder(TraversalOrder order)
     return *this;
 }
 
-SramBufferBuilder&
-    SramBufferBuilder::AddPackedBoundaryThickness(const command_stream::cascading::PackedBoundaryThickness& boundary)
+SramBufferBuilder& SramBufferBuilder::AddPackedBoundaryThickness(const PackedBoundaryThickness& boundary)
 {
     m_Buffer->m_PackedBoundaryThickness = boundary;
     return *this;

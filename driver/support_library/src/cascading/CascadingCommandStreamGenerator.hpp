@@ -174,8 +174,11 @@ private:
     std::unordered_map<command_stream::cascading::PleKernelId, AgentIdType, EnumHasher>
         m_PleKernelToPleLoaderAgentIdMapping;
 
-    // Command stream agents used to build the command stream.
-    std::vector<AgentAndDeps> m_CommandStreamAgents;
+    /// Command stream agents used to build the command stream. This is an intermediate representation
+    /// that is just for the support library and is converted into the command stream agents, commands and
+    /// extra data by the scheduler and register generation code.
+    std::vector<AgentDescAndDeps> m_CommandStreamAgents;
+
     command_stream::CommandStreamBuffer m_CommandStream;
 
     // BufferManager instance which maintains and builds up the set of buffers required by the compiled network

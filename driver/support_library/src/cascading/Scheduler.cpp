@@ -5,11 +5,12 @@
 
 #include "Scheduler.hpp"
 
+#include "../Utils.hpp"
+#include "DmaRegisters.hpp"
+
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
-
-#include "../Utils.hpp"
 
 using namespace ethosn::command_stream::cascading;
 
@@ -98,7 +99,7 @@ void Scheduler::InsertWriteDependencies(const AgentDependencyInfo& agent,
                 (stripeToWaitFor != GetLastReaderOfEvictedStripeId(writeDependency, stripeId - 1, tileSize)))
             {
                 commands.push_back(Command{ CommandType::WaitForAgent, agentId + writeDependency.relativeAgentId,
-                                            static_cast<uint32_t>(stripeToWaitFor) });
+                                            static_cast<uint32_t>(stripeToWaitFor), 0 });
             }
         }
     }
@@ -113,7 +114,7 @@ void Scheduler::InsertReadDependencies(const AgentDependencyInfo& agent,
     for (const auto& readDependency : agent.readDependencies)
     {
         const uint32_t otherAgentId    = agentId - readDependency.relativeAgentId;
-        const AgentType otherAgentType = m_Agents[otherAgentId].agent.data.type;
+        const AgentType otherAgentType = m_Agents[otherAgentId].agent.type;
 
         if (utils::Optional<AgentType>{ otherAgentType } != agentTypeToIgnore)
         {
@@ -125,7 +126,7 @@ void Scheduler::InsertReadDependencies(const AgentDependencyInfo& agent,
                 if ((stripeId == 0) || (stripeToWaitFor != GetLargestNeededStripeId(readDependency, stripeId - 1)))
                 {
                     commands.push_back(
-                        Command{ CommandType::WaitForAgent, otherAgentId, static_cast<uint32_t>(stripeToWaitFor) });
+                        Command{ CommandType::WaitForAgent, otherAgentId, static_cast<uint32_t>(stripeToWaitFor), 0 });
                 }
             }
         }
@@ -134,51 +135,55 @@ void Scheduler::InsertReadDependencies(const AgentDependencyInfo& agent,
 
 void Scheduler::ScheduleIfmStreamerStripe(const uint32_t agentId, uint32_t stripeId)
 {
-    const AgentAndDeps& agentAndDeps = m_Agents[agentId];
-    assert(agentAndDeps.agent.data.type == AgentType::IFM_STREAMER);
+    const AgentDescAndDeps& agentAndDeps = m_Agents[agentId];
+    assert(agentAndDeps.agent.type == AgentType::IFM_STREAMER);
 
     g_Logger.Verbose("Schedule IfmStreamerStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
-    const uint16_t tileSize = agentAndDeps.agent.data.ifm.fmData.tile.numSlots;
+    const uint16_t tileSize = agentAndDeps.agent.ifm.fmData.tile.numSlots;
     InsertWriteDependencies(agentAndDeps.deps, agentId, stripeId, tileSize, m_DmaRdCommands);
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_DmaRdCommands);
 
-    m_DmaRdCommands.push_back(Command{ CommandType::LoadIfmStripe, agentId, stripeId });
+    const uint32_t numChunks = CalculateNumChunks(agentAndDeps.agent.ifm, stripeId);
+    for (uint32_t i = 0; i < numChunks; ++i)
+    {
+        m_DmaRdCommands.push_back(Command{ CommandType::LoadIfmStripe, agentId, stripeId, 0 });
+    }
 }
 
 void Scheduler::ScheduleWgtStreamerStripe(const uint32_t agentId, uint32_t stripeId)
 {
-    const AgentAndDeps& agentAndDeps = m_Agents[agentId];
-    assert(agentAndDeps.agent.data.type == AgentType::WGT_STREAMER);
+    const AgentDescAndDeps& agentAndDeps = m_Agents[agentId];
+    assert(agentAndDeps.agent.type == AgentType::WGT_STREAMER);
 
     g_Logger.Verbose("Schedule WgtStreamerStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
-    const uint16_t tileSize = agentAndDeps.agent.data.wgt.tile.numSlots;
+    const uint16_t tileSize = agentAndDeps.agent.wgt.tile.numSlots;
     InsertWriteDependencies(agentAndDeps.deps, agentId, stripeId, tileSize, m_DmaRdCommands);
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_DmaRdCommands);
 
-    m_DmaRdCommands.push_back(Command{ CommandType::LoadWgtStripe, agentId, stripeId });
+    m_DmaRdCommands.push_back(Command{ CommandType::LoadWgtStripe, agentId, stripeId, 0 });
 }
 
 void Scheduler::ScheduleMceSchedulerStripe(const uint32_t agentId, uint32_t stripeId)
 {
-    const AgentAndDeps& agentAndDeps = m_Agents[agentId];
-    assert(agentAndDeps.agent.data.type == AgentType::MCE_SCHEDULER);
+    const AgentDescAndDeps& agentAndDeps = m_Agents[agentId];
+    assert(agentAndDeps.agent.type == AgentType::MCE_SCHEDULER);
     assert(agentAndDeps.deps.writeDependencies.size() == 0);
 
     g_Logger.Verbose("Schedule MceSchedulerStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
-    m_MceCommands.push_back(Command{ CommandType::ProgramMceStripe, agentId, stripeId });
+    m_MceCommands.push_back(Command{ CommandType::ProgramMceStripe, agentId, stripeId, 0 });
 
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_MceCommands);
 
-    m_MceCommands.push_back(Command{ CommandType::StartMceStripe, agentId, stripeId });
+    m_MceCommands.push_back(Command{ CommandType::StartMceStripe, agentId, stripeId, 0 });
 }
 
 void Scheduler::SchedulePleLoaderStripe(const uint32_t agentId, uint32_t stripeId)
 {
-    const AgentAndDeps& agentAndDeps = m_Agents[agentId];
-    assert(agentAndDeps.agent.data.type == AgentType::PLE_LOADER);
+    const AgentDescAndDeps& agentAndDeps = m_Agents[agentId];
+    assert(agentAndDeps.agent.type == AgentType::PLE_LOADER);
 
     g_Logger.Verbose("Schedule PleLoaderStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
@@ -187,18 +192,18 @@ void Scheduler::SchedulePleLoaderStripe(const uint32_t agentId, uint32_t stripeI
 
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_DmaRdCommands);
 
-    m_DmaRdCommands.push_back(Command{ CommandType::LoadPleCode, agentId, stripeId });
+    m_DmaRdCommands.push_back(Command{ CommandType::LoadPleCode, agentId, stripeId, 0 });
 }
 
 void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stripeId)
 {
-    const AgentAndDeps& agentAndDeps = m_Agents[agentId];
-    assert(agentAndDeps.agent.data.type == AgentType::PLE_SCHEDULER);
+    const AgentDescAndDeps& agentAndDeps = m_Agents[agentId];
+    assert(agentAndDeps.agent.type == AgentType::PLE_SCHEDULER);
     assert(agentAndDeps.deps.readDependencies.size() > 0);
 
     g_Logger.Verbose("Schedule PleSchedulerStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
-    const uint16_t tileSize = agentAndDeps.agent.data.pleS.ofmTile.numSlots;
+    const uint16_t tileSize = agentAndDeps.agent.pleS.ofmTile.numSlots;
     InsertWriteDependencies(agentAndDeps.deps, agentId, stripeId, tileSize, m_PleCommands);
 
     // Read dependencies on the MCE are ignored, as the hardware manages MCE-PLE dependencies
@@ -210,23 +215,27 @@ void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stri
     const auto agentTypeToIgnore = AgentType::MCE_SCHEDULER;
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, agentTypeToIgnore, m_PleCommands);
 
-    m_PleCommands.push_back(Command{ CommandType::StartPleStripe, agentId, stripeId });
+    m_PleCommands.push_back(Command{ CommandType::StartPleStripe, agentId, stripeId, 0 });
 }
 
 void Scheduler::ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t stripeId)
 {
-    const AgentAndDeps& agentAndDeps = m_Agents[agentId];
-    assert(agentAndDeps.agent.data.type == AgentType::OFM_STREAMER);
+    const AgentDescAndDeps& agentAndDeps = m_Agents[agentId];
+    assert(agentAndDeps.agent.type == AgentType::OFM_STREAMER);
     assert(agentAndDeps.deps.writeDependencies.size() == 0);
 
     g_Logger.Verbose("Schedule OfmStreamerStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_DmaWrCommands);
 
-    m_DmaWrCommands.push_back(Command{ CommandType::StoreOfmStripe, agentId, stripeId });
+    const uint32_t numChunks = CalculateNumChunks(agentAndDeps.agent.ofm, stripeId);
+    for (uint32_t i = 0; i < numChunks; ++i)
+    {
+        m_DmaWrCommands.push_back(Command{ CommandType::StoreOfmStripe, agentId, stripeId, 0 });
+    }
 }
 
-Scheduler::Scheduler(const std::vector<AgentAndDeps>& agents)
+Scheduler::Scheduler(const std::vector<AgentDescAndDeps>& agents)
     : m_Agents{ agents }
     , m_AgentProgress(agents.size(), 0)
     , m_BaseAgentId(0)
@@ -274,8 +283,8 @@ void Scheduler::Schedule()
             continue;
         }
 
-        const AgentAndDeps& agentAndDeps = m_Agents[currentAgentId];
-        const uint32_t stripeId          = m_AgentProgress[currentAgentId];
+        const AgentDescAndDeps& agentAndDeps = m_Agents[currentAgentId];
+        const uint32_t stripeId              = m_AgentProgress[currentAgentId];
         if (stripeId == agentAndDeps.agent.numStripesTotal)
         {
             // This agent is finished (fully scheduled), try the next (on the next loop iteration)
@@ -331,10 +340,10 @@ void Scheduler::Schedule(const uint32_t agentId)
 {
     using namespace command_stream::cascading;
 
-    const AgentAndDeps& agentAndDeps = m_Agents[agentId];
-    const uint32_t stripeId          = m_AgentProgress[agentId];
+    const AgentDescAndDeps& agentAndDeps = m_Agents[agentId];
+    const uint32_t stripeId              = m_AgentProgress[agentId];
 
-    switch (agentAndDeps.agent.data.type)
+    switch (agentAndDeps.agent.type)
     {
         case AgentType::IFM_STREAMER:
         {

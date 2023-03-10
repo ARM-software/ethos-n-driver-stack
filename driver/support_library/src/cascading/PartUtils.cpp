@@ -57,7 +57,7 @@ CascadingBufferFormat GetCascadingBufferFormatFromCompilerDataFormat(const Compi
 TileSizeCalculation CalculateTileSize(const HardwareCapabilities& caps,
                                       const TensorShape& inputTensorShape,
                                       const TensorShape& inputStripeShape,
-                                      command_stream::cascading::PackedBoundaryThickness packedBoundaryThickness,
+                                      PackedBoundaryThickness packedBoundaryThickness,
                                       uint32_t numStripes,
                                       bool couldSourceBeFcaf)
 {
@@ -80,7 +80,7 @@ TileSizeCalculation CalculateTileSize(const HardwareCapabilities& caps,
         GetChannels(inputStripeShape),
     };
 
-    bool couldSourceBeFcafWide = couldSourceBeFcaf && !AnyPackedBoundaryData(packedBoundaryThickness) &&
+    bool couldSourceBeFcafWide = couldSourceBeFcaf && !packedBoundaryThickness.AnyNonZero() &&
                                  IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_WIDE,
                                                                               inputStripeShape, inputTensorShape);
 
@@ -115,7 +115,7 @@ TileSizeCalculation CalculateTileSize(const HardwareCapabilities& caps,
 
     // If packed boundary data is used then we can't do this optimisation, because boundary data is
     // always laid out afterwards and assumes the full stripe shape.
-    if (AnyPackedBoundaryData(packedBoundaryThickness))
+    if (packedBoundaryThickness.AnyNonZero())
     {
         return result;
     }

@@ -77,6 +77,8 @@ srcs = [
     "UtilsTests.cpp",
     "PartUtilsTests.cpp",
     "SchedulerTests.cpp",
+    "MceRegistersTests.cpp",
+    "DmaRegistersTests.cpp",
 ]
 
 internal_dir = os.path.join(
