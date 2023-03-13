@@ -277,7 +277,22 @@ std::string ToString(command_stream::DataFormat f)
     }
 }
 
+std::string ToString(const bool b)
+{
+    return b ? "True" : "False";
+}
+
+std::string ToString(const uint16_t v)
+{
+    return std::to_string(static_cast<uint32_t>(v));
+}
+
 std::string ToString(const uint32_t v)
+{
+    return std::to_string(v);
+}
+
+std::string ToString(const int32_t v)
 {
     return std::to_string(v);
 }
