@@ -753,7 +753,7 @@ DotAttributes DramBuffer::GetDotAttributes(DetailLevel detail) const
         }
         if (m_ProducerOutputIndx.has_value())
         {
-            result.m_Label += "Producer Output Index = " + ToString(m_ProducerOutputIndx.has_value()) + "\n";
+            result.m_Label += "Producer Output Index = " + ToString(m_ProducerOutputIndx.value()) + "\n";
         }
     }
     return result;
