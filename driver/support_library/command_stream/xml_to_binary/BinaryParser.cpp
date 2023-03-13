@@ -1446,9 +1446,14 @@ void Parse(std::stringstream& parent, const cascading::PleInputMode value)
             Parse(parent, "MCE_ONE_OG", 0, false);
             break;
         }
-        case cascading::PleInputMode::SRAM:
+        case cascading::PleInputMode::SRAM_ONE_INPUT:
         {
-            Parse(parent, "SRAM", 0, false);
+            Parse(parent, "SRAM_ONE_INPUT", 0, false);
+            break;
+        }
+        case cascading::PleInputMode::SRAM_TWO_INPUTS:
+        {
+            Parse(parent, "SRAM_TWO_INPUTS", 0, false);
             break;
         }
         default:

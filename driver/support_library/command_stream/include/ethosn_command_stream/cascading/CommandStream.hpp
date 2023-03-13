@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -294,7 +294,8 @@ enum class PleInputMode : uint8_t
     /// Input from MCE, only one OG is active (DEPTHWISE_CONVOLUTION)
     MCE_ONE_OG,
     /// MCE is inactive, read input data from SRAM
-    SRAM,
+    SRAM_ONE_INPUT,
+    SRAM_TWO_INPUTS,
 };
 
 /// PLE Scheduler data

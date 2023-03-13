@@ -836,7 +836,14 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
     auto pleOpProducer = m_MergedOpGraph.GetSingleProducer(inputBuffer0);
     if (inputBuffer0->m_Location == Location::Sram)
     {
-        pleS.inputMode = PleInputMode::SRAM;
+        if (inputBuffers.size() == 1)
+        {
+            pleS.inputMode = PleInputMode::SRAM_ONE_INPUT;
+        }
+        else
+        {
+            pleS.inputMode = PleInputMode::SRAM_TWO_INPUTS;
+        }
     }
     else if (inputBuffer0->m_Location == Location::PleInputSram)
     {
@@ -851,7 +858,7 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
 
     pleS.pleKernelId = ptrPleOp->m_PleKernelId;
 
-    if (pleS.inputMode == PleInputMode::SRAM)
+    if (pleS.inputMode == PleInputMode::SRAM_ONE_INPUT || pleS.inputMode == PleInputMode::SRAM_TWO_INPUTS)
     {
         CommonUtils::SetTileInfoForBuffer(m_Capabilities, pleS.ifmTile0, inputBuffer0->Sram());
     }
