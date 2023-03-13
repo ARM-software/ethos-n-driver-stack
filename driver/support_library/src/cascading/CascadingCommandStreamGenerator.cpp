@@ -99,28 +99,9 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
         {
             if (b.first->m_BufferType == BufferType::Intermediate)
             {
-                const TensorShape& shape = b.first->m_TensorShape;
-
-                std::string dumpName;
-                {
-                    std::stringstream ss;
-                    // Pad the buffer ID for easy sorting of dumped file names
-                    ss << "EthosNIntermediateBuffer_" << std::setfill('0') << std::setw(3) << b.second << std::setw(0);
-                    ss << "_" << ToString(b.first->m_DataType);
-                    // The zero point is needed to decode FCAF tensors, so is useful to include in the filename.
-                    ss << "_" << ToString(b.first->m_QuantizationInfo.GetZeroPoint());
-                    ss << "_" << ToString(b.first->m_Format);
-                    ss << "_" << shape[0] << "_" << shape[1] << "_" << shape[2] << "_" << shape[3];
-                    ss << ".hex";
-
-                    dumpName = ss.str();
-                }
-
-                ethosn::command_stream::DumpDram cmdStrDumpDram;
-                cmdStrDumpDram.m_DramBufferId() = b.second;
-
-                assert(dumpName.size() < sizeof(cmdStrDumpDram.m_Filename()));
-                std::copy(dumpName.begin(), dumpName.end(), cmdStrDumpDram.m_Filename().begin());
+                ethosn::command_stream::DumpDram cmdStrDumpDram = utils::GetDumpDramCommand(
+                    b.first->m_TensorShape, b.second, b.first->m_DataType, b.first->m_QuantizationInfo.GetZeroPoint(),
+                    ToString(b.first->m_Format).c_str());
                 m_CommandStream.EmplaceBack(cmdStrDumpDram);
             }
         }

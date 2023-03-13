@@ -9,6 +9,8 @@
 #include "GraphNodes.hpp"
 #include "cascading/Part.hpp"
 
+#include <iomanip>
+
 namespace ethosn
 {
 namespace support_library
@@ -788,6 +790,33 @@ bool EqualPackedBoundaryData(const command_stream::cascading::PackedBoundaryThic
                              const command_stream::cascading::PackedBoundaryThickness& b)
 {
     return a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom;
+}
+
+ethosn::command_stream::DumpDram GetDumpDramCommand(
+    const TensorShape& shape, uint32_t bufferId, DataType dataType, int32_t zeroPoint, const char* format)
+{
+    std::string dumpName;
+    {
+        std::stringstream ss;
+        // Pad the buffer ID for easy sorting of dumped file names
+        ss << "EthosNIntermediateBuffer_" << std::setfill('0') << std::setw(3) << bufferId << std::setw(0);
+        ss << "_" << ToString(dataType);
+        // The zero point is needed to decode FCAF tensors, so is useful to include in the filename.
+        ss << "_" << ToString(zeroPoint);
+        ss << "_" << format;
+        ss << "_" << shape[0] << "_" << shape[1] << "_" << shape[2] << "_" << shape[3];
+        ss << ".hex";
+
+        dumpName = ss.str();
+    }
+
+    ethosn::command_stream::DumpDram cmdStrDumpDram;
+    cmdStrDumpDram.m_DramBufferId() = bufferId;
+
+    assert(dumpName.size() < cmdStrDumpDram.m_Filename().size());
+    std::copy(dumpName.begin(), dumpName.end(), cmdStrDumpDram.m_Filename().begin());
+
+    return cmdStrDumpDram;
 }
 
 }    // namespace utils

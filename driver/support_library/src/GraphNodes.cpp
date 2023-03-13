@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -836,6 +836,15 @@ void ConcatNode::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
         assert(m_Format == GetInputFormat(i));
     }
     SetBufferId(bufferId);
+
+    if (dumpRam)
+    {
+        // Add dump especially for this concat node, otherwise we just get partial dumps from the input subtensors
+        ethosn::command_stream::DumpDram cmdStrDumpDram =
+            utils::GetDumpDramCommand(GetShape(), GetBufferId(), GetDataType(), GetQuantizationInfo().GetZeroPoint(),
+                                      ToString(GetBufferFormat()).c_str());
+        cmdStream.EmplaceBack(cmdStrDumpDram);
+    }
 }
 
 void ConcatNode::PrepareAfterPassAssignment(SramAllocator& sramAllocator)

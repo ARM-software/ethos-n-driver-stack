@@ -10,7 +10,6 @@
 
 #include <algorithm>
 #include <functional>
-#include <iomanip>
 #include <iostream>
 #include <map>
 #include <numeric>
@@ -95,29 +94,10 @@ void Pass::PostGenerate(command_stream::CommandStreamBuffer& cmdStream, bool dum
     {
         if (m_Nodes.back()->GetLocation() == ethosn::support_library::BufferLocation::Dram)
         {
-            const TensorShape& shape = m_Nodes.back()->GetShape();
-
-            std::string dumpName;
-            {
-                std::stringstream ss;
-                // Pad the buffer ID for easy sorting of dumped file names
-                ss << "EthosNIntermediateBuffer_" << std::setfill('0') << std::setw(3) << m_Nodes.back()->GetBufferId()
-                   << std::setw(0);
-                ss << "_" << ToString(m_Nodes.back()->GetDataType());
-                // The zero point is needed to decode FCAF tensors, so is useful to include in the filename.
-                ss << "_" << ToString(m_Nodes.back()->GetQuantizationInfo().GetZeroPoint());
-                ss << "_" << ToString(m_Nodes.back()->GetBufferFormat());
-                ss << "_" << shape[0] << "_" << shape[1] << "_" << shape[2] << "_" << shape[3];
-                ss << ".hex";
-
-                dumpName = ss.str();
-            }
-
-            ethosn::command_stream::DumpDram cmdStrDumpDram;
-            cmdStrDumpDram.m_DramBufferId() = m_Nodes.back()->GetBufferId();
-
-            assert(dumpName.size() < sizeof(cmdStrDumpDram.m_Filename()));
-            std::copy(dumpName.begin(), dumpName.end(), cmdStrDumpDram.m_Filename().begin());
+            ethosn::command_stream::DumpDram cmdStrDumpDram = utils::GetDumpDramCommand(
+                m_Nodes.back()->GetShape(), m_Nodes.back()->GetBufferId(), m_Nodes.back()->GetDataType(),
+                m_Nodes.back()->GetQuantizationInfo().GetZeroPoint(),
+                ToString(m_Nodes.back()->GetBufferFormat()).c_str());
             cmdStream.EmplaceBack(cmdStrDumpDram);
         }
 
