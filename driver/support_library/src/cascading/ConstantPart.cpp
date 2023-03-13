@@ -22,12 +22,14 @@ ConstantPart::ConstantPart(PartId id,
                            const std::set<uint32_t>& correspondingOperationIds,
                            const EstimationOptions& estOpt,
                            const CompilationOptions& compOpt,
-                           const HardwareCapabilities& capabilities)
+                           const HardwareCapabilities& capabilities,
+                           const std::vector<uint8_t>& constantData)
     : BasePart(id, "ConstantPart", correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_OutputTensorShape{ outputTensorShape }
     , m_OutputQuantizationInfo(quantizationInfo)
     , m_OutputDataType(dataType)
     , m_CompilerDataFormat(compilerDataFormat)
+    , m_ConstantData(std::make_shared<std::vector<uint8_t>>(constantData))
 {}
 
 Plans ConstantPart::GetPlans(CascadeType cascadeType,
@@ -66,6 +68,7 @@ void ConstantPart::CreatePlanForConstantPart(Plans& plans) const
     buffer->m_SizeInBytes        = utils::CalculateBufferSize(m_OutputTensorShape, format);
     buffer->m_QuantizationInfo   = m_OutputQuantizationInfo;
     buffer->m_BufferType         = BufferType::ConstantDma;
+    buffer->m_ConstantData       = m_ConstantData;
     outputMappings[buffer.get()] = PartOutputSlot{ m_PartId, 0 };
     opGraph.AddBuffer(std::move(buffer));
 
@@ -81,6 +84,7 @@ ethosn::support_library::DotAttributes ConstantPart::GetDotAttributes(DetailLeve
         result.m_Label += "OutputTensorShape = " + ToString(m_OutputTensorShape) + "\n";
         result.m_Label += "OutputQuantizationInfo = " + ToString(m_OutputQuantizationInfo) + "\n";
         result.m_Label += "OutputDataType = " + ToString(m_OutputDataType) + "\n";
+        result.m_Label += "ConstantData = [ " + std::to_string(m_ConstantData->size()) + " bytes ]\n";
     }
     return result;
 }

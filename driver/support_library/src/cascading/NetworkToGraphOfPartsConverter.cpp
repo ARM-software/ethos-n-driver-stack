@@ -265,7 +265,8 @@ void NetworkToGraphOfPartsConverter::Visit(Constant& constant)
     auto constPart                        = std::make_unique<ConstantPart>(
         m_GraphOfParts.GeneratePartId(), constant.GetTensorInfo().m_Dimensions, compilerDataFormat,
         constant.GetTensorInfo().m_QuantizationInfo, constant.GetTensorInfo().m_DataType,
-        std::set<uint32_t>{ constant.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+        std::set<uint32_t>{ constant.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+        constant.GetDataVector());
     parts.push_back(constPart.get());
     m_GraphOfParts.AddPart(std::move(constPart));
     ConnectParts(constant, parts);

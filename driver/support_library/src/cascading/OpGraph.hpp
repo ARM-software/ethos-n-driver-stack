@@ -344,6 +344,9 @@ public:
 
     /// Relevant only if this is a weights buffer.
     std::shared_ptr<EncodedWeights> m_EncodedWeights;
+
+    /// Relevant only if this is a constant buffer.
+    std::shared_ptr<std::vector<uint8_t>> m_ConstantData;
 };
 
 class SramBuffer : public Buffer

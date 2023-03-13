@@ -178,14 +178,23 @@ uint16_t CascadingCommandStreamGenerator::AddDramBufferAndCacheId(DramBuffer* in
             assert(inputBuffer->m_OperationId.has_value());
             inputBufferId = ethosn::utils::NumericCast<uint16_t>(
                 m_BufferManager.AddDramInput(inputBuffer->m_SizeInBytes, inputBuffer->m_OperationId.value()));
-            m_DramBufToBufIdMapping[inputBuffer] = inputBufferId;
         }
         else if (inputBuffer->m_BufferType.value() == BufferType::Intermediate)
         {
             inputBufferId = ethosn::utils::NumericCast<uint16_t>(
                 m_BufferManager.AddDram(inputBuffer->m_BufferType.value(), inputBuffer->m_SizeInBytes));
-            m_DramBufToBufIdMapping[inputBuffer] = inputBufferId;
         }
+        else if (inputBuffer->m_BufferType.value() == BufferType::ConstantDma)
+        {
+            assert(inputBuffer->m_ConstantData != nullptr);
+            inputBufferId = ethosn::utils::NumericCast<uint16_t>(
+                m_BufferManager.AddDramConstant(inputBuffer->m_BufferType.value(), *inputBuffer->m_ConstantData));
+        }
+        else
+        {
+            assert(false);
+        }
+        m_DramBufToBufIdMapping[inputBuffer] = inputBufferId;
     }
     return inputBufferId;
 }
@@ -210,7 +219,8 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
         if (inputBuffer->m_Format != CascadingBufferFormat::WEIGHT)
         {
             assert(inputBuffer->Dram()->m_BufferType.value() == BufferType::Intermediate ||
-                   inputBuffer->Dram()->m_BufferType.value() == BufferType::Input);
+                   inputBuffer->Dram()->m_BufferType.value() == BufferType::Input ||
+                   inputBuffer->Dram()->m_BufferType.value() == BufferType::ConstantDma);
 
             DmaOp* const dmaOp = static_cast<DmaOp*>(ptrDmaOp);
 

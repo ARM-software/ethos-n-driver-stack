@@ -329,6 +329,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
     buffer3.m_OperationId        = 7;
     buffer3.m_ProducerOutputIndx = 13;
     buffer3.m_EncodedWeights     = std::make_shared<EncodedWeights>(EncodedWeights{ {}, 12, { 1, 2, 3 }, true });
+    buffer3.m_ConstantData       = std::make_shared<std::vector<uint8_t>>(std::vector<uint8_t>{ 1, 2, 3 });
     graph.AddBuffer(&buffer3);
 
     MceOp mce(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, { 3u, 4u }, { 1, 2, 3, 4 }, { 5, 6, 7, 8 },
@@ -372,7 +373,7 @@ Dma[label = "Dma\nIdx in OpGraph: 1\nDmaOp\nOperation Ids = []\nTransfer Format 
 Ple[label = "Ple\nIdx in OpGraph: 2\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nPle kernel Id = ADDITION_16X16_1\nKernel Load = True\nOffset = 0 (0x0)\nOperation Ids = []\nInput0Multiplier = 10\nInput0Shift = 11\nInput1Multiplier = 12\nInput1Shift = 13\n", shape = oval]
 Buffer1[label = "Buffer1\nLocation = PleInputSram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\n", shape = box]
 Buffer2[label = "Buffer2\nLocation = Sram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nStripe shape = [5, 6, 7, 8]\nOrder = Zxy\nSlot size in bytes = 0 (0x0)\nNum. Stripes = 9\nPacked boundary thickness = { L: 0, T: 0, R: 0, B: 0 }\nNum loads = 1\nForbid FCAF_WIDE\n", shape = box, color = blue]
-Buffer3[label = "Buffer3\nLocation = Dram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nEncoded weights = { 3 bytes, max size = 12, num. metadata = 0, is wide filter = True }\nType = ConstantDma\nOperation ID = 7\nProducer Output Index = 13\n", shape = box, color = brown]
+Buffer3[label = "Buffer3\nLocation = Dram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nEncoded weights = { 3 bytes, max size = 12, num. metadata = 0, is wide filter = True }\nConstant data = [ 3 bytes ]\nType = ConstantDma\nOperation ID = 7\nProducer Output Index = 13\n", shape = box, color = brown]
 }
 )";
     REQUIRE(stream.str() == expected);
@@ -751,9 +752,9 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     parts.AddPart(std::move(standalonePlePart));
 
     // ConstantPart
-    auto constantPart = std::make_unique<ConstantPart>(10, TensorShape{ 1, 2, 3, 4 }, CompilerDataFormat::NHWCB,
-                                                       QuantizationInfo(9, 10.0f), DataType::UINT8_QUANTIZED,
-                                                       std::set<uint32_t>{ 7 }, estOpt, compOpt, caps);
+    auto constantPart = std::make_unique<ConstantPart>(
+        10, TensorShape{ 1, 2, 3, 4 }, CompilerDataFormat::NHWCB, QuantizationInfo(9, 10.0f), DataType::UINT8_QUANTIZED,
+        std::set<uint32_t>{ 7 }, estOpt, compOpt, caps, std::vector<uint8_t>{ 1, 2, 3 });
     parts.AddPart(std::move(constantPart));
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
@@ -778,7 +779,7 @@ McePart_5[label = "McePart 5\nCorrespondingOperationIds = [13, 14, 15]\nInputTen
 OutputPart_6[label = "OutputPart 6\nCorrespondingOperationIds = [13, 14, 15]\nCompilerDataFormat = NHWCB\nInputTensorShape = [1, 2, 3, 4]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nInputDataType = UINT8_QUANTIZED\n"]
 ReshapePart_8[label = "ReshapePart 8\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nDataType = UINT8_QUANTIZED\n"]
 StandalonePlePart_9[label = "StandalonePlePart 9\nCorrespondingOperationIds = [1]\nInputTensorShape = [[1, 2, 3, 4], [1, 2, 3, 4]]\nOutputTensorShape = [1, 2, 3, 4]\nInputQuantizationInfo = [ZeroPoint = 9, Scale = 10.000000, ZeroPoint = 9, Scale = 10.000000]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\n"]
-ConstantPart_10[label = "ConstantPart 10\nCorrespondingOperationIds = [7]\nCompilerDataFormat = NHWCB\nOutputTensorShape = [1, 2, 3, 4]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputDataType = UINT8_QUANTIZED\n"]
+ConstantPart_10[label = "ConstantPart 10\nCorrespondingOperationIds = [7]\nCompilerDataFormat = NHWCB\nOutputTensorShape = [1, 2, 3, 4]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputDataType = UINT8_QUANTIZED\nConstantData = [ 3 bytes ]\n"]
 }
 )";
 

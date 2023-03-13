@@ -23,7 +23,8 @@ public:
                  const std::set<uint32_t>& correspondingOperationIds,
                  const EstimationOptions& estOpt,
                  const CompilationOptions& compOpt,
-                 const HardwareCapabilities& capabilities);
+                 const HardwareCapabilities& capabilities,
+                 const std::vector<uint8_t>& constantData);
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,
                    Buffer* sramBuffer,
@@ -36,6 +37,7 @@ private:
     QuantizationInfo m_OutputQuantizationInfo;
     DataType m_OutputDataType;
     CompilerDataFormat m_CompilerDataFormat;
+    std::shared_ptr<std::vector<uint8_t>> m_ConstantData;    // Shared ptr to avoid copying for every plan we make
 
     void CreatePlanForConstantPart(Plans& plans) const;
 };

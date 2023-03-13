@@ -119,7 +119,8 @@ TEST_CASE("ConstantPart Plan Generation", "[ConstantPartTests]")
         HardwareCapabilities hwCapabilities(GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
         ConstantPart constantPart(partId, outputTensorShape, compilerDataFormat, quantizationInfo,
-                                  DataType::UINT8_QUANTIZED, operationIds, estOpt, compOpt, hwCapabilities);
+                                  DataType::UINT8_QUANTIZED, operationIds, estOpt, compOpt, hwCapabilities,
+                                  std::vector<uint8_t>{ 1, 2, 3 });
 
         CheckPlansParams params;
         params.m_PartId          = partId;
