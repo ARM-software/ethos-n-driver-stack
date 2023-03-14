@@ -10,6 +10,7 @@
 #include "EthosNWorkloads.hpp"
 
 #include <armnn/backends/MemCopyWorkload.hpp>
+#include <armnn/utility/PolymorphicDowncast.hpp>
 
 namespace armnn
 {
