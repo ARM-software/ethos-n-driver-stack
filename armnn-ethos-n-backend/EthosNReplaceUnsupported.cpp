@@ -307,8 +307,7 @@ bool ReplaceConstantAdditionWithDepthwise(SubgraphView& subgraph, IConnectableLa
     const ConstTensor weights(replacementConfig.m_WeightsInfo, weightsData);
 
     // Rescale the bias data
-    const void* constData =
-        PolymorphicPointerDowncast<const ConstantLayer>(constantLayer)->m_LayerOutput->GetConstTensor<void>();
+    const void* constData = constantLayer->GetConstantTensorsByRef()[0].get()->GetConstTensor<void>();
     Optional<std::vector<int32_t>> rescaledBiasData =
         ethosntensorutils::ConvertTensorValuesToSigned32(constData, constInfo, replacementConfig.m_BiasInfo);
     if (!rescaledBiasData.has_value())
@@ -380,15 +379,12 @@ bool ReplaceConstantAdditionWithReinterpretQuantization(SubgraphView& subgraph,
             switch (dataType)
             {
                 case DataType::QAsymmU8:
-                    return static_cast<float>(PolymorphicPointerDowncast<const ConstantLayer>(layer)
-                                                  ->m_LayerOutput->GetConstTensor<uint8_t>()[0]);
+                    return static_cast<float>(layer->GetConstantTensorsByRef()[0].get()->GetConstTensor<uint8_t>()[0]);
                 case DataType::QSymmS8:
                 case DataType::QAsymmS8:
-                    return static_cast<float>(PolymorphicPointerDowncast<const ConstantLayer>(layer)
-                                                  ->m_LayerOutput->GetConstTensor<int8_t>()[0]);
+                    return static_cast<float>(layer->GetConstantTensorsByRef()[0].get()->GetConstTensor<int8_t>()[0]);
                 case DataType::Signed32:
-                    return static_cast<float>(PolymorphicPointerDowncast<const ConstantLayer>(layer)
-                                                  ->m_LayerOutput->GetConstTensor<int32_t>()[0]);
+                    return static_cast<float>(layer->GetConstantTensorsByRef()[0].get()->GetConstTensor<int32_t>()[0]);
                 default:
                     throw Exception("Data type not supported");
             }
