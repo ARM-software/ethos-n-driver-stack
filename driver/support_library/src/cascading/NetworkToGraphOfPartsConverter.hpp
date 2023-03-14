@@ -26,7 +26,8 @@ public:
     NetworkToGraphOfPartsConverter(const Network& network,
                                    const HardwareCapabilities& capabilities,
                                    const EstimationOptions& estimationOptions,
-                                   const CompilationOptions& compilationOptions);
+                                   const CompilationOptions& compilationOptions,
+                                   DebuggingContext& debuggingContext);
     ~NetworkToGraphOfPartsConverter();
 
     // Visitor functions for supported operations in the Network
@@ -89,6 +90,7 @@ private:
     const HardwareCapabilities& m_Capabilities;
     utils::Optional<const EstimationOptions&> m_EstimationOptions;
     const CompilationOptions& m_CompilationOptions;
+    DebuggingContext& m_DebuggingContext;
     SupportQueries m_Queries;
     std::map<const Operand*, BasePart*> m_OperandToPart;
     GraphOfParts m_GraphOfParts;
@@ -114,7 +116,8 @@ std::unique_ptr<McePart>
                                                   const EstimationOptions& estOpt,
                                                   const CompilationOptions& compOpt,
                                                   const HardwareCapabilities& capabilities,
-                                                  const std::vector<std::pair<uint32_t, uint32_t>>& padAmounts);
+                                                  const std::vector<std::pair<uint32_t, uint32_t>>& padAmounts,
+                                                  DebuggingContext& debuggingContext);
 
 /// Creates an McePart that passes through its input mostly unchanged, except it removes specified channels
 /// from the output tensor.
@@ -136,7 +139,8 @@ std::unique_ptr<McePart>
                                                   const EstimationOptions& estOpt,
                                                   const CompilationOptions& compOpt,
                                                   const HardwareCapabilities& capabilities,
-                                                  const std::vector<std::pair<uint32_t, uint32_t>>& removeAmounts);
+                                                  const std::vector<std::pair<uint32_t, uint32_t>>& removeAmounts,
+                                                  DebuggingContext& debuggingContext);
 
 }    // namespace support_library
 }    // namespace ethosn

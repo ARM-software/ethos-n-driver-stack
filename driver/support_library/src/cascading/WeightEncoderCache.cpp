@@ -5,6 +5,7 @@
 
 #include "WeightEncoderCache.hpp"
 
+#include <chrono>
 #include <fstream>
 #include <type_traits>
 
@@ -215,8 +216,11 @@ void WriteEncodedWeights(std::ostream& s, const EncodedWeights& w)
 
 }    // namespace
 
-WeightEncoderCache::WeightEncoderCache(const HardwareCapabilities& caps, const char* id)
+WeightEncoderCache::WeightEncoderCache(const HardwareCapabilities& caps,
+                                       DebuggingContext& debuggingContext,
+                                       const char* id)
     : m_Caps(caps)
+    , m_DebuggingContext(debuggingContext)
     , m_Encoder(caps)
     , m_MaxUncompressedStripeSize(std::numeric_limits<uint64_t>::max())
 {
@@ -279,12 +283,21 @@ std::shared_ptr<ethosn::support_library::EncodedWeights> WeightEncoderCache::Enc
             return {};
         }
 
+        g_Logger.Debug("Encode %lu weights, stripDepth = %u, iterationSize = %u...", params.weightsData->size(),
+                       params.stripeDepth, params.iterationSize);
+        auto startTime = std::chrono::high_resolution_clock::now();
+
         EncodedWeights w =
             m_Encoder.Encode(params.weightsTensorInfo, params.weightsData->data(), params.biasTensorInfo,
                              params.biasData.data(), params.inputQuantizationInfo, params.outputQuantizationInfo,
                              params.stripeDepth, params.strideY, params.strideX, params.paddingTop, params.paddingLeft,
                              params.iterationSize, params.operation, params.algorithm);
         it = m_Entries.insert({ params, std::make_shared<EncodedWeights>(w) }).first;
+
+        auto duration = std::chrono::high_resolution_clock::now() - startTime;
+        g_Logger.Debug("%llu ms", duration.count() / (1000ULL * 1000ULL));
+
+        m_DebuggingContext.m_TotalWeightCompressionTime += duration.count();
 
         // Save this entry to the persistent file if enabled.
         if (!m_PersistentFilename.empty())

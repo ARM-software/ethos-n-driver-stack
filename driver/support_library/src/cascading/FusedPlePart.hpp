@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -30,7 +30,8 @@ public:
                  std::set<uint32_t> correspondingOperationIds,
                  DataType m_InputDataType,
                  DataType m_OutputDataType,
-                 float alpha = 0.0f);
+                 float alpha,
+                 DebuggingContext& debuggingContext);
 
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,

@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -35,12 +35,13 @@ TEST_CASE("CreateIdentityMcePartWithPaddedOutputChannels")
     const HardwareCapabilities caps = GetEthosN78HwCapabilities();
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
     auto compare = [&](const std::vector<std::pair<uint32_t, uint32_t>>& padAmounts,
                        const std::vector<uint8_t>& expectedWeights) {
         std::unique_ptr<McePart> paddingPart = CreateIdentityMcePartWithPaddedOutputChannels(
             0, TensorShape{ 1, 1, 1, 5 }, QuantizationInfo(), QuantizationInfo(), 0, DataType::UINT8_QUANTIZED,
-            DataType::UINT8_QUANTIZED, estOpt, compOpt, caps, padAmounts);
+            DataType::UINT8_QUANTIZED, estOpt, compOpt, caps, padAmounts, debuggingContext);
 
         CHECK(paddingPart->GetWeightsData() == expectedWeights);
     };
@@ -68,12 +69,13 @@ TEST_CASE("CreateIdentityMcePartWithRemovedInputChannels")
     const HardwareCapabilities caps = GetEthosN78HwCapabilities();
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
     auto compare = [&](const std::vector<std::pair<uint32_t, uint32_t>>& removeAmounts,
                        const std::vector<uint8_t>& expectedWeights) {
         std::unique_ptr<McePart> paddingPart = CreateIdentityMcePartWithRemovedInputChannels(
             0, TensorShape{ 1, 1, 1, 5 }, QuantizationInfo(), QuantizationInfo(), 0, DataType::UINT8_QUANTIZED,
-            DataType::UINT8_QUANTIZED, estOpt, compOpt, caps, removeAmounts);
+            DataType::UINT8_QUANTIZED, estOpt, compOpt, caps, removeAmounts, debuggingContext);
 
         // Get the weights
         CHECK(paddingPart->GetWeightsData() == expectedWeights);
@@ -179,8 +181,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -264,8 +267,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Requantize Same Quantization")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -324,8 +328,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Requantize")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -388,7 +393,8 @@ TEST_CASE("NetworkToGraphOfPartsConverter Requantize EstimateOnly")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
@@ -482,8 +488,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -586,8 +593,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat NHWC")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -666,8 +674,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Concat Padding")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -782,8 +791,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat EstimateOnly")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -868,8 +878,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1023,8 +1034,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest LeakyRelu Sigmoid Tanh")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1136,8 +1148,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter LeakyRelu EstimateOnly")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1214,8 +1227,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MaxPool_3X3_2_2")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1331,8 +1345,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter FullyConnected")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1417,8 +1432,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter FullyConnected EstimateOnly")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1501,8 +1517,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Basic Depthwise")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1576,8 +1593,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Strided Depthwise")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1668,8 +1686,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Multichannel Depthwise")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1731,8 +1750,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Depthwise EstimateOnly")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1790,8 +1810,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1862,8 +1883,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA EstimateOnly"
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1926,8 +1948,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2009,8 +2032,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION_RESCALE")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2094,8 +2118,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION EstimateOnly")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2152,7 +2177,8 @@ TEST_CASE("NetworkToGraphOfPartsConverter Resize")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
@@ -2208,8 +2234,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Relu")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2290,8 +2317,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Conv Relu")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2373,8 +2401,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Relu Conv")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2449,8 +2478,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Const as Input EstimateOnly")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2514,8 +2544,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Conv EstimateOnly")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2575,7 +2606,8 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
@@ -2636,7 +2668,8 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution Large Weights")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
@@ -2711,7 +2744,8 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution EstimateOnly")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
@@ -2795,8 +2829,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Reinterpret Quantization")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2850,8 +2885,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Split")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2918,8 +2954,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Split Padding")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2985,8 +3022,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Transpose")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -3034,8 +3072,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter SpaceToDepth")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -3082,8 +3121,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Softmax EstimateOnly")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -3143,8 +3183,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Downsample_2x2")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -3211,7 +3252,8 @@ TEST_CASE("NetworkToGraphOfPartsConverter DepthToSpace")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
@@ -3266,7 +3308,8 @@ TEST_CASE("NetworkToGraphOfPartsConverter DepthToSpace EstimateOnly")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
@@ -3319,8 +3362,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter EstimateOnly")
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
-    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)

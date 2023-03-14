@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -23,7 +23,7 @@ namespace support_library
 class WeightEncoderCache
 {
 public:
-    WeightEncoderCache(const HardwareCapabilities& caps, const char* id);
+    WeightEncoderCache(const HardwareCapabilities& caps, DebuggingContext& debuggingContext, const char* id);
 
     struct Params
     {
@@ -54,6 +54,7 @@ private:
     };
 
     const HardwareCapabilities& m_Caps;
+    DebuggingContext& m_DebuggingContext;
     WeightEncoder m_Encoder;
     std::unordered_map<Params, std::shared_ptr<EncodedWeights>, Hasher> m_Entries;
     std::string m_PersistentFilename;

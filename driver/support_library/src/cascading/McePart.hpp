@@ -22,10 +22,12 @@ public:
     {
         ConstructionParams(const EstimationOptions& estOpt,
                            const CompilationOptions& compOpt,
-                           const HardwareCapabilities& capabilities)
+                           const HardwareCapabilities& capabilities,
+                           DebuggingContext& debuggingContext)
             : m_EstOpt{ estOpt }
             , m_CompOpt{ compOpt }
             , m_Capabilities{ capabilities }
+            , m_DebuggingContext(debuggingContext)
         {}
 
         PartId m_Id                     = 0xFFFFFFFF;
@@ -52,6 +54,7 @@ public:
         int16_t m_LowerBound                                   = 0;
         int16_t m_UpperBound                                   = 255;
         bool m_IsChannelSelector                               = false;
+        DebuggingContext& m_DebuggingContext;
     };
 
     McePart(PartId id,
@@ -72,7 +75,8 @@ public:
             const HardwareCapabilities& capabilities,
             std::set<uint32_t> operationIds,
             DataType inputDataType,
-            DataType outputDataType);
+            DataType outputDataType,
+            DebuggingContext& debuggingContext);
     McePart(ConstructionParams&& params);
 
     Plans GetPlans(CascadeType cascadeType,

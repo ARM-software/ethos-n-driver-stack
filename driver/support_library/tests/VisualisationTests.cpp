@@ -679,6 +679,7 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
     const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
     // Build a simple graph of disconnected parts, to check the details are printed correctly for each one.
     GraphOfParts parts;
@@ -688,11 +689,12 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     auto fusedPlePart = std::make_unique<FusedPlePart>(
         1, TensorShape{ 1, 2, 3, 4 }, TensorShape{ 5, 6, 7, 8 }, QuantizationInfo(9, 10.0f),
         QuantizationInfo(11, 12.0f), PleOperation::DOWNSAMPLE_2X2, support_library::utils::ShapeMultiplier{ 1, 2, 3 },
-        estOpt, compOpt, caps, std::set<uint32_t>{ 13, 14, 15 }, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED);
+        estOpt, compOpt, caps, std::set<uint32_t>{ 13, 14, 15 }, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED,
+        0.0f, debuggingContext);
     parts.AddPart(std::move(fusedPlePart));
 
     // McePart
-    McePart::ConstructionParams params(estOpt, compOpt, caps);
+    McePart::ConstructionParams params(estOpt, compOpt, caps, debuggingContext);
     params.m_Id                     = 5;
     params.m_InputTensorShape       = TensorShape{ 1, 2, 3, 4 };
     params.m_OutputTensorShape      = TensorShape{ 5, 6, 7, 8 };

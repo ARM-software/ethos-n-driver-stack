@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -50,6 +50,8 @@ public:
     {
         return 100U;
     }
+
+    uint64_t m_TotalWeightCompressionTime;
 
 private:
     using NodeToCreationSourceContainer = std::unordered_map<const void*, std::string>;

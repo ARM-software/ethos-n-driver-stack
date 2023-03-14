@@ -17,6 +17,7 @@
 #include "../include/ethosn_support_library/Optional.hpp"
 #include <ethosn_utils/Filesystem.hpp>
 
+#include <chrono>
 #include <fstream>
 #include <iostream>
 
@@ -43,9 +44,10 @@ GraphOfParts CreateGraphOfParts(const Network& network,
                                 const HardwareCapabilities& capabilities,
                                 const EstimationOptions& estOpt,
                                 const CompilationOptions& compOpt,
-                                const DebuggingContext& debuggingContext)
+                                DebuggingContext& debuggingContext)
 {
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(network, capabilities, estOpt, compOpt);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(network, capabilities, estOpt, compOpt,
+                                                                  debuggingContext);
     GraphOfParts g = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     // Dump the GraphOfParts both before and after we optimize it.
@@ -69,7 +71,7 @@ RunCascadingResult RunCascading(const Network& network,
                                 utils::Optional<const EstimationOptions&> estOpt,
                                 const CompilationOptions& compOpt,
                                 const HardwareCapabilities& caps,
-                                const DebuggingContext& debuggingContext)
+                                DebuggingContext& debuggingContext)
 {
     if (debuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
     {
@@ -92,10 +94,23 @@ RunCascadingResult RunCascading(const Network& network,
         estimationOptions.m_UseWeightCompressionOverride = false;
     }
 
+    auto startTime = std::chrono::high_resolution_clock::now();
+
     GraphOfParts graphOfParts = CreateGraphOfParts(network, caps, estimationOptions, compOpt, debuggingContext);
+
+    auto duration = std::chrono::high_resolution_clock::now() - startTime;
+    g_Logger.Debug("CreateGraphOfParts: %llu ms", duration.count() / (1000ULL * 1000ULL));
+
+    startTime = std::chrono::high_resolution_clock::now();
+
     Combiner combiner(graphOfParts, caps, compOpt, estimationOptions, debuggingContext);
     combiner.Run();
     OpGraph opGraph = combiner.GetMergedOpGraphForBestCombination();
+
+    duration = std::chrono::high_resolution_clock::now() - startTime;
+    g_Logger.Debug("Combiner: %llu ms", duration.count() / (1000ULL * 1000ULL));
+    g_Logger.Debug("Total weight encoder time: %llu ms",
+                   debuggingContext.m_TotalWeightCompressionTime / (1000ULL * 1000ULL));
 
     debuggingContext.Save(
         CompilationOptions::DebugLevel::Medium, "BestCombination/1_CombinationBasic.dot",
@@ -109,17 +124,27 @@ RunCascadingResult RunCascading(const Network& network,
     debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "BestCombination/2_MergedDetailed.dot",
                           [&](std::ofstream& s) { SaveOpGraphToDot(opGraph, s, DetailLevel::High); });
 
+    startTime = std::chrono::high_resolution_clock::now();
+
     // Perform optimisation steps on the merged OpGraph.
     // These optimisations would not have affected the choice of combination as they would apply equally
     // to all combinations, and so it is much more efficient to perform them after the Combiner has finished.
     opGraph.RemoveRedundantCopies();
+
+    duration = std::chrono::high_resolution_clock::now() - startTime;
+    g_Logger.Debug("RemoveRedundantCopies: %llu ms", duration.count() / (1000ULL * 1000ULL));
 
     debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "BestCombination/3_OptimisedBasic.dot",
                           [&](std::ofstream& s) { SaveOpGraphToDot(opGraph, s, DetailLevel::Low); });
     debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "BestCombination/3_OptimisedDetailed.dot",
                           [&](std::ofstream& s) { SaveOpGraphToDot(opGraph, s, DetailLevel::High); });
 
+    startTime = std::chrono::high_resolution_clock::now();
+
     EstimatedOpGraph estimatedOpGraph = ethosn::support_library::EstimateOpGraph(opGraph, caps, estimationOptions);
+
+    duration = std::chrono::high_resolution_clock::now() - startTime;
+    g_Logger.Debug("EstimateOpGraph: %llu ms", duration.count() / (1000ULL * 1000ULL));
 
     debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "BestCombination/4_EstimatedBasic.dot",
                           [&](std::ofstream& s) {
@@ -138,9 +163,14 @@ RunCascadingResult RunCascading(const Network& network,
 
     std::set<uint32_t> operationIds = network.GetOperationIds();
 
+    startTime = std::chrono::high_resolution_clock::now();
+
     cascading_compiler::CascadingCommandStreamGenerator commandStreamGenerator(opGraph, operationIds, caps, compOpt,
                                                                                debuggingContext);
     cascading_compiler::CompiledOpGraph compiledOpGraph = commandStreamGenerator.Generate();
+
+    duration = std::chrono::high_resolution_clock::now() - startTime;
+    g_Logger.Debug("CommandStreamGenerator: %llu ms", duration.count() / (1000ULL * 1000ULL));
 
     debuggingContext.Save(
         CompilationOptions::DebugLevel::Medium, "BestCombination/5_CompiledBasic.dot",

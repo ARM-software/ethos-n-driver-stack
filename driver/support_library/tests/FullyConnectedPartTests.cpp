@@ -600,6 +600,7 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
         const CompilationOptions compOpt;
         EstimationOptions estOps;
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
+        DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
         const PartId partId  = 0;
         TensorShape tsInOrig = { 1, 1, 1, 2048 };
@@ -615,7 +616,7 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
         const std::set<uint32_t> operationIds = { 1, 2, 3 };
         FullyConnectedPart part(partId, tsInOrig, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo,
                                 weights, biasTensorInfo, bias, estOps, compOpt, caps, operationIds,
-                                DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED);
+                                DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, debuggingContext);
 
         WHEN("Asked to generate plans")
         {

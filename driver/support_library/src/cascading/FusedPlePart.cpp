@@ -34,7 +34,8 @@ FusedPlePart::FusedPlePart(PartId id,
                            std::set<uint32_t> correspondingOperationIds,
                            DataType m_InputDataType,
                            DataType m_OutputDataType,
-                           float alpha)
+                           float alpha,
+                           DebuggingContext& debuggingContext)
     : BasePart(id, "FusedPlePart", correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape(inputTensorShape)
     , m_OutputTensorShape(outputTensorShape)
@@ -57,7 +58,7 @@ FusedPlePart::FusedPlePart(PartId id,
                         shapeMultiplier,
                         capabilities,
                         m_StripeConfig)
-    , m_WeightEncoderCache{ capabilities, m_DebugTag.c_str() }
+    , m_WeightEncoderCache{ capabilities, debuggingContext, m_DebugTag.c_str() }
     , m_InputDataType(m_InputDataType)
     , m_OutputDataType(m_OutputDataType)
 {

@@ -30,7 +30,8 @@ FullyConnectedPart::FullyConnectedPart(PartId id,
                                        const HardwareCapabilities& capabilities,
                                        std::set<uint32_t> operationIds,
                                        DataType inputDataType,
-                                       DataType outputDataType)
+                                       DataType outputDataType,
+                                       DebuggingContext& debuggingContext)
     : McePart(id,
               reinterpretedInputShape,
               outputTensorShape,
@@ -49,7 +50,8 @@ FullyConnectedPart::FullyConnectedPart(PartId id,
               capabilities,
               operationIds,
               inputDataType,
-              outputDataType)
+              outputDataType,
+              debuggingContext)
     , m_OriginalInputShape(inputTensorShape)
 {}
 

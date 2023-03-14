@@ -40,7 +40,7 @@ RunCascadingResult RunCascading(const Network& network,
                                 utils::Optional<const EstimationOptions&> estOpt,
                                 const CompilationOptions& compOpt,
                                 const HardwareCapabilities& caps,
-                                const DebuggingContext& debuggingContext);
+                                DebuggingContext& debuggingContext);
 
 }    // namespace support_library
 }    // namespace ethosn
