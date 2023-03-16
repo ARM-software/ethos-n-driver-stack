@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -130,7 +130,7 @@ FirmwareAndHardwareCapabilities GetEthosN78FwHwCapabilities(EthosNVariant varian
     // of these values in the firmware for details.
     fwHwCapabilities.m_AgentWindowSize                 = 64;
     fwHwCapabilities.m_MaxMceStripesPerPleStripe       = 102;
-    fwHwCapabilities.m_MaxIfmAndWgtStripesPerPleStripe = 102;
+    fwHwCapabilities.m_MaxIfmAndWgtStripesPerPleStripe = 85;
 
     return fwHwCapabilities;
 }
