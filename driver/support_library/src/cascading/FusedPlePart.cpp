@@ -373,10 +373,20 @@ Plans FusedPlePart::GetLonelyPlans(uint32_t numWeightStripes) const
         return ret;
     }
 
-    StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Lonely);
-    for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
+    // Start by generating "high priority" plans. If any of these work, there is no point generating
+    // any low priority plans as this will just waste time (e.g. weight encoding)
+    const std::initializer_list<PlanPriority> allPriorities = { PlanPriority::High, PlanPriority::Low };
+    for (PlanPriority priority : allPriorities)
     {
-        CreateIdentityMceAndFusedPlePlans(i, m_WeightEncoderCache, ret, numWeightStripes);
+        StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Lonely, priority);
+        for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
+        {
+            CreateIdentityMceAndFusedPlePlans(i, m_WeightEncoderCache, ret, numWeightStripes);
+        }
+        if (!ret.empty())
+        {
+            break;
+        }
     }
 
     return ret;
@@ -391,7 +401,7 @@ Plans FusedPlePart::GetBeginningPlans(uint32_t numWeightStripes) const
         return ret;
     }
 
-    StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Beginning);
+    StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Beginning, {});
 
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {

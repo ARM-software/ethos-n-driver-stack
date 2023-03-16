@@ -406,6 +406,12 @@ private:
     uint32_t m_UpperMultiplier;
 };
 
+enum class PlanPriority
+{
+    Low,
+    High,
+};
+
 // Class used to generate stripes for the start of cascades. i.e. beginning and lonely cascades
 // Middle and end cascades don't need this as they their plan generation is limited by the inputs.
 class StripeGenerator
@@ -426,7 +432,9 @@ public:
                     const HardwareCapabilities& caps,
                     StripeConfig stripeConfig);
 
-    StripeInfos GenerateStripes(CascadeType cascadeType) const;
+    // This method is intended to be called first with PlanPriority::High and after and only if needed
+    // with PlanPriority::Low.
+    StripeInfos GenerateStripes(CascadeType cascadeType, utils::Optional<PlanPriority> priorityFilter) const;
 
     void CreateNumStripes(CascadeType cascadeType,
                           bool requiresBoundaryData,
@@ -457,6 +465,7 @@ public:
 private:
     void GenerateStripes(const ethosn::command_stream::BlockConfig blockConfig,
                          CascadeType cascadeType,
+                         utils::Optional<PlanPriority> priorityFilter,
                          StripeInfos& outStripeInfos) const;
 };
 

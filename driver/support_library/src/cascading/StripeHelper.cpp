@@ -709,18 +709,20 @@ StripeConfig StripeGenerator::ApplyPleKernelSplitRestrictions(CascadeType cascad
 
     return result;
 }
-StripeInfos StripeGenerator::GenerateStripes(CascadeType cascadeType) const
+StripeInfos StripeGenerator::GenerateStripes(CascadeType cascadeType,
+                                             utils::Optional<PlanPriority> priorityFilter) const
 {
     StripeInfos result;
     for (auto&& blockConfig : m_StripeConfig.blockConfigs)
     {
-        GenerateStripes(blockConfig, cascadeType, result);
+        GenerateStripes(blockConfig, cascadeType, priorityFilter, result);
     }
     return result;
 }
 
 void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig blockConfig,
                                       CascadeType cascadeType,
+                                      utils::Optional<PlanPriority> priorityFilter,
                                       StripeInfos& outStripeInfos) const
 {
     using namespace utils;
@@ -734,6 +736,22 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
 
     const bool isDepthwise           = m_Operation == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
     const TensorShape mceOutputShape = m_MceOutputTensorShape;
+
+    // This method is intended to be called first with PlanPriority::High and after and only if needed
+    // with PlanPriority::Low.
+    // Splitting input depth(for regular conv) is always worse, so these are low priority plans, for depthwise
+    // conv we treat it all as HIGH
+    if (priorityFilter == PlanPriority::High && !isDepthwise)
+    {
+        stripeConfig.DisableSplitInputDepth();
+    }
+    else if (priorityFilter == PlanPriority::Low && !isDepthwise)
+    {
+        stripeConfig.DisableAllSplits();
+        stripeConfig.splits.widthHeightOutputDepthInputDepth = true;
+        stripeConfig.splits.outputDepthInputDepth            = true;
+        stripeConfig.splits.inputDepthOnly                   = true;
+    }
 
     // Note use of numSrams rather than numOgs when doing depthwise as only one OG per CE is used for depthwise.
     const uint32_t baseMceOfm = (isDepthwise ? numSrams : numOgs);
@@ -936,28 +954,28 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     // as in some cases we want to include stripes that cover the full tensor, and in others we don't.
     const StripeShapeLoop mceInputWidthLoopExcl =
         StripeShapeLoop::Exclusive(GetWidth(m_MceInputTensorShape), baseMceInputWidth,
-                                   m_StripeConfig.blockWidthMultiplier.min, m_StripeConfig.blockWidthMultiplier.max);
+                                   stripeConfig.blockWidthMultiplier.min, stripeConfig.blockWidthMultiplier.max);
     const StripeShapeLoop mceInputHeightLoopExcl =
         StripeShapeLoop::Exclusive(GetHeight(m_MceInputTensorShape), baseMceInputHeight,
-                                   m_StripeConfig.blockHeightMultiplier.min, m_StripeConfig.blockHeightMultiplier.max);
+                                   stripeConfig.blockHeightMultiplier.min, stripeConfig.blockHeightMultiplier.max);
     const StripeShapeLoop mceIfmLoopExcl =
-        StripeShapeLoop::Exclusive(GetChannels(m_MceInputTensorShape), baseMceIfm,
-                                   m_StripeConfig.ifmDepthMultiplier.min, m_StripeConfig.ifmDepthMultiplier.max);
+        StripeShapeLoop::Exclusive(GetChannels(m_MceInputTensorShape), baseMceIfm, stripeConfig.ifmDepthMultiplier.min,
+                                   stripeConfig.ifmDepthMultiplier.max);
     const StripeShapeLoop mceOfmLoopExcl =
-        StripeShapeLoop::Exclusive(GetChannels(m_MceOutputTensorShape), baseMceOfm,
-                                   m_StripeConfig.ofmDepthMultiplier.min, m_StripeConfig.ofmDepthMultiplier.max);
+        StripeShapeLoop::Exclusive(GetChannels(m_MceOutputTensorShape), baseMceOfm, stripeConfig.ofmDepthMultiplier.min,
+                                   stripeConfig.ofmDepthMultiplier.max);
     const StripeShapeLoop mceInputWidthLoopIncl =
         StripeShapeLoop::Inclusive(GetWidth(m_MceInputTensorShape), baseMceInputWidth,
-                                   m_StripeConfig.blockWidthMultiplier.min, m_StripeConfig.blockWidthMultiplier.max);
+                                   stripeConfig.blockWidthMultiplier.min, stripeConfig.blockWidthMultiplier.max);
     const StripeShapeLoop mceInputHeightLoopIncl =
         StripeShapeLoop::Inclusive(GetHeight(m_MceInputTensorShape), baseMceInputHeight,
-                                   m_StripeConfig.blockHeightMultiplier.min, m_StripeConfig.blockHeightMultiplier.max);
+                                   stripeConfig.blockHeightMultiplier.min, stripeConfig.blockHeightMultiplier.max);
     const StripeShapeLoop mceIfmLoopIncl =
-        StripeShapeLoop::Inclusive(GetChannels(m_MceInputTensorShape), baseMceIfm,
-                                   m_StripeConfig.ifmDepthMultiplier.min, m_StripeConfig.ifmDepthMultiplier.max);
+        StripeShapeLoop::Inclusive(GetChannels(m_MceInputTensorShape), baseMceIfm, stripeConfig.ifmDepthMultiplier.min,
+                                   stripeConfig.ifmDepthMultiplier.max);
     const StripeShapeLoop mceOfmLoopIncl =
-        StripeShapeLoop::Inclusive(GetChannels(m_MceOutputTensorShape), baseMceIfm,
-                                   m_StripeConfig.ofmDepthMultiplier.min, m_StripeConfig.ofmDepthMultiplier.max);
+        StripeShapeLoop::Inclusive(GetChannels(m_MceOutputTensorShape), baseMceIfm, stripeConfig.ofmDepthMultiplier.min,
+                                   stripeConfig.ofmDepthMultiplier.max);
     ETHOSN_UNUSED(mceInputWidthLoopExcl);    // Unused but kept above for consistency and potential future use.
     ETHOSN_UNUSED(mceInputHeightLoopExcl);
     ETHOSN_UNUSED(mceOfmLoopIncl);

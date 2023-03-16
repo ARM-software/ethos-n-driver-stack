@@ -646,13 +646,23 @@ Plans McePart::GetLonelyPlans(uint32_t numWeightStripes) const
         return ret;
     }
 
-    // Generate all possible plans.
-    StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Lonely);
     // Data could be de-compressed from FCAF
     const bool couldSourceBeFcaf = true;
-    for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
+
+    // Start by generating "high priority" plans. If any of these work, there is no point generating
+    // any low priority plans as this will just waste time (e.g. weight encoding)
+    const std::initializer_list<PlanPriority> allPriorities = { PlanPriority::High, PlanPriority::Low };
+    for (PlanPriority priority : allPriorities)
     {
-        CreateMceAndIdentityPlePlans(i, m_WeightEncoderCache, ret, numWeightStripes, couldSourceBeFcaf);
+        StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Lonely, priority);
+        for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
+        {
+            CreateMceAndIdentityPlePlans(i, m_WeightEncoderCache, ret, numWeightStripes, couldSourceBeFcaf);
+        }
+        if (!ret.empty())
+        {
+            break;
+        }
     }
 
     return ret;
@@ -667,7 +677,7 @@ Plans McePart::GetBeginningPlans(uint32_t numWeightStripes) const
         return ret;
     }
 
-    StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Beginning);
+    StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Beginning, {});
 
     // The plan will be "glued" to the end plan from the previous section.
     // Therefore the input buffer tile cannot be unconditionally clamped to the
