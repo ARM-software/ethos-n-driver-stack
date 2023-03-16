@@ -1477,6 +1477,121 @@ exit:
 	return 0;
 }
 
+static int ethosn_check_main_allocator(const struct ethosn_core *core)
+{
+	struct ethosn_device *ethosn;
+	struct ethosn_dma_allocator *main_allocator;
+
+	if (!core)
+		return -EINVAL;
+
+	ethosn = core->parent;
+	if (!ethosn)
+		return -EINVAL;
+
+	main_allocator = core->main_allocator;
+	if (!main_allocator) {
+		dev_err(core->dev, "Main allocator not found.\n");
+
+		return -ENODEV;
+	}
+
+	if (!ethosn_get_sub_allocator(main_allocator, ETHOSN_STREAM_FIRMWARE)) {
+		dev_err(core->dev,
+			"Firmware sub allocator probe failed.\n");
+
+		return -ENODEV;
+	}
+
+	if (!ethosn_get_sub_allocator(main_allocator,
+				      ETHOSN_STREAM_WORKING_DATA)) {
+		dev_err(core->dev,
+			"Working data sub allocator probe failed.\n");
+
+		return -ENODEV;
+	}
+
+	return 0;
+}
+
+static int ethosn_check_asset_allocators(const struct ethosn_device *ethosn,
+					 unsigned int num_of_asset_allocs)
+{
+	struct ethosn_dma_allocator **dma_allocator_list;
+	enum ethosn_stream_type stream_type;
+	unsigned int idx;
+
+	dma_allocator_list = ethosn->asset_allocator;
+	if (!dma_allocator_list) {
+		dev_err(ethosn->dev, "No asset allocators found\n");
+
+		return -EINVAL;
+	}
+
+	if (num_of_asset_allocs != ethosn->num_asset_allocs) {
+		dev_err(ethosn->dev,
+			"Asset allocator probe failed expected %u successfully probed %u\n",
+			num_of_asset_allocs, ethosn->num_asset_allocs);
+
+		return -EINVAL;
+	}
+
+	for (idx = 0; idx < num_of_asset_allocs; idx++) {
+		stream_type = ETHOSN_STREAM_COMMAND_STREAM;
+		if (!ethosn_get_sub_allocator(dma_allocator_list[idx],
+					      stream_type))
+			goto sub_alloc_err;
+
+		stream_type = ETHOSN_STREAM_WEIGHT_DATA;
+		if (!ethosn_get_sub_allocator(dma_allocator_list[idx],
+					      stream_type))
+			goto sub_alloc_err;
+
+		stream_type = ETHOSN_STREAM_IO_BUFFER;
+		if (!ethosn_get_sub_allocator(dma_allocator_list[idx],
+					      stream_type))
+			goto sub_alloc_err;
+
+		stream_type = ETHOSN_STREAM_INTERMEDIATE_BUFFER;
+		if (!ethosn_get_sub_allocator(dma_allocator_list[idx],
+					      stream_type))
+			goto sub_alloc_err;
+	}
+
+	return 0;
+
+sub_alloc_err:
+	dev_err(ethosn->dev,
+		"Sub allocator probe failed for asset %u stream type %u\n", idx,
+		stream_type);
+
+	return -ENODEV;
+}
+
+static int ethosn_check_allocator_probe_status(struct ethosn_device *ethosn,
+					       unsigned int num_of_asset_allocs)
+{
+	int idx;
+	int ret;
+
+	for (idx = 0; idx < ethosn->num_cores; ++idx) {
+		ret = ethosn_check_main_allocator(ethosn->core[idx]);
+		if (ret) {
+			dev_err(ethosn->dev,
+				"Failed to probe main allocator for core %u\n",
+				idx);
+
+			return ret;
+		}
+	}
+
+	ret = ethosn_check_asset_allocators(ethosn, num_of_asset_allocs);
+	if (ret)
+		dev_err(ethosn->dev, "Failed to probe all asset allocators\n");
+
+	return ret;
+}
+
 /**
  * ethosn_pdev_probe() - Do platform specific probing
  * @pdev: Platform device
@@ -1685,6 +1800,16 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 		goto err_depopulate_device;
 	}
 
+	/* check if all main, asset allocators and their sub allocators are
+	 * successfully probed.
+	 */
+	if (smmu_available) {
+		ret = ethosn_check_allocator_probe_status(ethosn,
+							  num_of_asset_allocs);
+		if (ret)
+			goto err_depopulate_device;
+	}
+
 	dev_dbg(&pdev->dev, "Populated %d children\n", ethosn->num_cores);
 
 	mutex_init(&ethosn->mutex);
@@ -1774,6 +1899,7 @@ err_remove_debugfs:
 
 err_free_ethosn:
 	devm_kfree(&pdev->dev, ethosn);
+	dev_set_drvdata(&pdev->dev, NULL);
 
 err_early_exit:
 	ida_simple_remove(&ethosn_ida, platform_id);

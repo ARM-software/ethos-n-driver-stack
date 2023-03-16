@@ -198,6 +198,8 @@ int ethosn_dma_sub_allocator_create(struct device *dev,
 		return -EINVAL;
 
 	allocator = ethosn_get_sub_allocator_ref(top_allocator, stream_type);
+	if (!allocator)
+		return -EINVAL;
 
 	/*
 	 * Address base only needed for SMMU because carveout will parse it from
