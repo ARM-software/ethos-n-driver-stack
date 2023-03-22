@@ -241,22 +241,6 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     const uint32_t numIfmLoads                                                 = 1;
     const uint32_t numWeightLoads                                              = 1;
 
-    // Prevent too many MCE stripes per PLE (a firmware limitation)
-    const uint32_t numMceStripesPerPle = utils::DivRoundUp(GetChannels(pleInputStripe), GetChannels(mceOutputStripe));
-    if (numMceStripesPerPle > caps.GetMaxMceStripesPerPleStripe())
-    {
-        return {};
-    }
-
-    // Prevent too many IFM and Weight stripes per PLE (a firmware limitation)
-    const uint32_t numIfmStripesPerMce       = 0;    // Continue section, so no IfmS
-    const uint32_t numWgtStripesPerMce       = 1;
-    const uint32_t numIfmAndWgtStripesPerPle = (numIfmStripesPerMce + numWgtStripesPerMce) * numMceStripesPerPle;
-    if (numIfmAndWgtStripesPerPle > caps.GetMaxIfmAndWgtStripesPerPleStripe())
-    {
-        return {};
-    }
-
     MceAndPleInfo mceAndPleInfo;
 
     mceAndPleInfo.m_MceCompute.m_Input       = mceInputStripe;

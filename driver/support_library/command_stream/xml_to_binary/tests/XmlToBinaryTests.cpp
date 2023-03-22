@@ -322,545 +322,388 @@ const std::string g_XmlStr =
     R"(
     <!-- Command 11 -->
     <CASCADE>
-        <NUM_AGENTS>6</NUM_AGENTS>
-        <!-- Agent 0 -->
-        <AGENT>
-            <WGT_STREAMER>
-                <BUFFER_ID>3</BUFFER_ID>
-                <METADATA_BUFFER_ID>128</METADATA_BUFFER_ID>
-                <TILE>
-                    <BASE_ADDR>32</BASE_ADDR>
-                    <NUM_SLOTS>2</NUM_SLOTS>
-                    <SLOT_SIZE>1024</SLOT_SIZE>
-                </TILE>
-                <NUM_STRIPES>
-                    <OFM_CHANNELS>4</OFM_CHANNELS>
-                    <IFM_CHANNELS>2</IFM_CHANNELS>
-                </NUM_STRIPES>
-                <STRIPE_ID_STRIDES>
-                    <OFM_CHANNELS>2</OFM_CHANNELS>
-                    <IFM_CHANNELS>1</IFM_CHANNELS>
-                </STRIPE_ID_STRIDES>
-            </WGT_STREAMER>
-            <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
-            <SCHEDULE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>1</RELATIVE_AGENT_ID>
-                <!-- Other agent ID is 1 (IFM_STREAMER) -->
-                <OUTER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>1</OTHER>
-                    <SELF>2</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>4</BOUNDARY>
-            </SCHEDULE_DEPENDENCY>
-            <WRITE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>2</RELATIVE_AGENT_ID>
-                <!-- Other agent ID is 2 (OFM_STREAMER) -->
-                <OUTER_RATIO>
-                    <OTHER>1</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>2</BOUNDARY>
-            </WRITE_DEPENDENCY>
-        </AGENT>
-        <!-- Agent 1 -->
-        <AGENT>
-            <IFM_STREAMER>
-                <DRAM_OFFSET>512</DRAM_OFFSET>
-                <BUFFER_ID>3</BUFFER_ID>
-                <DATA_TYPE>NHWC</DATA_TYPE>
-                <FCAF_INFO>
-                    <ZERO_POINT>0</ZERO_POINT>
-                    <SIGNED_ACTIVATION>0</SIGNED_ACTIVATION>
-                </FCAF_INFO>
-                <TILE>
-                    <BASE_ADDR>512</BASE_ADDR>
-                    <NUM_SLOTS>2</NUM_SLOTS>
-                    <SLOT_SIZE>512</SLOT_SIZE>
-                </TILE>
-                <DFLT_STRIPE_SIZE>
-                    <HEIGHT>8</HEIGHT>
-                    <WIDTH>4</WIDTH>
-                    <CHANNELS>1</CHANNELS>
-                </DFLT_STRIPE_SIZE>
-                <EDGE_STRIPE_SIZE>
-                    <HEIGHT>4</HEIGHT>
-                    <WIDTH>4</WIDTH>
-                    <CHANNELS>1</CHANNELS>
-                </EDGE_STRIPE_SIZE>
-                <SUPERTENSOR_SIZE_IN_CELLS>
-                    <WIDTH>1</WIDTH>
-                    <CHANNELS>2</CHANNELS>
-                </SUPERTENSOR_SIZE_IN_CELLS>
-                <NUM_STRIPES>
-                    <HEIGHT>512</HEIGHT>
-                    <WIDTH>128</WIDTH>
-                    <CHANNELS>8</CHANNELS>
-                </NUM_STRIPES>
-                <STRIPE_ID_STRIDES>
-                    <HEIGHT>4</HEIGHT>
-                    <WIDTH>1</WIDTH>
-                    <CHANNELS>2</CHANNELS>
-                </STRIPE_ID_STRIDES>
-                <PACKED_BOUNDARY_THICKNESS>
-                    <LEFT>5</LEFT>
-                    <TOP>6</TOP>
-                    <RIGHT>7</RIGHT>
-                    <BOTTOM>8</BOTTOM>
-                </PACKED_BOUNDARY_THICKNESS>
-                <IS_EXTRA_PACKED_BOUNDARY_DATA_ON_RIGHT_EDGE>1</IS_EXTRA_PACKED_BOUNDARY_DATA_ON_RIGHT_EDGE>
-                <IS_EXTRA_PACKED_BOUNDARY_DATA_ON_BOTTOM_EDGE>0</IS_EXTRA_PACKED_BOUNDARY_DATA_ON_BOTTOM_EDGE>
-            </IFM_STREAMER>
-            <NUM_STRIPES_TOTAL>96</NUM_STRIPES_TOTAL>
-            <SCHEDULE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>2</RELATIVE_AGENT_ID>
-                <!-- Other agent ID is 3 (MCE_SCHEDULER) -->
-                <OUTER_RATIO>
-                    <OTHER>1</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>1</OTHER>
-                    <SELF>1</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>2</BOUNDARY>
-            </SCHEDULE_DEPENDENCY>
-            <READ_DEPENDENCY>
-                <RELATIVE_AGENT_ID>1</RELATIVE_AGENT_ID>
-                <!-- Other agent ID is 0 (WGT_STREAMER) -->
-                <OUTER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>2</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>2</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>4</BOUNDARY>
-            </READ_DEPENDENCY>
-            <READ_DEPENDENCY>
-                <RELATIVE_AGENT_ID>1</RELATIVE_AGENT_ID>
-                <!-- Other agent ID is 0 (WGT_STREAMER) -->
-                <OUTER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>4</BOUNDARY>
-            </READ_DEPENDENCY>
-            <WRITE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>3</RELATIVE_AGENT_ID>
-                <!-- Other agent ID is 4 (PLE_LOADER) -->
-                <OUTER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>4</BOUNDARY>
-            </WRITE_DEPENDENCY>
-        </AGENT>
-        <!-- Agent 2 -->
-        <AGENT>
-            <OFM_STREAMER>
-                <DRAM_OFFSET>512</DRAM_OFFSET>
-                <BUFFER_ID>0</BUFFER_ID>
-                <DATA_TYPE>NHWC</DATA_TYPE>
-                <FCAF_INFO>
-                    <ZERO_POINT>0</ZERO_POINT>
-                    <SIGNED_ACTIVATION>0</SIGNED_ACTIVATION>
-                </FCAF_INFO>
-                <TILE>
-                    <BASE_ADDR>0</BASE_ADDR>
-                    <NUM_SLOTS>0</NUM_SLOTS>
-                    <SLOT_SIZE>0</SLOT_SIZE>
-                </TILE>
-                <DFLT_STRIPE_SIZE>
-                    <HEIGHT>8</HEIGHT>
-                    <WIDTH>8</WIDTH>
-                    <CHANNELS>8</CHANNELS>
-                </DFLT_STRIPE_SIZE>
-                <EDGE_STRIPE_SIZE>
-                    <HEIGHT>8</HEIGHT>
-                    <WIDTH>8</WIDTH>
-                    <CHANNELS>8</CHANNELS>
-                </EDGE_STRIPE_SIZE>
-                <SUPERTENSOR_SIZE_IN_CELLS>
-                    <WIDTH>8</WIDTH>
-                    <CHANNELS>8</CHANNELS>
-                </SUPERTENSOR_SIZE_IN_CELLS>
-                <NUM_STRIPES>
-                    <HEIGHT>8</HEIGHT>
-                    <WIDTH>8</WIDTH>
-                    <CHANNELS>8</CHANNELS>
-                </NUM_STRIPES>
-                <STRIPE_ID_STRIDES>
-                    <HEIGHT>8</HEIGHT>
-                    <WIDTH>8</WIDTH>
-                    <CHANNELS>8</CHANNELS>
-                </STRIPE_ID_STRIDES>
-            </OFM_STREAMER>
-            <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
-            <SCHEDULE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>1</RELATIVE_AGENT_ID>
-                <!-- Other agent ID is 3 (MCE_SCHEDULER) -->
-                <OUTER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>4</BOUNDARY>
-            </SCHEDULE_DEPENDENCY>
-            <READ_DEPENDENCY>
-                <RELATIVE_AGENT_ID>2</RELATIVE_AGENT_ID>
-                <!-- Other agent ID is 0 (WGT_STREAMER) -->
-                <OUTER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>4</BOUNDARY>
-            </READ_DEPENDENCY>
-            <READ_DEPENDENCY>
-                <RELATIVE_AGENT_ID>1</RELATIVE_AGENT_ID>
-                <!-- Other agent ID is 1 (IFM_STREAMER) -->
-                <OUTER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>4</BOUNDARY>
-            </READ_DEPENDENCY>
-            <WRITE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>2</RELATIVE_AGENT_ID>
-                <!-- Other agent ID is 4 (PLE_LOADER) -->
-                <OUTER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>4</BOUNDARY>
-            </WRITE_DEPENDENCY>
-        </AGENT>
-        <!-- Agent 3 -->
-        <AGENT>
-            <MCE_SCHEDULER>
-                <IFM_TILE>
-                    <BASE_ADDR>0</BASE_ADDR>
-                    <NUM_SLOTS>0</NUM_SLOTS>
-                    <SLOT_SIZE>0</SLOT_SIZE>
-                </IFM_TILE>
-                <WGT_TILE>
-                    <BASE_ADDR>0</BASE_ADDR>
-                    <NUM_SLOTS>0</NUM_SLOTS>
-                    <SLOT_SIZE>0</SLOT_SIZE>
-                </WGT_TILE>
-                <BLOCK_SIZE>
-                    <HEIGHT>0</HEIGHT>
-                    <WIDTH>0</WIDTH>
-                </BLOCK_SIZE>
-                <DFLT_STRIPE_SIZE>
-                    <OFM_HEIGHT>8</OFM_HEIGHT>
-                    <OFM_WIDTH>8</OFM_WIDTH>
-                    <OFM_CHANNELS>8</OFM_CHANNELS>
-                    <IFM_CHANNELS>8</IFM_CHANNELS>
-                </DFLT_STRIPE_SIZE>
-                <EDGE_STRIPE_SIZE>
-                    <OFM_HEIGHT>8</OFM_HEIGHT>
-                    <OFM_WIDTH>8</OFM_WIDTH>
-                    <OFM_CHANNELS>8</OFM_CHANNELS>
-                    <IFM_CHANNELS>8</IFM_CHANNELS>
-                </EDGE_STRIPE_SIZE>
-                <NUM_STRIPES>
-                    <OFM_HEIGHT>8</OFM_HEIGHT>
-                    <OFM_WIDTH>8</OFM_WIDTH>
-                    <OFM_CHANNELS>8</OFM_CHANNELS>
-                    <IFM_CHANNELS>8</IFM_CHANNELS>
-                </NUM_STRIPES>
-                <STRIPE_ID_STRIDES>
-                    <OFM_HEIGHT>8</OFM_HEIGHT>
-                    <OFM_WIDTH>8</OFM_WIDTH>
-                    <OFM_CHANNELS>8</OFM_CHANNELS>
-                    <IFM_CHANNELS>8</IFM_CHANNELS>
-                </STRIPE_ID_STRIDES>
-                <CONV_STRIDE_XY>
-                    <X>2</X>
-                    <Y>2</Y>
-                </CONV_STRIDE_XY>
-                <IFM_ZERO_POINT>-2</IFM_ZERO_POINT>
-                <IS_IFM_SIGNED>1</IS_IFM_SIGNED>
-                <IS_OFM_SIGNED>0</IS_OFM_SIGNED>
-                <UPSAMPLE_TYPE>TRANSPOSE</UPSAMPLE_TYPE>
-                <UPSAMPLE_EDGE_MODE>
-                    <ROW>DROP</ROW>
-                    <COL>GENERATE</COL>
-                </UPSAMPLE_EDGE_MODE>
-                <MCE_OP_MODE>DEPTHWISE_CONVOLUTION</MCE_OP_MODE>
-                <ALGORITHM>WINOGRAD</ALGORITHM>
-                <IS_WIDE_FILTER>1</IS_WIDE_FILTER>
-                <IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>1</IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>
-                <IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>1</IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>
-                <IS_PACKED_BOUNDARY_X>1</IS_PACKED_BOUNDARY_X>
-                <IS_PACKED_BOUNDARY_Y>1</IS_PACKED_BOUNDARY_Y>
-                <FILTER_SHAPE>
-                    <VALUE_0>
-                        <WIDTH>2</WIDTH>
-                        <HEIGHT>2</HEIGHT>
-                    </VALUE_0>
-                    <VALUE_1>
-                        <WIDTH>2</WIDTH>
-                        <HEIGHT>1</HEIGHT>
-                    </VALUE_1>
-                    <VALUE_2>
-                        <WIDTH>1</WIDTH>
-                        <HEIGHT>2</HEIGHT>
-                    </VALUE_2>
-                    <VALUE_3>
-                        <WIDTH>1</WIDTH>
-                        <HEIGHT>1</HEIGHT>
-                    </VALUE_3>
-                </FILTER_SHAPE>
-                <PADDING>
-                    <VALUE_0>
-                        <LEFT>12</LEFT>
-                        <TOP>15</TOP>
-                    </VALUE_0>
-                    <VALUE_1>
-                        <LEFT>15</LEFT>
-                        <TOP>12</TOP>
-                    </VALUE_1>
-                    <VALUE_2>
-                        <LEFT>0</LEFT>
-                        <TOP>8</TOP>
-                    </VALUE_2>
-                    <VALUE_3>
-                        <LEFT>8</LEFT>
-                        <TOP>0</TOP>
-                    </VALUE_3>
-                </PADDING>
-                <IFM_DELTA_DEFAULT>
-                    <VALUE_0>
-                        <WIDTH>3</WIDTH>
-                        <HEIGHT>-3</HEIGHT>
-                    </VALUE_0>
-                    <VALUE_1>
-                        <WIDTH>-3</WIDTH>
-                        <HEIGHT>3</HEIGHT>
-                    </VALUE_1>
-                    <VALUE_2>
-                        <WIDTH>2</WIDTH>
-                        <HEIGHT>-2</HEIGHT>
-                    </VALUE_2>
-                    <VALUE_3>
-                        <WIDTH>-2</WIDTH>
-                        <HEIGHT>2</HEIGHT>
-                    </VALUE_3>
-                </IFM_DELTA_DEFAULT>
-                <IFM_DELTA_ONE_FROM_EDGE>
-                    <VALUE_0>
+        <AGENTS>
+            <!-- Agent 0 -->
+            <AGENT>
+                <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
+                <WGT_STREAMER>
+                    <BUFFER_ID>3</BUFFER_ID>
+                    <METADATA_BUFFER_ID>128</METADATA_BUFFER_ID>
+                    <TILE>
+                        <BASE_ADDR>32</BASE_ADDR>
+                        <NUM_SLOTS>2</NUM_SLOTS>
+                        <SLOT_SIZE>1024</SLOT_SIZE>
+                    </TILE>
+                    <NUM_STRIPES>
+                        <OFM_CHANNELS>4</OFM_CHANNELS>
+                        <IFM_CHANNELS>2</IFM_CHANNELS>
+                    </NUM_STRIPES>
+                    <STRIPE_ID_STRIDES>
+                        <OFM_CHANNELS>2</OFM_CHANNELS>
+                        <IFM_CHANNELS>1</IFM_CHANNELS>
+                    </STRIPE_ID_STRIDES>
+                </WGT_STREAMER>
+            </AGENT>
+            <!-- Agent 1 -->
+            <AGENT>
+                <NUM_STRIPES_TOTAL>96</NUM_STRIPES_TOTAL>
+                <IFM_STREAMER>
+                    <DRAM_OFFSET>512</DRAM_OFFSET>
+                    <BUFFER_ID>3</BUFFER_ID>
+                    <DATA_TYPE>NHWC</DATA_TYPE>
+                    <FCAF_INFO>
+                        <ZERO_POINT>0</ZERO_POINT>
+                        <SIGNED_ACTIVATION>0</SIGNED_ACTIVATION>
+                    </FCAF_INFO>
+                    <TILE>
+                        <BASE_ADDR>512</BASE_ADDR>
+                        <NUM_SLOTS>2</NUM_SLOTS>
+                        <SLOT_SIZE>512</SLOT_SIZE>
+                    </TILE>
+                    <DFLT_STRIPE_SIZE>
+                        <HEIGHT>8</HEIGHT>
                         <WIDTH>4</WIDTH>
-                        <HEIGHT>-4</HEIGHT>
-                    </VALUE_0>
-                    <VALUE_1>
-                        <WIDTH>-4</WIDTH>
+                        <CHANNELS>1</CHANNELS>
+                    </DFLT_STRIPE_SIZE>
+                    <EDGE_STRIPE_SIZE>
                         <HEIGHT>4</HEIGHT>
-                    </VALUE_1>
-                    <VALUE_2>
-                        <WIDTH>5</WIDTH>
-                        <HEIGHT>-5</HEIGHT>
-                    </VALUE_2>
-                    <VALUE_3>
-                        <WIDTH>-5</WIDTH>
-                        <HEIGHT>5</HEIGHT>
-                    </VALUE_3>
-                </IFM_DELTA_ONE_FROM_EDGE>
-                <IFM_DELTA_EDGE>
-                    <VALUE_0>
+                        <WIDTH>4</WIDTH>
+                        <CHANNELS>1</CHANNELS>
+                    </EDGE_STRIPE_SIZE>
+                    <SUPERTENSOR_SIZE_IN_CELLS>
                         <WIDTH>1</WIDTH>
-                        <HEIGHT>-2</HEIGHT>
-                    </VALUE_0>
-                    <VALUE_1>
-                        <WIDTH>-2</WIDTH>
-                        <HEIGHT>1</HEIGHT>
-                    </VALUE_1>
-                    <VALUE_2>
+                        <CHANNELS>2</CHANNELS>
+                    </SUPERTENSOR_SIZE_IN_CELLS>
+                    <NUM_STRIPES>
+                        <HEIGHT>512</HEIGHT>
+                        <WIDTH>128</WIDTH>
+                        <CHANNELS>8</CHANNELS>
+                    </NUM_STRIPES>
+                    <STRIPE_ID_STRIDES>
+                        <HEIGHT>4</HEIGHT>
                         <WIDTH>1</WIDTH>
-                        <HEIGHT>1</HEIGHT>
-                    </VALUE_2>
-                    <VALUE_3>
-                        <WIDTH>-1</WIDTH>
-                        <HEIGHT>-1</HEIGHT>
-                    </VALUE_3>
-                </IFM_DELTA_EDGE>
-                <IFM_STRIPE_SHAPE_DEFAULT>
-                    <WIDTH>10</WIDTH>
-                    <HEIGHT>11</HEIGHT>
-                </IFM_STRIPE_SHAPE_DEFAULT>
-                <IFM_STRIPE_SHAPE_EDGE>
-                    <WIDTH>5</WIDTH>
-                    <HEIGHT>6</HEIGHT>
-                </IFM_STRIPE_SHAPE_EDGE>
-                <RELU_ACTIV>
-                    <MIN>-3</MIN>
-                    <MAX>2</MAX>
-                </RELU_ACTIV>
-                <PLE_KERNEL_ID>DOWNSAMPLE_2X2_16X16_1</PLE_KERNEL_ID>
-            </MCE_SCHEDULER>
-            <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
-        </AGENT>)"
+                        <CHANNELS>2</CHANNELS>
+                    </STRIPE_ID_STRIDES>
+                    <PACKED_BOUNDARY_THICKNESS>
+                        <LEFT>5</LEFT>
+                        <TOP>6</TOP>
+                        <RIGHT>7</RIGHT>
+                        <BOTTOM>8</BOTTOM>
+                    </PACKED_BOUNDARY_THICKNESS>
+                    <IS_EXTRA_PACKED_BOUNDARY_DATA_ON_RIGHT_EDGE>1</IS_EXTRA_PACKED_BOUNDARY_DATA_ON_RIGHT_EDGE>
+                    <IS_EXTRA_PACKED_BOUNDARY_DATA_ON_BOTTOM_EDGE>0</IS_EXTRA_PACKED_BOUNDARY_DATA_ON_BOTTOM_EDGE>
+                </IFM_STREAMER>
+            </AGENT>
+            <!-- Agent 2 -->
+            <AGENT>
+                <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
+                <OFM_STREAMER>
+                    <DRAM_OFFSET>512</DRAM_OFFSET>
+                    <BUFFER_ID>0</BUFFER_ID>
+                    <DATA_TYPE>NHWC</DATA_TYPE>
+                    <FCAF_INFO>
+                        <ZERO_POINT>0</ZERO_POINT>
+                        <SIGNED_ACTIVATION>0</SIGNED_ACTIVATION>
+                    </FCAF_INFO>
+                    <TILE>
+                        <BASE_ADDR>0</BASE_ADDR>
+                        <NUM_SLOTS>0</NUM_SLOTS>
+                        <SLOT_SIZE>0</SLOT_SIZE>
+                    </TILE>
+                    <DFLT_STRIPE_SIZE>
+                        <HEIGHT>8</HEIGHT>
+                        <WIDTH>8</WIDTH>
+                        <CHANNELS>8</CHANNELS>
+                    </DFLT_STRIPE_SIZE>
+                    <EDGE_STRIPE_SIZE>
+                        <HEIGHT>8</HEIGHT>
+                        <WIDTH>8</WIDTH>
+                        <CHANNELS>8</CHANNELS>
+                    </EDGE_STRIPE_SIZE>
+                    <SUPERTENSOR_SIZE_IN_CELLS>
+                        <WIDTH>8</WIDTH>
+                        <CHANNELS>8</CHANNELS>
+                    </SUPERTENSOR_SIZE_IN_CELLS>
+                    <NUM_STRIPES>
+                        <HEIGHT>8</HEIGHT>
+                        <WIDTH>8</WIDTH>
+                        <CHANNELS>8</CHANNELS>
+                    </NUM_STRIPES>
+                    <STRIPE_ID_STRIDES>
+                        <HEIGHT>8</HEIGHT>
+                        <WIDTH>8</WIDTH>
+                        <CHANNELS>8</CHANNELS>
+                    </STRIPE_ID_STRIDES>
+                </OFM_STREAMER>
+            </AGENT>)"
     R"(
-        <!-- Agent 4 -->
-        <AGENT>
-            <PLE_LOADER>
-                <PLE_KERNEL_ID>SIGMOID_16X8_1_S</PLE_KERNEL_ID>
-                <SRAM_ADDR>4096</SRAM_ADDR>
-            </PLE_LOADER>
-            <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
-            <SCHEDULE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>1</RELATIVE_AGENT_ID>
-                <!-- Other agent ID is 5 (PLE_SCHEDULER) -->
-                <OUTER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>4</BOUNDARY>
-            </SCHEDULE_DEPENDENCY>
-            <READ_DEPENDENCY>
-                <RELATIVE_AGENT_ID>3</RELATIVE_AGENT_ID>
-                <!-- Other agent ID is 1 (IFM_STREAMER) -->
-                <OUTER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>4</BOUNDARY>
-            </READ_DEPENDENCY>
-            <WRITE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>1</RELATIVE_AGENT_ID>
-                <!-- Other agent ID is 5 (PLE_SCHEDULER) -->
-                <OUTER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>4</BOUNDARY>
-            </WRITE_DEPENDENCY>
-        </AGENT>
-        <!-- Agent 5 -->
-        <AGENT>
-            <PLE_SCHEDULER>
-                <OFM_TILE>
-                    <BASE_ADDR>0</BASE_ADDR>
-                    <NUM_SLOTS>0</NUM_SLOTS>
-                    <SLOT_SIZE>0</SLOT_SIZE>
-                </OFM_TILE>
-                <OFM_ZERO_POINT>3</OFM_ZERO_POINT>
-                <DFLT_STRIPE_SIZE>
-                    <HEIGHT>8</HEIGHT>
-                    <WIDTH>8</WIDTH>
-                    <CHANNELS>8</CHANNELS>
-                </DFLT_STRIPE_SIZE>
-                <EDGE_STRIPE_SIZE>
-                    <HEIGHT>8</HEIGHT>
-                    <WIDTH>8</WIDTH>
-                    <CHANNELS>8</CHANNELS>
-                </EDGE_STRIPE_SIZE>
-                <NUM_STRIPES>
-                    <HEIGHT>8</HEIGHT>
-                    <WIDTH>8</WIDTH>
-                    <CHANNELS>8</CHANNELS>
-                </NUM_STRIPES>
-                <STRIPE_ID_STRIDES>
-                    <HEIGHT>8</HEIGHT>
-                    <WIDTH>8</WIDTH>
-                    <CHANNELS>8</CHANNELS>
-                </STRIPE_ID_STRIDES>
-                <INPUT_MODE>MCE_ONE_OG</INPUT_MODE>
-                <PLE_KERNEL_ID>DOWNSAMPLE_2X2_16X16_1</PLE_KERNEL_ID>
-                <PLE_KERNEL_SRAM_ADDR>4096</PLE_KERNEL_SRAM_ADDR>
-                <IFM_TILE_0>
-                    <BASE_ADDR>0</BASE_ADDR>
-                    <NUM_SLOTS>0</NUM_SLOTS>
-                    <SLOT_SIZE>0</SLOT_SIZE>
-                </IFM_TILE_0>
-                <IFM_INFO_0>
-                    <ZERO_POINT>0</ZERO_POINT>
-                    <MULTIPLIER>1</MULTIPLIER>
-                    <SHIFT>2</SHIFT>
-                </IFM_INFO_0>
-                <IFM_TILE_1>
-                    <BASE_ADDR>0</BASE_ADDR>
-                    <NUM_SLOTS>0</NUM_SLOTS>
-                    <SLOT_SIZE>0</SLOT_SIZE>
-                </IFM_TILE_1>
-                <IFM_INFO_1>
-                    <ZERO_POINT>0</ZERO_POINT>
-                    <MULTIPLIER>1</MULTIPLIER>
-                    <SHIFT>2</SHIFT>
-                </IFM_INFO_1>
-            </PLE_SCHEDULER>
-            <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
-            <READ_DEPENDENCY>
-                <RELATIVE_AGENT_ID>4</RELATIVE_AGENT_ID>
-                <!-- Other agent ID is 1 (IFM_STREAMER) -->
-                <OUTER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>4</BOUNDARY>
-            </READ_DEPENDENCY>
-            <READ_DEPENDENCY>
-                <RELATIVE_AGENT_ID>3</RELATIVE_AGENT_ID>
-                <!-- Other agent ID is 2 (OFM_STREAMER) -->
-                <OUTER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>4</BOUNDARY>
-            </READ_DEPENDENCY>
-        </AGENT>
+            <!-- Agent 3 -->
+            <AGENT>
+                <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
+                <MCE_SCHEDULER>
+                    <IFM_TILE>
+                        <BASE_ADDR>0</BASE_ADDR>
+                        <NUM_SLOTS>0</NUM_SLOTS>
+                        <SLOT_SIZE>0</SLOT_SIZE>
+                    </IFM_TILE>
+                    <WGT_TILE>
+                        <BASE_ADDR>0</BASE_ADDR>
+                        <NUM_SLOTS>0</NUM_SLOTS>
+                        <SLOT_SIZE>0</SLOT_SIZE>
+                    </WGT_TILE>
+                    <BLOCK_SIZE>
+                        <HEIGHT>0</HEIGHT>
+                        <WIDTH>0</WIDTH>
+                    </BLOCK_SIZE>
+                    <DFLT_STRIPE_SIZE>
+                        <OFM_HEIGHT>8</OFM_HEIGHT>
+                        <OFM_WIDTH>8</OFM_WIDTH>
+                        <OFM_CHANNELS>8</OFM_CHANNELS>
+                        <IFM_CHANNELS>8</IFM_CHANNELS>
+                    </DFLT_STRIPE_SIZE>
+                    <EDGE_STRIPE_SIZE>
+                        <OFM_HEIGHT>8</OFM_HEIGHT>
+                        <OFM_WIDTH>8</OFM_WIDTH>
+                        <OFM_CHANNELS>8</OFM_CHANNELS>
+                        <IFM_CHANNELS>8</IFM_CHANNELS>
+                    </EDGE_STRIPE_SIZE>
+                    <NUM_STRIPES>
+                        <OFM_HEIGHT>8</OFM_HEIGHT>
+                        <OFM_WIDTH>8</OFM_WIDTH>
+                        <OFM_CHANNELS>8</OFM_CHANNELS>
+                        <IFM_CHANNELS>8</IFM_CHANNELS>
+                    </NUM_STRIPES>
+                    <STRIPE_ID_STRIDES>
+                        <OFM_HEIGHT>8</OFM_HEIGHT>
+                        <OFM_WIDTH>8</OFM_WIDTH>
+                        <OFM_CHANNELS>8</OFM_CHANNELS>
+                        <IFM_CHANNELS>8</IFM_CHANNELS>
+                    </STRIPE_ID_STRIDES>
+                    <CONV_STRIDE_XY>
+                        <X>2</X>
+                        <Y>2</Y>
+                    </CONV_STRIDE_XY>
+                    <IFM_ZERO_POINT>-2</IFM_ZERO_POINT>
+                    <IS_IFM_SIGNED>1</IS_IFM_SIGNED>
+                    <IS_OFM_SIGNED>0</IS_OFM_SIGNED>
+                    <UPSAMPLE_TYPE>TRANSPOSE</UPSAMPLE_TYPE>
+                    <UPSAMPLE_EDGE_MODE>
+                        <ROW>DROP</ROW>
+                        <COL>GENERATE</COL>
+                    </UPSAMPLE_EDGE_MODE>
+                    <MCE_OP_MODE>DEPTHWISE_CONVOLUTION</MCE_OP_MODE>
+                    <ALGORITHM>WINOGRAD</ALGORITHM>
+                    <IS_WIDE_FILTER>1</IS_WIDE_FILTER>
+                    <IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>1</IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>
+                    <IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>1</IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>
+                    <IS_PACKED_BOUNDARY_X>1</IS_PACKED_BOUNDARY_X>
+                    <IS_PACKED_BOUNDARY_Y>1</IS_PACKED_BOUNDARY_Y>
+                    <FILTER_SHAPE>
+                        <VALUE_0>
+                            <WIDTH>2</WIDTH>
+                            <HEIGHT>2</HEIGHT>
+                        </VALUE_0>
+                        <VALUE_1>
+                            <WIDTH>2</WIDTH>
+                            <HEIGHT>1</HEIGHT>
+                        </VALUE_1>
+                        <VALUE_2>
+                            <WIDTH>1</WIDTH>
+                            <HEIGHT>2</HEIGHT>
+                        </VALUE_2>
+                        <VALUE_3>
+                            <WIDTH>1</WIDTH>
+                            <HEIGHT>1</HEIGHT>
+                        </VALUE_3>
+                    </FILTER_SHAPE>
+                    <PADDING>
+                        <VALUE_0>
+                            <LEFT>12</LEFT>
+                            <TOP>15</TOP>
+                        </VALUE_0>
+                        <VALUE_1>
+                            <LEFT>15</LEFT>
+                            <TOP>12</TOP>
+                        </VALUE_1>
+                        <VALUE_2>
+                            <LEFT>0</LEFT>
+                            <TOP>8</TOP>
+                        </VALUE_2>
+                        <VALUE_3>
+                            <LEFT>8</LEFT>
+                            <TOP>0</TOP>
+                        </VALUE_3>
+                    </PADDING>
+                    <IFM_DELTA_DEFAULT>
+                        <VALUE_0>
+                            <WIDTH>3</WIDTH>
+                            <HEIGHT>-3</HEIGHT>
+                        </VALUE_0>
+                        <VALUE_1>
+                            <WIDTH>-3</WIDTH>
+                            <HEIGHT>3</HEIGHT>
+                        </VALUE_1>
+                        <VALUE_2>
+                            <WIDTH>2</WIDTH>
+                            <HEIGHT>-2</HEIGHT>
+                        </VALUE_2>
+                        <VALUE_3>
+                            <WIDTH>-2</WIDTH>
+                            <HEIGHT>2</HEIGHT>
+                        </VALUE_3>
+                    </IFM_DELTA_DEFAULT>
+                    <IFM_DELTA_ONE_FROM_EDGE>
+                        <VALUE_0>
+                            <WIDTH>4</WIDTH>
+                            <HEIGHT>-4</HEIGHT>
+                        </VALUE_0>
+                        <VALUE_1>
+                            <WIDTH>-4</WIDTH>
+                            <HEIGHT>4</HEIGHT>
+                        </VALUE_1>
+                        <VALUE_2>
+                            <WIDTH>5</WIDTH>
+                            <HEIGHT>-5</HEIGHT>
+                        </VALUE_2>
+                        <VALUE_3>
+                            <WIDTH>-5</WIDTH>
+                            <HEIGHT>5</HEIGHT>
+                        </VALUE_3>
+                    </IFM_DELTA_ONE_FROM_EDGE>
+                    <IFM_DELTA_EDGE>
+                        <VALUE_0>
+                            <WIDTH>1</WIDTH>
+                            <HEIGHT>-2</HEIGHT>
+                        </VALUE_0>
+                        <VALUE_1>
+                            <WIDTH>-2</WIDTH>
+                            <HEIGHT>1</HEIGHT>
+                        </VALUE_1>
+                        <VALUE_2>
+                            <WIDTH>1</WIDTH>
+                            <HEIGHT>1</HEIGHT>
+                        </VALUE_2>
+                        <VALUE_3>
+                            <WIDTH>-1</WIDTH>
+                            <HEIGHT>-1</HEIGHT>
+                        </VALUE_3>
+                    </IFM_DELTA_EDGE>
+                    <IFM_STRIPE_SHAPE_DEFAULT>
+                        <WIDTH>10</WIDTH>
+                        <HEIGHT>11</HEIGHT>
+                    </IFM_STRIPE_SHAPE_DEFAULT>
+                    <IFM_STRIPE_SHAPE_EDGE>
+                        <WIDTH>5</WIDTH>
+                        <HEIGHT>6</HEIGHT>
+                    </IFM_STRIPE_SHAPE_EDGE>
+                    <RELU_ACTIV>
+                        <MIN>-3</MIN>
+                        <MAX>2</MAX>
+                    </RELU_ACTIV>
+                    <PLE_KERNEL_ID>DOWNSAMPLE_2X2_16X16_1</PLE_KERNEL_ID>
+                </MCE_SCHEDULER>
+            </AGENT>
+            <!-- Agent 4 -->
+            <AGENT>
+                <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
+                <PLE_LOADER>
+                    <PLE_KERNEL_ID>SIGMOID_16X8_1_S</PLE_KERNEL_ID>
+                    <SRAM_ADDR>4096</SRAM_ADDR>
+                </PLE_LOADER>
+            </AGENT>)"
+    R"(
+            <!-- Agent 5 -->
+            <AGENT>
+                <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
+                <PLE_SCHEDULER>
+                    <OFM_TILE>
+                        <BASE_ADDR>0</BASE_ADDR>
+                        <NUM_SLOTS>0</NUM_SLOTS>
+                        <SLOT_SIZE>0</SLOT_SIZE>
+                    </OFM_TILE>
+                    <OFM_ZERO_POINT>3</OFM_ZERO_POINT>
+                    <DFLT_STRIPE_SIZE>
+                        <HEIGHT>8</HEIGHT>
+                        <WIDTH>8</WIDTH>
+                        <CHANNELS>8</CHANNELS>
+                    </DFLT_STRIPE_SIZE>
+                    <EDGE_STRIPE_SIZE>
+                        <HEIGHT>8</HEIGHT>
+                        <WIDTH>8</WIDTH>
+                        <CHANNELS>8</CHANNELS>
+                    </EDGE_STRIPE_SIZE>
+                    <NUM_STRIPES>
+                        <HEIGHT>8</HEIGHT>
+                        <WIDTH>8</WIDTH>
+                        <CHANNELS>8</CHANNELS>
+                    </NUM_STRIPES>
+                    <STRIPE_ID_STRIDES>
+                        <HEIGHT>8</HEIGHT>
+                        <WIDTH>8</WIDTH>
+                        <CHANNELS>8</CHANNELS>
+                    </STRIPE_ID_STRIDES>
+                    <INPUT_MODE>MCE_ONE_OG</INPUT_MODE>
+                    <PLE_KERNEL_ID>DOWNSAMPLE_2X2_16X16_1</PLE_KERNEL_ID>
+                    <PLE_KERNEL_SRAM_ADDR>4096</PLE_KERNEL_SRAM_ADDR>
+                    <IFM_TILE_0>
+                        <BASE_ADDR>0</BASE_ADDR>
+                        <NUM_SLOTS>0</NUM_SLOTS>
+                        <SLOT_SIZE>0</SLOT_SIZE>
+                    </IFM_TILE_0>
+                    <IFM_INFO_0>
+                        <ZERO_POINT>0</ZERO_POINT>
+                        <MULTIPLIER>1</MULTIPLIER>
+                        <SHIFT>2</SHIFT>
+                    </IFM_INFO_0>
+                    <IFM_TILE_1>
+                        <BASE_ADDR>0</BASE_ADDR>
+                        <NUM_SLOTS>0</NUM_SLOTS>
+                        <SLOT_SIZE>0</SLOT_SIZE>
+                    </IFM_TILE_1>
+                    <IFM_INFO_1>
+                        <ZERO_POINT>0</ZERO_POINT>
+                        <MULTIPLIER>1</MULTIPLIER>
+                        <SHIFT>2</SHIFT>
+                    </IFM_INFO_1>
+                </PLE_SCHEDULER>
+            </AGENT>
+        </AGENTS>
+        <DMA_RD_COMMANDS>
+            <!-- DmaRd Command 0 -->
+            <COMMAND>
+                <TYPE>LoadIfmStripe</TYPE>
+                <!-- Agent type is WGT_STREAMER -->
+                <AGENT_ID>0</AGENT_ID>
+                <STRIPE_ID>0</STRIPE_ID>
+            </COMMAND>
+        </DMA_RD_COMMANDS>
+        <DMA_WR_COMMANDS>
+            <!-- DmaWr Command 0 -->
+            <COMMAND>
+                <TYPE>StoreOfmStripe</TYPE>
+                <!-- Agent type is OFM_STREAMER -->
+                <AGENT_ID>2</AGENT_ID>
+                <STRIPE_ID>3</STRIPE_ID>
+            </COMMAND>
+        </DMA_WR_COMMANDS>
+        <MCE_COMMANDS>
+            <!-- Mce Command 0 -->
+            <COMMAND>
+                <TYPE>StartMceStripe</TYPE>
+                <!-- Agent type is WGT_STREAMER -->
+                <AGENT_ID>0</AGENT_ID>
+                <STRIPE_ID>0</STRIPE_ID>
+            </COMMAND>
+        </MCE_COMMANDS>
+        <PLE_COMMANDS>
+            <!-- Ple Command 0 -->
+            <COMMAND>
+                <TYPE>WaitForAgent</TYPE>
+                <!-- Agent type is WGT_STREAMER -->
+                <AGENT_ID>0</AGENT_ID>
+                <STRIPE_ID>0</STRIPE_ID>
+            </COMMAND>
+        </PLE_COMMANDS>
     </CASCADE>
     <!-- Command 12 -->
     <OPERATION_SPACE_TO_DEPTH>
@@ -1222,7 +1065,18 @@ TEST_CASE("XmlToBinary-BinaryToXml")
                                           /* DataLocation = */ DataLocation::DRAM }
     };
 
-    Cascade conv1x1comm11 = { /* NumAgents = */ uint32_t{ 6 } };
+    Cascade conv1x1comm11;
+    conv1x1comm11.TotalSize           = sizeof(Cascade) + 6 * sizeof(cascading::Agent) + 4 * sizeof(cascading::Command);
+    conv1x1comm11.AgentsOffset        = sizeof(Cascade);
+    conv1x1comm11.NumAgents           = 6;
+    conv1x1comm11.DmaRdCommandsOffset = sizeof(Cascade) + 6 * sizeof(cascading::Agent) + 0 * sizeof(cascading::Command);
+    conv1x1comm11.NumDmaRdCommands    = 1;
+    conv1x1comm11.DmaWrCommandsOffset = sizeof(Cascade) + 6 * sizeof(cascading::Agent) + 1 * sizeof(cascading::Command);
+    conv1x1comm11.NumDmaWrCommands    = 1;
+    conv1x1comm11.MceCommandsOffset   = sizeof(Cascade) + 6 * sizeof(cascading::Agent) + 2 * sizeof(cascading::Command);
+    conv1x1comm11.NumMceCommands      = 1;
+    conv1x1comm11.PleCommandsOffset   = sizeof(Cascade) + 6 * sizeof(cascading::Agent) + 3 * sizeof(cascading::Command);
+    conv1x1comm11.NumPleCommands      = 1;
 
     SpaceToDepth conv1x1comm12 = { /* InputInfo */
                                    TensorInfo{ /* DataType = */ DataType::U8,
@@ -1257,6 +1111,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
 
     /* Agent 0 = */
     cascading::Agent agent0 = {
+        /* NumStripesTotal = */ uint16_t{ 64 },
         /* AgentData = */
         cascading::AgentData{ cascading::WgtS{ /* BufferId = */ uint16_t{ 3 },
                                                /* MetadataBufferId = */ uint16_t{ 128 },
@@ -1270,37 +1125,11 @@ TEST_CASE("XmlToBinary-BinaryToXml")
                                                /* StripeIdStrides = */
                                                cascading::WgtS::WorkSize{ /* OfmChannels = */ uint16_t{ 2 },
                                                                           /* IfmChannels = */ uint16_t{ 1 } } } },
-        /* AgentDependencyInfo = */
-        cascading::AgentDependencyInfo{
-            /* NumStripesTotal = */ uint16_t{ 64 },
-            /* ScheduleDependencies = */
-            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
-                                                                         /* OuterRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                                                           /* Self = */ uint16_t{ 1 } },
-                                                                         /* InnerRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 1 },
-                                                                                           /* Self = */ uint16_t{ 2 } },
-                                                                         /* Boundary = */ int8_t{ 4 } } },
-            /* ReadDependencies = */
-            std::array<cascading::Dependency, 3>{
-
-            },
-            /* WriteDependencies = */
-            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 2 },
-                                                                         /* OuterRatio = */
-                                                                         cascading::Ratio{
-                                                                             /* Other = */ uint16_t{ 1 },
-                                                                             /* Self = */ uint16_t{ 1 },
-                                                                         },
-                                                                         /* InnerRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                                                           /* Self = */ uint16_t{ 1 } },
-                                                                         /* Boundary = */ int8_t{ 2 } } } }
     };
 
     /* Agent 1 = */
     cascading::Agent agent1 = {
+        /* NumStripesTotal = */ uint16_t{ 96 },
         /* AgentData = */
         cascading::AgentData{
             cascading::IfmS{ /* FmsData = */
@@ -1342,50 +1171,11 @@ TEST_CASE("XmlToBinary-BinaryToXml")
                              uint8_t{ 1 },
                              /* isExtraPackedBoundaryDataOnBottomEdge = */
                              uint8_t{ 0 } } },
-        /* AgentDependencyInfo = */
-        cascading::AgentDependencyInfo{
-            /* NumStripesTotal = */ uint16_t{ 96 },
-            /* ScheduleDependencies = */
-            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 2 },
-                                                                         /* OuterRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 1 },
-                                                                                           /* Self = */ uint16_t{ 1 } },
-                                                                         /* InnerRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 1 },
-                                                                                           /* Self = */ uint16_t{ 1 } },
-                                                                         /* Boundary = */ int8_t{ 2 } } },
-            /* ReadDependencies = */
-            std::array<cascading::Dependency, 3>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
-                                                                         /* OuterRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                                                           /* Self = */ uint16_t{ 2 } },
-                                                                         /* InnerRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                                                           /* Self = */ uint16_t{ 2 } },
-                                                                         /* Boundary = */ int8_t{ 4 } },
-                                                  cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
-                                                                         /* OuterRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                                                           /* Self = */ uint16_t{ 1 } },
-                                                                         /* InnerRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                                                           /* Self = */ uint16_t{ 1 } },
-                                                                         /* Boundary = */ int8_t{ 4 } } },
-            /* WriteDependencies = */
-            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 3 },
-                                                                         /* OuterRatio = */
-                                                                         cascading::Ratio{
-                                                                             /* Other = */ uint16_t{ 2 },
-                                                                             /* Self = */ uint16_t{ 1 },
-                                                                         },
-                                                                         /* InnerRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                                                           /* Self = */ uint16_t{ 1 } },
-                                                                         /* Boundary = */ int8_t{ 4 } } } }
     };
 
     /* Agent 2 = */
     cascading::Agent agent2 = {
+        /* NumStripesTotal = */ uint16_t{ 64 },
         /* AgentData = */
         cascading::AgentData{ cascading::OfmS{
             /* FmsData = */
@@ -1418,52 +1208,11 @@ TEST_CASE("XmlToBinary-BinaryToXml")
                                 cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
                                                                  /* Width = */ uint16_t{ 8 },
                                                                  /* Channels = */ uint16_t{ 8 } } } } },
-        /* AgentDependencyInfo = */
-        cascading::AgentDependencyInfo{
-            /* NumStripesTotal = */ uint16_t{ 64 },
-            /* ScheduleDependencies = */
-            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
-                                                                         /* OuterRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                                                           /* Self = */ uint16_t{ 1 } },
-                                                                         /* InnerRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                                                           /* Self = */ uint16_t{ 1 } },
-                                                                         /* Boundary = */ int8_t{ 4 } } },
-            /* ReadDependencies = */
-            std::array<cascading::Dependency, 3>{
-                cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 2 },
-                                       /* OuterRatio = */
-                                       cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                         /* Self = */ uint16_t{ 1 } },
-                                       /* InnerRatio = */
-                                       cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                         /* Self = */ uint16_t{ 1 } },
-                                       /* Boundary = */ int8_t{ 4 } },
-                cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
-                                       /* OuterRatio = */
-                                       cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                         /* Self = */ uint16_t{ 1 } },
-                                       /* InnerRatio = */
-                                       cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                         /* Self = */ uint16_t{ 1 } },
-                                       /* Boundary = */ int8_t{ 4 } },
-            },
-            /* WriteDependencies = */
-            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 2 },
-                                                                         /* OuterRatio = */
-                                                                         cascading::Ratio{
-                                                                             /* Other = */ uint16_t{ 2 },
-                                                                             /* Self = */ uint16_t{ 1 },
-                                                                         },
-                                                                         /* InnerRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                                                           /* Self = */ uint16_t{ 1 } },
-                                                                         /* Boundary = */ int8_t{ 4 } } } }
     };
 
     /* Agent 3 = */
     cascading::Agent agent3 = {
+        /* NumStripesTotal = */ uint16_t{ 64 },
         /* AgentData = */
         cascading::AgentData{
             /* MceScheduler = */
@@ -1583,68 +1332,20 @@ TEST_CASE("XmlToBinary-BinaryToXml")
                              cascading::ReluActivation{ /* Min = */ int16_t{ -3 },
                                                         /* Max = */ int16_t{ 2 } },
                              /* PleKernelId = */ cascading::PleKernelId::DOWNSAMPLE_2X2_16X16_1 } },
-        /* AgentDependencyInfo = */
-        cascading::AgentDependencyInfo{ /* NumStripesTotal = */ uint16_t{ 64 },
-                                        /* ScheduleDependencies = */
-                                        std::array<cascading::Dependency, 2>{
-
-                                        },
-                                        /* ReadDependencies = */
-                                        std::array<cascading::Dependency, 3>{
-
-                                        },
-                                        /* WriteDependencies = */
-                                        std::array<cascading::Dependency, 2>{
-
-                                        } }
     };
 
     /* Agent 4 = */
     cascading::Agent agent4 = {
+        /* NumStripesTotal = */ uint16_t{ 64 },
         /* AgentData = */
         cascading::AgentData{ /* PleLoader = */
                               cascading::PleL{ /* PleKernelId = */ cascading::PleKernelId::SIGMOID_16X8_1_S,
                                                /* SramAddr = */ uint32_t{ 4096 } } },
-        /* AgentDependencyInfo = */
-        cascading::AgentDependencyInfo{
-            /* NumStripesTotal = */ uint16_t{ 64 },
-            /* ScheduleDependencies = */
-            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
-                                                                         /* OuterRatio = */
-                                                                         cascading::Ratio{
-                                                                             /* Other = */ uint16_t{ 2 },
-                                                                             /* Self = */ uint16_t{ 1 },
-                                                                         },
-                                                                         /* InnerRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                                                           /* Self = */ uint16_t{ 1 } },
-                                                                         /* Boundary = */ int8_t{ 4 } } },
-            /* ReadDependencies = */
-            std::array<cascading::Dependency, 3>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 3 },
-                                                                         /* OuterRatio = */
-                                                                         cascading::Ratio{
-                                                                             /* Other = */ uint16_t{ 2 },
-                                                                             /* Self = */ uint16_t{ 1 },
-                                                                         },
-                                                                         /* InnerRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                                                           /* Self = */ uint16_t{ 1 } },
-                                                                         /* Boundary = */ int8_t{ 4 } } },
-            /* WriteDependencies = */
-            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
-                                                                         /* OuterRatio = */
-                                                                         cascading::Ratio{
-                                                                             /* Other = */ uint16_t{ 2 },
-                                                                             /* Self = */ uint16_t{ 1 },
-                                                                         },
-                                                                         /* InnerRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                                                           /* Self = */ uint16_t{ 1 } },
-                                                                         /* Boundary = */ int8_t{ 4 } } } }
     };
 
     /* Agent 5 = */
     cascading::Agent agent5 = {
+        /* NumStripesTotal = */ uint16_t{ 64 },
         /* AgentData = */
         cascading::AgentData{                  /* PleScheduler = */
                               cascading::PleS{ /* OfmTile = */
@@ -1687,39 +1388,12 @@ TEST_CASE("XmlToBinary-BinaryToXml")
                                                cascading::PleIfmInfo{ /* ZeroPoint = */ int16_t{ 0 },
                                                                       /* Multiplier = */ uint16_t{ 1 },
                                                                       /* Shift = */ uint16_t{ 2 } } } },
-        /* AgentDependencyInfo = */
-        cascading::AgentDependencyInfo{
-            /* NumStripesTotal = */ uint16_t{ 64 },
-            /* ScheduleDependencies = */
-            std::array<cascading::Dependency, 2>{
-
-            },
-            /* ReadDependencies = */
-            std::array<cascading::Dependency, 3>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 4 },
-                                                                         /* OuterRatio = */
-                                                                         cascading::Ratio{
-                                                                             /* Other = */ uint16_t{ 2 },
-                                                                             /* Self = */ uint16_t{ 1 },
-                                                                         },
-                                                                         /* InnerRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                                                           /* Self = */ uint16_t{ 1 } },
-                                                                         /* Boundary = */ int8_t{ 4 } },
-                                                  cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 3 },
-                                                                         /* OuterRatio = */
-                                                                         cascading::Ratio{
-                                                                             /* Other = */ uint16_t{ 2 },
-                                                                             /* Self = */ uint16_t{ 1 },
-                                                                         },
-                                                                         /* InnerRatio = */
-                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
-                                                                                           /* Self = */ uint16_t{ 1 } },
-                                                                         /* Boundary = */ int8_t{ 4 } } },
-            /* WriteDependencies = */
-            std::array<cascading::Dependency, 2>{ cascading::Dependency{
-
-            } } }
     };
+
+    cascading::Command cascadingCommand1 = { cascading::CommandType::LoadIfmStripe, 0, 0 };
+    cascading::Command cascadingCommand2 = { cascading::CommandType::StoreOfmStripe, 2, 3 };
+    cascading::Command cascadingCommand3 = { cascading::CommandType::StartMceStripe, 0, 0 };
+    cascading::Command cascadingCommand4 = { cascading::CommandType::WaitForAgent, 0, 0 };
 
     std::string xmlStr = ReplaceVersionNumbers(g_XmlStr);
     std::stringstream inputXml(xmlStr);
@@ -1743,6 +1417,10 @@ TEST_CASE("XmlToBinary-BinaryToXml")
     buffer.EmplaceBack(agent3);
     buffer.EmplaceBack(agent4);
     buffer.EmplaceBack(agent5);
+    buffer.EmplaceBack(cascadingCommand1);
+    buffer.EmplaceBack(cascadingCommand2);
+    buffer.EmplaceBack(cascadingCommand3);
+    buffer.EmplaceBack(cascadingCommand4);
     buffer.EmplaceBack(conv1x1comm12);
     const std::vector<uint32_t> commandStreamBinary = buffer.GetData();
 
@@ -1753,8 +1431,14 @@ TEST_CASE("XmlToBinary-BinaryToXml")
     std::string inputString  = inputXml.str();
     std::string outputString = outputXml.str();
 
-    // compare the strings with no white spaces
-    REQUIRE(inputString == outputString);
+    if (inputString != outputString)
+    {
+        std::ofstream expected("expected.txt");
+        expected << inputString;
+        std::ofstream actual("actual.txt");
+        actual << outputString;
+        FAIL("Strings don't match - see files expected.txt and actual.txt");
+    }
 }
 
 std::string g_BindingTableXmlStr =

@@ -790,30 +790,6 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                                            DivRoundUp(GetChannels(outputShape), GetChannels(memoryOutputStripe)));
         outputCopy.m_Min = std::min(outputCopy.m_Min, outputCopy.m_Max);
 
-        // Prevent too many MCE stripes per PLE (a firmware limitation)
-        const uint32_t numMceStripesPerPle =
-            // Multiple stripes from output depth splitting, where the PLE accumulates the full depth
-            utils::DivRoundUp(GetChannels(pleInputStripe), GetChannels(mceOutputStripe)) *
-            // Multiple stripes from input depth splitting, where the MCE doesn't pass its result to the PLE until
-            // after it has processed the whole IFM depth.
-            utils::DivRoundUp(GetChannels(inputShape), GetChannels(mceInputStripe));
-        if (numMceStripesPerPle > m_Capabilities.GetMaxMceStripesPerPleStripe())
-        {
-            return;
-        }
-
-        // Prevent too many IFM and Weight stripes per PLE (a firmware limitation)
-        const uint32_t numIfmStripesPerMce =
-            utils::DivRoundUp(GetWidth(mceInputStripe), GetWidth(memoryInputStripe)) *
-            utils::DivRoundUp(GetHeight(mceInputStripe), GetHeight(memoryInputStripe)) *
-            utils::DivRoundUp(GetChannels(mceInputStripe), GetChannels(memoryInputStripe));
-        const uint32_t numWgtStripesPerMce       = 1;
-        const uint32_t numIfmAndWgtStripesPerPle = (numIfmStripesPerMce + numWgtStripesPerMce) * numMceStripesPerPle;
-        if (numIfmAndWgtStripesPerPle > m_Capabilities.GetMaxIfmAndWgtStripesPerPleStripe())
-        {
-            return;
-        }
-
         // Prevent unsupported splits for max pooling due to limitations of the PLE kernel
         if (m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
             m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD)

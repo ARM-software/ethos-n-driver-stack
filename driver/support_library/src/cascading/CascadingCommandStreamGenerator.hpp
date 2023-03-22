@@ -7,6 +7,7 @@
 
 #include "Estimation.hpp"
 #include "Plan.hpp"
+#include "Scheduler.hpp"
 #include "ethosn_command_stream/CommandStreamBuffer.hpp"
 #include <unordered_map>
 
@@ -52,7 +53,6 @@ public:
     CompiledOpGraph Generate();
 
     // Functions used to retrieve private members
-    const std::vector<command_stream::cascading::Agent>& GetCommandStreamOfAgents() const;
     const BufferManager& GetBufferManager() const;
     const OpGraph& GetMergedOpGraph() const;
     const std::unordered_map<DramBuffer*, uint32_t>& GetDramBufToBufIdMapping() const;
@@ -126,20 +126,20 @@ private:
                                           const AgentIdType producerAgentId,
                                           const Op* producerOp);
     // Private function to fill the dependency data for Read After Write or SRAM Overlap dependencies
-    void FillConsumerAgentDependency(command_stream::cascading::Dependency& consumerAgentDependency,
+    void FillConsumerAgentDependency(Dependency& consumerAgentDependency,
                                      const command_stream::cascading::AgentType consumerAgentType,
                                      const AgentIdType consumerAgentId,
                                      const command_stream::cascading::AgentType producerAgentType,
                                      const AgentIdType producerAgentId,
-                                     const Op* producerOp);
+                                     const Op* producerOp) const;
     // Private function to fill the dependency data for Write After Read or Schedule Time dependencies
-    void FillProducerAgentDependency(command_stream::cascading::Dependency& producerAgentDependency,
+    void FillProducerAgentDependency(Dependency& producerAgentDependency,
                                      const command_stream::cascading::AgentType consumerAgentType,
                                      const AgentIdType consumerAgentId,
                                      const command_stream::cascading::AgentType producerAgentType,
                                      const AgentIdType producerAgentId,
                                      const Op* producerOp,
-                                     DependencyType dependencyType);
+                                     DependencyType dependencyType) const;
 
     // Private function to add the lifetime information of the intermediate DRAM buffers
     void AddLifetimeInfoForIntermediateDramBuffers();
@@ -174,8 +174,8 @@ private:
     std::unordered_map<command_stream::cascading::PleKernelId, AgentIdType, EnumHasher>
         m_PleKernelToPleLoaderAgentIdMapping;
 
-    // Command stream agents used to build the command stream and to be stored in the BufferManager instance at BufferId = 0
-    std::vector<command_stream::cascading::Agent> m_CommandStreamAgents;
+    // Command stream agents used to build the command stream.
+    std::vector<AgentAndDeps> m_CommandStreamAgents;
     command_stream::CommandStreamBuffer m_CommandStream;
 
     // BufferManager instance which maintains and builds up the set of buffers required by the compiled network

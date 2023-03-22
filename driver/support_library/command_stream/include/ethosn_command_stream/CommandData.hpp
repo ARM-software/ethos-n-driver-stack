@@ -8,6 +8,7 @@
 #include "BinaryTuple.hpp"
 #include "Opcode.hpp"
 #include "PleOperation.hpp"
+#include "cascading/CommandStream.hpp"
 
 #include <array>
 
@@ -187,8 +188,75 @@ NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::SECTION>, CommandData,
 NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::DELAY>, CommandData,
                                   uint32_t, Value);
 
-NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::CASCADE>, CommandData,
-                                  uint32_t, NumAgents);
+template<> struct CommandData<Opcode::CASCADE> : public BinaryTuple<>
+{
+    /// Total size (in bytes) of all the data in this Cascade. This includes the size of this struct,
+    /// plus the data which follows it (arrays of Agents and Commands).
+    uint32_t TotalSize;
+
+    /// Offset (in bytes) from the start of this struct to the array of agents.
+    uint32_t AgentsOffset;
+    uint32_t NumAgents;
+
+    /// Offset (in bytes) from the start of this struct to the DMA read commands.
+    uint32_t DmaRdCommandsOffset;
+    uint32_t NumDmaRdCommands;
+
+    /// Offset (in bytes) from the start of this struct to the DMA write commands.
+    uint32_t DmaWrCommandsOffset;
+    uint32_t NumDmaWrCommands;
+
+    /// Offset (in bytes) from the start of this struct to the MCE commands.
+    uint32_t MceCommandsOffset;
+    uint32_t NumMceCommands;
+
+    /// Offset (in bytes) from the start of this struct to the PLE commands.
+    uint32_t PleCommandsOffset;
+    uint32_t NumPleCommands;
+
+    // Following this struct there will be an array of cascading::Agent and then four
+    // arrays of cascading::Commands. The above fields describe this layout, and the below
+    // methods provide easy access to them.
+
+    const cascading::Agent* GetAgentsArray() const
+    {
+        const char* basePtr = reinterpret_cast<const char*>(this);
+        return reinterpret_cast<const cascading::Agent*>(basePtr + AgentsOffset);
+    }
+    const cascading::Command* GetDmaRdCommandsArray() const
+    {
+        const char* basePtr = reinterpret_cast<const char*>(this);
+        return reinterpret_cast<const cascading::Command*>(basePtr + DmaRdCommandsOffset);
+    }
+    const cascading::Command* GetDmaWrCommandsArray() const
+    {
+        const char* basePtr = reinterpret_cast<const char*>(this);
+        return reinterpret_cast<const cascading::Command*>(basePtr + DmaWrCommandsOffset);
+    }
+    const cascading::Command* GetMceCommandsArray() const
+    {
+        const char* basePtr = reinterpret_cast<const char*>(this);
+        return reinterpret_cast<const cascading::Command*>(basePtr + MceCommandsOffset);
+    }
+    const cascading::Command* GetPleCommandsArray() const
+    {
+        const char* basePtr = reinterpret_cast<const char*>(this);
+        return reinterpret_cast<const cascading::Command*>(basePtr + PleCommandsOffset);
+    }
+};
+
+namespace impl {
+
+// BinaryTypeTraits specialization for CommandData<Opcode::CASCADE>.
+// This is needed because we are using a regular struct rather than a BinaryTuple.
+template <>
+struct BinaryTypeTraits<CommandData<Opcode::CASCADE>>
+{
+    constexpr static size_t Align = alignof(CommandData<Opcode::CASCADE>);
+    constexpr static size_t Size = sizeof(CommandData<Opcode::CASCADE>);
+};
+
+}
 
 // clang-format on
 

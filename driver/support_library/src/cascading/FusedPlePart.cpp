@@ -486,27 +486,6 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     }
     else if (prevBuffer->m_Location == Location::PleInputSram)
     {
-        // Prevent too many MCE stripes per PLE (a firmware limitation)
-        const TensorShape mceOutputStripe = inputStripeShape;
-        const uint32_t numMceStripesPerPle =
-            utils::DivRoundUp(GetChannels(pleInputStripe), GetChannels(mceOutputStripe));
-        if (numMceStripesPerPle > m_Capabilities.GetMaxMceStripesPerPleStripe())
-        {
-            return ret;
-        }
-
-        // Prevent too many IFM and Weight stripes per PLE (a firmware limitation)
-        // The below constant might not be correct, if this is the second part in a section (McePart -> FusedPlePart),
-        // but in this case this limitation should have been checked in the StripeHelper for the Beginning plans. For other cases,
-        // there is no IfmS for us to be concerned about so zero is correct.
-        const uint32_t numIfmStripesPerMce       = 0;
-        const uint32_t numWgtStripesPerMce       = 1;
-        const uint32_t numIfmAndWgtStripesPerPle = (numIfmStripesPerMce + numWgtStripesPerMce) * numMceStripesPerPle;
-        if (numIfmAndWgtStripesPerPle > m_Capabilities.GetMaxIfmAndWgtStripesPerPleStripe())
-        {
-            return ret;
-        }
-
         PleOnlyInfo pleOnlyInfo;
 
         pleOnlyInfo.m_PleCompute.m_Input       = pleInputStripe;

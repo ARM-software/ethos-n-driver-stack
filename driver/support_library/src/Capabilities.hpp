@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Contains the definition of the *current* version of the FirmwareAndHardwareCapabilities struct.
@@ -16,7 +16,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#define FW_AND_HW_CAPABILITIES_VERSION 5
+#define FW_AND_HW_CAPABILITIES_VERSION 6
 
 namespace ethosn
 {
@@ -81,8 +81,6 @@ struct FirmwareAndHardwareCapabilities
 
     // Firmware capabilities
     uint32_t m_AgentWindowSize;
-    uint32_t m_MaxMceStripesPerPleStripe;
-    uint32_t m_MaxIfmAndWgtStripesPerPleStripe;
 };
 
 // The FirmwareAndHardwareCapabilities struct is copied through the driver stack as a simple block of memory

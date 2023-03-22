@@ -122,5 +122,6 @@ cc_library {
         "driver/support_library/src/cascading/StandalonePlePart.cpp",
         "driver/support_library/src/cascading/CascadingCommandStreamGenerator.cpp",
         "driver/support_library/src/cascading/WeightEncoderCache.cpp",
+        "driver/support_library/src/cascading/Scheduler.cpp",
         ],
 }

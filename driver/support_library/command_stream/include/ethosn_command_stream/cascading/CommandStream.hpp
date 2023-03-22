@@ -406,75 +406,35 @@ struct AgentData
     {}
 };
 
-/// Used to represent a ratio in the number of stripes of this/other agent
-/// that are needed by other/this agent
-struct Ratio
-{
-    uint16_t other;
-    uint16_t self;
-};
-
-/// Used to represent a dependency between this agent and some other agent
-struct Dependency
-{
-    /// Relative position of the other agent wrt the agent that owns this Dependency object.
-    /// We can use unsigned type because it always references another agent, down the sequence
-    /// for schedule and write-after-read dependencies, and up the sequence for read-after-write
-    /// dependencies. The sign is implicit in that way. Using unsigned for extra range.
-    uint8_t relativeAgentId;
-    /// In the presence of reloads, the number of stripes in self/other in each reload.
-    Ratio outerRatio;
-    /// Ratio between stripe counters. E.g. two Ifm Streamer stripes might be needed for each
-    /// stripe of the consumer Mce Scheduler
-    Ratio innerRatio;
-    /// Extra number of stripes that are needed. E.g. 3x3 conv:
-    ///    IfmS stripes  MceS stripes
-    ///            +        *
-    ///            |        |
-    ///            +        | +
-    ///            |        | |
-    ///            +        * *
-    ///            |        | |
-    ///            +        + | +
-    ///            |          | |
-    ///            +          * *
-    ///            |          | |
-    ///            +          + |  <- innerRatio[IfmS] = 1 / 2
-    ///            |            |
-    ///            +            *
-    ///            |            |  <- boundary = 1
-    ///            +            +
-    int8_t boundary;
-};
-
-/// Contains dependency info for an agent
-struct AgentDependencyInfo
+/// Contains both common data (common to all types of agent) and tagged data (specific for
+/// an agent type) for an agent
+struct Agent
 {
     // Total number of stripes for this Agent including reloads (if any)
     uint16_t numStripesTotal;
-    /// Array of schedule dependencies. Size could be increased if we identify a use case for it.
-    std::array<Dependency, 2> scheduleDependencies;
-    /// Array of read-after-write dependencies. Size 3 for ple-only with two inputs (plus PleL),
-    /// could change if we identify a use case for it.
-    std::array<Dependency, 3> readDependencies;
-    /// Array of write-after-read dependencies related to a tile size. The agent should pause progress before
-    /// overwriting a slot in the tile until the existing data is no longer needed by any reader agent.
-    /// Size 1 for now, could change if we identify a use case for it.
-    std::array<Dependency, 2> writeDependencies;
-};
-
-/// Contains tagged agent data and dependency info for an agent
-struct Agent
-{
     /// Agent-type-specific data
     AgentData data;
-    /// Dependency info
-    AgentDependencyInfo info;
 };
 
-/// A command stream is nothing more than a contiguous sequence of Agent objects.
-/// This enables index-based, random access to the different objects in the sequence.
-using CommandStream = std::span<const Agent>;
+enum class CommandType : uint32_t
+{
+    WaitForAgent,
+    LoadIfmStripe,
+    LoadWgtStripe,
+    ProgramMceStripe,
+    StartMceStripe,
+    LoadPleCode,
+    StartPleStripe,
+    StoreOfmStripe,
+};
+
+/// Generic command stored which is stored in four lists for the firmware to execute.
+struct Command
+{
+    CommandType type;
+    uint32_t agentId;
+    uint32_t stripeId;
+};
 
 }    // namespace cascading
 }    // namespace command_stream

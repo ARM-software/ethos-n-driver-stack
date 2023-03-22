@@ -1,0 +1,147 @@
+//
+// Copyright © 2021-2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+#pragma once
+
+#include <vector>
+
+#include <ethosn_command_stream/cascading/CommandStream.hpp>
+
+#include "../include/ethosn_support_library/Optional.hpp"
+
+namespace ethosn
+{
+namespace support_library
+{
+
+/// Used to represent a ratio in the number of stripes of this/other agent
+/// that are needed by other/this agent
+struct DependencyRatio
+{
+    uint16_t other;
+    uint16_t self;
+};
+
+/// Used to represent a dependency between this agent and some other agent
+struct Dependency
+{
+    /// Relative position of the other agent wrt the agent that owns this Dependency object.
+    /// We can use unsigned type because it always references another agent, down the sequence
+    /// for schedule and write-after-read dependencies, and up the sequence for read-after-write
+    /// dependencies. The sign is implicit in that way. Using unsigned for extra range.
+    uint8_t relativeAgentId;
+    /// In the presence of reloads, the number of stripes in self/other in each reload.
+    DependencyRatio outerRatio;
+    /// Ratio between stripe counters. E.g. two Ifm Streamer stripes might be needed for each
+    /// stripe of the consumer Mce Scheduler
+    DependencyRatio innerRatio;
+    /// Extra number of stripes that are needed. E.g. 3x3 conv:
+    ///    IfmS stripes  MceS stripes
+    ///            +        *
+    ///            |        |
+    ///            +        | +
+    ///            |        | |
+    ///            +        * *
+    ///            |        | |
+    ///            +        + | +
+    ///            |          | |
+    ///            +          * *
+    ///            |          | |
+    ///            +          + |  <- innerRatio[IfmS] = 1 / 2
+    ///            |            |
+    ///            +            *
+    ///            |            |  <- boundary = 1
+    ///            +            +
+    int8_t boundary;
+};
+
+/// Contains dependency info for an agent
+struct AgentDependencyInfo
+{
+    /// Array of schedule dependencies.
+    std::vector<Dependency> scheduleDependencies;
+    /// Array of read-after-write dependencies.
+    std::vector<Dependency> readDependencies;
+    /// Array of write-after-read dependencies related to a tile size. The agent should pause progress before
+    /// overwriting a slot in the tile until the existing data is no longer needed by any reader agent.
+    std::vector<Dependency> writeDependencies;
+};
+
+struct AgentAndDeps
+{
+    command_stream::cascading::Agent agent;
+    AgentDependencyInfo deps;
+};
+
+/// Logic for converting a list of agents with dependency information into four
+/// lists of commands (Dma read, Dma write, Mce and Ple) to be executed by the firmware.
+class Scheduler
+{
+public:
+    Scheduler(const std::vector<AgentAndDeps>& agents);
+
+    void Schedule();
+
+    const std::vector<command_stream::cascading::Command>& GetDmaRdCommands() const;
+    const std::vector<command_stream::cascading::Command>& GetDmaWrCommands() const;
+    const std::vector<command_stream::cascading::Command>& GetMceCommands() const;
+    const std::vector<command_stream::cascading::Command>& GetPleCommands() const;
+
+private:
+    bool Finished() const;
+
+    /// Schedules as many stripes as possible from the given agent.
+    void SpinAgent(uint32_t agentId);
+
+    /// Schedules the next stripe for the given agent.
+    /// Also advances the progress for the given agent.
+    void Schedule(const uint32_t agentId);
+
+    /// Returns whether the next stripe of an agent is "ready" to be scheduled.
+    /// Optionally, only considers dependencies with agents that are some distance away up the
+    /// command stream.
+    bool IsStripeReady(const uint32_t agentId, const uint32_t distanceThreshold = 0) const;
+
+    /// Returns whether the next stripe of an agent is "needed" based on the current scheduling state,
+    /// i.e. relative to the progress made on dependent agents down the sequence if any.
+    bool IsStripeNeeded(const uint32_t agentId) const;
+
+    void LogProgress() const;
+
+    void InsertWriteDependencies(const AgentDependencyInfo& agent,
+                                 const uint32_t agentId,
+                                 const uint32_t stripeId,
+                                 const uint16_t tileSize,
+                                 std::vector<command_stream::cascading::Command>& commands);
+    void InsertReadDependencies(const AgentDependencyInfo& agent,
+                                const uint32_t agentId,
+                                const uint32_t stripeId,
+                                const utils::Optional<command_stream::cascading::AgentType> agentTypeToIgnore,
+                                std::vector<command_stream::cascading::Command>& commands);
+
+    void ScheduleIfmStreamerStripe(const uint32_t agentId, uint32_t stripeId);
+    void ScheduleWgtStreamerStripe(const uint32_t agentId, uint32_t stripeId);
+    void ScheduleMceSchedulerStripe(const uint32_t agentId, uint32_t stripeId);
+    void SchedulePleLoaderStripe(const uint32_t agentId, uint32_t stripeId);
+    void SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stripeId);
+    void ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t stripeId);
+
+    /// The list of agents that this Scheduler will process.
+    const std::vector<AgentAndDeps>& m_Agents;
+
+    /// Keeps track of the next stripe that needs to be scheduled for each agent.
+    std::vector<uint32_t> m_AgentProgress;
+
+    /// Points to the first non-completed agent
+    uint32_t m_BaseAgentId;
+
+    std::vector<command_stream::cascading::Command> m_DmaRdCommands;
+    std::vector<command_stream::cascading::Command> m_DmaWrCommands;
+    std::vector<command_stream::cascading::Command> m_MceCommands;
+    std::vector<command_stream::cascading::Command> m_PleCommands;
+};
+
+}    // namespace support_library
+}    // namespace ethosn

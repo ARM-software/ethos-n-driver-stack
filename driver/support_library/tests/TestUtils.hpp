@@ -19,12 +19,9 @@ namespace support_library
 {
 
 HardwareCapabilities GetEthosN78HwCapabilities();
-HardwareCapabilities
-    GetHwCapabilitiesWithFwOverrides(EthosNVariant variant,
-                                     utils::Optional<uint32_t> sramSizeOverride,
-                                     utils::Optional<uint32_t> ctrlAgentWindowSizeOverride,
-                                     utils::Optional<uint32_t> maxMceStripesPerPleStripeOverride,
-                                     utils::Optional<uint32_t> maxIfmAndWgtStripesPerPleStripeOverride);
+HardwareCapabilities GetHwCapabilitiesWithFwOverrides(EthosNVariant variant,
+                                                      utils::Optional<uint32_t> sramSizeOverride,
+                                                      utils::Optional<uint32_t> ctrlAgentWindowSizeOverride);
 HardwareCapabilities GetEthosN78HwCapabilities(EthosNVariant variant, uint32_t sramSizeOverride = 0);
 
 std::vector<char> GetRawDefaultCapabilities();
@@ -32,13 +29,13 @@ std::vector<char> GetRawDefaultEthosN78Capabilities();
 std::vector<char> GetRawEthosN78Capabilities(EthosNVariant variant, uint32_t sramSizeOverride = 0);
 std::vector<char> GetRawCapabilitiesWithFwOverrides(EthosNVariant variant,
                                                     utils::Optional<uint32_t> sramSizeOverride,
-                                                    utils::Optional<uint32_t> ctrlAgentWindowSizeOverride,
-                                                    utils::Optional<uint32_t> maxMceStripesPerPleStripeOverride,
-                                                    utils::Optional<uint32_t> maxIfmAndWgtStripesPerPleStripeOverride);
+                                                    utils::Optional<uint32_t> ctrlAgentWindowSizeOverride);
 
 bool Contains(const char* string, const char* substring);
 
 std::vector<uint8_t> GetCommandStreamData(const ethosn::command_stream::CommandStreamBuffer& cmdStream);
+
+std::vector<uint8_t> GetCommandStreamData(const CompiledNetwork* compiledNetwork);
 
 ethosn::command_stream::CommandStream GetCommandStream(const CompiledNetwork* compiledNetwork);
 
@@ -46,12 +43,11 @@ class MockPart : public BasePart
 {
 public:
     MockPart(PartId id, bool hasInput = true, bool hasOutput = true)
-        : BasePart(id, "MockPart", estOpt, compOpt, m_MockCapabilities)
+        : BasePart(id, "MockPart", estOpt, compOpt, GetEthosN78HwCapabilities())
         , m_CanMergeWithChannelSelectorBefore(false)
         , m_CanMergeWithChannelSelectorAfter(false)
         , m_HasInput(hasInput)
         , m_HasOutput(hasOutput)
-        , m_MockCapabilities(GetEthosN78HwCapabilities())
     {}
     virtual Plans GetPlans(CascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const override;
 
@@ -84,7 +80,6 @@ protected:
 private:
     const EstimationOptions estOpt   = EstimationOptions();
     const CompilationOptions compOpt = CompilationOptions();
-    const HardwareCapabilities m_MockCapabilities;
 };
 
 /// Simple Node type for tests.

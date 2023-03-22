@@ -640,7 +640,7 @@ inline void SetFusedPleSInputMode(PleS& pleSchedulerData, MceOp* pleOpProducer)
 namespace DependencyUtils
 {
 
-inline void CalculateInnerRatio(command_stream::cascading::Dependency& agentDependency)
+inline void CalculateInnerRatio(Dependency& agentDependency)
 {
     if (agentDependency.outerRatio.self > agentDependency.outerRatio.other)
     {
@@ -683,7 +683,7 @@ inline uint16_t FindGreatestCommonDenominator(uint16_t a, uint16_t b, uint16_t c
     return 1;
 }
 
-inline void CalculateRemainingAgentDependencies(command_stream::cascading::Dependency& agentDependency)
+inline void CalculateRemainingAgentDependencies(Dependency& agentDependency)
 {
     uint8_t boundary = 0U;
     bool simplify    = false;
@@ -723,25 +723,6 @@ inline void CalculateRemainingAgentDependencies(command_stream::cascading::Depen
             ethosn::utils::NumericCast<uint16_t>(agentDependency.outerRatio.self / commonFactor);
         agentDependency.boundary = ethosn::utils::NumericCast<int8_t>(agentDependency.boundary / commonFactor);
     }
-}
-
-// Adds a new dependency to the first free slot of the given array of dependencies.
-// A free slot is determined by the relativeAgentId being zero.
-// If no free slots are available, this asserts.
-template <size_t N>
-inline void AddDependency(std::array<command_stream::cascading::Dependency, N>& deps,
-                          const command_stream::cascading::Dependency& dep)
-{
-    assert(dep.relativeAgentId != 0);
-    for (uint32_t i = 0; i < deps.size(); ++i)
-    {
-        if (deps[i].relativeAgentId == 0)
-        {
-            deps[i] = dep;
-            return;
-        }
-    }
-    assert(false);
 }
 
 int8_t CalculateMceSBoundary(const command_stream::cascading::MceS& mce)
@@ -798,8 +779,8 @@ void CalculateIfmSMceSOuterRatio(const command_stream::cascading::Agent& mce,
     else
     {
         // Outer ratio is not needed (set to max)
-        outIfmRatio = ifm.info.numStripesTotal;
-        outMceRatio = mce.info.numStripesTotal;
+        outIfmRatio = ifm.numStripesTotal;
+        outMceRatio = mce.numStripesTotal;
     }
 }
 

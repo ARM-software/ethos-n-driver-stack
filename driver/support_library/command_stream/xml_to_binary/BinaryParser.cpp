@@ -793,15 +793,15 @@ void Parse(std::stringstream& parent, const Delay& value)
 template <typename T>
 void Parse(std::stringstream& parent, const cascading::TensorSize<T>& size)
 {
-    Parse(parent, "<HEIGHT>", 5, false);
+    Parse(parent, "<HEIGHT>", 6, false);
     ParseAsNum(parent, size.height);
     Parse(parent, "</HEIGHT>", 0, true);
 
-    Parse(parent, "<WIDTH>", 5, false);
+    Parse(parent, "<WIDTH>", 6, false);
     ParseAsNum(parent, size.width);
     Parse(parent, "</WIDTH>", 0, true);
 
-    Parse(parent, "<CHANNELS>", 5, false);
+    Parse(parent, "<CHANNELS>", 6, false);
     ParseAsNum(parent, size.channels);
     Parse(parent, "</CHANNELS>", 0, true);
 }
@@ -809,26 +809,26 @@ void Parse(std::stringstream& parent, const cascading::TensorSize<T>& size)
 template <typename T>
 void Parse(std::stringstream& parent, const cascading::SupertensorSize<T>& size)
 {
-    Parse(parent, "<WIDTH>", 5, false);
+    Parse(parent, "<WIDTH>", 6, false);
     ParseAsNum(parent, size.width);
     Parse(parent, "</WIDTH>", 0, true);
 
-    Parse(parent, "<CHANNELS>", 5, false);
+    Parse(parent, "<CHANNELS>", 6, false);
     ParseAsNum(parent, size.channels);
     Parse(parent, "</CHANNELS>", 0, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::Tile& tile)
 {
-    Parse(parent, "<BASE_ADDR>", 5, false);
+    Parse(parent, "<BASE_ADDR>", 6, false);
     ParseAsNum(parent, tile.baseAddr);
     Parse(parent, "</BASE_ADDR>", 0, true);
 
-    Parse(parent, "<NUM_SLOTS>", 5, false);
+    Parse(parent, "<NUM_SLOTS>", 6, false);
     ParseAsNum(parent, tile.numSlots);
     Parse(parent, "</NUM_SLOTS>", 0, true);
 
-    Parse(parent, "<SLOT_SIZE>", 5, false);
+    Parse(parent, "<SLOT_SIZE>", 6, false);
     ParseAsNum(parent, tile.slotSize);
     Parse(parent, "</SLOT_SIZE>", 0, true);
 }
@@ -867,190 +867,190 @@ void Parse(std::stringstream& parent, const cascading::FmsDataType& dataType)
 
 void Parse(std::stringstream& parent, const cascading::FcafInfo& fcafInfo)
 {
-    Parse(parent, "<ZERO_POINT>", 5, false);
+    Parse(parent, "<ZERO_POINT>", 6, false);
     ParseAsNum(parent, fcafInfo.zeroPoint);
     Parse(parent, "</ZERO_POINT>", 0, true);
 
-    Parse(parent, "<SIGNED_ACTIVATION>", 5, false);
+    Parse(parent, "<SIGNED_ACTIVATION>", 6, false);
     ParseAsNum(parent, fcafInfo.signedActivation);
     Parse(parent, "</SIGNED_ACTIVATION>", 0, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::FmSData& fmData)
 {
-    Parse(parent, "<DRAM_OFFSET>", 4, false);
+    Parse(parent, "<DRAM_OFFSET>", 5, false);
     ParseAsNum(parent, fmData.dramOffset);
     Parse(parent, "</DRAM_OFFSET>", 0, true);
 
-    Parse(parent, "<BUFFER_ID>", 4, false);
+    Parse(parent, "<BUFFER_ID>", 5, false);
     ParseAsNum(parent, fmData.bufferId);
     Parse(parent, "</BUFFER_ID>", 0, true);
 
-    Parse(parent, "<DATA_TYPE>", 4, false);
+    Parse(parent, "<DATA_TYPE>", 5, false);
     Parse(parent, fmData.dataType);
     Parse(parent, "</DATA_TYPE>", 0, true);
 
-    Parse(parent, "<FCAF_INFO>", 4, true);
+    Parse(parent, "<FCAF_INFO>", 5, true);
     Parse(parent, fmData.fcafInfo);
-    Parse(parent, "</FCAF_INFO>", 4, true);
+    Parse(parent, "</FCAF_INFO>", 5, true);
 
-    Parse(parent, "<TILE>", 4, true);
+    Parse(parent, "<TILE>", 5, true);
     Parse(parent, fmData.tile);
-    Parse(parent, "</TILE>", 4, true);
+    Parse(parent, "</TILE>", 5, true);
 
-    Parse(parent, "<DFLT_STRIPE_SIZE>", 4, true);
+    Parse(parent, "<DFLT_STRIPE_SIZE>", 5, true);
     Parse(parent, fmData.dfltStripeSize);
-    Parse(parent, "</DFLT_STRIPE_SIZE>", 4, true);
+    Parse(parent, "</DFLT_STRIPE_SIZE>", 5, true);
 
-    Parse(parent, "<EDGE_STRIPE_SIZE>", 4, true);
+    Parse(parent, "<EDGE_STRIPE_SIZE>", 5, true);
     Parse(parent, fmData.edgeStripeSize);
-    Parse(parent, "</EDGE_STRIPE_SIZE>", 4, true);
+    Parse(parent, "</EDGE_STRIPE_SIZE>", 5, true);
 
-    Parse(parent, "<SUPERTENSOR_SIZE_IN_CELLS>", 4, true);
+    Parse(parent, "<SUPERTENSOR_SIZE_IN_CELLS>", 5, true);
     Parse(parent, fmData.supertensorSizeInCells);
-    Parse(parent, "</SUPERTENSOR_SIZE_IN_CELLS>", 4, true);
+    Parse(parent, "</SUPERTENSOR_SIZE_IN_CELLS>", 5, true);
 
-    Parse(parent, "<NUM_STRIPES>", 4, true);
+    Parse(parent, "<NUM_STRIPES>", 5, true);
     Parse(parent, fmData.numStripes);
-    Parse(parent, "</NUM_STRIPES>", 4, true);
+    Parse(parent, "</NUM_STRIPES>", 5, true);
 
-    Parse(parent, "<STRIPE_ID_STRIDES>", 4, true);
+    Parse(parent, "<STRIPE_ID_STRIDES>", 5, true);
     Parse(parent, fmData.stripeIdStrides);
-    Parse(parent, "</STRIPE_ID_STRIDES>", 4, true);
+    Parse(parent, "</STRIPE_ID_STRIDES>", 5, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::PackedBoundaryThickness& value)
 {
-    Parse(parent, "<LEFT>", 5, false);
+    Parse(parent, "<LEFT>", 6, false);
     ParseAsNum(parent, value.left);
     Parse(parent, "</LEFT>", 0, true);
 
-    Parse(parent, "<TOP>", 5, false);
+    Parse(parent, "<TOP>", 6, false);
     ParseAsNum(parent, value.top);
     Parse(parent, "</TOP>", 0, true);
 
-    Parse(parent, "<RIGHT>", 5, false);
+    Parse(parent, "<RIGHT>", 6, false);
     ParseAsNum(parent, value.right);
     Parse(parent, "</RIGHT>", 0, true);
 
-    Parse(parent, "<BOTTOM>", 5, false);
+    Parse(parent, "<BOTTOM>", 6, false);
     ParseAsNum(parent, value.bottom);
     Parse(parent, "</BOTTOM>", 0, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::IfmS& ifms)
 {
-    Parse(parent, "<IFM_STREAMER>", 3, true);
+    Parse(parent, "<IFM_STREAMER>", 4, true);
     Parse(parent, ifms.fmData);
 
-    Parse(parent, "<PACKED_BOUNDARY_THICKNESS>", 4, true);
+    Parse(parent, "<PACKED_BOUNDARY_THICKNESS>", 5, true);
     Parse(parent, ifms.packedBoundaryThickness);
-    Parse(parent, "</PACKED_BOUNDARY_THICKNESS>", 4, true);
+    Parse(parent, "</PACKED_BOUNDARY_THICKNESS>", 5, true);
 
-    Parse(parent, "<IS_EXTRA_PACKED_BOUNDARY_DATA_ON_RIGHT_EDGE>", 4, false);
+    Parse(parent, "<IS_EXTRA_PACKED_BOUNDARY_DATA_ON_RIGHT_EDGE>", 5, false);
     ParseAsNum(parent, ifms.isExtraPackedBoundaryDataOnRightEdge);
     Parse(parent, "</IS_EXTRA_PACKED_BOUNDARY_DATA_ON_RIGHT_EDGE>", 0, true);
 
-    Parse(parent, "<IS_EXTRA_PACKED_BOUNDARY_DATA_ON_BOTTOM_EDGE>", 4, false);
+    Parse(parent, "<IS_EXTRA_PACKED_BOUNDARY_DATA_ON_BOTTOM_EDGE>", 5, false);
     ParseAsNum(parent, ifms.isExtraPackedBoundaryDataOnBottomEdge);
     Parse(parent, "</IS_EXTRA_PACKED_BOUNDARY_DATA_ON_BOTTOM_EDGE>", 0, true);
 
-    Parse(parent, "</IFM_STREAMER>", 3, true);
+    Parse(parent, "</IFM_STREAMER>", 4, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::OfmS& ofms)
 {
-    Parse(parent, "<OFM_STREAMER>", 3, true);
+    Parse(parent, "<OFM_STREAMER>", 4, true);
     Parse(parent, ofms.fmData);
-    Parse(parent, "</OFM_STREAMER>", 3, true);
+    Parse(parent, "</OFM_STREAMER>", 4, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::WgtSWorkSize<uint16_t>& size)
 {
-    Parse(parent, "<OFM_CHANNELS>", 5, false);
+    Parse(parent, "<OFM_CHANNELS>", 6, false);
     ParseAsNum(parent, size.ofmChannels);
     Parse(parent, "</OFM_CHANNELS>", 0, true);
 
-    Parse(parent, "<IFM_CHANNELS>", 5, false);
+    Parse(parent, "<IFM_CHANNELS>", 6, false);
     ParseAsNum(parent, size.ifmChannels);
     Parse(parent, "</IFM_CHANNELS>", 0, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::WgtS& wgts)
 {
-    Parse(parent, "<WGT_STREAMER>", 3, true);
+    Parse(parent, "<WGT_STREAMER>", 4, true);
 
-    Parse(parent, "<BUFFER_ID>", 4, false);
+    Parse(parent, "<BUFFER_ID>", 5, false);
     ParseAsNum(parent, wgts.bufferId);
     Parse(parent, "</BUFFER_ID>", 0, true);
 
-    Parse(parent, "<METADATA_BUFFER_ID>", 4, false);
+    Parse(parent, "<METADATA_BUFFER_ID>", 5, false);
     ParseAsNum(parent, wgts.metadataBufferId);
     Parse(parent, "</METADATA_BUFFER_ID>", 0, true);
 
-    Parse(parent, "<TILE>", 4, true);
+    Parse(parent, "<TILE>", 5, true);
     Parse(parent, wgts.tile);
-    Parse(parent, "</TILE>", 4, true);
+    Parse(parent, "</TILE>", 5, true);
 
-    Parse(parent, "<NUM_STRIPES>", 4, true);
+    Parse(parent, "<NUM_STRIPES>", 5, true);
     Parse(parent, wgts.numStripes);
-    Parse(parent, "</NUM_STRIPES>", 4, true);
+    Parse(parent, "</NUM_STRIPES>", 5, true);
 
-    Parse(parent, "<STRIPE_ID_STRIDES>", 4, true);
+    Parse(parent, "<STRIPE_ID_STRIDES>", 5, true);
     Parse(parent, wgts.stripeIdStrides);
-    Parse(parent, "</STRIPE_ID_STRIDES>", 4, true);
+    Parse(parent, "</STRIPE_ID_STRIDES>", 5, true);
 
-    Parse(parent, "</WGT_STREAMER>", 3, true);
+    Parse(parent, "</WGT_STREAMER>", 4, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::BlockSize& size)
 {
-    Parse(parent, "<HEIGHT>", 5, false);
+    Parse(parent, "<HEIGHT>", 6, false);
     ParseAsNum(parent, size.height);
     Parse(parent, "</HEIGHT>", 0, true);
 
-    Parse(parent, "<WIDTH>", 5, false);
+    Parse(parent, "<WIDTH>", 6, false);
     ParseAsNum(parent, size.width);
     Parse(parent, "</WIDTH>", 0, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::MceSWorkSize<uint16_t>& size)
 {
-    Parse(parent, "<OFM_HEIGHT>", 5, false);
+    Parse(parent, "<OFM_HEIGHT>", 6, false);
     ParseAsNum(parent, size.ofmHeight);
     Parse(parent, "</OFM_HEIGHT>", 0, true);
 
-    Parse(parent, "<OFM_WIDTH>", 5, false);
+    Parse(parent, "<OFM_WIDTH>", 6, false);
     ParseAsNum(parent, size.ofmWidth);
     Parse(parent, "</OFM_WIDTH>", 0, true);
 
-    Parse(parent, "<OFM_CHANNELS>", 5, false);
+    Parse(parent, "<OFM_CHANNELS>", 6, false);
     ParseAsNum(parent, size.ofmChannels);
     Parse(parent, "</OFM_CHANNELS>", 0, true);
 
-    Parse(parent, "<IFM_CHANNELS>", 5, false);
+    Parse(parent, "<IFM_CHANNELS>", 6, false);
     ParseAsNum(parent, size.ifmChannels);
     Parse(parent, "</IFM_CHANNELS>", 0, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::StrideXy<uint8_t>& size)
 {
-    Parse(parent, "<X>", 5, false);
+    Parse(parent, "<X>", 6, false);
     ParseAsNum(parent, size.x);
     Parse(parent, "</X>", 0, true);
 
-    Parse(parent, "<Y>", 5, false);
+    Parse(parent, "<Y>", 6, false);
     ParseAsNum(parent, size.y);
     Parse(parent, "</Y>", 0, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::ReluActivation& relu)
 {
-    Parse(parent, "<MIN>", 5, false);
+    Parse(parent, "<MIN>", 6, false);
     ParseAsNum(parent, relu.min);
     Parse(parent, "</MIN>", 0, true);
 
-    Parse(parent, "<MAX>", 5, false);
+    Parse(parent, "<MAX>", 6, false);
     ParseAsNum(parent, relu.max);
     Parse(parent, "</MAX>", 0, true);
 }
@@ -1113,11 +1113,11 @@ void Parse(std::stringstream& parent, const cascading::UpsampleEdgeMode& value)
 
 void Parse(std::stringstream& parent, const cascading::UpsampleEdgeModeType& value)
 {
-    Parse(parent, "<ROW>", 5, false);
+    Parse(parent, "<ROW>", 6, false);
     Parse(parent, value.row);
     Parse(parent, "</ROW>", 0, true);
 
-    Parse(parent, "<COL>", 5, false);
+    Parse(parent, "<COL>", 6, false);
     Parse(parent, value.col);
     Parse(parent, "</COL>", 0, true);
 }
@@ -1174,11 +1174,11 @@ void Parse(std::stringstream& parent, const cascading::MceAlgorithm value)
 
 void Parse(std::stringstream& parent, const cascading::FilterShape& filterShape)
 {
-    Parse(parent, "<WIDTH>", 6, false);
+    Parse(parent, "<WIDTH>", 7, false);
     ParseAsNum(parent, filterShape.width);
     Parse(parent, "</WIDTH>", 0, true);
 
-    Parse(parent, "<HEIGHT>", 6, false);
+    Parse(parent, "<HEIGHT>", 7, false);
     ParseAsNum(parent, filterShape.height);
     Parse(parent, "</HEIGHT>", 0, true);
 }
@@ -1188,20 +1188,20 @@ void Parse(std::stringstream& parent, const std::array<cascading::FilterShape, 4
     int idx = 0;
     for (const auto& value : filterShape)
     {
-        Parse(parent, ("<VALUE_" + std::to_string(idx) + ">").c_str(), 5, true);
+        Parse(parent, ("<VALUE_" + std::to_string(idx) + ">").c_str(), 6, true);
         Parse(parent, value);
-        Parse(parent, ("</VALUE_" + std::to_string(idx) + ">").c_str(), 5, true);
+        Parse(parent, ("</VALUE_" + std::to_string(idx) + ">").c_str(), 6, true);
         idx++;
     }
 }
 
 void Parse(std::stringstream& parent, const cascading::Padding& padding)
 {
-    Parse(parent, "<LEFT>", 6, false);
+    Parse(parent, "<LEFT>", 7, false);
     ParseAsNum(parent, padding.left);
     Parse(parent, "</LEFT>", 0, true);
 
-    Parse(parent, "<TOP>", 6, false);
+    Parse(parent, "<TOP>", 7, false);
     ParseAsNum(parent, padding.top);
     Parse(parent, "</TOP>", 0, true);
 }
@@ -1211,20 +1211,20 @@ void Parse(std::stringstream& parent, const std::array<cascading::Padding, 4>(&p
     int idx = 0;
     for (const auto& value : padding)
     {
-        Parse(parent, ("<VALUE_" + std::to_string(idx) + ">").c_str(), 5, true);
+        Parse(parent, ("<VALUE_" + std::to_string(idx) + ">").c_str(), 6, true);
         Parse(parent, value);
-        Parse(parent, ("</VALUE_" + std::to_string(idx) + ">").c_str(), 5, true);
+        Parse(parent, ("</VALUE_" + std::to_string(idx) + ">").c_str(), 6, true);
         idx++;
     }
 }
 
 void Parse(std::stringstream& parent, const cascading::IfmDelta& ifmDelta)
 {
-    Parse(parent, "<WIDTH>", 6, false);
+    Parse(parent, "<WIDTH>", 7, false);
     ParseAsNum(parent, ifmDelta.width);
     Parse(parent, "</WIDTH>", 0, true);
 
-    Parse(parent, "<HEIGHT>", 6, false);
+    Parse(parent, "<HEIGHT>", 7, false);
     ParseAsNum(parent, ifmDelta.height);
     Parse(parent, "</HEIGHT>", 0, true);
 }
@@ -1234,173 +1234,173 @@ void Parse(std::stringstream& parent, const std::array<cascading::IfmDelta, 4>(&
     int idx = 0;
     for (const auto& value : ifmDelta)
     {
-        Parse(parent, ("<VALUE_" + std::to_string(idx) + ">").c_str(), 5, true);
+        Parse(parent, ("<VALUE_" + std::to_string(idx) + ">").c_str(), 6, true);
         Parse(parent, value);
-        Parse(parent, ("</VALUE_" + std::to_string(idx) + ">").c_str(), 5, true);
+        Parse(parent, ("</VALUE_" + std::to_string(idx) + ">").c_str(), 6, true);
         idx++;
     }
 }
 
 void Parse(std::stringstream& parent, const cascading::IfmStripeShape& ifmStripeShape)
 {
-    Parse(parent, "<WIDTH>", 5, false);
+    Parse(parent, "<WIDTH>", 6, false);
     ParseAsNum(parent, ifmStripeShape.width);
     Parse(parent, "</WIDTH>", 0, true);
 
-    Parse(parent, "<HEIGHT>", 5, false);
+    Parse(parent, "<HEIGHT>", 6, false);
     ParseAsNum(parent, ifmStripeShape.height);
     Parse(parent, "</HEIGHT>", 0, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::MceS& mces)
 {
-    Parse(parent, "<MCE_SCHEDULER>", 3, true);
+    Parse(parent, "<MCE_SCHEDULER>", 4, true);
 
-    Parse(parent, "<IFM_TILE>", 4, true);
+    Parse(parent, "<IFM_TILE>", 5, true);
     Parse(parent, mces.ifmTile);
-    Parse(parent, "</IFM_TILE>", 4, true);
+    Parse(parent, "</IFM_TILE>", 5, true);
 
-    Parse(parent, "<WGT_TILE>", 4, true);
+    Parse(parent, "<WGT_TILE>", 5, true);
     Parse(parent, mces.wgtTile);
-    Parse(parent, "</WGT_TILE>", 4, true);
+    Parse(parent, "</WGT_TILE>", 5, true);
 
-    Parse(parent, "<BLOCK_SIZE>", 4, true);
+    Parse(parent, "<BLOCK_SIZE>", 5, true);
     Parse(parent, mces.blockSize);
-    Parse(parent, "</BLOCK_SIZE>", 4, true);
+    Parse(parent, "</BLOCK_SIZE>", 5, true);
 
-    Parse(parent, "<DFLT_STRIPE_SIZE>", 4, true);
+    Parse(parent, "<DFLT_STRIPE_SIZE>", 5, true);
     Parse(parent, mces.dfltStripeSize);
-    Parse(parent, "</DFLT_STRIPE_SIZE>", 4, true);
+    Parse(parent, "</DFLT_STRIPE_SIZE>", 5, true);
 
-    Parse(parent, "<EDGE_STRIPE_SIZE>", 4, true);
+    Parse(parent, "<EDGE_STRIPE_SIZE>", 5, true);
     Parse(parent, mces.edgeStripeSize);
-    Parse(parent, "</EDGE_STRIPE_SIZE>", 4, true);
+    Parse(parent, "</EDGE_STRIPE_SIZE>", 5, true);
 
-    Parse(parent, "<NUM_STRIPES>", 4, true);
+    Parse(parent, "<NUM_STRIPES>", 5, true);
     Parse(parent, mces.numStripes);
-    Parse(parent, "</NUM_STRIPES>", 4, true);
+    Parse(parent, "</NUM_STRIPES>", 5, true);
 
-    Parse(parent, "<STRIPE_ID_STRIDES>", 4, true);
+    Parse(parent, "<STRIPE_ID_STRIDES>", 5, true);
     Parse(parent, mces.stripeIdStrides);
-    Parse(parent, "</STRIPE_ID_STRIDES>", 4, true);
+    Parse(parent, "</STRIPE_ID_STRIDES>", 5, true);
 
-    Parse(parent, "<CONV_STRIDE_XY>", 4, true);
+    Parse(parent, "<CONV_STRIDE_XY>", 5, true);
     Parse(parent, mces.convStrideXy);
-    Parse(parent, "</CONV_STRIDE_XY>", 4, true);
+    Parse(parent, "</CONV_STRIDE_XY>", 5, true);
 
-    Parse(parent, "<IFM_ZERO_POINT>", 4, false);
+    Parse(parent, "<IFM_ZERO_POINT>", 5, false);
     ParseAsNum(parent, mces.ifmZeroPoint);
     Parse(parent, "</IFM_ZERO_POINT>", 0, true);
 
-    Parse(parent, "<IS_IFM_SIGNED>", 4, false);
+    Parse(parent, "<IS_IFM_SIGNED>", 5, false);
     ParseAsNum(parent, mces.isIfmSigned);
     Parse(parent, "</IS_IFM_SIGNED>", 0, true);
 
-    Parse(parent, "<IS_OFM_SIGNED>", 4, false);
+    Parse(parent, "<IS_OFM_SIGNED>", 5, false);
     ParseAsNum(parent, mces.isOfmSigned);
     Parse(parent, "</IS_OFM_SIGNED>", 0, true);
 
-    Parse(parent, "<UPSAMPLE_TYPE>", 4, false);
+    Parse(parent, "<UPSAMPLE_TYPE>", 5, false);
     Parse(parent, mces.upsampleType);
     Parse(parent, "</UPSAMPLE_TYPE>", 0, true);
 
-    Parse(parent, "<UPSAMPLE_EDGE_MODE>", 4, true);
+    Parse(parent, "<UPSAMPLE_EDGE_MODE>", 5, true);
     Parse(parent, mces.upsampleEdgeMode);
-    Parse(parent, "</UPSAMPLE_EDGE_MODE>", 4, true);
+    Parse(parent, "</UPSAMPLE_EDGE_MODE>", 5, true);
 
-    Parse(parent, "<MCE_OP_MODE>", 4, false);
+    Parse(parent, "<MCE_OP_MODE>", 5, false);
     Parse(parent, mces.mceOpMode);
     Parse(parent, "</MCE_OP_MODE>", 0, true);
 
-    Parse(parent, "<ALGORITHM>", 4, false);
+    Parse(parent, "<ALGORITHM>", 5, false);
     Parse(parent, mces.algorithm);
     Parse(parent, "</ALGORITHM>", 0, true);
 
-    Parse(parent, "<IS_WIDE_FILTER>", 4, false);
+    Parse(parent, "<IS_WIDE_FILTER>", 5, false);
     ParseAsNum(parent, mces.isWideFilter);
     Parse(parent, "</IS_WIDE_FILTER>", 0, true);
 
-    Parse(parent, "<IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>", 4, false);
+    Parse(parent, "<IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>", 5, false);
     ParseAsNum(parent, mces.isExtraIfmStripeAtRightEdge);
     Parse(parent, "</IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>", 0, true);
 
-    Parse(parent, "<IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>", 4, false);
+    Parse(parent, "<IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>", 5, false);
     ParseAsNum(parent, mces.isExtraIfmStripeAtBottomEdge);
     Parse(parent, "</IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>", 0, true);
 
-    Parse(parent, "<IS_PACKED_BOUNDARY_X>", 4, false);
+    Parse(parent, "<IS_PACKED_BOUNDARY_X>", 5, false);
     ParseAsNum(parent, mces.isPackedBoundaryX);
     Parse(parent, "</IS_PACKED_BOUNDARY_X>", 0, true);
 
-    Parse(parent, "<IS_PACKED_BOUNDARY_Y>", 4, false);
+    Parse(parent, "<IS_PACKED_BOUNDARY_Y>", 5, false);
     ParseAsNum(parent, mces.isPackedBoundaryY);
     Parse(parent, "</IS_PACKED_BOUNDARY_Y>", 0, true);
 
-    Parse(parent, "<FILTER_SHAPE>", 4, true);
+    Parse(parent, "<FILTER_SHAPE>", 5, true);
     Parse(parent, mces.filterShape);
-    Parse(parent, "</FILTER_SHAPE>", 4, true);
+    Parse(parent, "</FILTER_SHAPE>", 5, true);
 
-    Parse(parent, "<PADDING>", 4, true);
+    Parse(parent, "<PADDING>", 5, true);
     Parse(parent, mces.padding);
-    Parse(parent, "</PADDING>", 4, true);
+    Parse(parent, "</PADDING>", 5, true);
 
-    Parse(parent, "<IFM_DELTA_DEFAULT>", 4, true);
+    Parse(parent, "<IFM_DELTA_DEFAULT>", 5, true);
     Parse(parent, mces.ifmDeltaDefault);
-    Parse(parent, "</IFM_DELTA_DEFAULT>", 4, true);
+    Parse(parent, "</IFM_DELTA_DEFAULT>", 5, true);
 
-    Parse(parent, "<IFM_DELTA_ONE_FROM_EDGE>", 4, true);
+    Parse(parent, "<IFM_DELTA_ONE_FROM_EDGE>", 5, true);
     Parse(parent, mces.ifmDeltaOneFromEdge);
-    Parse(parent, "</IFM_DELTA_ONE_FROM_EDGE>", 4, true);
+    Parse(parent, "</IFM_DELTA_ONE_FROM_EDGE>", 5, true);
 
-    Parse(parent, "<IFM_DELTA_EDGE>", 4, true);
+    Parse(parent, "<IFM_DELTA_EDGE>", 5, true);
     Parse(parent, mces.ifmDeltaEdge);
-    Parse(parent, "</IFM_DELTA_EDGE>", 4, true);
+    Parse(parent, "</IFM_DELTA_EDGE>", 5, true);
 
-    Parse(parent, "<IFM_STRIPE_SHAPE_DEFAULT>", 4, true);
+    Parse(parent, "<IFM_STRIPE_SHAPE_DEFAULT>", 5, true);
     Parse(parent, mces.ifmStripeShapeDefault);
-    Parse(parent, "</IFM_STRIPE_SHAPE_DEFAULT>", 4, true);
+    Parse(parent, "</IFM_STRIPE_SHAPE_DEFAULT>", 5, true);
 
-    Parse(parent, "<IFM_STRIPE_SHAPE_EDGE>", 4, true);
+    Parse(parent, "<IFM_STRIPE_SHAPE_EDGE>", 5, true);
     Parse(parent, mces.ifmStripeShapeEdge);
-    Parse(parent, "</IFM_STRIPE_SHAPE_EDGE>", 4, true);
+    Parse(parent, "</IFM_STRIPE_SHAPE_EDGE>", 5, true);
 
-    Parse(parent, "<RELU_ACTIV>", 4, true);
+    Parse(parent, "<RELU_ACTIV>", 5, true);
     Parse(parent, mces.reluActiv);
-    Parse(parent, "</RELU_ACTIV>", 4, true);
+    Parse(parent, "</RELU_ACTIV>", 5, true);
 
-    Parse(parent, "<PLE_KERNEL_ID>", 4, false);
+    Parse(parent, "<PLE_KERNEL_ID>", 5, false);
     Parse(parent, cascading::PleKernelId2String(mces.pleKernelId), 0, false);
     Parse(parent, "</PLE_KERNEL_ID>", 0, true);
 
-    Parse(parent, "</MCE_SCHEDULER>", 3, true);
+    Parse(parent, "</MCE_SCHEDULER>", 4, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::PleL& plel)
 {
-    Parse(parent, "<PLE_LOADER>", 3, true);
+    Parse(parent, "<PLE_LOADER>", 4, true);
 
-    Parse(parent, "<PLE_KERNEL_ID>", 4, false);
+    Parse(parent, "<PLE_KERNEL_ID>", 5, false);
     Parse(parent, cascading::PleKernelId2String(plel.pleKernelId), 0, false);
     Parse(parent, "</PLE_KERNEL_ID>", 0, true);
 
-    Parse(parent, "<SRAM_ADDR>", 4, false);
+    Parse(parent, "<SRAM_ADDR>", 5, false);
     ParseAsNum(parent, plel.sramAddr);
     Parse(parent, "</SRAM_ADDR>", 0, true);
 
-    Parse(parent, "</PLE_LOADER>", 3, true);
+    Parse(parent, "</PLE_LOADER>", 4, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::PleIfmInfo& info)
 {
-    Parse(parent, "<ZERO_POINT>", 5, false);
+    Parse(parent, "<ZERO_POINT>", 6, false);
     ParseAsNum(parent, info.zeroPoint);
     Parse(parent, "</ZERO_POINT>", 0, true);
 
-    Parse(parent, "<MULTIPLIER>", 5, false);
+    Parse(parent, "<MULTIPLIER>", 6, false);
     ParseAsNum(parent, info.multiplier);
     Parse(parent, "</MULTIPLIER>", 0, true);
 
-    Parse(parent, "<SHIFT>", 5, false);
+    Parse(parent, "<SHIFT>", 6, false);
     ParseAsNum(parent, info.shift);
     Parse(parent, "</SHIFT>", 0, true);
 }
@@ -1440,61 +1440,61 @@ void Parse(std::stringstream& parent, const cascading::PleInputMode value)
 
 void Parse(std::stringstream& parent, const cascading::PleS& ples)
 {
-    Parse(parent, "<PLE_SCHEDULER>", 3, true);
+    Parse(parent, "<PLE_SCHEDULER>", 4, true);
 
-    Parse(parent, "<OFM_TILE>", 4, true);
+    Parse(parent, "<OFM_TILE>", 5, true);
     Parse(parent, ples.ofmTile);
-    Parse(parent, "</OFM_TILE>", 4, true);
+    Parse(parent, "</OFM_TILE>", 5, true);
 
-    Parse(parent, "<OFM_ZERO_POINT>", 4, false);
+    Parse(parent, "<OFM_ZERO_POINT>", 5, false);
     ParseAsNum(parent, ples.ofmZeroPoint);
     Parse(parent, "</OFM_ZERO_POINT>", 0, true);
 
-    Parse(parent, "<DFLT_STRIPE_SIZE>", 4, true);
+    Parse(parent, "<DFLT_STRIPE_SIZE>", 5, true);
     Parse(parent, ples.dfltStripeSize);
-    Parse(parent, "</DFLT_STRIPE_SIZE>", 4, true);
+    Parse(parent, "</DFLT_STRIPE_SIZE>", 5, true);
 
-    Parse(parent, "<EDGE_STRIPE_SIZE>", 4, true);
+    Parse(parent, "<EDGE_STRIPE_SIZE>", 5, true);
     Parse(parent, ples.edgeStripeSize);
-    Parse(parent, "</EDGE_STRIPE_SIZE>", 4, true);
+    Parse(parent, "</EDGE_STRIPE_SIZE>", 5, true);
 
-    Parse(parent, "<NUM_STRIPES>", 4, true);
+    Parse(parent, "<NUM_STRIPES>", 5, true);
     Parse(parent, ples.numStripes);
-    Parse(parent, "</NUM_STRIPES>", 4, true);
+    Parse(parent, "</NUM_STRIPES>", 5, true);
 
-    Parse(parent, "<STRIPE_ID_STRIDES>", 4, true);
+    Parse(parent, "<STRIPE_ID_STRIDES>", 5, true);
     Parse(parent, ples.stripeIdStrides);
-    Parse(parent, "</STRIPE_ID_STRIDES>", 4, true);
+    Parse(parent, "</STRIPE_ID_STRIDES>", 5, true);
 
-    Parse(parent, "<INPUT_MODE>", 4, false);
+    Parse(parent, "<INPUT_MODE>", 5, false);
     Parse(parent, ples.inputMode);
     Parse(parent, "</INPUT_MODE>", 0, true);
 
-    Parse(parent, "<PLE_KERNEL_ID>", 4, false);
+    Parse(parent, "<PLE_KERNEL_ID>", 5, false);
     Parse(parent, cascading::PleKernelId2String(ples.pleKernelId), 0, false);
     Parse(parent, "</PLE_KERNEL_ID>", 0, true);
 
-    Parse(parent, "<PLE_KERNEL_SRAM_ADDR>", 4, false);
+    Parse(parent, "<PLE_KERNEL_SRAM_ADDR>", 5, false);
     ParseAsNum(parent, ples.pleKernelSramAddr);
     Parse(parent, "</PLE_KERNEL_SRAM_ADDR>", 0, true);
 
-    Parse(parent, "<IFM_TILE_0>", 4, true);
+    Parse(parent, "<IFM_TILE_0>", 5, true);
     Parse(parent, ples.ifmTile0);
-    Parse(parent, "</IFM_TILE_0>", 4, true);
+    Parse(parent, "</IFM_TILE_0>", 5, true);
 
-    Parse(parent, "<IFM_INFO_0>", 4, true);
+    Parse(parent, "<IFM_INFO_0>", 5, true);
     Parse(parent, ples.ifmInfo0);
-    Parse(parent, "</IFM_INFO_0>", 4, true);
+    Parse(parent, "</IFM_INFO_0>", 5, true);
 
-    Parse(parent, "<IFM_TILE_1>", 4, true);
+    Parse(parent, "<IFM_TILE_1>", 5, true);
     Parse(parent, ples.ifmTile1);
-    Parse(parent, "</IFM_TILE_1>", 4, true);
+    Parse(parent, "</IFM_TILE_1>", 5, true);
 
-    Parse(parent, "<IFM_INFO_1>", 4, true);
+    Parse(parent, "<IFM_INFO_1>", 5, true);
     Parse(parent, ples.ifmInfo1);
-    Parse(parent, "</IFM_INFO_1>", 4, true);
+    Parse(parent, "</IFM_INFO_1>", 5, true);
 
-    Parse(parent, "</PLE_SCHEDULER>", 3, true);
+    Parse(parent, "</PLE_SCHEDULER>", 4, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::AgentData& data)
@@ -1527,15 +1527,43 @@ void Parse(std::stringstream& parent, const cascading::AgentData& data)
     };
 }
 
-void Parse(std::stringstream& parent, const cascading::Ratio& ratio)
+const char* CommandTypeToString(cascading::CommandType t)
 {
-    Parse(parent, "<OTHER>", 5, false);
-    ParseAsNum(parent, ratio.other);
-    Parse(parent, "</OTHER>", 0, true);
+    using namespace ethosn::command_stream::cascading;
+    switch (t)
+    {
+        case CommandType::WaitForAgent:
+            return "WaitForAgent";
+        case CommandType::LoadIfmStripe:
+            return "LoadIfmStripe";
+        case CommandType::LoadWgtStripe:
+            return "LoadWgtStripe";
+        case CommandType::ProgramMceStripe:
+            return "ProgramMceStripe";
+        case CommandType::StartMceStripe:
+            return "StartMceStripe";
+        case CommandType::LoadPleCode:
+            return "LoadPleCode";
+        case CommandType::StartPleStripe:
+            return "StartPleStripe";
+        case CommandType::StoreOfmStripe:
+            return "StoreOfmStripe";
+        default:
+            throw ParseException("Invalid cascading command type: " + std::to_string(static_cast<uint32_t>(t)));
+    }
+}
 
-    Parse(parent, "<SELF>", 5, false);
-    ParseAsNum(parent, ratio.self);
-    Parse(parent, "</SELF>", 0, true);
+void Parse(std::stringstream& parent, const cascading::Agent& agent)
+{
+    Parse(parent, "<AGENT>", 3, true);
+
+    Parse(parent, "<NUM_STRIPES_TOTAL>", 4, false);
+    ParseAsNum(parent, agent.numStripesTotal);
+    Parse(parent, "</NUM_STRIPES_TOTAL>", 0, true);
+
+    Parse(parent, agent.data);
+
+    Parse(parent, "</AGENT>", 3, true);
 }
 
 const char* AgentTypeToString(cascading::AgentType t)
@@ -1556,97 +1584,91 @@ const char* AgentTypeToString(cascading::AgentType t)
             return "OFM_STREAMER";
         default:
             throw ParseException("Invalid cascading agent type: " + std::to_string(static_cast<uint32_t>(t)));
-    };
+    }
 }
 
-void Parse(std::stringstream& parent,
-           const char* depName,
-           const cascading::Dependency& dep,
-           const cascading::CommandStream cascadeCmdStream,
-           uint32_t agentId)
+void Parse(std::stringstream& parent, const cascading::Command& cmd, const cascading::Agent* agents)
 {
-    if (dep.relativeAgentId == 0)
-    {
-        return;
-    }
+    Parse(parent, "<COMMAND>", 3, true);
 
-    Parse(parent, "<" + static_cast<std::string>(depName) + ">", 3, true);
+    Parse(parent, "<TYPE>", 4, false);
+    Parse(parent, std::string(CommandTypeToString(cmd.type)), 0, false);
+    Parse(parent, "</TYPE>", 0, true);
 
-    Parse(parent, "<RELATIVE_AGENT_ID>", 4, false);
-    ParseAsNum(parent, dep.relativeAgentId);
-    Parse(parent, "</RELATIVE_AGENT_ID>", 0, true);
-
-    // Add helpful comment to indicate the agent this one depends on
-    const uint32_t otherAgentId =
-        strcmp(depName, "READ_DEPENDENCY") == 0 ? agentId - dep.relativeAgentId : agentId + dep.relativeAgentId;
+    // Add helpful comment to indicate the agent type
     Parse(parent,
-          dep.relativeAgentId == 0 ? "<!-- DISABLED -->"
-                                   : ("<!-- Other agent ID is " + std::to_string(otherAgentId) + " (" +
-                                      AgentTypeToString(cascadeCmdStream[otherAgentId].data.type) + ") -->")
-                                         .c_str(),
-          4, true);
+          ("<!-- Agent type is " + std::string(AgentTypeToString(agents[cmd.agentId].data.type)) + " -->").c_str(), 4,
+          true);
+    Parse(parent, "<AGENT_ID>", 4, false);
+    ParseAsNum(parent, cmd.agentId);
+    Parse(parent, "</AGENT_ID>", 0, true);
 
-    Parse(parent, "<OUTER_RATIO>", 4, true);
-    Parse(parent, dep.outerRatio);
-    Parse(parent, "</OUTER_RATIO>", 4, true);
+    Parse(parent, "<STRIPE_ID>", 4, false);
+    ParseAsNum(parent, cmd.stripeId);
+    Parse(parent, "</STRIPE_ID>", 0, true);
 
-    Parse(parent, "<INNER_RATIO>", 4, true);
-    Parse(parent, dep.innerRatio);
-    Parse(parent, "</INNER_RATIO>", 4, true);
-
-    Parse(parent, "<BOUNDARY>", 4, false);
-    ParseAsNum(parent, dep.boundary);
-    Parse(parent, "</BOUNDARY>", 0, true);
-
-    Parse(parent, "</" + static_cast<std::string>(depName) + ">", 3, true);
-}
-
-void Parse(std::stringstream& parent,
-           const cascading::AgentDependencyInfo& agentInfo,
-           const cascading::CommandStream cascadeCmdStream,
-           uint32_t agentId)
-{
-    Parse(parent, "<NUM_STRIPES_TOTAL>", 3, false);
-    ParseAsNum(parent, agentInfo.numStripesTotal);
-    Parse(parent, "</NUM_STRIPES_TOTAL>", 0, true);
-
-    for (auto& dep : agentInfo.scheduleDependencies)
-    {
-        Parse(parent, "SCHEDULE_DEPENDENCY", dep, cascadeCmdStream, agentId);
-    }
-    for (auto& dep : agentInfo.readDependencies)
-    {
-        Parse(parent, "READ_DEPENDENCY", dep, cascadeCmdStream, agentId);
-    }
-    for (auto& dep : agentInfo.writeDependencies)
-    {
-        Parse(parent, "WRITE_DEPENDENCY", dep, cascadeCmdStream, agentId);
-    }
+    Parse(parent, "</COMMAND>", 3, true);
 }
 
 void Parse(std::stringstream& parent, const Cascade& value)
 {
+    using namespace cascading;
+    using Command = cascading::Command;
+
     Parse(parent, "<CASCADE>", 1, true);
 
-    Parse(parent, "<NUM_AGENTS>", 2, false);
-    ParseAsNum(parent, value.m_NumAgents());
-    Parse(parent, "</NUM_AGENTS>", 0, true);
+    // Calculate pointers to each of the agent and command arrays
+    const Agent* agentsArray          = value.GetAgentsArray();
+    const Command* dmaRdCommandsArray = value.GetDmaRdCommandsArray();
+    const Command* dmaWrCommandsArray = value.GetDmaWrCommandsArray();
+    const Command* mceCommandsArray   = value.GetMceCommandsArray();
+    const Command* pleCommandsArray   = value.GetPleCommandsArray();
 
-    const void* const cascadeBegin = &value + 1U;
-    const cascading::CommandStream cascade{ static_cast<const cascading::Agent*>(cascadeBegin), value.m_NumAgents() };
-
-    uint32_t agentId = 0;
-    for (auto& agent : cascade)
+    Parse(parent, "<AGENTS>", 2, true);
+    for (uint32_t agentId = 0; agentId < value.NumAgents; ++agentId)
     {
         // Add helpful comment to indicate the agent ID (very useful for long command streams)
-        Parse(parent, "<!-- Agent " + std::to_string(agentId) + " -->", 2, true);
-        Parse(parent, "<AGENT>", 2, true);
-        Parse(parent, agent.data);
-        Parse(parent, agent.info, cascade, agentId);
-        Parse(parent, "</AGENT>", 2, true);
-
-        ++agentId;
+        Parse(parent, "<!-- Agent " + std::to_string(agentId) + " -->", 3, true);
+        Parse(parent, agentsArray[agentId]);
     }
+    Parse(parent, "</AGENTS>", 2, true);
+
+    Parse(parent, "<DMA_RD_COMMANDS>", 2, true);
+    for (uint32_t commandIdx = 0; commandIdx < value.NumDmaRdCommands; ++commandIdx)
+    {
+        // Add helpful comment to indicate the command idx (very useful for long command streams)
+        Parse(parent, "<!-- DmaRd Command " + std::to_string(commandIdx) + " -->", 3, true);
+        Parse(parent, dmaRdCommandsArray[commandIdx], agentsArray);
+    }
+    Parse(parent, "</DMA_RD_COMMANDS>", 2, true);
+
+    Parse(parent, "<DMA_WR_COMMANDS>", 2, true);
+    for (uint32_t commandIdx = 0; commandIdx < value.NumDmaWrCommands; ++commandIdx)
+    {
+        // Add helpful comment to indicate the command idx (very useful for long command streams)
+        Parse(parent, "<!-- DmaWr Command " + std::to_string(commandIdx) + " -->", 3, true);
+        Parse(parent, dmaWrCommandsArray[commandIdx], agentsArray);
+    }
+    Parse(parent, "</DMA_WR_COMMANDS>", 2, true);
+
+    Parse(parent, "<MCE_COMMANDS>", 2, true);
+    for (uint32_t commandIdx = 0; commandIdx < value.NumMceCommands; ++commandIdx)
+    {
+        // Add helpful comment to indicate the command idx (very useful for long command streams)
+        Parse(parent, "<!-- Mce Command " + std::to_string(commandIdx) + " -->", 3, true);
+        Parse(parent, mceCommandsArray[commandIdx], agentsArray);
+    }
+    Parse(parent, "</MCE_COMMANDS>", 2, true);
+
+    Parse(parent, "<PLE_COMMANDS>", 2, true);
+    for (uint32_t commandIdx = 0; commandIdx < value.NumPleCommands; ++commandIdx)
+    {
+        // Add helpful comment to indicate the command idx (very useful for long command streams)
+        Parse(parent, "<!-- Ple Command " + std::to_string(commandIdx) + " -->", 3, true);
+        Parse(parent, pleCommandsArray[commandIdx], agentsArray);
+    }
+    Parse(parent, "</PLE_COMMANDS>", 2, true);
+
     Parse(parent, "</CASCADE>", 1, true);
 }
 }    // namespace

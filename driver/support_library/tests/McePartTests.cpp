@@ -1465,9 +1465,7 @@ TEST_CASE("McePart GetPlans Split input in depth")
     GIVEN("An McePart for a convolution")
     {
         const CompilationOptions compOpt;
-        // Override the default firmware limitations so that we can generate the plans we need to test
-        const HardwareCapabilities caps =
-            GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, {}, 2048, 2048);
+        const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, 0);
         const EstimationOptions estOpts;
         DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 

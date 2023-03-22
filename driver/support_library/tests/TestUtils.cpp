@@ -80,23 +80,13 @@ namespace
 FirmwareAndHardwareCapabilities
     GetFwHwCapabilitiesWithFwOverrides(EthosNVariant variant,
                                        utils::Optional<uint32_t> sramSizeOverride,
-                                       utils::Optional<uint32_t> ctrlAgentWindowSizeOverride,
-                                       utils::Optional<uint32_t> maxMceStripesPerPleStripeOverride,
-                                       utils::Optional<uint32_t> maxIfmAndWgtStripesPerPleStripeOverride)
+                                       utils::Optional<uint32_t> ctrlAgentWindowSizeOverride)
 {
     FirmwareAndHardwareCapabilities fwHwCapabilities =
         GetEthosN78FwHwCapabilities(variant, sramSizeOverride.has_value() ? sramSizeOverride.value() : 0);
     if (ctrlAgentWindowSizeOverride.has_value())
     {
         fwHwCapabilities.m_AgentWindowSize = ctrlAgentWindowSizeOverride.value();
-    }
-    if (maxMceStripesPerPleStripeOverride.has_value())
-    {
-        fwHwCapabilities.m_MaxMceStripesPerPleStripe = maxMceStripesPerPleStripeOverride.value();
-    }
-    if (maxIfmAndWgtStripesPerPleStripeOverride.has_value())
-    {
-        fwHwCapabilities.m_MaxIfmAndWgtStripesPerPleStripe = maxIfmAndWgtStripesPerPleStripeOverride.value();
     }
     return fwHwCapabilities;
 }
@@ -105,13 +95,10 @@ FirmwareAndHardwareCapabilities
 
 HardwareCapabilities GetHwCapabilitiesWithFwOverrides(EthosNVariant variant,
                                                       utils::Optional<uint32_t> sramSizeOverride,
-                                                      utils::Optional<uint32_t> ctrlAgentWindowSizeOverride,
-                                                      utils::Optional<uint32_t> maxMceStripesPerPleStripeOverride,
-                                                      utils::Optional<uint32_t> maxIfmAndWgtStripesPerPleStripeOverride)
+                                                      utils::Optional<uint32_t> ctrlAgentWindowSizeOverride)
 {
     FirmwareAndHardwareCapabilities fwHwCapabilities =
-        GetFwHwCapabilitiesWithFwOverrides(variant, sramSizeOverride, ctrlAgentWindowSizeOverride,
-                                           maxMceStripesPerPleStripeOverride, maxIfmAndWgtStripesPerPleStripeOverride);
+        GetFwHwCapabilitiesWithFwOverrides(variant, sramSizeOverride, ctrlAgentWindowSizeOverride);
     return HardwareCapabilities(fwHwCapabilities);
 }
 
@@ -154,13 +141,10 @@ std::vector<char> GetRawEthosN78Capabilities(EthosNVariant variant, uint32_t sra
 
 std::vector<char> GetRawCapabilitiesWithFwOverrides(EthosNVariant variant,
                                                     utils::Optional<uint32_t> sramSizeOverride,
-                                                    utils::Optional<uint32_t> ctrlAgentWindowSizeOverride,
-                                                    utils::Optional<uint32_t> maxMceStripesPerPleStripeOverride,
-                                                    utils::Optional<uint32_t> maxIfmAndWgtStripesPerPleStripeOverride)
+                                                    utils::Optional<uint32_t> ctrlAgentWindowSizeOverride)
 {
     FirmwareAndHardwareCapabilities fwHwCapabilities =
-        GetFwHwCapabilitiesWithFwOverrides(variant, sramSizeOverride, ctrlAgentWindowSizeOverride,
-                                           maxMceStripesPerPleStripeOverride, maxIfmAndWgtStripesPerPleStripeOverride);
+        GetFwHwCapabilitiesWithFwOverrides(variant, sramSizeOverride, ctrlAgentWindowSizeOverride);
     return GetRawCapabilities(fwHwCapabilities);
 }
 
@@ -176,6 +160,23 @@ std::vector<uint8_t> GetCommandStreamData(const ethosn::command_stream::CommandS
     const uint8_t* end   = begin + cmdStream.GetData().size() * sizeof(cmdStream.GetData()[0]);
     data.assign(begin, end);
     return data;
+}
+
+std::vector<uint8_t> GetCommandStreamData(const CompiledNetwork* compiledNetwork)
+{
+    const CompiledNetworkImpl* cnImpl = static_cast<const CompiledNetworkImpl*>(compiledNetwork);
+    auto& cuBufferInfo                = cnImpl->GetConstantControlUnitDataBufferInfos();
+    // The command stream buffer id is defined to be 0.
+    auto cmdStreamBufferInfo =
+        std::find_if(cuBufferInfo.begin(), cuBufferInfo.end(), [](const auto& b) { return b.m_Id == 0; });
+    if (cmdStreamBufferInfo == cuBufferInfo.end())
+    {
+        throw std::runtime_error("Can't find command stream buffer");
+    }
+
+    const uint8_t* begin = cnImpl->GetConstantControlUnitData().data() + cmdStreamBufferInfo->m_Offset;
+    const uint8_t* end   = begin + cmdStreamBufferInfo->m_Size;
+    return std::vector<uint8_t>(begin, end);
 }
 
 ethosn::command_stream::CommandStream GetCommandStream(const CompiledNetwork* compiledNetwork)

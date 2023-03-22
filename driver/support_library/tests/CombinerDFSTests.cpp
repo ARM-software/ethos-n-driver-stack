@@ -4128,8 +4128,8 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
     {
         WHEN("Window size is greater than the total number of agents")
         {
-            const HardwareCapabilities hwCaps = GetHwCapabilitiesWithFwOverrides(
-                EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef + 1, {}, {});
+            const HardwareCapabilities hwCaps =
+                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef + 1);
             CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(true, false, plans[0], totalAgents) == true);
@@ -4139,7 +4139,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         WHEN("Window size is equal to the total number of agents")
         {
             const HardwareCapabilities hwCaps =
-                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef, {}, {});
+                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef);
             CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(true, false, plans[0], totalAgents) == true);
@@ -4149,8 +4149,8 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         }
         WHEN("Window size is smaller than the total number of agents if all Ops were Cascade")
         {
-            const HardwareCapabilities hwCaps = GetHwCapabilitiesWithFwOverrides(
-                EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef - 1, {}, {});
+            const HardwareCapabilities hwCaps =
+                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef - 1);
             CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(true, false, plans[0], totalAgents) == true);
@@ -4190,7 +4190,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         WHEN("Window size is smaller than the total number of agents so that no plan fits")
         {
             const HardwareCapabilities hwCaps =
-                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 3, {}, {});
+                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 3);
             CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(true, false, plans[0], totalAgents) == false);
@@ -4203,7 +4203,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         WHEN("Window size can accomodate the plan")
         {
             const HardwareCapabilities hwCaps =
-                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 16, {}, {});
+                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 16);
             CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(true, true, plans[0], totalAgents) == true);
@@ -4211,7 +4211,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         WHEN("Window size is smaller than the plan")
         {
             const HardwareCapabilities hwCaps =
-                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 2, {}, {});
+                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 2);
             CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(true, true, plans[0], totalAgents) == false);
@@ -4219,7 +4219,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         WHEN("Window size is only 4 but all Ops are Atomic")
         {
             const HardwareCapabilities hwCaps =
-                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 4, {}, {});
+                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 4);
             CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
             for (Buffer* b : plans[0].m_OpGraph.GetBuffers())
             {
@@ -4266,7 +4266,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
             const CompilationOptions compOpt;
 
             const HardwareCapabilities hwCaps =
-                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 64, {}, {});
+                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 64);
 
             ConcatPart concatPart(partId, inputTensorsInfo, outputTensorInfo, concatInfo.m_Axis, { 0, 16 }, false,
                                   operationIds, estOpt, compOpt, hwCaps);
