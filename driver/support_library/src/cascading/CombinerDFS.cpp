@@ -1365,8 +1365,10 @@ std::vector<Combination> Combiner::CalculateSectionsOfAllLengths(const BasePart&
     std::reverse(startingPlans.begin(), startingPlans.end());
     contexts.push_back(std::move(startingPlans));
 
+    uint32_t numIterations = 0;
     while (!contexts.empty())
     {
+        ++numIterations;
         if (contexts.back().empty())
         {
             // No more plans to consider for the previous part, so go back to the previous one so we can pick the next plan there
@@ -1405,6 +1407,8 @@ std::vector<Combination> Combiner::CalculateSectionsOfAllLengths(const BasePart&
             contexts.push_back(continuePlans);
         }
     }
+
+    g_Logger.Debug("CalculateSectionsOfAllLengths: %u iterations", numIterations);
 
     return best;
 }
