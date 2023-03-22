@@ -170,7 +170,6 @@ protected:
                          const Plan& plan,
                          const Buffer* const outBufOfPrevPlanInSection,
                          bool inputBufferNeedAllocation) const;
-    bool ArePlansAllowedToMerge(const Plan& reference, const Plan& current) const;
     void DeallocateUnusedBuffers(const Buffer& prevPlanBuffer, SectionContext& context);
 
     bool IsSectionSizeSupported(bool startOrSinglePartSection,

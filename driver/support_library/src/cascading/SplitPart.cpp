@@ -193,5 +193,11 @@ std::vector<BoundaryRequirements> SplitPart::GetInputBoundaryRequirements() cons
     return { BoundaryRequirements{} };
 }
 
+std::vector<bool> SplitPart::CanInputsTakePleInputSram() const
+{
+    // Our input needs to be in DRAM.
+    return { false };
+}
+
 }    // namespace support_library
 }    // namespace ethosn

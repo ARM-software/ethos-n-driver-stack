@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "InputPart.hpp"
+
 #include "../Utils.hpp"
 #include "GraphNodes.hpp"
-#include "InputPart.hpp"
 #include "PartUtils.hpp"
 #include "Plan.hpp"
 
@@ -72,6 +73,12 @@ ethosn::support_library::DotAttributes InputPart::GetDotAttributes(DetailLevel d
 }
 
 std::vector<BoundaryRequirements> InputPart::GetInputBoundaryRequirements() const
+{
+    // InputParts have no inputs
+    return {};
+}
+
+std::vector<bool> InputPart::CanInputsTakePleInputSram() const
 {
     // InputParts have no inputs
     return {};

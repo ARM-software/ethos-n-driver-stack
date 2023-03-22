@@ -305,11 +305,6 @@ bool Combiner::IsPlanAllocated(SectionContext& context,
     return isSramAllocated;
 }
 
-bool Combiner::ArePlansAllowedToMerge(const Plan& reference, const Plan& current) const
-{
-    return !(reference.m_HasIdentityPle && current.m_HasIdentityMce);
-}
-
 Combination Combiner::AddTempGlues(const Combination& combination)
 {
     Combination result              = combination;
@@ -1076,9 +1071,8 @@ std::vector<SectionContext> Combiner::ContinueSection(const BasePart& part, cons
             context.hasSectionDoubleBuffered ? context.currNumWeightStripes : currNumWeightStripes;
         Plans plans = part.GetPlans(CascadeType::Middle, blkConfig, sramBuffer, numWeightStripes);
 
-        // We shouldn't generate too many plans here, as it could lead to an explosion of combinations.
-        // Two is fine for now to account for plams with an identity PLE and plans with PleInputBuffer
-        assert(plans.size() <= 2);
+        // We shouldn't generate multiple plans here, as it could lead to an explosion of combinations.
+        assert(plans.size() <= 1);
 
         for (Plan& plan : plans)
         {
@@ -1087,11 +1081,6 @@ std::vector<SectionContext> Combiner::ContinueSection(const BasePart& part, cons
             SectionContext tempContext           = contextCopy;
             tempContext.hasSectionDoubleBuffered = hasSectionDoubleBuffered;
             tempContext.currNumWeightStripes     = numWeightStripes;
-
-            if (!ArePlansAllowedToMerge(sPlan, plan))
-            {
-                continue;
-            }
 
             if (!IsPlanAllocated(tempContext, plan, sramBuffer, false))
             {
@@ -1178,11 +1167,6 @@ std::vector<SectionContext> Combiner::EndSection(const BasePart& part, const Sec
             // Make a copy of the allocator since every plan needs to have its own,
             // each potential section won't allocate from the same allocator.
             SectionContext tempContext = contextCopy;
-
-            if (!ArePlansAllowedToMerge(sPlan, plan))
-            {
-                continue;
-            }
 
             if (!IsPlanAllocated(tempContext, plan, sramBuffer, false))
             {

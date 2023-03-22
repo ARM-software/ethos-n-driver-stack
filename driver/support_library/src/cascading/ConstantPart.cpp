@@ -77,5 +77,11 @@ std::vector<BoundaryRequirements> ConstantPart::GetInputBoundaryRequirements() c
     return {};
 }
 
+std::vector<bool> ConstantPart::CanInputsTakePleInputSram() const
+{
+    // ConstantPart does not have any inputs
+    return {};
+}
+
 }    // namespace support_library
 }    // namespace ethosn

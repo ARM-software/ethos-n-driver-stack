@@ -74,6 +74,11 @@ public:
         return { BoundaryRequirements{} };
     }
 
+    std::vector<bool> CanInputsTakePleInputSram() const override
+    {
+        return { false };
+    }
+
     utils::Optional<utils::ConstTensorData> m_ChannelSelectorWeights;
     bool m_CanMergeWithChannelSelectorBefore;
     bool m_CanMergeWithChannelSelectorAfter;
@@ -150,11 +155,6 @@ public:
                          bool inputBufferNeedAllocation) const
     {
         return Combiner::IsPlanAllocated(context, plan, outBufOfPrevPlanInSection, inputBufferNeedAllocation);
-    }
-
-    bool ArePlansAllowedToMerge(const Plan& reference, const Plan& current) const
-    {
-        return Combiner::ArePlansAllowedToMerge(reference, current);
     }
 
     void DeallocateUnusedBuffers(const Buffer& prevPlanBuffer, SectionContext& context)

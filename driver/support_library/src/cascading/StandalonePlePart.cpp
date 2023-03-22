@@ -247,5 +247,11 @@ std::vector<BoundaryRequirements> StandalonePlePart::GetInputBoundaryRequirement
     return std::vector<BoundaryRequirements>(m_InputTensorShapes.size(), BoundaryRequirements{});
 }
 
+std::vector<bool> StandalonePlePart::CanInputsTakePleInputSram() const
+{
+    // All our inputs need to be in SRAM or DRAM.
+    return std::vector<bool>(m_InputTensorShapes.size(), false);
+}
+
 }    // namespace support_library
 }    // namespace ethosn

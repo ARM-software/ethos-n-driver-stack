@@ -478,7 +478,7 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                 opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
                 inputMappings[inBufferAndMceOp.first]   = PartInputSlot{ m_PartId, 0 };
                 outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
-                AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans, false, true);
+                AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
             }
         }
     }
@@ -581,14 +581,19 @@ Plans McePart::GetBeginningPlans(uint32_t numWeightStripes) const
     // if the stripe shape is not multiple of FCAF cell size.
     const bool couldSourceBeFcaf = true;
 
-    for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
+    if (!m_OutputCanTakePleInputSram.at(0))
     {
-        CreateMceAndIdentityPlePlans(i, m_WeightEncoderCache, ret, numWeightStripes, couldSourceBeFcaf);
+        for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
+        {
+            CreateMceAndIdentityPlePlans(i, m_WeightEncoderCache, ret, numWeightStripes, couldSourceBeFcaf);
+        }
     }
-
-    for (const MceOnlyInfo& i : stripeInfos.m_MceOnlyInfos)
+    else
     {
-        CreateMceOnlyPlans(i, m_WeightEncoderCache, ret, numWeightStripes, couldSourceBeFcaf);
+        for (const MceOnlyInfo& i : stripeInfos.m_MceOnlyInfos)
+        {
+            CreateMceOnlyPlans(i, m_WeightEncoderCache, ret, numWeightStripes, couldSourceBeFcaf);
+        }
     }
 
     return ret;
@@ -631,9 +636,15 @@ Plans McePart::GetMiddlePlans(ethosn::command_stream::BlockConfig blockConfig,
     // Hence input tile is allowed to be clamped to tensor size.
     const bool couldSourceBeFcaf = false;
 
-    CreateMceAndIdentityPlePlans(stripeInfos.value().first, m_WeightEncoderCache, ret, numWeightStripes,
-                                 couldSourceBeFcaf);
-    CreateMceOnlyPlans(stripeInfos.value().second, m_WeightEncoderCache, ret, numWeightStripes, couldSourceBeFcaf);
+    if (!m_OutputCanTakePleInputSram.at(0))
+    {
+        CreateMceAndIdentityPlePlans(stripeInfos.value().first, m_WeightEncoderCache, ret, numWeightStripes,
+                                     couldSourceBeFcaf);
+    }
+    else
+    {
+        CreateMceOnlyPlans(stripeInfos.value().second, m_WeightEncoderCache, ret, numWeightStripes, couldSourceBeFcaf);
+    }
     return ret;
 }
 
@@ -1018,6 +1029,12 @@ std::vector<BoundaryRequirements> McePart::GetInputBoundaryRequirements() const
     result.m_NeedsAfterY  = kernelHeight >= 3 || m_UpscaleFactor > 1;
 
     return { result };
+}
+
+std::vector<bool> McePart::CanInputsTakePleInputSram() const
+{
+    // We can't take input that's in PLE input SRAM, as it needs to go to the MCE
+    return { false };
 }
 
 }    // namespace support_library

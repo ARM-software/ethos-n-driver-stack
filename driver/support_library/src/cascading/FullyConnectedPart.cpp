@@ -250,8 +250,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                     opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
                     inputMappings[dramInputRaw]             = PartInputSlot{ m_PartId, 0 };
                     outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
-                    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), ret, false,
-                               true);
+                    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), ret);
                 }
             }
         }

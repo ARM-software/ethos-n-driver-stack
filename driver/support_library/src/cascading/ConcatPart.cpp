@@ -201,5 +201,11 @@ std::vector<BoundaryRequirements> ConcatPart::GetInputBoundaryRequirements() con
     return std::vector<BoundaryRequirements>(m_InputTensorsInfo.size(), BoundaryRequirements{});
 }
 
+std::vector<bool> ConcatPart::CanInputsTakePleInputSram() const
+{
+    // All our inputs need to be in DRAM
+    return std::vector<bool>(m_InputTensorsInfo.size(), false);
+}
+
 }    // namespace support_library
 }    // namespace ethosn

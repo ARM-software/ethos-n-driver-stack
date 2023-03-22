@@ -42,6 +42,7 @@ public:
     virtual ~ConstantPart();
 
     std::vector<BoundaryRequirements> GetInputBoundaryRequirements() const override;
+    std::vector<bool> CanInputsTakePleInputSram() const override;
 
 private:
     const TensorShape m_OutputTensorShape;

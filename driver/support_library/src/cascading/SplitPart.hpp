@@ -45,6 +45,7 @@ public:
     const std::vector<uint32_t>& GetOffsets() const;
 
     std::vector<BoundaryRequirements> GetInputBoundaryRequirements() const override;
+    std::vector<bool> CanInputsTakePleInputSram() const override;
 
 private:
     TensorInfo m_InputTensorInfo;

@@ -171,11 +171,13 @@ public:
     virtual bool CanDoubleBufferWeights() const;
     virtual bool IsOutputGuaranteedNhwc() const;
 
-    /// Sets the boundary requirements that we store for each output of this part,
-    /// so that we generate plans with the correct boundary requirements for consuming parts.
-    void SetOutputBoundaryRequirements(std::vector<BoundaryRequirements> req);
+    /// Sets the requirements that we store for each output of this part,
+    /// so that we generate plans with the correct requirements for consuming parts.
+    void SetOutputRequirements(std::vector<BoundaryRequirements> boundaryReqs, std::vector<bool> canTakePleInputSram);
     /// For each input of this Part, do we require boundary data for that input.
     virtual std::vector<BoundaryRequirements> GetInputBoundaryRequirements() const = 0;
+    /// For each input of this Part, can it take a PleInputSram buffer.
+    virtual std::vector<bool> CanInputsTakePleInputSram() const = 0;
 
     DotAttributes GetDotAttributes(DetailLevel) const override;
 
@@ -242,13 +244,13 @@ protected:
     const HardwareCapabilities& m_Capabilities;
     /// For each output slot, should we generate plans with boundary data or not.
     std::vector<BoundaryRequirements> m_OutputBoundaryRequirements;
+    /// For each output slot, should we generate plans with the output buffer in PLE input SRAM or not.
+    std::vector<bool> m_OutputCanTakePleInputSram;
 
     void AddNewPlan(PartInputMapping&& inputMappings,
                     PartOutputMapping&& outputMappings,
                     OwnedOpGraph&& opGraph,
-                    Plans& plans,
-                    bool hasIdentityMce = false,
-                    bool hasIdentityPle = false) const;
+                    Plans& plans) const;
 };
 
 using Parts = std::map<PartId, std::unique_ptr<BasePart>>;

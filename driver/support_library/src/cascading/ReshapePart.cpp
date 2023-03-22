@@ -104,5 +104,11 @@ std::vector<BoundaryRequirements> ReshapePart::GetInputBoundaryRequirements() co
     return { BoundaryRequirements{} };
 }
 
+std::vector<bool> ReshapePart::CanInputsTakePleInputSram() const
+{
+    // Our input must be in DRAM
+    return { false };
+}
+
 }    // namespace support_library
 }    // namespace ethosn

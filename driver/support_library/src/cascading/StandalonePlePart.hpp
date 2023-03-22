@@ -58,6 +58,7 @@ public:
     DotAttributes GetDotAttributes(DetailLevel detail) const override;
 
     std::vector<BoundaryRequirements> GetInputBoundaryRequirements() const override;
+    std::vector<bool> CanInputsTakePleInputSram() const override;
 
 private:
     std::vector<TensorShape> m_InputTensorShapes;

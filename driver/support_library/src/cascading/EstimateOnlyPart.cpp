@@ -100,5 +100,11 @@ std::vector<BoundaryRequirements> EstimateOnlyPart::GetInputBoundaryRequirements
     return std::vector<BoundaryRequirements>(m_InputTensorsInfo.size(), BoundaryRequirements{ true, true, true, true });
 }
 
+std::vector<bool> EstimateOnlyPart::CanInputsTakePleInputSram() const
+{
+    // We pessimistically assume that all our inputs need to come from DRAM.
+    return std::vector<bool>(m_InputTensorsInfo.size(), false);
+}
+
 }    // namespace support_library
 }    // namespace ethosn

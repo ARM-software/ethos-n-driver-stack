@@ -40,6 +40,7 @@ public:
     virtual ~EstimateOnlyPart();
 
     std::vector<BoundaryRequirements> GetInputBoundaryRequirements() const override;
+    std::vector<bool> CanInputsTakePleInputSram() const override;
 
 private:
     const std::vector<TensorInfo> m_InputTensorsInfo;

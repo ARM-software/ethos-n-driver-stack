@@ -59,14 +59,10 @@ void BasePart::ChangePartId(PartId newId)
 void BasePart::AddNewPlan(PartInputMapping&& inputMappings,
                           PartOutputMapping&& outputMappings,
                           OwnedOpGraph&& opGraph,
-                          Plans& plans,
-                          bool hasIdentityMce,
-                          bool hasIdentityPle) const
+                          Plans& plans) const
 {
     Plan plan(std::move(inputMappings), std::move(outputMappings));
-    plan.m_OpGraph        = std::move(opGraph);
-    plan.m_HasIdentityMce = hasIdentityMce;
-    plan.m_HasIdentityPle = hasIdentityPle;
+    plan.m_OpGraph = std::move(opGraph);
 
     if (IsPlanValid(m_Capabilities, plan))
     {
@@ -108,9 +104,11 @@ void BasePart::AddOperationId(uint32_t operationId)
     m_CorrespondingOperationIds.insert(operationId);
 }
 
-void BasePart::SetOutputBoundaryRequirements(std::vector<BoundaryRequirements> req)
+void BasePart::SetOutputRequirements(std::vector<BoundaryRequirements> boundaryReqs,
+                                     std::vector<bool> canTakePleInputSram)
 {
-    m_OutputBoundaryRequirements = std::move(req);
+    m_OutputBoundaryRequirements = std::move(boundaryReqs);
+    m_OutputCanTakePleInputSram  = std::move(canTakePleInputSram);
 }
 
 }    // namespace support_library

@@ -231,7 +231,7 @@ void FusedPlePart::CreateIdentityMceAndFusedPlePlans(const MceAndPleInfo& info,
                 opGraph.AddConsumer(mceInAndOutBuffer.second, outBufferAndPleOp.second, 0);
                 inputMappings[mceInAndOutBuffer.first]  = PartInputSlot{ m_PartId, 0 };
                 outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
-                AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans, true, false);
+                AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
             }
         }
     }
@@ -593,6 +593,12 @@ std::vector<BoundaryRequirements> FusedPlePart::GetInputBoundaryRequirements() c
     // We have a single input. Because our input comes from the MCE, we don't require any boundary data in SRAM so
     // we set our boundary requirements to false, even though kernels like avg pool do use boundary data.
     return { BoundaryRequirements{} };
+}
+
+std::vector<bool> FusedPlePart::CanInputsTakePleInputSram() const
+{
+    // Our input can come from PLE input SRAM or from regular SRAM.
+    return { true };
 }
 
 }    // namespace support_library

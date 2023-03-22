@@ -64,10 +64,6 @@ public:
     /// these correspond to.
     PartOutputMapping m_OutputMappings;
 
-    /// Specifies whether the plan has an identity MCE operation
-    bool m_HasIdentityMce = false;
-    /// Specifies whether the plan has an identity PLE operation
-    bool m_HasIdentityPle = false;
     /// Have the SRAM buffers for this plan already been allocated in SRAM?
     /// Note that this only makes sense for Lonely plans, and prevents the Combiner from doing its own allocation.
     bool m_IsPreallocated = false;

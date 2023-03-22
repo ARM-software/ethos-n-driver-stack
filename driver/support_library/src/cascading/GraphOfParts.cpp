@@ -347,26 +347,32 @@ void GraphOfParts::SortAndCompact()
 
         const std::vector<PartOutputSlot>& outputSlots = GetPartOutputs(part->GetPartId());
 
-        std::vector<BoundaryRequirements> req(outputSlots.size());
+        std::vector<BoundaryRequirements> boundaryReqs(outputSlots.size());
+        std::vector<bool> outputCanTakePleInputSram(outputSlots.size());
 
         for (PartOutputSlot outputSlot : outputSlots)
         {
             // We should produce boundary data for this output slot, if any of the consuming parts require it.
-            BoundaryRequirements boundaryRequirement;
+            BoundaryRequirements b;
+            bool p = true;
             for (PartInputSlot connectedInputSlot : GetConnectedInputSlots(outputSlot))
             {
-                const std::vector<BoundaryRequirements>& inputReqs =
-                    GetPart(connectedInputSlot.m_PartId).GetInputBoundaryRequirements();
-                BoundaryRequirements inputReq = inputReqs.at(connectedInputSlot.m_InputIndex);
-                boundaryRequirement.m_NeedsBeforeX |= inputReq.m_NeedsBeforeX;
-                boundaryRequirement.m_NeedsAfterX |= inputReq.m_NeedsAfterX;
-                boundaryRequirement.m_NeedsBeforeY |= inputReq.m_NeedsBeforeY;
-                boundaryRequirement.m_NeedsAfterY |= inputReq.m_NeedsAfterY;
+                const BasePart& consumingPart = GetPart(connectedInputSlot.m_PartId);
+
+                const std::vector<BoundaryRequirements>& inputReqs = consumingPart.GetInputBoundaryRequirements();
+                BoundaryRequirements inputReq                      = inputReqs.at(connectedInputSlot.m_InputIndex);
+                b.m_NeedsBeforeX |= inputReq.m_NeedsBeforeX;
+                b.m_NeedsAfterX |= inputReq.m_NeedsAfterX;
+                b.m_NeedsBeforeY |= inputReq.m_NeedsBeforeY;
+                b.m_NeedsAfterY |= inputReq.m_NeedsAfterY;
+
+                p &= consumingPart.CanInputsTakePleInputSram().at(connectedInputSlot.m_InputIndex);
             }
-            req[outputSlot.m_OutputIndex] = boundaryRequirement;
+            boundaryReqs[outputSlot.m_OutputIndex]              = b;
+            outputCanTakePleInputSram[outputSlot.m_OutputIndex] = p;
         }
 
-        part->SetOutputBoundaryRequirements(std::move(req));
+        part->SetOutputRequirements(std::move(boundaryReqs), std::move(outputCanTakePleInputSram));
     }
 }
 

@@ -80,5 +80,11 @@ std::vector<BoundaryRequirements> OutputPart::GetInputBoundaryRequirements() con
     return { BoundaryRequirements{} };
 }
 
+std::vector<bool> OutputPart::CanInputsTakePleInputSram() const
+{
+    // Our input needs to be in DRAM.
+    return { false };
+}
+
 }    // namespace support_library
 }    // namespace ethosn

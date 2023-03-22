@@ -130,6 +130,7 @@ public:
     bool CanDoubleBufferWeights() const override;
 
     std::vector<BoundaryRequirements> GetInputBoundaryRequirements() const override;
+    std::vector<bool> CanInputsTakePleInputSram() const override;
 
     DotAttributes GetDotAttributes(DetailLevel detail) const override;
 
