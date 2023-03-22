@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "../src/DebuggingContext.hpp"
 #include "../src/cascading/Scheduler.hpp"
 
 #include <catch.hpp>
@@ -241,7 +242,9 @@ TEST_CASE("Cascading/Scheduler/ComplexSingleLayer")
         Command{ CommandType::StartPleStripe, 4, 0, 0 },
     };
 
-    Scheduler scheduler(complexSingleLayerCmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(complexSingleLayerCmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -743,7 +746,9 @@ TEST_CASE("Cascading/Scheduler/Strategy7")
         // clang-format on
     };
 
-    Scheduler scheduler(strategy7CmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(strategy7CmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -986,7 +991,9 @@ TEST_CASE("Cascading/Scheduler/MultipleNonCascadedLayers")
         // clang-format on
     };
 
-    Scheduler scheduler(multipleNonCascadedLayersCmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(multipleNonCascadedLayersCmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -1287,7 +1294,9 @@ TEST_CASE("Cascading/Scheduler/Strategy1Cascade")
         // clang-format on
     };
 
-    Scheduler scheduler(strategy1CascadeCmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(strategy1CascadeCmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -1538,7 +1547,9 @@ TEST_CASE("Cascading/Scheduler/Strategy0Cascade")
         // clang-format on
     };
 
-    Scheduler scheduler(strategy0CascadeCmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(strategy0CascadeCmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -1682,7 +1693,9 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WriteDependencies/FirstTile")
         // clang-format on
     };
 
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -1820,7 +1833,9 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WriteDependencies/AfterFirstTil
         // clang-format on
     };
 
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -1972,7 +1987,9 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WithReadAndWriteDependency/Firs
         // clang-format on
     };
 
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -2124,7 +2141,9 @@ TEST_CASE("Cascading/StripeScheduler/WithReadAndWriteDependency/AfterFirstTile")
         // clang-format on
     };
 
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -2263,7 +2282,9 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/AllFitInOneTile/WithWriteDepend
         // clang-format on
     };
 
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -2400,7 +2421,9 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/AllFitInOneTile/NoWriteDependen
         // clang-format on
     };
 
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -2541,7 +2564,9 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/WithWriteDependency/TileSize=1"
         // clang-format on
     };
 
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -2685,7 +2710,9 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/WithReadAndWriteDependencies/Ti
         // clang-format on
     };
 
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -2823,7 +2850,9 @@ TEST_CASE("Cascading/StripeScheduler/MceSchedulerStripe")
         // clang-format on
     };
 
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -2960,7 +2989,9 @@ TEST_CASE("Cascading/StripeScheduler/PleLoaderStripe/NoDependencies")
         Command { CommandType::StartMceStripe, 3, 8,  0}
         // clang-format on
     };
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -3102,7 +3133,9 @@ TEST_CASE("Cascading/StripeScheduler/PleLoaderStripe/WithReadDependency")
         // clang-format on
     };
 
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -3162,7 +3195,9 @@ TEST_CASE("Cascading/StripeScheduler/PleLoaderStripe/WithWriteDependency")
         Command { CommandType::StartPleStripe, 1, 0,  0}
         // clang-format on
     };
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -3240,7 +3275,9 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/NoWriteDependencies")
         // clang-format on
     };
 
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -3596,7 +3633,9 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/WithWriteDependency/Tile
                 FAIL("Invalid tile size");
         }
 
-        Scheduler scheduler(cmdStream);
+        ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+        Scheduler scheduler(cmdStream, debuggingContext);
         scheduler.Schedule();
 
         CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -3676,7 +3715,9 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/ReadDependencyToMceSIsFi
         // clang-format on
     };
 
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -3753,7 +3794,9 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/ReadDependencyTowardsIfm
         // clang-format on
     };
 
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -3843,7 +3886,9 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/Strategy0Cascading/First
         // clang-format on
     };
 
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -3949,7 +3994,9 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/Strategy0Cascading/Secon
         // clang-format on
     };
 
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
@@ -4084,7 +4131,9 @@ TEST_CASE("Cascading/StripeScheduler/OfmStreamerStripe")
         // clang-format on
     };
 
-    Scheduler scheduler(cmdStream);
+    ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+
+    Scheduler scheduler(cmdStream, debuggingContext);
     scheduler.Schedule();
 
     CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);

@@ -92,7 +92,7 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
     AddLifetimeInfoForIntermediateDramBuffers();
 
     // Use the dependencies to generate the lists of commands
-    Scheduler scheduler(m_CommandStreamAgents);
+    Scheduler scheduler(m_CommandStreamAgents, m_DebuggingContext);
     scheduler.Schedule();
 
     // Generate register values for each command, and store them in the extra data

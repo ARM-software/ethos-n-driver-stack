@@ -18,6 +18,8 @@ namespace ethosn
 namespace support_library
 {
 
+struct DebuggingContext;
+
 /// Used to represent a ratio in the number of stripes of this/other agent
 /// that are needed by other/this agent
 struct DependencyRatio
@@ -137,7 +139,7 @@ struct AgentDescAndDeps
 class Scheduler
 {
 public:
-    Scheduler(const std::vector<AgentDescAndDeps>& agents);
+    Scheduler(const std::vector<AgentDescAndDeps>& agents, const DebuggingContext& debuggingContext);
 
     void Schedule();
 
@@ -184,6 +186,8 @@ private:
     void SchedulePleLoaderStripe(const uint32_t agentId, uint32_t stripeId);
     void SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stripeId);
     void ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t stripeId);
+
+    const DebuggingContext& m_DebuggingContext;
 
     /// The list of agents that this Scheduler will process.
     const std::vector<AgentDescAndDeps>& m_Agents;

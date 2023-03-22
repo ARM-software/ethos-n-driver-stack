@@ -5,12 +5,14 @@
 
 #include "Scheduler.hpp"
 
+#include "../DebuggingContext.hpp"
 #include "../Utils.hpp"
 #include "DmaRegisters.hpp"
 
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <fstream>
 
 using namespace ethosn::command_stream::cascading;
 
@@ -74,6 +76,80 @@ inline int GetLastReaderOfEvictedStripeId(const Dependency& dep, const uint32_t 
 {
     assert(x >= tileSize);
     return GetLastReaderStripeId(dep, x - tileSize);
+}
+
+void DumpDependency(std::ofstream& f, const Dependency& d, const char* type)
+{
+    f << "    <" << type << ">\n";
+    f << "      <RELATIVE_AGENT_ID>" << static_cast<uint32_t>(d.relativeAgentId) << "</RELATIVE_AGENT_ID>\n";
+    f << "      <OUTER_RATIO><OTHER>" << d.outerRatio.other << "</OTHER><SELF>" << d.outerRatio.self
+      << "</SELF></OUTER_RATIO>\n";
+    f << "      <INNER_RATIO><OTHER>" << d.innerRatio.other << "</OTHER><SELF>" << d.innerRatio.self
+      << "</SELF></INNER_RATIO>\n";
+    f << "      <BOUNDARY>" << static_cast<uint32_t>(d.boundary) << "</BOUNDARY>\n";
+    f << "    </" << type << ">\n";
+}
+
+void DumpDependencies(std::ofstream& f, const std::vector<AgentDescAndDeps>& agents)
+{
+    f << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
+    f << "<STREAM><CASCADE>\n";
+    f << "<NUM_AGENTS>" << agents.size() << "</NUM_AGENTS>\n";
+    for (size_t a = 0; a < agents.size(); ++a)
+    {
+        f << "  <AGENT> <!-- Agent " << a << " -->\n";
+
+        switch (agents[a].agent.type)
+        {
+            case AgentType::IFM_STREAMER:
+                f << "    <IFM_STREAMER>\n";
+                f << "      <TILE><NUM_SLOTS>" << agents[a].agent.ifm.fmData.tile.numSlots << "</NUM_SLOTS></TILE>\n";
+                f << "    </IFM_STREAMER>\n";
+                break;
+            case AgentType::MCE_SCHEDULER:
+                f << "    <MCE_SCHEDULER>\n";
+                f << "    </MCE_SCHEDULER>\n";
+                break;
+            case AgentType::OFM_STREAMER:
+                f << "    <OFM_STREAMER>\n";
+                f << "    </OFM_STREAMER>\n";
+                break;
+            case AgentType::PLE_LOADER:
+                f << "    <PLE_LOADER>\n";
+                f << "    </PLE_LOADER>\n";
+                break;
+            case AgentType::PLE_SCHEDULER:
+                f << "    <PLE_SCHEDULER>\n";
+                f << "      <OFM_TILE><NUM_SLOTS>" << agents[a].agent.pleS.ofmTile.numSlots
+                  << "</NUM_SLOTS></OFM_TILE>\n";
+                f << "    </PLE_SCHEDULER>\n";
+                break;
+            case AgentType::WGT_STREAMER:
+                f << "    <WGT_STREAMER>\n";
+                f << "      <TILE><NUM_SLOTS>" << agents[a].agent.wgt.tile.numSlots << "</NUM_SLOTS></TILE>\n";
+                f << "    </WGT_STREAMER>\n";
+                break;
+            default:
+                assert(false);
+                break;
+        }
+
+        f << "    <NUM_STRIPES_TOTAL>" << agents[a].agent.numStripesTotal << "</NUM_STRIPES_TOTAL>\n";
+        for (Dependency d : agents[a].deps.scheduleDependencies)
+        {
+            DumpDependency(f, d, "SCHEDULE_DEPENDENCY");
+        }
+        for (Dependency d : agents[a].deps.readDependencies)
+        {
+            DumpDependency(f, d, "READ_DEPENDENCY");
+        }
+        for (Dependency d : agents[a].deps.writeDependencies)
+        {
+            DumpDependency(f, d, "WRITE_DEPENDENCY");
+        }
+        f << "  </AGENT>\n";
+    }
+    f << "</CASCADE></STREAM>\n";
 }
 
 }    // namespace
@@ -235,8 +311,9 @@ void Scheduler::ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t strip
     }
 }
 
-Scheduler::Scheduler(const std::vector<AgentDescAndDeps>& agents)
-    : m_Agents{ agents }
+Scheduler::Scheduler(const std::vector<AgentDescAndDeps>& agents, const DebuggingContext& debuggingContext)
+    : m_DebuggingContext(debuggingContext)
+    , m_Agents{ agents }
     , m_AgentProgress(agents.size(), 0)
     , m_BaseAgentId(0)
 {}
@@ -269,6 +346,13 @@ bool Scheduler::Finished() const
 void Scheduler::Schedule()
 {
     using namespace command_stream::cascading;
+
+    // For debugging the scheduling dependencies, dump out some of the intermediate command stream representation
+    if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
+    {
+        std::ofstream f(m_DebuggingContext.GetAbsolutePathOutputFileName("ScheduleDependencies.xml"));
+        DumpDependencies(f, m_Agents);
+    }
 
     // Points to the agent that we will next attempt to schedule stripes from in the loop body
     uint32_t currentAgentId = 0;
