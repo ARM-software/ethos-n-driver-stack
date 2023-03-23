@@ -308,8 +308,9 @@ std::shared_ptr<ethosn::support_library::EncodedWeights> WeightEncoderCache::Enc
             return {};
         }
 
-        g_Logger.Debug("Encode %lu weights, stripDepth = %u, iterationSize = %u...", params.weightsData->size(),
-                       params.stripeDepth, params.iterationSize);
+        g_Logger.Debug("Encode %lu weights, stripeDepth = %u, iterationSize = %u, algorithm = %s...",
+                       params.weightsData->size(), params.stripeDepth, params.iterationSize,
+                       ToString(params.algorithm).c_str());
         auto startTime = std::chrono::high_resolution_clock::now();
 
         EncodedWeights w =
@@ -320,7 +321,7 @@ std::shared_ptr<ethosn::support_library::EncodedWeights> WeightEncoderCache::Enc
         it = m_Entries.insert({ params, std::make_shared<EncodedWeights>(w) }).first;
 
         auto duration = std::chrono::high_resolution_clock::now() - startTime;
-        g_Logger.Debug("%llu ms", duration.count() / (1000ULL * 1000ULL));
+        g_Logger.Debug("...%llu ms", duration.count() / (1000ULL * 1000ULL));
 
         m_DebuggingContext.m_TotalWeightCompressionTime += duration.count();
 
