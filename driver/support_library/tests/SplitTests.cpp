@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -146,7 +146,7 @@ TEST_CASE("Split NHWCB", "[.]")
 
     // Figure out which output is which
     size_t firstOutputIdx = FindIndexIf(compiledNetwork[0]->GetOutputBufferInfos(),
-                                        [&](auto b) { return b.m_SourceOperationOutputIndex == 0; })
+                                        [&](const auto& b) { return b.m_SourceOperationOutputIndex == 0; })
                                 .second;
     const CompiledNetworkImpl* cnImpl = static_cast<const CompiledNetworkImpl*>(compiledNetwork[0].get());
     uint32_t firstOutputBufferId      = cnImpl->GetOutputBufferInfosInternal()[firstOutputIdx].m_Id;
@@ -166,7 +166,8 @@ TEST_CASE("Split NHWCB", "[.]")
     // There should be two of them, each extracting NHWCB from the input buffer at different supertensor offsets.
     REQUIRE(convCmds.size() == 2);
     size_t firstOutputCmdIdx =
-        FindIndexIf(convCmds, [&](auto c) { return c.m_OutputInfo().m_DramBufferId() == firstOutputBufferId; }).second;
+        FindIndexIf(convCmds, [&](const auto& c) { return c.m_OutputInfo().m_DramBufferId() == firstOutputBufferId; })
+            .second;
     size_t secondOutputCmdIdx = 1 - firstOutputCmdIdx;
 
     REQUIRE(convCmds[firstOutputCmdIdx].m_InputInfo().m_DataType() == expectedInputDataType);
@@ -209,7 +210,7 @@ TEST_CASE("Split NHWC", "[.]")
 
     // Figure out which output is which
     size_t firstOutputIdx = FindIndexIf(compiledNetwork[0]->GetOutputBufferInfos(),
-                                        [&](auto b) { return b.m_SourceOperationOutputIndex == 0; })
+                                        [&](const auto& b) { return b.m_SourceOperationOutputIndex == 0; })
                                 .second;
     const CompiledNetworkImpl* cnImpl = static_cast<const CompiledNetworkImpl*>(compiledNetwork[0].get());
     uint32_t firstOutputBufferId      = cnImpl->GetOutputBufferInfosInternal()[firstOutputIdx].m_Id;
@@ -229,7 +230,8 @@ TEST_CASE("Split NHWC", "[.]")
     // There should be two of them, each extracting NHWC from the input buffer at different supertensor offsets.
     REQUIRE(convCmds.size() == 2);
     size_t firstOutputCmdIdx =
-        FindIndexIf(convCmds, [&](auto c) { return c.m_OutputInfo().m_DramBufferId() == firstOutputBufferId; }).second;
+        FindIndexIf(convCmds, [&](const auto& c) { return c.m_OutputInfo().m_DramBufferId() == firstOutputBufferId; })
+            .second;
     size_t secondOutputCmdIdx = 1 - firstOutputCmdIdx;
 
     REQUIRE(convCmds[firstOutputCmdIdx].m_InputInfo().m_DataType() == expectedOtputDataType);

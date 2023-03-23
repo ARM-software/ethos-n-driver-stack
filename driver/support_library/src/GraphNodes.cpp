@@ -71,7 +71,7 @@ InputNode::InputNode(NodeId id, const TensorInfo& outputTensorInfo, std::set<uin
            outputTensorInfo.m_DataType,
            outputTensorInfo.m_QuantizationInfo,
            ConvertExternalToCompilerDataFormat(outputTensorInfo.m_DataFormat),
-           correspondingOperationIds)
+           std::move(correspondingOperationIds))
 {}
 
 bool InputNode::IsPrepared()
@@ -158,13 +158,13 @@ MceOperationNode::MceOperationNode(NodeId id,
                                    std::vector<uint8_t> weightsData,
                                    const TensorInfo& biasInfo,
                                    std::vector<int32_t> biasData,
-                                   Stride stride,
+                                   const Stride& stride,
                                    uint32_t padTop,
                                    uint32_t padLeft,
                                    command_stream::MceOperation op,
                                    CompilerDataFormat format,
                                    std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
     , m_UninterleavedInputShape(uninterleavedInputTensorShape)
     , m_WeightsInfo(weightsInfo)
     , m_WeightsData(std::make_shared<std::vector<uint8_t>>(std::move(weightsData)))
@@ -365,7 +365,7 @@ McePostProcessOperationNode::McePostProcessOperationNode(NodeId id,
                                                          int16_t upperBound,
                                                          CompilerDataFormat format,
                                                          std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
     , m_LowerBound(lowerBound)
     , m_UpperBound(upperBound)
 {}
@@ -536,7 +536,7 @@ StandalonePleOperationNode::StandalonePleOperationNode(NodeId id,
                                                        command_stream::PleOperation k,
                                                        CompilerDataFormat format,
                                                        std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
     , m_KernelOperation(k)
 {}
 
@@ -585,7 +585,7 @@ FormatConversionNode::FormatConversionNode(NodeId id,
                                            const QuantizationInfo& outputQuantizationInfo,
                                            CompilerDataFormat format,
                                            std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
 {}
 
 bool FormatConversionNode::IsPrepared()
@@ -646,7 +646,7 @@ SpaceToDepthNode::SpaceToDepthNode(NodeId id,
                                    const QuantizationInfo& outputQuantizationInfo,
                                    CompilerDataFormat format,
                                    std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
 {}
 
 bool SpaceToDepthNode::IsPrepared()
@@ -665,7 +665,7 @@ ReinterpretNode::ReinterpretNode(NodeId id,
                                  const QuantizationInfo& outputQuantizationInfo,
                                  CompilerDataFormat format,
                                  std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
 {}
 
 bool ReinterpretNode::IsPrepared()
@@ -769,7 +769,7 @@ ConcatNode::ConcatNode(NodeId id,
                        CompilerDataFormat format,
                        uint32_t axis,
                        std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
     , m_Axis(axis)
 {}
 
@@ -860,7 +860,7 @@ ExtractSubtensorNode::ExtractSubtensorNode(NodeId id,
                                            const QuantizationInfo& outputQuantizationInfo,
                                            CompilerDataFormat format,
                                            std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
     , m_SupertensorOffset(supertensorOffset)
 {}
 
@@ -927,7 +927,7 @@ SoftmaxNode::SoftmaxNode(NodeId id,
                          const QuantizationInfo& outputQuantizationInfo,
                          CompilerDataFormat format,
                          std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
 {}
 
 CopyNode::CopyNode(NodeId id,
@@ -936,7 +936,7 @@ CopyNode::CopyNode(NodeId id,
                    const QuantizationInfo& outputQuantizationInfo,
                    CompilerDataFormat format,
                    std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
 {}
 
 bool CopyNode::IsPrepared()
@@ -976,7 +976,7 @@ RequantizeNode::RequantizeNode(NodeId id,
                                const QuantizationInfo& outputQuantizationInfo,
                                CompilerDataFormat format,
                                std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
 {}
 
 bool RequantizeNode::IsPrepared()
@@ -1132,7 +1132,7 @@ EstimateOnlyNode::EstimateOnlyNode(NodeId id,
                                    CompilerDataFormat format,
                                    std::set<uint32_t> correspondingOperationIds,
                                    const char* reasons)
-    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
 {
     assert(reasons != nullptr);
 

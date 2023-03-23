@@ -29,7 +29,7 @@ public:
     WeightPart(PartId id,
                uint32_t* numPlansCounter,
                std::vector<uint32_t>* numWeightBuffers,
-               std::function<bool(CascadeType, PartId)> filter,
+               const std::function<bool(CascadeType, PartId)>& filter,
                bool hasInput,
                bool hasOutput)
         : MockPart(id, hasInput, hasOutput)
@@ -123,7 +123,7 @@ public:
     NoWeightPart(PartId id,
                  uint32_t* numPlansCounter,
                  std::vector<uint32_t>* weightBuffers,
-                 std::function<bool(CascadeType, PartId)> filter,
+                 const std::function<bool(CascadeType, PartId)>& filter,
                  bool hasInput,
                  bool hasOutput)
         : WeightPart(id, numPlansCounter, weightBuffers, filter, hasInput, hasOutput)

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -25,7 +25,7 @@ class Section
 {
 public:
     Section(std::string id, command_stream::SectionType type, Pass* pass)
-        : m_Id(id)
+        : m_Id(std::move(id))
         , m_IsGenerated(false)
         , m_Passes()
         , m_SectionType(type)

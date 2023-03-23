@@ -66,7 +66,7 @@ public:
             std::vector<uint8_t> weightsData,
             const TensorInfo& biasInfo,
             std::vector<int32_t> biasData,
-            Stride stride,
+            const Stride& stride,
             uint32_t padTop,
             uint32_t padLeft,
             command_stream::MceOperation op,

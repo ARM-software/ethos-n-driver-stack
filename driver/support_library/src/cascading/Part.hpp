@@ -137,7 +137,7 @@ public:
     {}
     BasePart(PartId id,
              const char* debugPartType,
-             const std::set<uint32_t> correspondingOperationIds,
+             std::set<uint32_t> correspondingOperationIds,
              const EstimationOptions& estOpt,
              const CompilationOptions& compOpt,
              const HardwareCapabilities& capabilities)
@@ -145,7 +145,7 @@ public:
         : DebuggableObject(DebuggableObject::ExplicitDebugTag(),
                            (std::string(debugPartType) + " " + std::to_string(id)).c_str())
         , m_PartId{ id }
-        , m_CorrespondingOperationIds{ correspondingOperationIds }
+        , m_CorrespondingOperationIds{ std::move(correspondingOperationIds) }
         , m_EstimationOptions{ estOpt }
         , m_CompilationOptions{ compOpt }
         , m_Capabilities{ capabilities }

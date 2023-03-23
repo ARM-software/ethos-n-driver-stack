@@ -129,7 +129,7 @@ Combiner::Combiner(const FrozenGraphOfParts& graphOfParts,
 
 void Combiner::DumpDebugInfo(const Combinations& combs,
                              const Combiner::BestCombinationResults& bestCombinationResults,
-                             const std::string folder)
+                             const std::string& folder)
 {
     using namespace ethosn::utils;
     if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)

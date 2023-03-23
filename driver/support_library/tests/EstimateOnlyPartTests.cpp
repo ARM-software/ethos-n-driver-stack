@@ -74,7 +74,7 @@ void CheckPlans(const Plans& plans, const CheckPlansParams& params)
         CHECK(plans[0].m_OutputMappings.at(buffers[outputIndex]).m_OutputIndex == outputIndex - 2);
     }
 }
-void SavePlansToDot(const Plans& plans, const std::string test)
+void SavePlansToDot(const Plans& plans, const std::string& test)
 {
     if (!g_AllowDotFileGenerationInTests)
     {

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -49,7 +49,7 @@ Node::Node(NodeId id,
     , m_SramOffset(0)
     , m_CompressionFormat(CompilerDataCompressedFormat::NONE)
     , m_BufferId(0xFFFFFFFF)
-    , m_CorrespondingOperationIds(correspondingOperationIds)
+    , m_CorrespondingOperationIds(std::move(correspondingOperationIds))
 {}
 
 Node::~Node()

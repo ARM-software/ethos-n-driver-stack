@@ -24,9 +24,8 @@ LoggerType g_Logger;
 #endif
 
 HardwareCapabilities::HardwareCapabilities(const FirmwareAndHardwareCapabilities& fwAndHwCapabilities)
-{
-    m_FirmwareAndHardwareCapabilities = fwAndHwCapabilities;
-}
+    : m_FirmwareAndHardwareCapabilities(fwAndHwCapabilities)
+{}
 
 uint32_t HardwareCapabilities::GetTotalSramSize() const
 {

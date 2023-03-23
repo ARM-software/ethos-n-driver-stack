@@ -689,10 +689,10 @@ DotAttributes::DotAttributes()
 {}
 
 DotAttributes::DotAttributes(std::string id, std::string label, std::string color)
-    : m_Id(id)
-    , m_Label(label)
+    : m_Id(std::move(id))
+    , m_Label(std::move(label))
     , m_LabelAlignmentChar('n')
-    , m_Color(color)
+    , m_Color(std::move(color))
 {}
 
 namespace
@@ -1446,7 +1446,7 @@ template <typename T>
 void DumpMapInSortedOrder(const T& map,
                           std::ostream& stream,
                           const NodeIds& nodeIds,
-                          std::string additionalOptions = "")
+                          const std::string& additionalOptions = "")
 {
     std::vector<std::string> nodeIdsOrdered;
     for (auto&& srcAndDest : map)
@@ -1466,7 +1466,7 @@ template <typename T>
 void DumpMapInSortedOrderReverse(const T& map,
                                  std::ostream& stream,
                                  const NodeIds& nodeIds,
-                                 std::string additionalOptions = "")
+                                 const std::string& additionalOptions = "")
 {
     std::vector<std::string> nodeIdsOrdered;
     for (auto&& srcAndDest : map)

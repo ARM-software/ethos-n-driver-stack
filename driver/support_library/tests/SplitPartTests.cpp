@@ -95,7 +95,7 @@ void CheckPlans(const Plans& plans, const CheckPlansParams& params, const SplitI
     }
 }
 
-void SavePlansToDot(const Plans& plans, const std::string test)
+void SavePlansToDot(const Plans& plans, const std::string& test)
 {
     if (!g_AllowDotFileGenerationInTests)
     {

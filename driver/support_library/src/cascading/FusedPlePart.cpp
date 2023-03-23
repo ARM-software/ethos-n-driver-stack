@@ -27,7 +27,7 @@ FusedPlePart::FusedPlePart(PartId id,
                            const QuantizationInfo& inputQuantizationInfo,
                            const QuantizationInfo& outputQuantizationInfo,
                            command_stream::PleOperation op,
-                           utils::ShapeMultiplier shapeMultiplier,
+                           const utils::ShapeMultiplier& shapeMultiplier,
                            const EstimationOptions& estOpt,
                            const CompilationOptions& compOpt,
                            const HardwareCapabilities& capabilities,
@@ -36,7 +36,7 @@ FusedPlePart::FusedPlePart(PartId id,
                            DataType m_OutputDataType,
                            float alpha,
                            DebuggingContext& debuggingContext)
-    : BasePart(id, "FusedPlePart", correspondingOperationIds, estOpt, compOpt, capabilities)
+    : BasePart(id, "FusedPlePart", std::move(correspondingOperationIds), estOpt, compOpt, capabilities)
     , m_InputTensorShape(inputTensorShape)
     , m_OutputTensorShape(outputTensorShape)
     , m_InputQuantizationInfo(inputQuantizationInfo)

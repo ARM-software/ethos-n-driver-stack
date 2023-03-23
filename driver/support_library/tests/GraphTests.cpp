@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -26,7 +26,7 @@ public:
                QuantizationInfo(),
                CompilerDataFormat::NONE,
                std::set<uint32_t>{ 0 })
-        , m_Name(name)
+        , m_Name(std::move(name))
     {}
 
     DotAttributes GetDotAttributes() override

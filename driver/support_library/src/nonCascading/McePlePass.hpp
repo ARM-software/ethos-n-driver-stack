@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -25,16 +25,16 @@ class RequantizeNode;
 struct MceStrategySelectionParameters
 {
     MceStrategySelectionParameters(SramAllocator::UserId userId,
-                                   HardwareCapabilities capabilities,
-                                   SramAllocator sramAllocator,
-                                   TensorShape inputShape,
-                                   TensorShape mceOutputShape,
-                                   TensorShape outputShape,
+                                   const HardwareCapabilities& capabilities,
+                                   const SramAllocator& sramAllocator,
+                                   const TensorShape& inputShape,
+                                   const TensorShape& mceOutputShape,
+                                   const TensorShape& outputShape,
                                    DataFormat weightsFormat,
-                                   TensorShape weightsShape,
-                                   utils::ShapeMultiplier mceShapeMultiplier,
-                                   utils::ShapeMultiplier pleShapeMultiplier,
-                                   std::pair<bool, uint32_t> inputStaticAndOffset,
+                                   const TensorShape& weightsShape,
+                                   const utils::ShapeMultiplier& mceShapeMultiplier,
+                                   const utils::ShapeMultiplier& pleShapeMultiplier,
+                                   const std::pair<bool, uint32_t>& inputStaticAndOffset,
                                    CompilerMceAlgorithm algorithm,
                                    uint32_t depthMax = UINT32_MAX)
         : userId{ userId }
@@ -96,15 +96,16 @@ struct LinearNodesOutput
 class McePlePass : public Pass
 {
 public:
-    static std::unique_ptr<McePlePass> CreateGreedily(const HardwareCapabilities& capabilities,
-                                                      size_t id,
-                                                      std::vector<IStrategy*> allowedStrategies,
-                                                      std::vector<command_stream::BlockConfig> allowedBlockConfigs,
-                                                      bool enableIntermediateCompression,
-                                                      bool enableWinograd,
-                                                      Node* firstNode,
-                                                      SramAllocator& sramAllocator,
-                                                      bool forwardEst);
+    static std::unique_ptr<McePlePass>
+        CreateGreedily(const HardwareCapabilities& capabilities,
+                       size_t id,
+                       const std::vector<IStrategy*>& allowedStrategies,
+                       const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
+                       bool enableIntermediateCompression,
+                       bool enableWinograd,
+                       Node* firstNode,
+                       SramAllocator& sramAllocator,
+                       bool forwardEst);
 
     McePlePass(const HardwareCapabilities& capabilities,
                size_t id,
@@ -122,15 +123,15 @@ public:
 
     static MceStrategySelectionReturnValue
         ChooseAndSetupStrategy(const MceStrategySelectionParameters& strategySelectionParameters,
-                               std::vector<IStrategy*> allowedStrategies,
-                               std::vector<command_stream::BlockConfig> allowedBlockConfigs);
+                               const std::vector<IStrategy*>& allowedStrategies,
+                               const std::vector<command_stream::BlockConfig>& allowedBlockConfigs);
 
 private:
     static LinearNodesOutput FindLinearWorkingNodes(Node* firstNode,
                                                     const SramAllocator& sramAllocator,
                                                     const HardwareCapabilities& capabilities,
-                                                    std::vector<IStrategy*> allowedStrategies,
-                                                    std::vector<command_stream::BlockConfig> allowedBlockConfigs,
+                                                    const std::vector<IStrategy*>& allowedStrategies,
+                                                    const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
                                                     bool enableWinograd);
     // Update the set of block configs to those that are valid for the selected Mce operation or algorithm,
     // e.g.Winograd, FullyConnected

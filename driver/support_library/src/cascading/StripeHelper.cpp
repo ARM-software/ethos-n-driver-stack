@@ -132,7 +132,8 @@ StripeConfig GetDefaultStripeConfig(const CompilationOptions& compilationOptions
         std::string line;
         uint32_t lineNumber = 0;
         auto reportError    = [&lineNumber](std::string msg) {
-            throw std::runtime_error("Error in stripe config file at line " + std::to_string(lineNumber) + ": " + msg);
+            throw std::runtime_error("Error in stripe config file at line " + std::to_string(lineNumber) + ": " +
+                                     std::move(msg));
         };
 
         bool active = false;    // Does the section of the file we are in match the identifier given
@@ -614,10 +615,10 @@ StripeGenerator::StripeGenerator(const TensorShape& mceInput,
                                  uint32_t upscaleFactor,
                                  command_stream::MceOperation op,
                                  command_stream::PleOperation pleOp,
-                                 utils::ShapeMultiplier mceShapeMult,
-                                 utils::ShapeMultiplier pleShapeMult,
+                                 const utils::ShapeMultiplier& mceShapeMult,
+                                 const utils::ShapeMultiplier& pleShapeMult,
                                  const HardwareCapabilities& m_Capabilities,
-                                 StripeConfig stripeConfig)
+                                 const StripeConfig& stripeConfig)
     : m_MceInputTensorShape(mceInput)
     , m_MceOutputTensorShape(mceOutput)
     , m_PleOutputTensorShape(pleOutput)

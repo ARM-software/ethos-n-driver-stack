@@ -11,6 +11,8 @@
 #include <algorithm>
 #include <ethosn_utils/Macros.hpp>
 
+#include <utility>
+
 using namespace ethosn::command_stream;
 
 namespace ethosn
@@ -296,7 +298,7 @@ McePart::McePart(PartId id,
                  std::vector<uint8_t> weightsData,
                  const TensorInfo& biasInfo,
                  std::vector<int32_t> biasData,
-                 Stride stride,
+                 const Stride& stride,
                  uint32_t padTop,
                  uint32_t padLeft,
                  command_stream::MceOperation op,
@@ -307,7 +309,7 @@ McePart::McePart(PartId id,
                  DataType inputDataType,
                  DataType outputDataType,
                  DebuggingContext& debuggingContext)
-    : BasePart(id, "McePart", operationIds, estOpt, compOpt, capabilities)
+    : BasePart(id, "McePart", std::move(operationIds), estOpt, compOpt, capabilities)
     , m_InputTensorShape(inputTensorShape)
     , m_OutputTensorShape(outputTensorShape)
     , m_WeightEncoderCache{ capabilities, debuggingContext, m_DebugTag.c_str() }
@@ -346,7 +348,12 @@ McePart::McePart(PartId id,
 {}
 
 McePart::McePart(ConstructionParams&& params)
-    : BasePart(params.m_Id, "McePart", params.m_OperationIds, params.m_EstOpt, params.m_CompOpt, params.m_Capabilities)
+    : BasePart(params.m_Id,
+               "McePart",
+               std::move(params.m_OperationIds),
+               params.m_EstOpt,
+               params.m_CompOpt,
+               params.m_Capabilities)
     , m_InputTensorShape(params.m_InputTensorShape)
     , m_OutputTensorShape(params.m_OutputTensorShape)
     , m_WeightEncoderCache{ params.m_Capabilities, params.m_DebuggingContext, m_DebugTag.c_str() }

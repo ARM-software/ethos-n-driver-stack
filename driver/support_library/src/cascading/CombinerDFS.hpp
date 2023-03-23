@@ -208,7 +208,7 @@ private:
 
     void DumpDebugInfo(const Combinations& combs,
                        const Combiner::BestCombinationResults& bestCombinationResults,
-                       const std::string folder);
+                       const std::string& folder);
 
     const FrozenGraphOfParts& m_GraphOfParts;
     const HardwareCapabilities& m_Caps;

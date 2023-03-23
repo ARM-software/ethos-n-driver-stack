@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -9,6 +9,8 @@
 #include "Utils.hpp"
 
 #include <ethosn_command_stream/PleOperation.hpp>
+
+#include <utility>
 
 namespace ethosn
 {
@@ -42,7 +44,12 @@ public:
                DataType dataType,
                std::set<uint32_t> correspondingOperationIds,
                uint32_t sourceOperationOutputIndex)
-        : Node(id, TensorShape(), dataType, QuantizationInfo(), CompilerDataFormat::NONE, correspondingOperationIds)
+        : Node(id,
+               TensorShape(),
+               dataType,
+               QuantizationInfo(),
+               CompilerDataFormat::NONE,
+               std::move(correspondingOperationIds))
         , m_SourceOperationOutputIndex(sourceOperationOutputIndex)
     {}    // OutputNode doesn't really have an output...
 
@@ -68,9 +75,9 @@ public:
                constantInfo.m_DataType,
                constantInfo.m_QuantizationInfo,
                ConvertExternalToCompilerDataFormat(constantInfo.m_DataFormat),
-               correspondingOperationIds)
+               std::move(correspondingOperationIds))
         , m_ConstantDataType(constantInfo.m_DataType)
-        , m_ConstantData(constantData)
+        , m_ConstantData(std::move(constantData))
     {}
 
     const std::vector<uint8_t>& GetConstantData() const;
@@ -100,7 +107,7 @@ public:
                      std::vector<uint8_t> weightsData,
                      const TensorInfo& biasInfo,
                      std::vector<int32_t> biasData,
-                     Stride stride,
+                     const Stride& stride,
                      uint32_t padTop,
                      uint32_t padLeft,
                      command_stream::MceOperation op,

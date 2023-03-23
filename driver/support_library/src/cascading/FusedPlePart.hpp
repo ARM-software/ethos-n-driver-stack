@@ -23,7 +23,7 @@ public:
                  const QuantizationInfo& inputQuantizationInfo,
                  const QuantizationInfo& outputQuantizationInfo,
                  command_stream::PleOperation op,
-                 utils::ShapeMultiplier shapeMultiplier,
+                 const utils::ShapeMultiplier& shapeMultiplier,
                  const EstimationOptions& estOpt,
                  const CompilationOptions& compOpt,
                  const HardwareCapabilities& capabilities,

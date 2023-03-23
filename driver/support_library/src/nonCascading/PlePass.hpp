@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -23,7 +23,7 @@ struct PleStrategySelectionParameter
 {
     PleStrategySelectionParameter(SramAllocator::UserId userId,
                                   const HardwareCapabilities& capabilities,
-                                  SramAllocator sramAllocator,
+                                  const SramAllocator& sramAllocator,
                                   const std::vector<SramTensorAllocation>& inputSramAllocations,
                                   const std::vector<TensorShape>& inputShapes,
                                   const TensorShape& outputShape,

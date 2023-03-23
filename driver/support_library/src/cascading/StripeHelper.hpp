@@ -427,10 +427,10 @@ public:
                     uint32_t upscaleFactor,
                     command_stream::MceOperation op,
                     command_stream::PleOperation pleOp,
-                    utils::ShapeMultiplier mceShapeMult,
-                    utils::ShapeMultiplier pleShapeMult,
+                    const utils::ShapeMultiplier& mceShapeMult,
+                    const utils::ShapeMultiplier& pleShapeMult,
                     const HardwareCapabilities& caps,
-                    StripeConfig stripeConfig);
+                    const StripeConfig& stripeConfig);
 
     // This method is intended to be called first with PlanPriority::High and after and only if needed
     // with PlanPriority::Low.

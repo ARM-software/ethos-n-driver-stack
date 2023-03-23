@@ -470,7 +470,7 @@ MceStrategySelectionReturnValue TryInputZXYOutputXYZ(const StrategyXSelectionPar
     }
 
     SramAllocator sramAllocator = strategyXSelectionParameters.sramAllocator;
-    auto TryConf = [&inputShape, &strategyXSelectionParameters](const Params params, const bool allowInputBuffering,
+    auto TryConf = [&inputShape, &strategyXSelectionParameters](const Params& params, const bool allowInputBuffering,
                                                                 const bool avoidInputReloading,
                                                                 const WeightsReloadingOptions weightsReloading) {
         assert(!avoidInputReloading || allowInputBuffering);
@@ -614,7 +614,7 @@ MceStrategySelectionReturnValue TryInputXYOutputXYZ(const StrategyXSelectionPara
         return rv;
     }
 
-    auto TryConf = [&strategyXSelectionParameters](const Params params, const bool allowInputBuffering) {
+    auto TryConf = [&strategyXSelectionParameters](const Params& params, const bool allowInputBuffering) {
         MceStrategySelectionReturnValue rv =
             TryStripeShapes(strategyXSelectionParameters,
                             { 1, params.outputStripeHeight, params.outputStripeWidth, params.outputStripeChannel },

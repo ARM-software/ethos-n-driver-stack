@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -63,7 +63,7 @@ void CheckPlans(const Plans& plans, const CheckPlansParams& params)
     }
 }
 
-void SavePlansToDot(const Plans& plans, const std::string test)
+void SavePlansToDot(const Plans& plans, const std::string& test)
 {
     if (!g_AllowDotFileGenerationInTests)
     {

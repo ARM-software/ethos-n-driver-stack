@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -22,17 +22,17 @@ struct StrategyXSelectionParameters
     StrategyXSelectionParameters(SramAllocator::UserId userId,
                                  command_stream::MceOperation mceOperation,
                                  command_stream::UpsampleType upsampleType,
-                                 SramAllocator sramAllocator,
-                                 TensorShape inputShape,
-                                 TensorShape outputShape,
+                                 const SramAllocator& sramAllocator,
+                                 const TensorShape& inputShape,
+                                 const TensorShape& outputShape,
                                  DataFormat weightsFormat,
-                                 TensorShape weightsShape,
-                                 std::pair<const uint32_t, const uint32_t> pad,
+                                 const TensorShape& weightsShape,
+                                 const std::pair<const uint32_t, const uint32_t>& pad,
                                  std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
-                                 HardwareCapabilities capabilities,
-                                 utils::ShapeMultiplier mceShapeMultiplier,
-                                 utils::ShapeMultiplier pleShapeMultiplier,
-                                 std::pair<const bool, const uint32_t> inputStaticAndOffset,
+                                 const HardwareCapabilities& capabilities,
+                                 const utils::ShapeMultiplier& mceShapeMultiplier,
+                                 const utils::ShapeMultiplier& pleShapeMultiplier,
+                                 const std::pair<const bool, const uint32_t>& inputStaticAndOffset,
                                  uint32_t depthMax)
         : userId{ userId }
         , mceOperation{ mceOperation }

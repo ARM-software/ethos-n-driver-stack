@@ -169,12 +169,13 @@ std::vector<IStrategy*> FilterStrategiesForPle(command_stream::PleOperation oper
     return strategies;
 }
 
-LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
-                                                     const SramAllocator& sramAllocator,
-                                                     const HardwareCapabilities& capabilities,
-                                                     std::vector<IStrategy*> allowedStrategies,
-                                                     std::vector<command_stream::BlockConfig> allowedBlockConfigs,
-                                                     bool enableWinograd)
+LinearNodesOutput
+    McePlePass::FindLinearWorkingNodes(Node* firstNode,
+                                       const SramAllocator& sramAllocator,
+                                       const HardwareCapabilities& capabilities,
+                                       const std::vector<IStrategy*>& allowedStrategies,
+                                       const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
+                                       bool enableWinograd)
 {
     Node* current                              = firstNode;
     ExtractSubtensorNode* extractSubtensorNode = nullptr;
@@ -385,8 +386,8 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
 std::unique_ptr<ethosn::support_library::McePlePass>
     McePlePass::CreateGreedily(const HardwareCapabilities& capabilities,
                                size_t id,
-                               std::vector<IStrategy*> allowedStrategies,
-                               std::vector<command_stream::BlockConfig> allowedBlockConfigs,
+                               const std::vector<IStrategy*>& allowedStrategies,
+                               const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
                                bool enableIntermediateCompression,
                                bool enableWinograd,
                                Node* firstNode,
@@ -599,8 +600,8 @@ command_stream::PleOperation McePlePass::GetPleOperation() const
 
 MceStrategySelectionReturnValue
     McePlePass::ChooseAndSetupStrategy(const MceStrategySelectionParameters& strategySelectionParameters,
-                                       std::vector<IStrategy*> allowedStrategies,
-                                       std::vector<command_stream::BlockConfig> allowedBlockConfigs)
+                                       const std::vector<IStrategy*>& allowedStrategies,
+                                       const std::vector<command_stream::BlockConfig>& allowedBlockConfigs)
 {
     // We try the "best" strategies first until we find one which is appropriate
     // This may change in the future when we use a dynamic programming approach
