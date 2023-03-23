@@ -487,13 +487,6 @@ command_stream::cascading::ProgramMceExtraData
             );
         }
 
-        g_Logger.Debug("  top slots=%u %u %u", ifmTopSlots.get_top_left_slot(), ifmTopSlots.get_top_center_slot(),
-                       ifmTopSlots.get_top_right_slot());
-        g_Logger.Debug("  mid slots=%u %u %u", ifmMidSlots.get_mid_left_slot(), ifmMidSlots.get_mid_center_slot(),
-                       ifmMidSlots.get_mid_right_slot());
-        g_Logger.Debug("  bot slots=%u %u %u", ifmBottomSlots.get_bottom_left_slot(),
-                       ifmBottomSlots.get_bottom_center_slot(), ifmBottomSlots.get_bottom_right_slot());
-
         result.IFM_TOP_SLOTS    = ifmTopSlots.word;
         result.IFM_MID_SLOTS    = ifmMidSlots.word;
         result.IFM_BOTTOM_SLOTS = ifmBottomSlots.word;
@@ -557,11 +550,6 @@ command_stream::cascading::ProgramMceExtraData
             weightBaseAddr.set_address(baseAddrOg);
 
             result.WEIGHT_BASE_ADDR[og] = weightBaseAddr.word;
-
-            if (og == 0)
-            {
-                g_Logger.Debug("  weightBaseAddr=%08X", weightBaseAddr.get_address());
-            }
         }
     }
 
@@ -794,8 +782,6 @@ command_stream::cascading::MceS CreateMceS(const MceSDesc& mceSDesc)
         ifm_slot_base_address_ig0_r ifmSlotBaseAddress;
         ifmSlotBaseAddress.set_ifm_slot_base_addr(mceSDesc.ifmTile.baseAddr);
         mceS.IFM_SLOT_BASE_ADDRESS = ifmSlotBaseAddress.word;
-
-        g_Logger.Debug("  ifmSlotBaseAddress=%08X", ifmSlotBaseAddress.get_ifm_slot_base_addr());
     }
 
     // PLE_MCEIF_CONFIG
