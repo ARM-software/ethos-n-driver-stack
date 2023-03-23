@@ -68,7 +68,7 @@ private:
                                  const TensorInfo& output,
                                  Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const;
 
-    bool IsConcatSupportedImpl(const std::vector<const TensorInfo*> inputs,
+    bool IsConcatSupportedImpl(const std::vector<const TensorInfo*>& inputs,
                                const TensorInfo& output,
                                const OriginsDescriptor& descriptor,
                                Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const;

@@ -10,6 +10,8 @@
 
 #include <armnn/ArmNN.hpp>
 
+#include <utility>
+
 namespace armnn
 {
 
@@ -18,17 +20,17 @@ class EthosNWorkloadFactory : public IWorkloadFactory
 {
 public:
     EthosNWorkloadFactory(const EthosNConfig& config,
-                          const std::shared_ptr<armnn::ICustomAllocator> customAllocator = nullptr)
+                          std::shared_ptr<armnn::ICustomAllocator> customAllocator = nullptr)
         : m_EthosNConfig(config)
-        , m_InternalAllocator(customAllocator)
+        , m_InternalAllocator(std::move(customAllocator))
     {}
 
     EthosNWorkloadFactory(const EthosNConfig& config,
-                          const std::string deviceId,
-                          const std::shared_ptr<armnn::ICustomAllocator> customAllocator = nullptr)
+                          std::string deviceId,
+                          std::shared_ptr<armnn::ICustomAllocator> customAllocator = nullptr)
         : m_EthosNConfig(config)
-        , m_DeviceId(deviceId)
-        , m_InternalAllocator(customAllocator)
+        , m_DeviceId(std::move(deviceId))
+        , m_InternalAllocator(std::move(customAllocator))
     {}
 
     const BackendId& GetBackendId() const override;

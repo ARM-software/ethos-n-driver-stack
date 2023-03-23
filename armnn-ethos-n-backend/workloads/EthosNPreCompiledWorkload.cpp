@@ -59,7 +59,7 @@ public:
     // Standard constructor
     explicit WaitStatus(WaitErrorCode errorCode, std::string errorDescription = "")
         : m_ErrorCode(errorCode)
-        , m_ErrorDescription(errorDescription)
+        , m_ErrorDescription(std::move(errorDescription))
     {}
 
     // Allow instances of this class to be copy constructed
@@ -289,10 +289,10 @@ void EthosNPreCompiledWorkload::Init(const EthosNPreCompiledObject::Network& net
 EthosNPreCompiledWorkload::EthosNPreCompiledWorkload(const PreCompiledQueueDescriptor& descriptor,
                                                      const WorkloadInfo& info,
                                                      const std::string& deviceId,
-                                                     const std::shared_ptr<armnn::ICustomAllocator> customAllocator)
+                                                     std::shared_ptr<armnn::ICustomAllocator> customAllocator)
     : BaseWorkload<PreCompiledQueueDescriptor>(descriptor, info)
     , m_PreCompiledObject(static_cast<const EthosNPreCompiledObject*>(descriptor.m_PreCompiledObject))
-    , m_InternalAllocator(customAllocator)
+    , m_InternalAllocator(std::move(customAllocator))
 {
     // Check that the workload is holding a pointer to a valid pre-compiled object
     if (m_PreCompiledObject == nullptr)
@@ -503,7 +503,7 @@ void EthosNPreCompiledWorkload::SavePerformanceJson() const
 
     os << indent << JsonField("Config") << "\n";
     os << indent << "{\n";
-    indent++;
+    ++indent;
 
     os << indent << JsonField("Variant") << ' ' << perfData.m_PerfVariant << ",\n";
     os << indent << JsonField("SramSizeBytesOverride") << ' ' << perfData.m_PerfSramSizeBytesOverride << ",\n";
@@ -522,7 +522,7 @@ void EthosNPreCompiledWorkload::SavePerformanceJson() const
 
     os << indent << JsonField("Current") << ' ' << perfData.m_EstimationOptions.m_Current << "\n";
 
-    indent--;
+    --indent;
     os << indent << "},\n";
 
     os << indent << JsonField("OperationNames") << '\n';

@@ -364,8 +364,8 @@ LayerTestResult<uint8_t, NumDims> OptimiseAndRunNetwork(armnn::IWorkloadFactory&
                                                         std::vector<uint8_t> expectedOutputData)
 {
     return OptimiseAndRunNetworkMultiple<NumDims>(
-        workloadFactory, network, { { inputBindingId, inputInfo } }, { { inputBindingId, inputData } },
-        { { outputBindingId, outputInfo } }, { { outputBindingId, expectedOutputData } })[0];
+        workloadFactory, network, { { inputBindingId, inputInfo } }, { { inputBindingId, std::move(inputData) } },
+        { { outputBindingId, outputInfo } }, { { outputBindingId, std::move(expectedOutputData) } })[0];
 }
 
 template <typename ConvolutionDescriptor>

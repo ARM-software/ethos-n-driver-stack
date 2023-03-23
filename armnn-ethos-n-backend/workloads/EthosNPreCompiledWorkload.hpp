@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace armnn
@@ -59,7 +60,7 @@ public:
         : m_IsPerfEstimationOnly(false)
         , m_InferenceTimeout(inferenceTimeout)
         , m_Network(std::move(network))
-        , m_EthosNOperationNameMapping(ethosnOperationNameMapping)
+        , m_EthosNOperationNameMapping(std::move(ethosnOperationNameMapping))
         , m_SubgraphIndex(subgraphIndex)
         , m_IntermediateBufSize(intermediateBufSize)
     {}
@@ -70,7 +71,7 @@ public:
         : m_IsPerfEstimationOnly(true)
         , m_InferenceTimeout(0)    // Not relevant for estimation
         , m_PerfData(std::move(perfData))
-        , m_EthosNOperationNameMapping(ethosnOperationNameMapping)
+        , m_EthosNOperationNameMapping(std::move(ethosnOperationNameMapping))
         , m_SubgraphIndex(subgraphIndex)
     {}
 
@@ -144,7 +145,7 @@ public:
     EthosNPreCompiledWorkload(const PreCompiledQueueDescriptor& descriptor,
                               const WorkloadInfo& info,
                               const std::string& deviceId,
-                              const std::shared_ptr<armnn::ICustomAllocator> customAllocator = nullptr);
+                              std::shared_ptr<armnn::ICustomAllocator> customAllocator = nullptr);
     void Execute() const override;
 
 private:

@@ -1,5 +1,5 @@
 //
-// Copyright © 2022 Arm Limited.
+// Copyright © 2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "EthosNBackend.hpp"
@@ -67,12 +67,11 @@ EthosNCachingOptions GetEthosNCachingOptionsFromModelOptions(const armnn::ModelO
 }
 
 EthosNCaching::EthosNCaching()
-{
-    m_SubgraphCount        = 0;
-    m_EthosNCachingOptions = { false, "" };
-    m_CompiledNetworks     = {};
-    m_IsLoaded             = false;
-}
+    : m_SubgraphCount(0)
+    , m_EthosNCachingOptions({ false, "" })
+    , m_CompiledNetworks()
+    , m_IsLoaded(false)
+{}
 
 void EthosNCaching::SetEthosNCachingOptions(const armnn::ModelOptions& modelOptions)
 {

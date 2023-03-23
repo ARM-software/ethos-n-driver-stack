@@ -688,7 +688,7 @@ armnn::EthosNLayerSupport::AdditionSupportedMode
     }
 }
 
-bool EthosNLayerSupport::IsConcatSupportedImpl(const std::vector<const TensorInfo*> inputs,
+bool EthosNLayerSupport::IsConcatSupportedImpl(const std::vector<const TensorInfo*>& inputs,
                                                const TensorInfo& output,
                                                const OriginsDescriptor& descriptor,
                                                Optional<std::string&> reasonIfUnsupported) const
