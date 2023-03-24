@@ -1308,12 +1308,9 @@ void SaveCompiledOpGraphToDot(const OpGraph& graph,
     std::map<uint32_t, std::pair<size_t, size_t>> passAgentIdRanges;
     for (const auto pair : compilationDetails.m_EstimatedOpGraph.m_OpToPass)
     {
-        if (passAgentIdRanges.find(pair.second) == passAgentIdRanges.end())
-        {
-            passAgentIdRanges[pair.second] = { std::numeric_limits<uint32_t>::max(), 0 };
-        }
+        auto it = passAgentIdRanges.insert({ pair.second, { std::numeric_limits<uint32_t>::max(), 0 } });
 
-        std::pair<size_t, size_t>& p = passAgentIdRanges.at(pair.second);
+        std::pair<size_t, size_t>& p = it.first->second;
         size_t agentId               = compilationDetails.m_OpToAgentIdMapping.at(pair.first);
         p.first                      = std::min(p.first, agentId);
         p.second                     = std::max(p.second, agentId);
