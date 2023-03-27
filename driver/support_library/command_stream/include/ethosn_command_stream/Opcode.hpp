@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -14,7 +14,6 @@ enum class Opcode : uint8_t
 {
     OPERATION_MCE_PLE,
     OPERATION_PLE_ONLY,
-    OPERATION_SOFTMAX,
     OPERATION_CONVERT,
     OPERATION_SPACE_TO_DEPTH,
     DUMP_DRAM,

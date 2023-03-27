@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -161,15 +161,6 @@ NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::OPERATION_PLE_ONLY>, Comma
                                   SramConfig, SramConfig,
                                   PleData, PleData);
 
-NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::OPERATION_SOFTMAX>, CommandData,
-                                  TensorInfo, InputInfo,
-                                  TensorInfo, OutputInfo,
-                                  int32_t, ScaledDiff,
-                                  int32_t, ExpAccumulation,
-                                  int32_t, InputBetaMultiplier,
-                                  int32_t, InputBetaLeftShift,
-                                  int32_t, DiffMin);
-
 NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::OPERATION_CONVERT>, CommandData,
     TensorInfo, InputInfo,
     TensorInfo, OutputInfo);
@@ -203,7 +194,6 @@ NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::CASCADE>, CommandData,
 
 using McePle       = CommandData<Opcode::OPERATION_MCE_PLE>;
 using PleOnly      = CommandData<Opcode::OPERATION_PLE_ONLY>;
-using Softmax      = CommandData<Opcode::OPERATION_SOFTMAX>;
 using Convert      = CommandData<Opcode::OPERATION_CONVERT>;
 using SpaceToDepth = CommandData<Opcode::OPERATION_SPACE_TO_DEPTH>;
 using DumpDram     = CommandData<Opcode::DUMP_DRAM>;

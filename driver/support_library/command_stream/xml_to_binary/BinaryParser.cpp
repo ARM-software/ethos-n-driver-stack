@@ -685,41 +685,6 @@ void Parse(std::stringstream& parent, const PleOnly& value)
     Parse(parent, "</OPERATION_PLE>", 1, true);
 }
 
-void Parse(std::stringstream& parent, const Softmax& value)
-{
-    Parse(parent, "<OPERATION_SOFTMAX>", 1, true);
-
-    Parse(parent, "<INPUT_INFO>", 2, true);
-    Parse(parent, value.m_InputInfo());
-    Parse(parent, "</INPUT_INFO>", 2, true);
-
-    Parse(parent, "<OUTPUT_INFO>", 2, true);
-    Parse(parent, value.m_OutputInfo());
-    Parse(parent, "</OUTPUT_INFO>", 2, true);
-
-    Parse(parent, "<SCALED_DIFF>", 2, false);
-    ParseAsNum(parent, value.m_ScaledDiff());
-    Parse(parent, "</SCALED_DIFF>", 0, true);
-
-    Parse(parent, "<EXP_ACCUMULATION>", 2, false);
-    ParseAsNum(parent, value.m_ExpAccumulation());
-    Parse(parent, "</EXP_ACCUMULATION>", 0, true);
-
-    Parse(parent, "<INPUT_BETA_MULTIPLIER>", 2, false);
-    ParseAsNum(parent, value.m_InputBetaMultiplier());
-    Parse(parent, "</INPUT_BETA_MULTIPLIER>", 0, true);
-
-    Parse(parent, "<INPUT_BETA_LEFT_SHIFT>", 2, false);
-    ParseAsNum(parent, value.m_InputBetaLeftShift());
-    Parse(parent, "</INPUT_BETA_LEFT_SHIFT>", 0, true);
-
-    Parse(parent, "<DIFF_MIN>", 2, false);
-    ParseAsNum(parent, value.m_DiffMin());
-    Parse(parent, "</DIFF_MIN>", 0, true);
-
-    Parse(parent, "</OPERATION_SOFTMAX>", 1, true);
-}
-
 void Parse(std::stringstream& parent, const Convert& value)
 {
     Parse(parent, "<OPERATION_CONVERT>", 1, true);
@@ -1711,11 +1676,6 @@ void ParseBinary(CommandStream& cstream, std::stringstream& output)
             case Opcode::OPERATION_PLE_ONLY:
             {
                 Parse(output, header.GetCommand<Opcode::OPERATION_PLE_ONLY>()->m_Data());
-                break;
-            }
-            case Opcode::OPERATION_SOFTMAX:
-            {
-                Parse(output, header.GetCommand<Opcode::OPERATION_SOFTMAX>()->m_Data());
                 break;
             }
             case Opcode::OPERATION_CONVERT:

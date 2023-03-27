@@ -187,49 +187,15 @@ const std::string g_XmlStr =
     <!-- Command 5 -->
     <FENCE/>
     <!-- Command 6 -->
-    <OPERATION_SOFTMAX>
-        <INPUT_INFO>
-            <DATA_TYPE>U8</DATA_TYPE>
-            <DATA_FORMAT>NHWCB</DATA_FORMAT>
-            <TENSOR_SHAPE>1 32 32 96</TENSOR_SHAPE>
-            <SUPERTENSOR_SHAPE>0 0 0 0</SUPERTENSOR_SHAPE>
-            <SUPERTENSOR_OFFSET>0 0 0 0</SUPERTENSOR_OFFSET>
-            <STRIPE_SHAPE>0 0 0 0</STRIPE_SHAPE>
-            <TILE_SHAPE>1 1 1 1</TILE_SHAPE>
-            <DRAM_BUFFER_ID>0</DRAM_BUFFER_ID>
-            <SRAM_OFFSET>0x0</SRAM_OFFSET>
-            <ZERO_POINT>0</ZERO_POINT>
-            <DATA_LOCATION>DRAM</DATA_LOCATION>
-        </INPUT_INFO>
-        <OUTPUT_INFO>
-            <DATA_TYPE>U8</DATA_TYPE>
-            <DATA_FORMAT>NHWCB</DATA_FORMAT>
-            <TENSOR_SHAPE>1 32 32 96</TENSOR_SHAPE>
-            <SUPERTENSOR_SHAPE>1 32 32 96</SUPERTENSOR_SHAPE>
-            <SUPERTENSOR_OFFSET>0 0 0 0</SUPERTENSOR_OFFSET>
-            <STRIPE_SHAPE>0 0 0 0</STRIPE_SHAPE>
-            <TILE_SHAPE>1 1 1 1</TILE_SHAPE>
-            <DRAM_BUFFER_ID>1</DRAM_BUFFER_ID>
-            <SRAM_OFFSET>0x0</SRAM_OFFSET>
-            <ZERO_POINT>0</ZERO_POINT>
-            <DATA_LOCATION>DRAM</DATA_LOCATION>
-        </OUTPUT_INFO>
-        <SCALED_DIFF>0</SCALED_DIFF>
-        <EXP_ACCUMULATION>1</EXP_ACCUMULATION>
-        <INPUT_BETA_MULTIPLIER>2</INPUT_BETA_MULTIPLIER>
-        <INPUT_BETA_LEFT_SHIFT>3</INPUT_BETA_LEFT_SHIFT>
-        <DIFF_MIN>-1</DIFF_MIN>
-    </OPERATION_SOFTMAX>
-    <!-- Command 7 -->
     <DUMP_DRAM>
         <DRAM_BUFFER_ID>2</DRAM_BUFFER_ID>
         <FILENAME>OutputModel_NHWCB.hex</FILENAME>
     </DUMP_DRAM>
-    <!-- Command 8 -->
+    <!-- Command 7 -->
     <DUMP_SRAM>
         <PREFIX>output_ce</PREFIX>
     </DUMP_SRAM>
-    <!-- Command 9 -->
+    <!-- Command 8 -->
     <OPERATION_PLE>
         <INPUT_INFO>
             <DATA_TYPE>U8</DATA_TYPE>
@@ -283,7 +249,7 @@ const std::string g_XmlStr =
             <RESCALE_SHIFT1>0</RESCALE_SHIFT1>
         </PLE_OP_INFO>
     </OPERATION_PLE>
-    <!-- Command 10 -->
+    <!-- Command 9 -->
     <OPERATION_PLE>
         <INPUT_INFO>
             <DATA_TYPE>U8</DATA_TYPE>
@@ -324,7 +290,7 @@ const std::string g_XmlStr =
             <RESCALE_SHIFT1>0</RESCALE_SHIFT1>
         </PLE_OP_INFO>
     </OPERATION_PLE>
-    <!-- Command 11 -->
+    <!-- Command 10 -->
     <OPERATION_CONVERT>
         <INPUT_INFO>
             <DATA_TYPE>U8</DATA_TYPE>
@@ -354,7 +320,7 @@ const std::string g_XmlStr =
         </OUTPUT_INFO>
     </OPERATION_CONVERT>)"
     R"(
-    <!-- Command 12 -->
+    <!-- Command 11 -->
     <CASCADE>
         <NUM_AGENTS>6</NUM_AGENTS>
         <!-- Agent 0 -->
@@ -896,7 +862,7 @@ const std::string g_XmlStr =
             </READ_DEPENDENCY>
         </AGENT>
     </CASCADE>
-    <!-- Command 13 -->
+    <!-- Command 12 -->
     <OPERATION_SPACE_TO_DEPTH>
         <INPUT_INFO>
             <DATA_TYPE>U8</DATA_TYPE>
@@ -1119,46 +1085,12 @@ TEST_CASE("XmlToBinary-BinaryToXml")
 
     Fence conv1x1comm5 = {};
 
-    Softmax conv1x1comm6 = {
-        /* InputInfo = */
-        TensorInfo{ /* DataType = */ DataType::U8,
-                    /* DataFormat = */ DataFormat::NHWCB,
-                    /* TensorShape = */ TensorShape{ { 1U, 32U, 32U, 96U } },
-                    /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
-                    /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
-                    /* StripeShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
-                    /* TileSize = */ uint32_t{ 1 },
-                    /* DramBufferId = */ 0U,
-                    /* SramOffset = */ 0U,
-                    /* ZeroPoint = */ int16_t{ 0 },
-                    /* DataLocation = */ DataLocation::DRAM },
-        /* OutputInfo = */
-        TensorInfo{
-            /* DataType = */ DataType::U8,
-            /* DataFormat = */ DataFormat::NHWCB,
-            /* TensorShape = */ TensorShape{ { 1U, 32U, 32U, 96U } },
-            /* SupertensorShape = */ TensorShape{ { 1U, 32U, 32U, 96U } },
-            /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
-            /* StripeShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
-            /* TileSize = */ uint32_t{ 1 },
-            /* DramBufferId = */ 1U,
-            /* SramOffset = */ 0U,
-            /* ZeroPoint = */ int16_t{ 0 },
-            /* DataLocation = */ DataLocation::DRAM,
-        },
-        /* ScaledDiff = */ int32_t{ 0 },
-        /* ExpAccumulation = */ int32_t{ 1 },
-        /* InputBetaMultiplier = */ int32_t{ 2 },
-        /* InputBetaLeftShift = */ int32_t{ 3 },
-        /* DiffMin = */ int32_t{ -1 },
-    };
-
-    DumpDram conv1x1comm7 = { /* DramBufferId = */ uint32_t{ 2 },
+    DumpDram conv1x1comm6 = { /* DramBufferId = */ uint32_t{ 2 },
                               /* Filename = */ Filename(convertCharsToArray(22, "OutputModel_NHWCB.hex")) };
 
-    DumpSram conv1x1comm8 = { /* Prefix */ Filename(convertCharsToArray(10, "output_ce")) };
+    DumpSram conv1x1comm7 = { /* Prefix */ Filename(convertCharsToArray(10, "output_ce")) };
 
-    PleOnly conv1x1comm9 = { /* NumInputInfos */ int32_t{ 2 },
+    PleOnly conv1x1comm8 = { /* NumInputInfos */ int32_t{ 2 },
                              /* InputInfo = */
                              TensorInfo{ /* DataType = */ DataType::U8,
                                          /* DataFormat = */ DataFormat::NHWCB,
@@ -1212,59 +1144,59 @@ TEST_CASE("XmlToBinary-BinaryToXml")
                                  /* RescaleShift1 = */ uint16_t{ 0 },
                              } };
 
-    PleOnly conv1x1comm10 = { /* NumInputInfos */ int32_t{ 1 },
-                              /* InputInfo = */
-                              TensorInfo{ /* DataType = */ DataType::U8,
-                                          /* DataFormat = */ DataFormat::NHWCB,
-                                          /* TensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
-                                          /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
-                                          /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
-                                          /* StripeShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
-                                          /* TileSize = */ uint32_t{ 1000U },
-                                          /* DramBufferId = */ 0U,
-                                          /* SramOffset = */ 0U,
-                                          /* ZeroPoint = */ int16_t{ 0 },
-                                          /* DataLocation = */ DataLocation::DRAM },
-                              /* InputInfo1 = */
-                              TensorInfo{ /* DataType = */ DataType::U8,
-                                          /* DataFormat = */ DataFormat::NHWCB,
-                                          /* TensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
-                                          /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
-                                          /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
-                                          /* StripeShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
-                                          /* TileSize = */ uint32_t{ 1000U },
-                                          /* DramBufferId = */ 0U,
-                                          /* SramOffset = */ 0U,
-                                          /* ZeroPoint = */ int16_t{ 0 },
-                                          /* DataLocation = */ DataLocation::DRAM },
-                              /* OutputInfo = */
-                              TensorInfo{ /* DataType = */ DataType::U8,
-                                          /* DataFormat = */ DataFormat::NHWCB,
-                                          /* TensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
-                                          /* SupertensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
-                                          /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
-                                          /* StripeShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
-                                          /* TileSize = */ uint32_t{ 1000U },
-                                          /* DramBufferId = */ 1U,
-                                          /* SramOffset = */ 256U,
-                                          /* ZeroPoint = */ int16_t{ 0 },
-                                          /* DataLocation = */ DataLocation::DRAM },
-                              /* SramConfig = */
-                              SramConfig{
-                                  /* AllocationStrategy = */ SramAllocationStrategy::STRATEGY_0,
-                              },
-                              /* PleOpInfo = */
-                              PleData{
-                                  /* CeSram = */ uint32_t{ 512 },
-                                  /* PleSram = */ uint32_t{ 0 },
-                                  /* Operation = */ PleOperation::PASSTHROUGH,
-                                  /* RescaleMultiplier0 = */ uint16_t{ 0 },
-                                  /* RescaleShift0 = */ uint16_t{ 0 },
-                                  /* RescaleMultiplier1 = */ uint16_t{ 0 },
-                                  /* RescaleShift1 = */ uint16_t{ 0 },
-                              } };
+    PleOnly conv1x1comm9 = { /* NumInputInfos */ int32_t{ 1 },
+                             /* InputInfo = */
+                             TensorInfo{ /* DataType = */ DataType::U8,
+                                         /* DataFormat = */ DataFormat::NHWCB,
+                                         /* TensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                         /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                         /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                         /* StripeShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                         /* TileSize = */ uint32_t{ 1000U },
+                                         /* DramBufferId = */ 0U,
+                                         /* SramOffset = */ 0U,
+                                         /* ZeroPoint = */ int16_t{ 0 },
+                                         /* DataLocation = */ DataLocation::DRAM },
+                             /* InputInfo1 = */
+                             TensorInfo{ /* DataType = */ DataType::U8,
+                                         /* DataFormat = */ DataFormat::NHWCB,
+                                         /* TensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                         /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                         /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                         /* StripeShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                         /* TileSize = */ uint32_t{ 1000U },
+                                         /* DramBufferId = */ 0U,
+                                         /* SramOffset = */ 0U,
+                                         /* ZeroPoint = */ int16_t{ 0 },
+                                         /* DataLocation = */ DataLocation::DRAM },
+                             /* OutputInfo = */
+                             TensorInfo{ /* DataType = */ DataType::U8,
+                                         /* DataFormat = */ DataFormat::NHWCB,
+                                         /* TensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                         /* SupertensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                         /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                         /* StripeShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                         /* TileSize = */ uint32_t{ 1000U },
+                                         /* DramBufferId = */ 1U,
+                                         /* SramOffset = */ 256U,
+                                         /* ZeroPoint = */ int16_t{ 0 },
+                                         /* DataLocation = */ DataLocation::DRAM },
+                             /* SramConfig = */
+                             SramConfig{
+                                 /* AllocationStrategy = */ SramAllocationStrategy::STRATEGY_0,
+                             },
+                             /* PleOpInfo = */
+                             PleData{
+                                 /* CeSram = */ uint32_t{ 512 },
+                                 /* PleSram = */ uint32_t{ 0 },
+                                 /* Operation = */ PleOperation::PASSTHROUGH,
+                                 /* RescaleMultiplier0 = */ uint16_t{ 0 },
+                                 /* RescaleShift0 = */ uint16_t{ 0 },
+                                 /* RescaleMultiplier1 = */ uint16_t{ 0 },
+                                 /* RescaleShift1 = */ uint16_t{ 0 },
+                             } };
 
-    Convert conv1x1comm11 = { /* InputInfo = */
+    Convert conv1x1comm10 = { /* InputInfo = */
                               TensorInfo{ /* DataType = */ DataType::U8,
                                           /* DataFormat = */ DataFormat::NHWCB,
                                           /* TensorShape = */ TensorShape{ { 1U, 32U, 32U, 32U } },
@@ -1290,7 +1222,9 @@ TEST_CASE("XmlToBinary-BinaryToXml")
                                           /* DataLocation = */ DataLocation::DRAM }
     };
 
-    SpaceToDepth conv1x1comm13 = { /* InputInfo */
+    Cascade conv1x1comm11 = { /* NumAgents = */ uint32_t{ 6 } };
+
+    SpaceToDepth conv1x1comm12 = { /* InputInfo */
                                    TensorInfo{ /* DataType = */ DataType::U8,
                                                /* DataFormat = */ DataFormat::NHWC,
                                                /* TensorShape = */ TensorShape{ { 1U, 32U, 32U, 16U } },
@@ -1320,8 +1254,6 @@ TEST_CASE("XmlToBinary-BinaryToXml")
                                    /* Intermediate1Size = */ uint32_t{ 1024 },
                                    /* Intermediate2Size = */ uint32_t{ 2048 }
     };
-
-    Cascade conv1x1comm12 = { /* NumAgents = */ uint32_t{ 6 } };
 
     /* Agent 0 = */
     cascading::Agent agent0 = {
@@ -1805,14 +1737,13 @@ TEST_CASE("XmlToBinary-BinaryToXml")
     buffer.EmplaceBack(conv1x1comm9);
     buffer.EmplaceBack(conv1x1comm10);
     buffer.EmplaceBack(conv1x1comm11);
-    buffer.EmplaceBack(conv1x1comm12);
     buffer.EmplaceBack(agent0);
     buffer.EmplaceBack(agent1);
     buffer.EmplaceBack(agent2);
     buffer.EmplaceBack(agent3);
     buffer.EmplaceBack(agent4);
     buffer.EmplaceBack(agent5);
-    buffer.EmplaceBack(conv1x1comm13);
+    buffer.EmplaceBack(conv1x1comm12);
     const std::vector<uint32_t> commandStreamBinary = buffer.GetData();
 
     BinaryParser binaryParser(commandStreamBinary);

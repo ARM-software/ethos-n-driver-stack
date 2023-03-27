@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -11,8 +11,8 @@
 
 #include <cstddef>
 
-#define ETHOSN_COMMAND_STREAM_VERSION_MAJOR 3
-#define ETHOSN_COMMAND_STREAM_VERSION_MINOR 1
+#define ETHOSN_COMMAND_STREAM_VERSION_MAJOR 4
+#define ETHOSN_COMMAND_STREAM_VERSION_MINOR 0
 #define ETHOSN_COMMAND_STREAM_VERSION_PATCH 0
 
 namespace ethosn
@@ -90,8 +90,6 @@ inline const CommandHeader* CommandStreamConstIterator::NextHeader() const
             return NextHeaderImpl<Opcode::OPERATION_MCE_PLE>();
         case Opcode::OPERATION_PLE_ONLY:
             return NextHeaderImpl<Opcode::OPERATION_PLE_ONLY>();
-        case Opcode::OPERATION_SOFTMAX:
-            return NextHeaderImpl<Opcode::OPERATION_SOFTMAX>();
         case Opcode::OPERATION_CONVERT:
             return NextHeaderImpl<Opcode::OPERATION_CONVERT>();
         case Opcode::OPERATION_SPACE_TO_DEPTH:
@@ -229,8 +227,6 @@ constexpr bool AreCommandsEqual(const CommandHeader& lhs, const CommandHeader& r
             return AreCommandsEqual<Opcode::DUMP_SRAM>(lhs, rhs);
         case Opcode::FENCE:
             return AreCommandsEqual<Opcode::FENCE>(lhs, rhs);
-        case Opcode::OPERATION_SOFTMAX:
-            return AreCommandsEqual<Opcode::OPERATION_SOFTMAX>(lhs, rhs);
         case Opcode::OPERATION_SPACE_TO_DEPTH:
             return AreCommandsEqual<Opcode::OPERATION_SPACE_TO_DEPTH>(lhs, rhs);
         case Opcode::SECTION:
