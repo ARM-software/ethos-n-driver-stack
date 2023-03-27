@@ -521,12 +521,14 @@ bool IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat c
 
 CompilerMceAlgorithm FindBestConvAlgorithm(const HardwareCapabilities& caps, uint32_t w, uint32_t h)
 {
+#if defined(ETHOSN_SUPPORT_LIBRARY_DISABLE_LARGE_WINOGRAD)
     // Reduce power usage by restricting Winograd to less than 7x7 kernels
     constexpr uint32_t maximumWinogradArea = 7 * 7;
     if ((h * w) >= maximumWinogradArea)
     {
         return CompilerMceAlgorithm::Direct;
     }
+#endif
     uint32_t numMultsDirect;
     uint32_t numMultsWinograd;
 

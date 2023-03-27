@@ -23,6 +23,9 @@ env.PrependUnique(
     ]
 )
 
+if env["disable_large_winograd"]:
+    env.AppendUnique(CPPDEFINES=["ETHOSN_SUPPORT_LIBRARY_DISABLE_LARGE_WINOGRAD"])
+
 # Build support_library shared and static libs
 srcs = [
     os.path.join("src", "Support.cpp"),

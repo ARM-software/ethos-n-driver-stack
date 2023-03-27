@@ -32,7 +32,11 @@ TEST_CASE("FindBestConvAlgorithm")
 
     CHECK(FindBestConvAlgorithm(capabilities, 1, 1) == CompilerMceAlgorithm::Direct);
     CHECK(FindBestConvAlgorithm(capabilities, 3, 3) == CompilerMceAlgorithm::Winograd);
+#if defined(ETHOSN_SUPPORT_LIBRARY_DISABLE_LARGE_WINOGRAD)
     CHECK(FindBestConvAlgorithm(capabilities, 7, 7) == CompilerMceAlgorithm::Direct);
+#else
+    CHECK(FindBestConvAlgorithm(capabilities, 7, 7) == CompilerMceAlgorithm::Winograd);
+#endif
 }
 
 // Note that tests for IsCompressionFormatCompatibleWithStripeShape are covered by the

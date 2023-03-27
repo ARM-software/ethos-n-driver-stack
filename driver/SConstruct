@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2018-2022 Arm Limited.
+# Copyright (C) 2018-2023 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -56,6 +56,11 @@ var.AddVariables(
         "firmware_profiling_node",
         "Firmware profiling node in the sys filesystem",
         "/sys/kernel/debug/ethosn0/core0/firmware_profiling",
+    ),
+    BoolVariable(
+        "disable_large_winograd",
+        "Prevent the support library generating command streams containing large (>=7x7) kernel sizes with winograd.",
+        False,
     ),
     BoolVariable(
         "allow_command_stream_dump",
