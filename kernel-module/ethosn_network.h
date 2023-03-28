@@ -84,6 +84,4 @@ void ethosn_schedule_queued_inference(struct ethosn_core *core);
 
 int ethosn_schedule_inference(struct ethosn_inference *inference);
 
-int ethosn_put_inference(struct ethosn_inference *inference);
-
 #endif /* _ETHOSN_NETWORK_H_ */

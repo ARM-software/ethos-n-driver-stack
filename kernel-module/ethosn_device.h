@@ -479,16 +479,6 @@ int ethosn_configure_firmware_profiling_ack(struct ethosn_core *core,
 					    uint64_t firmware_timestamp);
 
 /**
- * ethosn_send_time_sync() - Send sync timestamp to the firmware in order to
- *                           sync the firmware profiling data with the user
- *                           space profiling data.
- * @core:	Pointer to Ethos-N core.
- *
- * Return: 0 on success, else error code.
- */
-int ethosn_send_time_sync(struct ethosn_core *core);
-
-/**
  * ethosn_send_ping() - Send ping to Ethos-N .
  * @core:	Pointer to Ethos-N core.
  *
