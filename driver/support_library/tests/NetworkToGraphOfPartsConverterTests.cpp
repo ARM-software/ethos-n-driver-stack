@@ -3094,63 +3094,6 @@ TEST_CASE("NetworkToGraphOfPartsConverter SpaceToDepth")
     }
 }
 
-TEST_CASE("NetworkToGraphOfPartsConverter Softmax EstimateOnly")
-{
-    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
-    const CompilationOptions compOpt;
-    const EstimationOptions estOpt;
-
-    TensorInfo inputInfo{
-        { { 1, 16, 16, 16 } },
-        DataType::UINT8_QUANTIZED,
-        DataFormat::NHWC,
-        { 0, 1.f },
-    };
-
-    const std::shared_ptr<Network> network =
-        CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
-
-    // Network topology:
-    // Input -> Softmax -> Output
-    std::shared_ptr<Operand> input   = AddInput(network, inputInfo).tensor;
-    std::shared_ptr<Operand> softmax = AddSoftmax(network, *input).tensor;
-    std::shared_ptr<Output> output   = AddOutput(network, *softmax).tensor;
-
-    bool dumpToFile = false;
-    if (dumpToFile)
-    {
-        std::ofstream stream("NetworkToGraphOfPartsConverterTestsSoftmaxEstimateOnly.dot");
-        SaveNetworkToDot(*network, stream, DetailLevel::High);
-    }
-
-    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
-    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
-
-    bool dumpGraphOfPartsToFile = false;
-    if (dumpGraphOfPartsToFile)
-    {
-        std::ofstream stream("NetworkToGraphOfPartsConverterTestsSoftmaxEstimateOnlyOutput.dot");
-        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
-    }
-
-    // InputPart, McePart, OutputPart
-    REQUIRE(graph.GetNumParts() == 3);
-
-    // Softmax is currently unsupported and will only return EstimateOnly when checking if it's supported.
-    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
-    REQUIRE(estimateOnlyPart != nullptr);
-    auto plans = estimateOnlyPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    REQUIRE(plans[0].GetInputBuffer(PartInputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
-            TensorShape{ 1, 16, 16, 16 });
-    REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
-            TensorShape{ 1, 16, 16, 16 });
-    Op* maybeEstimateOnlyOp = plans[0].m_OpGraph.GetOp(0);
-    REQUIRE(IsEstimateOnlyOp(maybeEstimateOnlyOp));
-    EstimateOnlyOp* estimateOnlyOp = static_cast<EstimateOnlyOp*>(maybeEstimateOnlyOp);
-    CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("softmax is not supported by ethosn NPU") != std::string::npos);
-}
-
 TEST_CASE("NetworkToGraphOfPartsConverterTest Downsample_2x2")
 {
     const HardwareCapabilities caps = GetEthosN78HwCapabilities();

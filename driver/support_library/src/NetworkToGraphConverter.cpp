@@ -326,25 +326,6 @@ void NetworkToGraphConverter::Visit(Tanh& tanh)
     ConnectNode(tanh, pleSigmoid);
 }
 
-void NetworkToGraphConverter::Visit(Softmax& softmax)
-{
-    char reason[1024];
-
-    const SupportedLevel supportedLevel =
-        m_Queries.IsSoftmaxSupported(softmax.GetInput(0).GetTensorInfo(), nullptr, reason, sizeof(reason));
-
-    if (supportedLevel == SupportedLevel::EstimateOnly)
-    {
-        const auto& outInfo = softmax.GetOutput(0).GetTensorInfo();
-        Node* n             = m_Graph.CreateAndAddNodeWithDebug<EstimateOnlyNode>(
-            "Softmax", outInfo.m_Dimensions, outInfo.m_DataType, outInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB,
-            std::set<uint32_t>{ softmax.GetId() }, reason);
-        ConnectNode(softmax, n);
-        return;
-    }
-    ETHOSN_FAIL_MSG("Not implemented");
-}
-
 void NetworkToGraphConverter::Visit(Relu& relu)
 {
     const TensorInfo& tensorInfo = relu.GetOutput(0).GetTensorInfo();

@@ -287,20 +287,6 @@ private:
     int16_t m_UpperBound;
 };
 
-class SoftmaxNode : public Node
-{
-public:
-    SoftmaxNode(NodeId id,
-                const TensorShape& outputTensorShape,
-                DataType dataType,
-                const QuantizationInfo& outputQuantizationInfo,
-                CompilerDataFormat format,
-                std::set<uint32_t> correspondingOperationIds);
-
-    bool IsPrepared() override;
-    NodeType GetNodeType() override;
-};
-
 class RequantizeNode : public Node
 {
 public:

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -32,7 +32,6 @@ class ReinterpretQuantization;
 class Relu;
 class LeakyRelu;
 class Requantize;
-class Softmax;
 class Sigmoid;
 class Tanh;
 class MeanXy;
@@ -87,7 +86,6 @@ public:
     virtual void Visit(Relu& relu)                                       = 0;
     virtual void Visit(LeakyRelu& leakyRelu)                             = 0;
     virtual void Visit(Requantize& requantize)                           = 0;
-    virtual void Visit(Softmax& softmax)                                 = 0;
     virtual void Visit(Sigmoid& sigmoid)                                 = 0;
     virtual void Visit(Tanh& tanh)                                       = 0;
     virtual void Visit(MeanXy& mean)                                     = 0;
@@ -134,8 +132,6 @@ public:
     void Visit(LeakyRelu&) override
     {}
     void Visit(Requantize&) override
-    {}
-    void Visit(Softmax&) override
     {}
     void Visit(Sigmoid&) override
     {}

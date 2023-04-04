@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -214,12 +214,6 @@ public:
                                                       TensorInfo* outputInfo = nullptr,
                                                       char* reason           = nullptr,
                                                       size_t reasonMaxLength = g_ReasonMaxLength) const;
-
-    // Checks whether a softmax operation configuration is supported by the NPU
-    SupportedLevel IsSoftmaxSupported(const TensorInfo& inputInfo,
-                                      TensorInfo* outputInfo = nullptr,
-                                      char* reason           = nullptr,
-                                      size_t reasonMaxLength = g_ReasonMaxLength) const;
 
     // Checks whether a specific sigmoid operation configuration is supported by the NPU
     SupportedLevel IsSigmoidSupported(const TensorInfo& inputInfo,

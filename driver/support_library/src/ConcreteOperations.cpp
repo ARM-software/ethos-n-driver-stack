@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -277,10 +277,6 @@ TensorInfo Requantize::CalculateOutputTensorInfo(const TensorInfo& inputInfo, co
     }
     return outputInfo;
 }
-
-Softmax::Softmax(const detail::PosInNetwork pos, uint32_t id, Operand& input)
-    : VisitableOperation<Softmax>(pos, id, { &input }, { input.GetTensorInfo() })
-{}
 
 Sigmoid::Sigmoid(const detail::PosInNetwork pos, uint32_t id, Operand& input)
     : VisitableOperation<Sigmoid>(pos, id, { &input }, { CalculateOutputTensorInfo(input.GetTensorInfo()) })

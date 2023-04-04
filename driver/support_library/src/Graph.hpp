@@ -102,7 +102,6 @@ enum class NodeType
     LeakyReluNode,
     StandalonePleOperationNode,
     McePostProcessOperationNode,
-    SoftmaxNode,
     RequantizeNode,
     CopyNode,
     FormatConversionNode,

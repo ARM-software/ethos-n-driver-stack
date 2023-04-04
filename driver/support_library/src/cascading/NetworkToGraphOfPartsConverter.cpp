@@ -1361,23 +1361,6 @@ void NetworkToGraphOfPartsConverter::Visit(TransposeConvolution& transposeConvol
     ConnectParts(transposeConvolution, parts);
 }
 
-void NetworkToGraphOfPartsConverter::Visit(Softmax& softmax)
-{
-    std::vector<BasePart*> parts;
-
-    std::string reasonForEstimateOnly = "softmax is not supported by ethosn NPU";
-
-    auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
-        m_GraphOfParts.GeneratePartId(), reasonForEstimateOnly,
-        std::vector<TensorInfo>{ softmax.GetInput(0).GetTensorInfo() },
-        std::vector<TensorInfo>{ softmax.GetOutput(0).GetTensorInfo() }, CompilerDataFormat::NHWCB,
-        std::set<uint32_t>{ softmax.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
-
-    parts.push_back(estimateOnlyPart.get());
-    m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
-    ConnectParts(softmax, parts);
-}
-
 void NetworkToGraphOfPartsConverter::Visit(Split& split)
 {
     const SplitInfo& splitInfo = split.GetSplitInfo();

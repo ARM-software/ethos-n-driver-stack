@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -379,17 +379,6 @@ public:
 
 private:
     RequantizeInfo m_RequantizeInfo;
-};
-
-class Softmax : public VisitableOperation<Softmax>
-{
-public:
-    Softmax(const detail::PosInNetwork pos, uint32_t id, Operand& input);
-
-    const char* GetTypeName() final
-    {
-        return "Softmax";
-    }
 };
 
 class Sigmoid : public VisitableOperation<Sigmoid>

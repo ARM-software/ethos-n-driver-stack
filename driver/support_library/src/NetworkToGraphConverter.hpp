@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -40,7 +40,6 @@ public:
     void Visit(Relu& relu) final;
     void Visit(LeakyRelu& leakyRelu) final;
     void Visit(Requantize& requantize) final;
-    void Visit(Softmax& softmax) final;
     void Visit(Sigmoid& sigmoid) final;
     void Visit(Tanh& tanh) final;
     void Visit(MeanXy& mean) final;

@@ -1828,13 +1828,6 @@ SupportedLevel
     return SupportedLevel::Supported;
 }
 
-SupportedLevel
-    SupportQueries::IsSoftmaxSupported(const TensorInfo&, TensorInfo*, char* reason, size_t reasonMaxLength) const
-{
-    SetReason("Softmax operation is not supported", reason, reasonMaxLength);
-    return SupportedLevel::EstimateOnly;
-}
-
 SupportedLevel SupportQueries::IsMeanXySupported(const TensorInfo& inputInfo,
                                                  TensorInfo* outputInfo,
                                                  char* reason,

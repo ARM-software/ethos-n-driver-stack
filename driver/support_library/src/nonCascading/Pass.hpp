@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -29,7 +29,6 @@ class CompiledNetwork;
 class IStrategy;
 class Pass;
 class McePlePass;
-class SoftmaxPass;
 class Compiler;
 
 // Structure holding SramOffsets for tensors

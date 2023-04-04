@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -180,19 +180,6 @@ Requantize& Network::AddRequantize(Operand& input, const RequantizeInfo& requant
     }
 
     return AddOperationWithId<Requantize>(input, requantizeInfo);
-}
-
-Softmax& Network::AddSoftmax(Operand& input)
-{
-    char reason[1024];
-    SupportedLevel supportedLevel =
-        m_Queries.IsSoftmaxSupported(input.GetTensorInfo(), nullptr, reason, sizeof(reason));
-    if (!CheckSupportedLevel(supportedLevel))
-    {
-        throw NotSupportedException(reason);
-    }
-
-    return AddOperationWithId<Softmax>(input);
 }
 
 Sigmoid& Network::AddSigmoid(Operand& input)

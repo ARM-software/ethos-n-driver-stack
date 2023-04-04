@@ -213,11 +213,6 @@ TensorAndId<Operand>
     return GetSingleOutputResult(network, network->AddRequantize(input, requantizeInfo));
 }
 
-TensorAndId<Operand> AddSoftmax(const std::shared_ptr<Network>& network, Operand& input)
-{
-    return GetSingleOutputResult(network, network->AddSoftmax(input));
-}
-
 TensorAndId<Operand> AddSigmoid(const std::shared_ptr<Network>& network, Operand& input)
 {
     return GetSingleOutputResult(network, network->AddSigmoid(input));

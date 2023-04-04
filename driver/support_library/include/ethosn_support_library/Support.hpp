@@ -1122,9 +1122,6 @@ TensorAndId<Operand>
 TensorAndId<Operand>
     AddRequantize(const std::shared_ptr<Network>& network, Operand& input, const RequantizeInfo& requantizeInfo);
 
-// Add Softmax to a Network. The returned shared_ptr ref-counts the network.
-TensorAndId<Operand> AddSoftmax(const std::shared_ptr<Network>& network, Operand& input);
-
 // Add Sigmoid to a Network. The returned shared_ptr ref-counts the network.
 TensorAndId<Operand> AddSigmoid(const std::shared_ptr<Network>& network, Operand& input);
 

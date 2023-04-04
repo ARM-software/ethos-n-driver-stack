@@ -915,25 +915,6 @@ TensorShape ExtractSubtensorNode::GetSupertensorOffset()
     return m_SupertensorOffset;
 }
 
-bool SoftmaxNode::IsPrepared()
-{
-    return false;
-}
-
-NodeType SoftmaxNode::GetNodeType()
-{
-    return NodeType::SoftmaxNode;
-}
-
-SoftmaxNode::SoftmaxNode(NodeId id,
-                         const TensorShape& outputTensorShape,
-                         DataType dataType,
-                         const QuantizationInfo& outputQuantizationInfo,
-                         CompilerDataFormat format,    // cppcheck-suppress passedByValue
-                         std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
-{}
-
 CopyNode::CopyNode(NodeId id,
                    const TensorShape& outputTensorShape,
                    DataType dataType,
