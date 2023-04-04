@@ -24,6 +24,7 @@ class Pass;
 class Section
 {
 public:
+    // cppcheck-suppress passedByValue
     Section(std::string id, command_stream::SectionType type, Pass* pass)
         : m_Id(std::move(id))
         , m_IsGenerated(false)

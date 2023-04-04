@@ -15,46 +15,6 @@ namespace support_library
 using namespace impl;
 using namespace utils;
 
-FullyConnectedPart::FullyConnectedPart(PartId id,
-                                       const TensorShape& inputTensorShape,
-                                       const TensorShape& reinterpretedInputShape,
-                                       const TensorShape& outputTensorShape,
-                                       const QuantizationInfo& inputQuantizationInfo,
-                                       const QuantizationInfo& outputQuantizationInfo,
-                                       const TensorInfo& weightsInfo,
-                                       std::vector<uint8_t> weightsData,
-                                       const TensorInfo& biasInfo,
-                                       std::vector<int32_t> biasData,
-                                       const EstimationOptions& estOpt,
-                                       const CompilationOptions& compOpt,
-                                       const HardwareCapabilities& capabilities,
-                                       std::set<uint32_t> operationIds,
-                                       DataType inputDataType,
-                                       DataType outputDataType,
-                                       DebuggingContext& debuggingContext)
-    : McePart(id,
-              reinterpretedInputShape,
-              outputTensorShape,
-              inputQuantizationInfo,
-              outputQuantizationInfo,
-              weightsInfo,
-              std::move(weightsData),
-              biasInfo,
-              std::move(biasData),
-              Stride{},
-              0,
-              0,
-              command_stream::MceOperation::FULLY_CONNECTED,
-              estOpt,
-              compOpt,
-              capabilities,
-              std::move(operationIds),
-              inputDataType,
-              outputDataType,
-              debuggingContext)
-    , m_OriginalInputShape(inputTensorShape)
-{}
-
 Plans FullyConnectedPart::GetPlans(CascadeType cascadeType,
                                    BlockConfig blockConfig,
                                    Buffer* sramBuffer,

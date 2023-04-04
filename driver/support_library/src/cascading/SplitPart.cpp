@@ -13,23 +13,6 @@ namespace ethosn
 namespace support_library
 {
 
-SplitPart::SplitPart(PartId id,
-                     const TensorInfo& inputTensorInfo,
-                     const std::vector<TensorInfo>& outputTensorInfos,
-                     uint32_t axis,
-                     const std::vector<uint32_t>& offsets,
-                     const std::set<uint32_t>& correspondingOperationIds,
-                     const EstimationOptions& estOpt,
-                     const CompilationOptions& compOpt,
-                     const HardwareCapabilities& capabilities)
-    : BasePart(id, "SplitPart", correspondingOperationIds, estOpt, compOpt, capabilities)
-    , m_InputTensorInfo{ inputTensorInfo }
-    , m_OutputTensorInfos(outputTensorInfos)
-    , m_Axis(axis)
-    , m_Offsets(offsets)
-    , m_StripeConfig(impl::GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
-{}
-
 SplitPart::~SplitPart()
 {}
 

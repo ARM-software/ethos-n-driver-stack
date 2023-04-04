@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -159,7 +159,7 @@ TEST_CASE("PleOnlyAddition2Tensors")
         { 0, inputScale },
     };
 
-    CompilationOptions options;
+    CompilationOptions options{};
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
 
     // Build up the network

@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -16,16 +16,26 @@ namespace support_library
 class ConcatPart : public BasePart
 {
 public:
+    template <typename Ids>
     ConcatPart(PartId id,
                const std::vector<TensorInfo>& inputTensorsInfo,
                const TensorInfo& outputTensorInfo,
                uint32_t axis,
                const std::vector<uint32_t>& offsets,
                bool preferNhwc,
-               const std::set<uint32_t>& correspondingOperationIds,
+               Ids&& correspondingOperationIds,
                const EstimationOptions& estOpt,
                const CompilationOptions& compOpt,
-               const HardwareCapabilities& capabilities);
+               const HardwareCapabilities& capabilities)
+        : BasePart(id, "ConcatPart", std::forward<Ids>(correspondingOperationIds), estOpt, compOpt, capabilities)
+        , m_InputTensorsInfo{ inputTensorsInfo }
+        , m_OutputTensorInfo{ outputTensorInfo }
+        , m_Axis(axis)
+        , m_Offsets(offsets)
+        , m_StripeConfig(impl::GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
+        , m_PreferNhwc(preferNhwc)
+    {}
+
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,
                    Buffer* sramBuffer,

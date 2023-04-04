@@ -135,9 +135,10 @@ public:
         , m_CompilationOptions{ compOpt }
         , m_Capabilities{ capabilities }
     {}
+    template <typename Ids>
     BasePart(PartId id,
              const char* debugPartType,
-             std::set<uint32_t> correspondingOperationIds,
+             Ids&& correspondingOperationIds,
              const EstimationOptions& estOpt,
              const CompilationOptions& compOpt,
              const HardwareCapabilities& capabilities)
@@ -145,7 +146,7 @@ public:
         : DebuggableObject(DebuggableObject::ExplicitDebugTag(),
                            (std::string(debugPartType) + " " + std::to_string(id)).c_str())
         , m_PartId{ id }
-        , m_CorrespondingOperationIds{ std::move(correspondingOperationIds) }
+        , m_CorrespondingOperationIds{ std::forward<Ids>(correspondingOperationIds) }
         , m_EstimationOptions{ estOpt }
         , m_CompilationOptions{ compOpt }
         , m_Capabilities{ capabilities }

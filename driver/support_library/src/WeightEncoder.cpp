@@ -708,8 +708,8 @@ void WeightEncoder::FindWeightCompressionParams(WeightCompressionParams& newPara
         // If a palette is used and it does not contain all the values, the GRC param finder needs an
         // additional vector where the palette is not used to correctly evaluate the cost of using
         // uncompressed mode.
-        WeightSymbolFreqInfo uncompressedNoPaletteSymbolFreqInfo;
-        uint8_t noPaletteOffset = 0;
+        WeightSymbolFreqInfo uncompressedNoPaletteSymbolFreqInfo = { {}, 0, 0 };
+        uint8_t noPaletteOffset                                  = 0;
         // Inverse palette has the actual size without padding
         if (params.m_InversePalette.size() != sortedSymbolFreqInfo.m_SymbolFreqPairs.size())
         {

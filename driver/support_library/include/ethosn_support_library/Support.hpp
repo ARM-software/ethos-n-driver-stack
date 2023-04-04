@@ -350,11 +350,13 @@ struct QuantizationInfo
     using QuantizationDim = utils::Optional<uint32_t>;
 
     QuantizationInfo()
-        : QuantizationInfo(0, QuantizationScales{ 1.0f })
+        : m_ZeroPoint(0)
+        , m_Scales(QuantizationScales{ 1.0f })
     {}
 
     QuantizationInfo(const int32_t zeroPoint, const float scale)
-        : QuantizationInfo(zeroPoint, QuantizationScales{ scale })
+        : m_ZeroPoint(zeroPoint)
+        , m_Scales(QuantizationScales{ scale })
     {}
 
     QuantizationInfo(const int32_t zeroPoint,

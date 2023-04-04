@@ -49,8 +49,8 @@ FusedPlePart BuildPart(TensorShape inputShape,
     const QuantizationInfo outputQuantInfo(0, 1.0f);
     const std::set<uint32_t> operationsIds = { 1 };
     FusedPlePart part(partId, inputShape, outputShape, inputQuantInfo, outputQuantInfo, op, shapeMultiplier, estOpts,
-                      compOpts, caps, operationsIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, 0.0f,
-                      debuggingContext);
+                      compOpts, caps, std::move(operationsIds), DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED,
+                      0.0f, debuggingContext);
 
     return part;
 }

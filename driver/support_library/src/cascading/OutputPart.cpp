@@ -14,24 +14,6 @@ namespace ethosn
 namespace support_library
 {
 
-OutputPart::OutputPart(PartId id,
-                       const TensorShape& inputTensorShape,
-                       const CompilerDataFormat& compilerDataFormat,
-                       const QuantizationInfo& quantizationInfo,
-                       DataType dataType,
-                       const std::set<uint32_t>& correspondingOperationIds,
-                       const uint32_t producerOutputIndx,
-                       const EstimationOptions& estOpt,
-                       const CompilationOptions& compOpt,
-                       const HardwareCapabilities& capabilities)
-    : BasePart(id, "OutputPart", correspondingOperationIds, estOpt, compOpt, capabilities)
-    , m_InputTensorShape{ inputTensorShape }
-    , m_InputQuantizationInfo(quantizationInfo)
-    , m_InputDataType(dataType)
-    , m_ProducerOutputIndx{ producerOutputIndx }
-    , m_CompilerDataFormat(compilerDataFormat)
-{}
-
 Plans OutputPart::GetPlans(CascadeType cascadeType,
                            ethosn::command_stream::BlockConfig blockConfig,
                            Buffer* sramBuffer,

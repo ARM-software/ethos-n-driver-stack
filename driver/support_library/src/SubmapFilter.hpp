@@ -47,7 +47,7 @@ public:
     uint32_t GetPadTop(uint32_t origPadTop) const;
     /// @}
 
-    uint8_t GetWeightAt(const uint8_t* weightData, uint32_t x, uint32_t y, uint32_t ifmIdx, uint32_t ofmIdx) const;
+    uint8_t GetWeightAt(const uint8_t* weightData, uint32_t y, uint32_t x, uint32_t ifmIdx, uint32_t ofmIdx) const;
 
     /// For striding, this calculates the post-interleave input width/height for the specific submap index.
     TensorShape GetIfmSubmapShape(const TensorShape& origIfmShape) const;

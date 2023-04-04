@@ -65,6 +65,7 @@ bool ContainsPass(Node* node)
 
 }    // namespace
 
+// cppcheck-suppress passedByValue
 InputNode::InputNode(NodeId id, const TensorInfo& outputTensorInfo, std::set<uint32_t> correspondingOperationIds)
     : Node(id,
            outputTensorInfo.m_Dimensions,
@@ -154,15 +155,15 @@ MceOperationNode::MceOperationNode(NodeId id,
                                    const TensorShape& outputTensorShape,
                                    DataType dataType,
                                    const QuantizationInfo& outputQuantizationInfo,
-                                   const TensorInfo& weightsInfo,
+                                   const TensorInfo& weightsInfo,    // cppcheck-suppress passedByValue
                                    std::vector<uint8_t> weightsData,
-                                   const TensorInfo& biasInfo,
+                                   const TensorInfo& biasInfo,    // cppcheck-suppress passedByValue
                                    std::vector<int32_t> biasData,
                                    const Stride& stride,
                                    uint32_t padTop,
                                    uint32_t padLeft,
                                    command_stream::MceOperation op,
-                                   CompilerDataFormat format,
+                                   CompilerDataFormat format,    // cppcheck-suppress passedByValue
                                    std::set<uint32_t> correspondingOperationIds)
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
     , m_UninterleavedInputShape(uninterleavedInputTensorShape)
@@ -357,14 +358,15 @@ ShapeMultiplier MceOperationNode::GetShapeMultiplier() const
     return { m_UpscaleFactor, m_UpscaleFactor, 1 };
 }
 
-McePostProcessOperationNode::McePostProcessOperationNode(NodeId id,
-                                                         const TensorShape& outputTensorShape,
-                                                         DataType dataType,
-                                                         const QuantizationInfo& outputQuantizationInfo,
-                                                         int16_t lowerBound,
-                                                         int16_t upperBound,
-                                                         CompilerDataFormat format,
-                                                         std::set<uint32_t> correspondingOperationIds)
+McePostProcessOperationNode::McePostProcessOperationNode(
+    NodeId id,
+    const TensorShape& outputTensorShape,
+    DataType dataType,
+    const QuantizationInfo& outputQuantizationInfo,
+    int16_t lowerBound,
+    int16_t upperBound,
+    CompilerDataFormat format,    // cppcheck-suppress passedByValue
+    std::set<uint32_t> correspondingOperationIds)
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
     , m_LowerBound(lowerBound)
     , m_UpperBound(upperBound)
@@ -407,14 +409,15 @@ bool McePostProcessOperationNode::FixGraph(Graph& graph, FixGraphSeverity severi
     return changed;
 }
 
-FuseOnlyPleOperationNode::FuseOnlyPleOperationNode(NodeId id,
-                                                   const TensorShape& outputTensorShape,
-                                                   DataType dataType,
-                                                   const QuantizationInfo& outputQuantizationInfo,
-                                                   command_stream::PleOperation k,
-                                                   CompilerDataFormat format,
-                                                   ShapeMultiplier shapeMultiplier,
-                                                   std::set<uint32_t> correspondingOperationIds)
+FuseOnlyPleOperationNode::FuseOnlyPleOperationNode(
+    NodeId id,
+    const TensorShape& outputTensorShape,
+    DataType dataType,
+    const QuantizationInfo& outputQuantizationInfo,
+    command_stream::PleOperation k,
+    CompilerDataFormat format,
+    ShapeMultiplier shapeMultiplier,    // cppcheck-suppress passedByValue
+    std::set<uint32_t> correspondingOperationIds)
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
     , m_KernelOperation(k)
     , m_InsertIdentityNodeHint(false)
@@ -488,7 +491,7 @@ LeakyReluNode::LeakyReluNode(NodeId id,
                              const QuantizationInfo& outputQuantizationInfo,
                              command_stream::PleOperation k,
                              CompilerDataFormat format,
-                             ShapeMultiplier shapeMultiplier,
+                             ShapeMultiplier shapeMultiplier,    // cppcheck-suppress passedByValue
                              std::set<uint32_t> correspondingOperationIds,
                              float alpha)
     : FuseOnlyPleOperationNode(id,
@@ -534,7 +537,7 @@ StandalonePleOperationNode::StandalonePleOperationNode(NodeId id,
                                                        DataType dataType,
                                                        const QuantizationInfo& outputQuantizationInfo,
                                                        command_stream::PleOperation k,
-                                                       CompilerDataFormat format,
+                                                       CompilerDataFormat format,    // cppcheck-suppress passedByValue
                                                        std::set<uint32_t> correspondingOperationIds)
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
     , m_KernelOperation(k)
@@ -583,7 +586,7 @@ FormatConversionNode::FormatConversionNode(NodeId id,
                                            const TensorShape& outputTensorShape,
                                            DataType dataType,
                                            const QuantizationInfo& outputQuantizationInfo,
-                                           CompilerDataFormat format,
+                                           CompilerDataFormat format,    // cppcheck-suppress passedByValue
                                            std::set<uint32_t> correspondingOperationIds)
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
 {}
@@ -644,7 +647,7 @@ SpaceToDepthNode::SpaceToDepthNode(NodeId id,
                                    const TensorShape& outputTensorShape,
                                    DataType dataType,
                                    const QuantizationInfo& outputQuantizationInfo,
-                                   CompilerDataFormat format,
+                                   CompilerDataFormat format,    // cppcheck-suppress passedByValue
                                    std::set<uint32_t> correspondingOperationIds)
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
 {}
@@ -663,7 +666,7 @@ ReinterpretNode::ReinterpretNode(NodeId id,
                                  const TensorShape& outputTensorShape,
                                  DataType dataType,
                                  const QuantizationInfo& outputQuantizationInfo,
-                                 CompilerDataFormat format,
+                                 CompilerDataFormat format,    // cppcheck-suppress passedByValue
                                  std::set<uint32_t> correspondingOperationIds)
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
 {}
@@ -767,7 +770,7 @@ ConcatNode::ConcatNode(NodeId id,
                        DataType dataType,
                        const QuantizationInfo& outputQuantizationInfo,
                        CompilerDataFormat format,
-                       uint32_t axis,
+                       uint32_t axis,    // cppcheck-suppress passedByValue
                        std::set<uint32_t> correspondingOperationIds)
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
     , m_Axis(axis)
@@ -832,6 +835,7 @@ void ConcatNode::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
     uint32_t bufferId = GetInput(0)->GetSource()->GetBufferId();
     for (uint32_t i = 0; i < GetInputs().size(); ++i)
     {
+        // cppcheck-suppress assertWithSideEffect
         assert(bufferId == GetInput(i)->GetSource()->GetBufferId());
         assert(m_Format == GetInputFormat(i));
     }
@@ -858,7 +862,7 @@ ExtractSubtensorNode::ExtractSubtensorNode(NodeId id,
                                            const TensorShape& outputTensorShape,
                                            DataType dataType,
                                            const QuantizationInfo& outputQuantizationInfo,
-                                           CompilerDataFormat format,
+                                           CompilerDataFormat format,    // cppcheck-suppress passedByValue
                                            std::set<uint32_t> correspondingOperationIds)
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
     , m_SupertensorOffset(supertensorOffset)
@@ -925,7 +929,7 @@ SoftmaxNode::SoftmaxNode(NodeId id,
                          const TensorShape& outputTensorShape,
                          DataType dataType,
                          const QuantizationInfo& outputQuantizationInfo,
-                         CompilerDataFormat format,
+                         CompilerDataFormat format,    // cppcheck-suppress passedByValue
                          std::set<uint32_t> correspondingOperationIds)
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
 {}
@@ -934,7 +938,7 @@ CopyNode::CopyNode(NodeId id,
                    const TensorShape& outputTensorShape,
                    DataType dataType,
                    const QuantizationInfo& outputQuantizationInfo,
-                   CompilerDataFormat format,
+                   CompilerDataFormat format,    // cppcheck-suppress passedByValue
                    std::set<uint32_t> correspondingOperationIds)
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
 {}
@@ -974,7 +978,7 @@ RequantizeNode::RequantizeNode(NodeId id,
                                const TensorShape& outputTensorShape,
                                DataType dataType,
                                const QuantizationInfo& outputQuantizationInfo,
-                               CompilerDataFormat format,
+                               CompilerDataFormat format,    // cppcheck-suppress passedByValue
                                std::set<uint32_t> correspondingOperationIds)
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))
 {}
@@ -1129,7 +1133,7 @@ EstimateOnlyNode::EstimateOnlyNode(NodeId id,
                                    const TensorShape& outputTensorShape,
                                    DataType dataType,
                                    const QuantizationInfo& outputQuantizationInfo,
-                                   CompilerDataFormat format,
+                                   CompilerDataFormat format,    // cppcheck-suppress passedByValue
                                    std::set<uint32_t> correspondingOperationIds,
                                    const char* reasons)
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, std::move(correspondingOperationIds))

@@ -31,7 +31,7 @@ Node::Node(NodeId id,
            const TensorShape& outputTensorShape,
            DataType outputDataType,
            const QuantizationInfo& outputQuantizationInfo,
-           CompilerDataFormat format,
+           CompilerDataFormat format,    // cppcheck-suppress passedByValue
            std::set<uint32_t> correspondingOperationIds)
     : m_Id(id)
     , m_Shape(outputTensorShape)
@@ -658,12 +658,14 @@ int32_t Graph::RemoveEdge(Edge* edge)
 {
     {
         auto it = std::find(edge->GetSource()->m_Outputs.begin(), edge->GetSource()->m_Outputs.end(), edge);
+        // cppcheck-suppress assertWithSideEffect
         assert(it != edge->GetSource()->m_Outputs.end());
         edge->GetSource()->m_Outputs.erase(it);
     }
     int32_t index;
     {
         auto it = std::find(edge->GetDestination()->m_Inputs.begin(), edge->GetDestination()->m_Inputs.end(), edge);
+        // cppcheck-suppress assertWithSideEffect
         assert(it != edge->GetDestination()->m_Inputs.end());
         index = static_cast<int32_t>(it - edge->GetDestination()->m_Inputs.begin());
         edge->GetDestination()->m_Inputs.erase(it);

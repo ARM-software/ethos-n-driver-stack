@@ -1,5 +1,5 @@
 //
-// Copyright © 2022 Arm Limited.
+// Copyright © 2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -270,7 +270,7 @@ SCENARIO("ReinterpretQuantization doesn't have any side effect on the command st
 
             WHEN("Both network are succesfully compiled")
             {
-                CompilationOptions compilationOption;
+                CompilationOptions compilationOption{};
                 std::vector<std::unique_ptr<CompiledNetwork>> compiledNetworkWithoutReinterpret =
                     ethosn::support_library::Compile(*networkWithoutReinterpret, compilationOption);
                 std::vector<std::unique_ptr<CompiledNetwork>> compiledNetworkWithReinterpret =

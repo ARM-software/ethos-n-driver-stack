@@ -95,7 +95,13 @@ std::string ArrayToString(const C& container)
 struct DotAttributes
 {
     DotAttributes();
-    DotAttributes(std::string id, std::string label, std::string color);
+    template <typename Id, typename Label, typename Color>
+    DotAttributes(Id&& id, Label&& label, Color&& color)
+        : m_Id(std::forward<Id>(id))
+        , m_Label(std::forward<Label>(label))
+        , m_LabelAlignmentChar('n')
+        , m_Color(std::forward<Color>(color))
+    {}
 
     std::string m_Id;
     std::string m_Label;

@@ -14,22 +14,6 @@ namespace ethosn
 namespace support_library
 {
 
-EstimateOnlyPart::EstimateOnlyPart(PartId id,
-                                   const std::string& reasonForEstimateOnly,
-                                   const std::vector<TensorInfo>& inputTensorsInfo,
-                                   const std::vector<TensorInfo>& outputTensorsInfo,
-                                   const CompilerDataFormat& compilerDataFormat,
-                                   const std::set<uint32_t>& correspondingOperationIds,
-                                   const EstimationOptions& estOpt,
-                                   const CompilationOptions& compOpt,
-                                   const HardwareCapabilities& capabilities)
-    : BasePart(id, "EstimateOnlyPart", correspondingOperationIds, estOpt, compOpt, capabilities)
-    , m_InputTensorsInfo{ inputTensorsInfo }
-    , m_OutputTensorsInfo{ outputTensorsInfo }
-    , m_ReasonForEstimateOnly{ reasonForEstimateOnly }
-    , m_CompilerDataFormat(compilerDataFormat)
-{}
-
 Plans EstimateOnlyPart::GetPlans(CascadeType cascadeType,
                                  ethosn::command_stream::BlockConfig blockConfig,
                                  Buffer* sramBuffer,

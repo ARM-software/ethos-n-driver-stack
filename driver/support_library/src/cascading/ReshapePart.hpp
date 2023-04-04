@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -16,15 +16,24 @@ namespace support_library
 class ReshapePart : public BasePart
 {
 public:
+    template <typename Ids>
     ReshapePart(PartId id,
                 const TensorShape& inputTensorShape,
                 const TensorShape& outputTensorShape,
                 const QuantizationInfo& quantizationInfo,
                 DataType dataType,
-                const std::set<uint32_t>& correspondingOperationIds,
+                Ids&& correspondingOperationIds,
                 const EstimationOptions& estOpt,
                 const CompilationOptions& compOpt,
-                const HardwareCapabilities& capabilities);
+                const HardwareCapabilities& capabilities)
+        : BasePart(id, "ReshapePart", std::forward<Ids>(correspondingOperationIds), estOpt, compOpt, capabilities)
+        , m_InputTensorShape{ inputTensorShape }
+        , m_OutputTensorShape{ outputTensorShape }
+        , m_OutputQuantizationInfo(quantizationInfo)
+        , m_DataType(dataType)
+        , m_StripeConfig(impl::GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
+    {}
+
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,
                    Buffer* sramBuffer,

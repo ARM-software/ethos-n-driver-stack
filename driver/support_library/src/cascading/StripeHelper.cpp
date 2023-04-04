@@ -464,6 +464,7 @@ bool IsSramBufferCompatibleWithDramBuffer(
 CascadingBufferFormat GetBestDramBufferFormat(const std::vector<const SramBuffer*>& sramBuffers,
                                               const CompilationOptions& compilationOptions)
 {
+    // cppcheck-suppress duplicateAssignExpression
     bool fcafDeep = compilationOptions.m_EnableIntermediateCompression;
     bool fcafWide = compilationOptions.m_EnableIntermediateCompression;
 

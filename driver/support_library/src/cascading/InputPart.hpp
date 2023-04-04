@@ -15,15 +15,23 @@ namespace support_library
 class InputPart : public BasePart
 {
 public:
+    template <typename Ids>
     InputPart(PartId id,
               const TensorShape& outputTensorShape,
               const CompilerDataFormat& compilerDataFormat,
               const QuantizationInfo& quantizationInfo,
               DataType dataType,
-              const std::set<uint32_t>& correspondingOperationIds,
+              Ids&& correspondingOperationIds,
               const EstimationOptions& estOpt,
               const CompilationOptions& compOpt,
-              const HardwareCapabilities& capabilities);
+              const HardwareCapabilities& capabilities)
+        : BasePart(id, "InputPart", std::forward<Ids>(correspondingOperationIds), estOpt, compOpt, capabilities)
+        , m_OutputTensorShape{ outputTensorShape }
+        , m_OutputQuantizationInfo(quantizationInfo)
+        , m_OutputDataType(dataType)
+        , m_CompilerDataFormat(compilerDataFormat)
+    {}
+
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,
                    Buffer* sramBuffer,

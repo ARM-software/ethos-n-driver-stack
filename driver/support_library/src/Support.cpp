@@ -32,6 +32,7 @@ namespace
 
 TensorAndId<Operand> GetSingleOutputResult(const std::shared_ptr<Network>& network, Operation& op)
 {
+    // cppcheck-suppress assertWithSideEffect
     assert(op.GetOutputs().size() == 1);
     return { std::shared_ptr<Operand>(network, &op.GetOutput(0)), op.GetId() };
 }

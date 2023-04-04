@@ -19,6 +19,7 @@ namespace sl = ethosn::support_library;
 class NameOnlyNode : public Node
 {
 public:
+    // cppcheck-suppress passedByValue
     NameOnlyNode(NodeId id, std::string name)
         : Node(id,
                TensorShape(),

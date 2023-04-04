@@ -1329,6 +1329,7 @@ void NetworkToGraphConverter::ConnectNodeChain(const Operation& operation, const
 {
     // This function does not support multiple outputs as that would require knowledge of which node
     // corresponds to which output.
+    // cppcheck-suppress assertWithSideEffect
     assert(operation.GetOutputs().size() <= 1);
 
     for (uint32_t i = 0; i < static_cast<uint32_t>(nodes.size()) - 1; ++i)

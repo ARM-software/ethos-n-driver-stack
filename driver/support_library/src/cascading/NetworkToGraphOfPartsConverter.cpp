@@ -289,14 +289,14 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
 
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
-        const TensorInfo& outputInfo          = depthwise.GetOutput(0).GetTensorInfo();
-        const std::set<uint32_t> operationIds = { depthwise.GetId(), depthwise.GetBias().GetId(),
-                                                  depthwise.GetWeights().GetId() };
+        const TensorInfo& outputInfo    = depthwise.GetOutput(0).GetTensorInfo();
+        std::set<uint32_t> operationIds = { depthwise.GetId(), depthwise.GetBias().GetId(),
+                                            depthwise.GetWeights().GetId() };
 
         auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
             m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ depthwise.GetInput(0).GetTensorInfo() },
             std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
-            operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+            std::move(operationIds), m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
@@ -390,14 +390,14 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
 
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
-        const TensorInfo& outputInfo          = convolution.GetOutput(0).GetTensorInfo();
-        const std::set<uint32_t> operationIds = { convolution.GetId(), convolution.GetBias().GetId(),
-                                                  convolution.GetWeights().GetId() };
+        const TensorInfo& outputInfo    = convolution.GetOutput(0).GetTensorInfo();
+        std::set<uint32_t> operationIds = { convolution.GetId(), convolution.GetBias().GetId(),
+                                            convolution.GetWeights().GetId() };
 
         auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
             m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ convolution.GetInput(0).GetTensorInfo() },
             std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
-            operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+            std::move(operationIds), m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
@@ -477,9 +477,9 @@ void NetworkToGraphOfPartsConverter::Visit(FullyConnected& fullyConnected)
 {
     std::vector<BasePart*> parts;
     parts.reserve(1);
-    const TensorInfo& inputTensorInfo     = fullyConnected.GetInput(0).GetTensorInfo();
-    const std::set<uint32_t> operationIds = { fullyConnected.GetId(), fullyConnected.GetBias().GetId(),
-                                              fullyConnected.GetWeights().GetId() };
+    const TensorInfo& inputTensorInfo = fullyConnected.GetInput(0).GetTensorInfo();
+    std::set<uint32_t> operationIds   = { fullyConnected.GetId(), fullyConnected.GetBias().GetId(),
+                                        fullyConnected.GetWeights().GetId() };
 
     // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
     char reason[1024];
@@ -494,7 +494,7 @@ void NetworkToGraphOfPartsConverter::Visit(FullyConnected& fullyConnected)
         auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
             m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ inputTensorInfo },
             std::vector<TensorInfo>{ outputTensorInfo },
-            ConvertExternalToCompilerDataFormat(outputTensorInfo.m_DataFormat), operationIds,
+            ConvertExternalToCompilerDataFormat(outputTensorInfo.m_DataFormat), std::move(operationIds),
             m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
@@ -552,10 +552,10 @@ void NetworkToGraphOfPartsConverter::Visit(FullyConnected& fullyConnected)
             m_GraphOfParts.GeneratePartId(), inputTensorInfo.m_Dimensions, reinterpretedInput,
             fullyConnected.GetOutput(0).GetTensorInfo().m_Dimensions,
             fullyConnected.GetInput(0).GetTensorInfo().m_QuantizationInfo,
-            fullyConnected.GetOutput(0).GetTensorInfo().m_QuantizationInfo, weightsInfo, paddedWeightsData,
+            fullyConnected.GetOutput(0).GetTensorInfo().m_QuantizationInfo, weightsInfo, std::move(paddedWeightsData),
             fullyConnected.GetBias().GetTensorInfo(),
             GetDataVectorAs<int32_t, uint8_t>(fullyConnected.GetBias().GetDataVector()), m_EstimationOptions.value(),
-            m_CompilationOptions, m_Capabilities, operationIds, mceOperationInput.m_DataType,
+            m_CompilationOptions, m_Capabilities, std::move(operationIds), mceOperationInput.m_DataType,
             mceOperationOutput.m_DataType, m_DebuggingContext);
         parts.push_back(fcPart.get());
         m_GraphOfParts.AddPart(std::move(fcPart));
@@ -1329,12 +1329,12 @@ void NetworkToGraphOfPartsConverter::Visit(TransposeConvolution& transposeConvol
     const TensorInfo& weightsInfo           = transposeConvolution.GetWeights().GetTensorInfo();
     const std::vector<uint8_t>& weightsData = transposeConvolution.GetWeights().GetDataVector();
     const TensorInfo& biasInfo              = transposeConvolution.GetBias().GetTensorInfo();
-    std::vector<int32_t> biasData = GetDataVectorAs<int32_t, uint8_t>(transposeConvolution.GetBias().GetDataVector());
-    const Padding& padding        = transposeConvolution.GetConvolutionInfo().m_Padding;
-    const TensorInfo& inputInfo   = transposeConvolution.GetInput(0).GetTensorInfo();
-    const TensorInfo& outputInfo  = transposeConvolution.GetOutput(0).GetTensorInfo();
-    const std::set<uint32_t> operationIds = { transposeConvolution.GetId(), transposeConvolution.GetBias().GetId(),
-                                              transposeConvolution.GetWeights().GetId() };
+    std::vector<int32_t> biasData   = GetDataVectorAs<int32_t, uint8_t>(transposeConvolution.GetBias().GetDataVector());
+    const Padding& padding          = transposeConvolution.GetConvolutionInfo().m_Padding;
+    const TensorInfo& inputInfo     = transposeConvolution.GetInput(0).GetTensorInfo();
+    const TensorInfo& outputInfo    = transposeConvolution.GetOutput(0).GetTensorInfo();
+    std::set<uint32_t> operationIds = { transposeConvolution.GetId(), transposeConvolution.GetBias().GetId(),
+                                        transposeConvolution.GetWeights().GetId() };
 
     // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
     char reason[1024];
@@ -1348,7 +1348,7 @@ void NetworkToGraphOfPartsConverter::Visit(TransposeConvolution& transposeConvol
         auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
             m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ inputInfo },
             std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
-            operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+            std::move(operationIds), m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
@@ -1494,9 +1494,8 @@ void NetworkToGraphOfPartsConverter::Visit(Split& split)
 
 void NetworkToGraphOfPartsConverter::Visit(Transpose& transpose)
 {
-    const TensorInfo& inputInfo           = transpose.GetInput(0).GetTensorInfo();
-    const TensorInfo& outputInfo          = transpose.GetOutput(0).GetTensorInfo();
-    const std::set<uint32_t> operationIds = { transpose.GetId() };
+    const TensorInfo& inputInfo  = transpose.GetInput(0).GetTensorInfo();
+    const TensorInfo& outputInfo = transpose.GetOutput(0).GetTensorInfo();
 
     // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
     char reason[1024];
@@ -1508,7 +1507,7 @@ void NetworkToGraphOfPartsConverter::Visit(Transpose& transpose)
         auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
             m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ inputInfo },
             std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
-            operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+            std::set<uint32_t>{ transpose.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
@@ -1630,9 +1629,8 @@ void NetworkToGraphOfPartsConverter::Visit(DepthToSpace& depthToSpace)
 
 void NetworkToGraphOfPartsConverter::Visit(SpaceToDepth& spaceToDepth)
 {
-    const TensorInfo& inputInfo           = spaceToDepth.GetInput(0).GetTensorInfo();
-    const TensorInfo& outputInfo          = spaceToDepth.GetOutput(0).GetTensorInfo();
-    const std::set<uint32_t> operationIds = { spaceToDepth.GetId() };
+    const TensorInfo& inputInfo  = spaceToDepth.GetInput(0).GetTensorInfo();
+    const TensorInfo& outputInfo = spaceToDepth.GetOutput(0).GetTensorInfo();
 
     // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
     char reason[1024];
@@ -1644,7 +1642,8 @@ void NetworkToGraphOfPartsConverter::Visit(SpaceToDepth& spaceToDepth)
         auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
             m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ inputInfo },
             std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
-            operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+            std::set<uint32_t>{ spaceToDepth.GetId() }, m_EstimationOptions.value(), m_CompilationOptions,
+            m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
@@ -1677,6 +1676,7 @@ GraphOfParts NetworkToGraphOfPartsConverter::ReleaseGraphOfParts()
 void NetworkToGraphOfPartsConverter::ConnectParts(Operation& operation, std::vector<BasePart*>& m_Part)
 {
     // This function currently supports Operations with no/single Output.
+    // cppcheck-suppress assertWithSideEffect
     assert(operation.GetOutputs().size() <= 1);
 
     // Loop through all parts in the vector of BaseParts and connect them together.

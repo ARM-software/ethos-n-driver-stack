@@ -17,6 +17,7 @@ namespace support_library
 class FullyConnectedPart : public McePart
 {
 public:
+    template <typename Ids, typename Weights, typename Biases>
     FullyConnectedPart(PartId id,
                        const TensorShape& inputTensorShape,
                        const TensorShape& reinterpretedInputShape,
@@ -24,16 +25,38 @@ public:
                        const QuantizationInfo& inputQuantizationInfo,
                        const QuantizationInfo& outputQuantizationInfo,
                        const TensorInfo& weightsInfo,
-                       std::vector<uint8_t> weightsData,
+                       Weights&& weightsData,
                        const TensorInfo& biasInfo,
-                       std::vector<int32_t> biasData,
+                       Biases&& biasData,
                        const EstimationOptions& estOpt,
                        const CompilationOptions& compOpt,
                        const HardwareCapabilities& capabilities,
-                       std::set<uint32_t> operationIds,
+                       Ids&& operationIds,
                        DataType inputDataType,
                        DataType outputDataType,
-                       DebuggingContext& debuggingContext);
+                       DebuggingContext& debuggingContext)
+        : McePart(id,
+                  reinterpretedInputShape,
+                  outputTensorShape,
+                  inputQuantizationInfo,
+                  outputQuantizationInfo,
+                  weightsInfo,
+                  std::forward<Weights>(weightsData),
+                  biasInfo,
+                  std::forward<Biases>(biasData),
+                  Stride{},
+                  0,
+                  0,
+                  command_stream::MceOperation::FULLY_CONNECTED,
+                  estOpt,
+                  compOpt,
+                  capabilities,
+                  std::forward<Ids>(operationIds),
+                  inputDataType,
+                  outputDataType,
+                  debuggingContext)
+        , m_OriginalInputShape(inputTensorShape)
+    {}
 
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,

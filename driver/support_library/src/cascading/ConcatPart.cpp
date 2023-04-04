@@ -16,25 +16,6 @@ namespace ethosn
 namespace support_library
 {
 
-ConcatPart::ConcatPart(PartId id,
-                       const std::vector<TensorInfo>& inputTensorsInfo,
-                       const TensorInfo& outputTensorInfo,
-                       uint32_t axis,
-                       const std::vector<uint32_t>& offsets,
-                       bool preferNhwc,
-                       const std::set<uint32_t>& correspondingOperationIds,
-                       const EstimationOptions& estOpt,
-                       const CompilationOptions& compOpt,
-                       const HardwareCapabilities& capabilities)
-    : BasePart(id, "ConcatPart", correspondingOperationIds, estOpt, compOpt, capabilities)
-    , m_InputTensorsInfo{ inputTensorsInfo }
-    , m_OutputTensorInfo{ outputTensorInfo }
-    , m_Axis(axis)
-    , m_Offsets(offsets)
-    , m_StripeConfig(impl::GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
-    , m_PreferNhwc(preferNhwc)
-{}
-
 Plans ConcatPart::GetPlans(CascadeType cascadeType,
                            ethosn::command_stream::BlockConfig blockConfig,
                            Buffer* sramBuffer,

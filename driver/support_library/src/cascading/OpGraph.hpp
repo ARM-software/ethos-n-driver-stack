@@ -162,8 +162,8 @@ public:
     void MergeOpGraph(OwnedOpGraph& other);
 
 private:
-    std::vector<std::unique_ptr<Op>> m_Ops;
-    std::vector<std::unique_ptr<Buffer>> m_Buffers;
+    std::vector<std::unique_ptr<Op>> m_OwnedOps;
+    std::vector<std::unique_ptr<Buffer>> m_OwnedBuffers;
 };
 
 class Op : public DebuggableObject

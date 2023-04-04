@@ -41,7 +41,7 @@ class OutputNode : public Node
 {
 public:
     OutputNode(NodeId id,
-               DataType dataType,
+               DataType dataType,    // cppcheck-suppress passedByValue
                std::set<uint32_t> correspondingOperationIds,
                uint32_t sourceOperationOutputIndex)
         : Node(id,
@@ -67,8 +67,8 @@ class ConstantNode : public Node
 {
 public:
     ConstantNode(NodeId id,
-                 const TensorInfo& constantInfo,
-                 std::vector<uint8_t> constantData,
+                 const TensorInfo& constantInfo,       // cppcheck-suppress passedByValue
+                 std::vector<uint8_t> constantData,    // cppcheck-suppress passedByValue
                  std::set<uint32_t> correspondingOperationIds)
         : Node(id,
                constantInfo.m_Dimensions,

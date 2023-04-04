@@ -57,15 +57,16 @@ public:
         DebuggingContext& m_DebuggingContext;
     };
 
+    template <typename Ids, typename Weights, typename Biases>
     McePart(PartId id,
             const TensorShape& inputTensorShape,
             const TensorShape& outputTensorShape,
             const QuantizationInfo& inputQuantizationInfo,
             const QuantizationInfo& outputQuantizationInfo,
             const TensorInfo& weightsInfo,
-            std::vector<uint8_t> weightsData,
+            Weights&& weightsData,
             const TensorInfo& biasInfo,
-            std::vector<int32_t> biasData,
+            Biases&& biasData,
             const Stride& stride,
             uint32_t padTop,
             uint32_t padLeft,
@@ -73,10 +74,48 @@ public:
             const EstimationOptions& estOpt,
             const CompilationOptions& compOpt,
             const HardwareCapabilities& capabilities,
-            std::set<uint32_t> operationIds,
+            Ids&& operationIds,
             DataType inputDataType,
             DataType outputDataType,
-            DebuggingContext& debuggingContext);
+            DebuggingContext& debuggingContext)
+        : BasePart(id, "McePart", std::forward<Ids>(operationIds), estOpt, compOpt, capabilities)
+        , m_InputTensorShape(inputTensorShape)
+        , m_OutputTensorShape(outputTensorShape)
+        , m_WeightEncoderCache{ capabilities, debuggingContext, m_DebugTag.c_str() }
+        , m_InputQuantizationInfo(inputQuantizationInfo)
+        , m_OutputQuantizationInfo(outputQuantizationInfo)
+        , m_WeightsInfo(weightsInfo)
+        , m_WeightsData(std::make_shared<std::vector<uint8_t>>(std::forward<Weights>(weightsData)))
+        , m_BiasInfo(biasInfo)
+        , m_BiasData(std::forward<Biases>(biasData))
+        , m_Stride(stride)
+        , m_UpscaleFactor(1U)
+        , m_UpsampleType(command_stream::cascading::UpsampleType::OFF)
+        , m_PadTop(padTop)
+        , m_PadLeft(padLeft)
+        , m_Operation(op)
+        , m_StripeConfig(impl::GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
+        , m_StripeGenerator(m_InputTensorShape,
+                            m_OutputTensorShape,
+                            m_OutputTensorShape,
+                            m_WeightsInfo.m_Dimensions[0],
+                            m_WeightsInfo.m_Dimensions[1],
+                            m_PadTop,
+                            m_PadLeft,
+                            m_UpscaleFactor,
+                            op,
+                            command_stream::PleOperation::PASSTHROUGH,
+                            utils::ShapeMultiplier{ 1, 1, utils::Fraction(1, stride.m_X * stride.m_Y) },
+                            utils::ShapeMultiplier::Identity,
+                            capabilities,
+                            m_StripeConfig)
+        , m_InputDataType(inputDataType)
+        , m_OutputDataType(outputDataType)
+        , m_LowerBound(outputDataType == DataType::UINT8_QUANTIZED ? 0 : -128)
+        , m_UpperBound(outputDataType == DataType::UINT8_QUANTIZED ? 255 : 127)
+        , m_IsChannelSelector(false)
+    {}
+
     McePart(ConstructionParams&& params);
 
     Plans GetPlans(CascadeType cascadeType,

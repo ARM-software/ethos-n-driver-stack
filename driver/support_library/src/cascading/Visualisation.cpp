@@ -688,13 +688,6 @@ DotAttributes::DotAttributes()
     : m_LabelAlignmentChar('n')
 {}
 
-DotAttributes::DotAttributes(std::string id, std::string label, std::string color)
-    : m_Id(std::move(id))
-    , m_Label(std::move(label))
-    , m_LabelAlignmentChar('n')
-    , m_Color(std::move(color))
-{}
-
 namespace
 {
 

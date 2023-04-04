@@ -401,7 +401,7 @@ TOp* OwnedOpGraph::AddOp(std::unique_ptr<TOp> op)
     // Call base implementation first in case it errors, in which case we don't want to track this Op.
     TOp* raw = op.get();
     OpGraph::AddOp(raw);
-    m_Ops.emplace_back(std::move(op));
+    m_OwnedOps.emplace_back(std::move(op));
     return raw;
 }
 
@@ -419,7 +419,7 @@ TBuffer* OwnedOpGraph::AddBuffer(std::unique_ptr<TBuffer> buffer)
     // Call base implementation first in case it errors, in which case we don't want to track this Op.
     TBuffer* raw = buffer.get();
     OpGraph::AddBuffer(raw);
-    m_Buffers.emplace_back(std::move(buffer));
+    m_OwnedBuffers.emplace_back(std::move(buffer));
     return raw;
 }
 
@@ -431,11 +431,11 @@ template PleInputSramBuffer* OwnedOpGraph::AddBuffer<PleInputSramBuffer>(std::un
 
 void OwnedOpGraph::MergeOpGraph(OwnedOpGraph& other)
 {
-    for (auto&& op : other.m_Ops)
+    for (auto&& op : other.m_OwnedOps)
     {
         AddOp(std::move(op));
     }
-    for (auto&& buf : other.m_Buffers)
+    for (auto&& buf : other.m_OwnedBuffers)
     {
         AddBuffer(std::move(buf));
     }

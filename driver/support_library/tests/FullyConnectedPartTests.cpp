@@ -615,8 +615,9 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
         const TensorInfo biasTensorInfo({ 1, 1, 1, 1024 });
         const std::set<uint32_t> operationIds = { 1, 2, 3 };
         FullyConnectedPart part(partId, tsInOrig, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo,
-                                weights, biasTensorInfo, bias, estOps, compOpt, caps, operationIds,
-                                DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, debuggingContext);
+                                std::move(weights), biasTensorInfo, std::move(bias), estOps, compOpt, caps,
+                                std::move(operationIds), DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED,
+                                debuggingContext);
 
         WHEN("Asked to generate plans")
         {

@@ -282,7 +282,7 @@ bool Combiner::IsPlanAllocated(SectionContext& context,
                 // If an input buffer in a continue or end section
                 else
                 {
-                    assert(outBufOfPrevPlanInSection != nullptr &&
+                    assert(outBufOfPrevPlanInSection != nullptr &&    // cppcheck-suppress assertWithSideEffect
                            outBufOfPrevPlanInSection->Sram()->m_Offset.has_value());
                     buf->Sram()->m_Offset = outBufOfPrevPlanInSection->Sram()->m_Offset;
                 }

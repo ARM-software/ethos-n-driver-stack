@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -233,7 +233,7 @@ TEST_CASE("Requantize output scale less than half input scale")
     auto requantize = AddRequantize(network, *input, requantInfo).tensor;
     auto output     = AddOutput(network, *requantize).tensor;
 
-    CompilationOptions compilationOptions;
+    CompilationOptions compilationOptions{};
     compilationOptions.m_StrictPrecision = true;
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
         ethosn::support_library::Compile(*network, compilationOptions);
@@ -278,7 +278,7 @@ TEST_CASE("Compile a network with Requantize layer with different input/output t
         outputTypeInCommandStream = ethosn::command_stream::DataType::U8;
     }
 
-    CompilationOptions compilationOptions;
+    CompilationOptions compilationOptions{};
     compilationOptions.m_StrictPrecision = true;
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
         ethosn::support_library::Compile(*network, compilationOptions);

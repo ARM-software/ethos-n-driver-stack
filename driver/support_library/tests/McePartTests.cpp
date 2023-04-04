@@ -669,9 +669,9 @@ TEST_CASE("McePart GetPlans structure")
         const Stride stride                     = {};
         const uint32_t padTop                   = 0;
         const uint32_t padLeft                  = 0;
-        McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, weights, biasTensorInfo,
-                     bias, stride, padTop, padLeft, csOp, estOps, compOpt, caps, operationIds,
-                     DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, debuggingContext);
+        McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, std::move(weights),
+                     biasTensorInfo, std::move(bias), stride, padTop, padLeft, csOp, estOps, compOpt, caps,
+                     operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, debuggingContext);
 
         CheckPlansParams params;
         params.m_PartId            = partId;
@@ -803,9 +803,9 @@ TEST_CASE("McePart End Cascade full tensor")
         const Stride stride                     = {};
         const uint32_t padTop                   = 0;
         const uint32_t padLeft                  = 0;
-        McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, weights, biasTensorInfo,
-                     bias, stride, padTop, padLeft, csOp, estOps, compOpt, caps, operationIds,
-                     DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, debuggingContext);
+        McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, std::move(weights),
+                     biasTensorInfo, std::move(bias), stride, padTop, padLeft, csOp, estOps, compOpt, caps,
+                     operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, debuggingContext);
 
         CheckPlansParams params;
         params.m_PartId            = partId;
@@ -887,9 +887,9 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
         const Stride stride                     = {};
         const uint32_t padTop                   = 0;
         const uint32_t padLeft                  = 0;
-        McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, weights, biasTensorInfo,
-                     bias, stride, padTop, padLeft, csOp, estOps, compOpt, caps, operationIds,
-                     DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, debuggingContext);
+        McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, std::move(weights),
+                     biasTensorInfo, std::move(bias), stride, padTop, padLeft, csOp, estOps, compOpt, caps,
+                     operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, debuggingContext);
 
         CheckPlansParams params;
         params.m_PartId            = partId;

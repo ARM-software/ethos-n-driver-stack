@@ -195,12 +195,16 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
     // Construct and add the required agents to the command stream
     if (inputBuffer->m_Location == Location::Dram && outputBuffer->m_Location == Location::Sram)
     {
+        // cppcheck-suppress assertWithSideEffect
         assert(inputBuffer->Dram()->m_BufferType.has_value());
 
         if (inputBuffer->m_Format != CascadingBufferFormat::WEIGHT)
         {
-            assert(inputBuffer->Dram()->m_BufferType.value() == BufferType::Intermediate ||
-                   inputBuffer->Dram()->m_BufferType.value() == BufferType::Input ||
+            // cppcheck-suppress assertWithSideEffect
+            assert(inputBuffer->Dram()->m_BufferType.value() ==
+                       BufferType::Intermediate ||    // cppcheck-suppress assertWithSideEffect
+                   inputBuffer->Dram()->m_BufferType.value() ==
+                       BufferType::Input ||    // cppcheck-suppress assertWithSideEffect
                    inputBuffer->Dram()->m_BufferType.value() == BufferType::ConstantDma);
 
             DmaOp* const dmaOp = static_cast<DmaOp*>(ptrDmaOp);
@@ -263,7 +267,9 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
     }
     else if (inputBuffer->m_Location == Location::Sram && outputBuffer->m_Location == Location::Dram)
     {
+        // cppcheck-suppress assertWithSideEffect
         assert(inputBuffer->Sram()->m_Offset.has_value());
+        // cppcheck-suppress assertWithSideEffect
         assert(outputBuffer->Dram()->m_BufferType.has_value());
 
         // Get the producer of the input buffer and the producing agent type
@@ -290,7 +296,9 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
 
             if (outputBuffer->Dram()->m_BufferType.value() == BufferType::Output)
             {
+                // cppcheck-suppress assertWithSideEffect
                 assert(outputBuffer->Dram()->m_OperationId.has_value());
+                // cppcheck-suppress assertWithSideEffect
                 assert(outputBuffer->Dram()->m_ProducerOutputIndx);
                 m_BufferManager.ChangeToOutput(outputBufferId, outputBuffer->Dram()->m_OperationId.value(),
                                                outputBuffer->Dram()->m_ProducerOutputIndx.value());
@@ -431,6 +439,7 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
     {
         if (inputBuffer->m_Location == Location::Sram)
         {
+            // cppcheck-suppress assertWithSideEffect
             assert(inputBuffer->Sram()->m_Offset.has_value());
         }
         ETHOSN_UNUSED(inputBuffer);
@@ -438,6 +447,7 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
 
     // Get the output buffer from the Ple Op
     Buffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrPleOp);
+    // cppcheck-suppress assertWithSideEffect
     assert(outputBuffer->Sram()->m_Offset.has_value());
 
     // Determine whether ple op is standalone or fused
@@ -1753,6 +1763,7 @@ void CascadingCommandStreamGenerator::AddLifetimeInfoForIntermediateDramBuffers(
     {
         if (buffer->m_Location == Location::Dram)
         {
+            // cppcheck-suppress assertWithSideEffect
             assert(buffer->Dram()->m_BufferType.has_value());
             if (buffer->Dram()->m_BufferType.value() == BufferType::Intermediate)
             {

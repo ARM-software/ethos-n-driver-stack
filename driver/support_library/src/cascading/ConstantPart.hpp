@@ -15,16 +15,25 @@ namespace support_library
 class ConstantPart : public BasePart
 {
 public:
+    template <typename Ids>
     ConstantPart(PartId id,
                  const TensorShape& outputTensorShape,
                  const CompilerDataFormat& compilerDataFormat,
                  const QuantizationInfo& quantizationInfo,
                  DataType dataType,
-                 const std::set<uint32_t>& correspondingOperationIds,
+                 Ids&& correspondingOperationIds,
                  const EstimationOptions& estOpt,
                  const CompilationOptions& compOpt,
                  const HardwareCapabilities& capabilities,
-                 const std::vector<uint8_t>& constantData);
+                 const std::vector<uint8_t>& constantData)
+        : BasePart(id, "ConstantPart", std::forward<Ids>(correspondingOperationIds), estOpt, compOpt, capabilities)
+        , m_OutputTensorShape{ outputTensorShape }
+        , m_OutputQuantizationInfo(quantizationInfo)
+        , m_OutputDataType(dataType)
+        , m_CompilerDataFormat(compilerDataFormat)
+        , m_ConstantData(std::make_shared<std::vector<uint8_t>>(constantData))
+    {}
+
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,
                    Buffer* sramBuffer,

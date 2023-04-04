@@ -46,12 +46,12 @@ class MockPart : public BasePart
 {
 public:
     MockPart(PartId id, bool hasInput = true, bool hasOutput = true)
-        : BasePart(id, "MockPart", estOpt, compOpt, m_Capabilities)
+        : BasePart(id, "MockPart", estOpt, compOpt, m_MockCapabilities)
         , m_CanMergeWithChannelSelectorBefore(false)
         , m_CanMergeWithChannelSelectorAfter(false)
         , m_HasInput(hasInput)
         , m_HasOutput(hasOutput)
-        , m_Capabilities(GetEthosN78HwCapabilities())
+        , m_MockCapabilities(GetEthosN78HwCapabilities())
     {}
     virtual Plans GetPlans(CascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const override;
 
@@ -82,9 +82,9 @@ protected:
     bool m_HasOutput;
 
 private:
-    const EstimationOptions estOpt;
-    const CompilationOptions compOpt;
-    const HardwareCapabilities m_Capabilities;
+    const EstimationOptions estOpt   = EstimationOptions();
+    const CompilationOptions compOpt = CompilationOptions();
+    const HardwareCapabilities m_MockCapabilities;
 };
 
 /// Simple Node type for tests.
@@ -93,6 +93,7 @@ private:
 class NameOnlyNode : public Node
 {
 public:
+    // cppcheck-suppress passedByValue
     NameOnlyNode(NodeId id, std::string name)
         : Node(id,
                TensorShape(),

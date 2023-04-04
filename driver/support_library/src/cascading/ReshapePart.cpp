@@ -13,23 +13,6 @@ namespace ethosn
 namespace support_library
 {
 
-ReshapePart::ReshapePart(PartId id,
-                         const TensorShape& inputTensorShape,
-                         const TensorShape& outputTensorShape,
-                         const QuantizationInfo& quantizationInfo,
-                         DataType dataType,
-                         const std::set<uint32_t>& correspondingOperationIds,
-                         const EstimationOptions& estOpt,
-                         const CompilationOptions& compOpt,
-                         const HardwareCapabilities& capabilities)
-    : BasePart(id, "ReshapePart", correspondingOperationIds, estOpt, compOpt, capabilities)
-    , m_InputTensorShape{ inputTensorShape }
-    , m_OutputTensorShape{ outputTensorShape }
-    , m_OutputQuantizationInfo(quantizationInfo)
-    , m_DataType(dataType)
-    , m_StripeConfig(impl::GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
-{}
-
 Plans ReshapePart::GetPlans(CascadeType cascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const
 {
     Plans plans;

@@ -83,13 +83,17 @@ class OptionalReferenceSwitch : public OptionalBase
 public:
     using Base = OptionalBase;
 
+    // cppcheck-suppress uninitMemberVar
     OptionalReferenceSwitch() noexcept
         : Base{}
     {}
+
+    // cppcheck-suppress uninitMemberVar
     OptionalReferenceSwitch(EmptyOptional) noexcept
         : Base{}
     {}
 
+    // cppcheck-suppress uninitMemberVar
     OptionalReferenceSwitch(const T& value)
         : Base{}
     {
@@ -97,6 +101,7 @@ public:
     }
 
     template <class... Args>
+    // cppcheck-suppress uninitMemberVar
     OptionalReferenceSwitch(ConstructInPlace, Args&&... args)
         : Base{}
     {
