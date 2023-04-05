@@ -32,7 +32,8 @@ public:
     {
         static std::atomic<int> g_Counter;
         int uniqueId = g_Counter++;
-        m_Dir        = "TempDir-" + std::to_string(uniqueId);
+        // cppcheck-suppress  useInitializationList symbolName=m_Dir
+        m_Dir = "TempDir-" + std::to_string(uniqueId);
         fs::create_directories(m_Dir);
     }
 
