@@ -280,10 +280,6 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
             return IsLogicalBinarySupportedImpl(infos[0], infos[1], infos[2],
                                                 *(PolymorphicDowncast<const LogicalBinaryDescriptor*>(&descriptor)),
                                                 reasonIfUnsupported);
-        case LayerType::LogSoftmax:
-            return IsLogSoftmaxSupportedImpl(infos[0], infos[1],
-                                             *(PolymorphicDowncast<const LogSoftmaxDescriptor*>(&descriptor)),
-                                             reasonIfUnsupported);
         case LayerType::Lstm:
             return IsLstmSupportedImpl(infos[0], infos[1], infos[2], infos[3], infos[4], infos[5], infos[6],
                                        *(PolymorphicDowncast<const LstmDescriptor*>(&descriptor)),
@@ -347,9 +343,6 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
         case LayerType::Slice:
             return IsSliceSupportedImpl(infos[0], infos[1], *(PolymorphicDowncast<const SliceDescriptor*>(&descriptor)),
                                         reasonIfUnsupported);
-        case LayerType::Softmax:
-            return IsSoftmaxSupportedImpl(
-                infos[0], infos[1], *(PolymorphicDowncast<const SoftmaxDescriptor*>(&descriptor)), reasonIfUnsupported);
         case LayerType::SpaceToBatchNd:
             return IsSpaceToBatchNdSupportedImpl(infos[0], infos[1],
                                                  *(PolymorphicDowncast<const SpaceToBatchNdDescriptor*>(&descriptor)),
@@ -447,10 +440,14 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
             // Fall-through: The Support Library does not support floating point types, even in performance-only mode.
         case LayerType::ConvertFp32ToFp16:
             // Fall-through: The Support Library does not support floating point types, even in performance-only mode.
+        case LayerType::LogSoftmax:
+            // Fall-through: The Support Library does not support LogSoftmax.
+        case LayerType::Softmax:
+            // Fall-through: The Support Library does not support Softmax.
         case LayerType::Debug:
-            // Fall-through: The Support Library does not support floating point types, even in performance-only mode.
+            // Fall-through: The Support Library does not support Debug
         case LayerType::Dequantize:
-            // Fall-through: The Support Library does not support floating point types, even in performance-only mode.
+            // Fall-through: The Support Library does not support Dequantize
         case LayerType::MemImport:
             // Fall-through:
             // This is a 'meta' layer type related to avoiding tensor copies between backends.
@@ -1148,35 +1145,6 @@ bool EthosNLayerSupport::IsReshapeSupportedImpl(const TensorInfo& input,
     return supported;
 }
 
-bool EthosNLayerSupport::IsSoftmaxSupportedImpl(const TensorInfo& input,
-                                                const TensorInfo& output,
-                                                const SoftmaxDescriptor& descriptor,
-                                                Optional<std::string&> reasonIfUnsupported) const
-{
-    using ethosn_lib::SupportedLevel;
-    if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported) &&
-          IsTensorSupportedOnEthosN(output, reasonIfUnsupported)))
-    {
-        return false;
-    }
-    if (descriptor.m_Axis != -1 && descriptor.m_Axis != static_cast<int>(input.GetNumDimensions()) - 1)
-    {
-        SetReason(reasonIfUnsupported, "Softmax axis must be the last one");
-        return false;
-    }
-
-    auto ethosnInput  = BuildEthosNTensorInfo(input, DataLayout::NHWC);
-    auto ethosnOutput = BuildEthosNTensorInfo(output, DataLayout::NHWC);
-
-    ReasonMessageHelper messageHelper;
-    SupportedLevel supportedLevel = m_Queries.IsSoftmaxSupported(ethosnInput, &ethosnOutput, messageHelper.GetBuffer(),
-                                                                 messageHelper.GetBufferSize());
-
-    bool supported = CheckSupportedLevel(supportedLevel, m_Config.m_PerfOnly);
-    SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
-    return supported;
-}
-
 bool EthosNLayerSupport::IsSplitterSupportedImpl(const TensorInfo& input,
                                                  const std::vector<std::reference_wrapper<TensorInfo>>& outputs,
                                                  const ViewsDescriptor& descriptor,
@@ -1441,14 +1409,6 @@ bool EthosNLayerSupport::IsLogicalUnarySupportedImpl(const TensorInfo& input,
                                                      Optional<std::string&> reasonIfUnsupported) const
 {
     IgnoreUnused(descriptor);
-    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
-}
-
-bool EthosNLayerSupport::IsLogSoftmaxSupportedImpl(const TensorInfo& input,
-                                                   const TensorInfo& output,
-                                                   const LogSoftmaxDescriptor&,
-                                                   Optional<std::string&> reasonIfUnsupported) const
-{
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 

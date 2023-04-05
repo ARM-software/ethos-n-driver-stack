@@ -514,17 +514,6 @@ void EthosNSubgraphViewConverter::AddReshapeLayer(const IConnectableLayer* layer
         layer, ethosn_lib::AddReshape(m_Network, *input.tensor, BuildEthosNTensorShape(descriptor.m_TargetShape)));
 }
 
-void EthosNSubgraphViewConverter::AddSoftmaxLayer(const IConnectableLayer* layer)
-{
-    ARMNN_ASSERT(layer != nullptr);
-    ARMNN_ASSERT(layer->GetType() == LayerType::Softmax);
-
-    auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
-
-    // Softmax has exactly one output that maps neatly to the NPU
-    InsertConvertedLayerSingleOutput(layer, ethosn_lib::AddSoftmax(m_Network, *input.tensor));
-}
-
 void EthosNSubgraphViewConverter::AddSplitterLayer(const IConnectableLayer* layer)
 {
     ARMNN_ASSERT(layer != nullptr);
@@ -727,9 +716,6 @@ EthosNOperand EthosNSubgraphViewConverter::AddOrRetrieveEthosNOperand(const IOut
             break;
         case LayerType::Reshape:
             AddReshapeLayer(&layer);
-            break;
-        case LayerType::Softmax:
-            AddSoftmaxLayer(&layer);
             break;
         case LayerType::Splitter:
             AddSplitterLayer(&layer);

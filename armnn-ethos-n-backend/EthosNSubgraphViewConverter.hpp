@@ -98,7 +98,6 @@ private:
     void AddConcatLayer(const IConnectableLayer* layer);
     void AddPooling2dLayer(const IConnectableLayer* layer);
     void AddReshapeLayer(const IConnectableLayer* layer);
-    void AddSoftmaxLayer(const IConnectableLayer* layer);
     void AddSplitterLayer(const IConnectableLayer* layer);
     void AddDepthToSpaceLayer(const IConnectableLayer* layer);
     void AddSpaceToDepthLayer(const IConnectableLayer* layer);

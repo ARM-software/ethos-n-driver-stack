@@ -137,11 +137,6 @@ private:
                                 const ReshapeDescriptor& descriptor,
                                 Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const;
 
-    bool IsSoftmaxSupportedImpl(const TensorInfo& input,
-                                const TensorInfo& output,
-                                const SoftmaxDescriptor& descriptor,
-                                Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const;
-
     bool IsSplitterSupportedImpl(const TensorInfo& input,
                                  const std::vector<std::reference_wrapper<TensorInfo>>& outputs,
                                  const ViewsDescriptor& descriptor,
@@ -237,11 +232,6 @@ private:
                                      const TensorInfo& output,
                                      const ElementwiseUnaryDescriptor& descriptor,
                                      Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const;
-
-    bool IsLogSoftmaxSupportedImpl(const TensorInfo& input,
-                                   const TensorInfo& output,
-                                   const LogSoftmaxDescriptor& descriptor,
-                                   Optional<std::string&> reasonIfUnsupported) const;
 
     bool IsLstmSupportedImpl(const TensorInfo& input,
                              const TensorInfo& outputStateIn,

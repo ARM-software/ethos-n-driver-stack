@@ -549,38 +549,6 @@ TEST_SUITE("EthosNSupport")
         CHECK_THROWS_AS(converter.TestCreateUncompiledNetwork(), ethosn_lib::NotSupportedException);
     }
 
-    TEST_CASE("ConvertSoftmaxLayer")
-    {
-        Graph graph;
-
-        // Create tensorinfo
-        const TensorInfo inputTensorInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
-
-        // Construct graph
-        Layer* inputLayer = graph.AddLayer<InputLayer>(0, "input");
-        inputLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
-
-        SoftmaxDescriptor softmaxDescriptor;
-        Layer* softmaxLayer = graph.AddLayer<SoftmaxLayer>(softmaxDescriptor, "softmax");
-
-        Layer* outputLayer = graph.AddLayer<OutputLayer>(0, "output");
-
-        // Set up connections
-        inputLayer->GetOutputSlot(0).Connect(softmaxLayer->GetInputSlot(0));
-        softmaxLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
-
-        // Construct sub-graph
-        armnn::SubgraphView view({ softmaxLayer }, { &softmaxLayer->GetInputSlot(0) },
-                                 { &softmaxLayer->GetOutputSlot(0) });
-
-        auto subgraphPtr = std::make_unique<SubgraphView>(view);
-
-        // Set up Ethos-N sub-graph converter
-        TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
-
-        CHECK_THROWS_AS(converter.TestCreateUncompiledNetwork(), ethosn_lib::NotSupportedException);
-    }
-
     SubgraphView::SubgraphViewPtr CreatePooling2dLayerSubgraph(Graph & graph, const TensorShape& inputTensorShape,
                                                                const Pooling2dDescriptor& descriptor)
     {
