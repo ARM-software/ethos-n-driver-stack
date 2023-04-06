@@ -2502,8 +2502,10 @@ TEST_CASE("NetworkToGraphOfPartsConverter Const as Input EstimateOnly")
             TensorShape{ 1, 16, 16, 16 });
     REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
             TensorShape{ 1, 8, 16, 16 });
-    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
-    REQUIRE(estimateOnlyOp != nullptr);
+
+    Op* maybeEstimateOnlyOp = plans[0].m_OpGraph.GetOp(0);
+    REQUIRE(IsEstimateOnlyOp(maybeEstimateOnlyOp));
+    EstimateOnlyOp* estimateOnlyOp = static_cast<EstimateOnlyOp*>(maybeEstimateOnlyOp);
     CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find(
               "Unsupported stride. Stride X and Y must be equal and in { 1, 2 }") != std::string::npos);
 }
