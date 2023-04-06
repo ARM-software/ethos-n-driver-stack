@@ -2,7 +2,6 @@
 // Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
-#include <Graph.hpp>
 #include <UnitTests.hpp>
 #include <armnn/Exceptions.hpp>
 #include <armnn/INetwork.hpp>
