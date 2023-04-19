@@ -285,7 +285,9 @@ void EthosNSubgraphViewConverter::AddActivationLayer(const IConnectableLayer* la
 void EthosNSubgraphViewConverter::AddAdditionLayer(const IConnectableLayer* layer)
 {
     ARMNN_ASSERT(layer != nullptr);
-    ARMNN_ASSERT(layer->GetType() == LayerType::Addition);
+    ARMNN_ASSERT(layer->GetType() == LayerType::ElementwiseBinary);
+    ARMNN_ASSERT(PolymorphicDowncast<const ElementwiseBinaryDescriptor*>(&(layer->GetParameters()))->m_Operation ==
+                 BinaryOperation::Add);
 
     auto input1                  = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
     auto input2                  = AddOrRetrieveEthosNOperand(layer->GetInputSlot(1).GetConnection());
@@ -690,9 +692,6 @@ EthosNOperand EthosNSubgraphViewConverter::AddOrRetrieveEthosNOperand(const IOut
         case LayerType::Activation:
             AddActivationLayer(&layer);
             break;
-        case LayerType::Addition:
-            AddAdditionLayer(&layer);
-            break;
         case LayerType::Constant:
             AddConstantLayer(&layer);
             break;
@@ -741,6 +740,25 @@ EthosNOperand EthosNSubgraphViewConverter::AddOrRetrieveEthosNOperand(const IOut
         case LayerType::Mean:
             AddMeanXyLayer(&layer);
             break;
+        case LayerType::ElementwiseBinary:
+        {
+            const ElementwiseBinaryDescriptor& desc =
+                *PolymorphicDowncast<const ElementwiseBinaryDescriptor*>(&layer.GetParameters());
+            switch (desc.m_Operation)
+            {
+                case BinaryOperation::Add:
+                    AddAdditionLayer(&layer);
+                    break;
+                case BinaryOperation::Mul:
+                    // Multiply is either not supported or should have been replaced with an equivalent operation
+                    // Fall-through
+                default:
+                    std::string string(layer.GetName());
+                    std::string reason = "ElementwiseBinary operation " + string + " is not currently supported.";
+                    HandleUnknownLayer(&layer, reason);
+            }
+            break;
+        }
         default:
             std::string string(layer.GetName());
             std::string reason = string + " is not currently supported.";

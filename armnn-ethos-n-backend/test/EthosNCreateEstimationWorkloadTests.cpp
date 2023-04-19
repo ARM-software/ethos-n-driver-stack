@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "EthosNBackendId.hpp"
@@ -118,7 +118,7 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
         std::vector<armnn::BackendId> backends = { factory.GetBackendId() };
         armnn::IRuntime::CreationOptions options;
         armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
-        armnn::OptimizerOptions optimizerOptions;
+        armnn::OptimizerOptionsOpaque optimizerOptions;
         armnn::IOptimizedNetworkPtr optimizedNet =
             armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
         CHECK(optimizedNet != nullptr);
@@ -286,7 +286,7 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
         std::vector<armnn::BackendId> backends = { EthosNBackend::GetIdStatic() };
         armnn::IRuntime::CreationOptions options;
         armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
-        armnn::OptimizerOptions optimizerOptions;
+        armnn::OptimizerOptionsOpaque optimizerOptions;
         armnn::IOptimizedNetworkPtr optimizedNet =
             armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
         CHECK(optimizedNet != nullptr);

@@ -2,6 +2,7 @@
 // Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
+#include <Graph.hpp>
 #include <UnitTests.hpp>
 #include <armnn/Exceptions.hpp>
 #include <armnn/INetwork.hpp>
@@ -268,7 +269,7 @@ std::vector<LayerTestResult<uint8_t, NumDims>>
     std::shared_ptr<EthosNCaching> context = std::make_shared<EthosNCaching>();
     auto service                           = EthosNCachingService::GetInstance();
     service.SetEthosNCachingPtr(context);
-    optimizedNet = Optimize(network, backends, runtime->GetDeviceSpec(), OptimizerOptions(), messages);
+    optimizedNet = Optimize(network, backends, runtime->GetDeviceSpec(), OptimizerOptionsOpaque(), messages);
 
     ARMNN_ASSERT(GetGraphForTesting(optimizedNet.get()).GetNumInputs() == inputInfos.size());
     ARMNN_ASSERT(GetGraphForTesting(optimizedNet.get()).GetNumOutputs() == outputInfos.size());
@@ -1274,7 +1275,8 @@ LayerTestResult<uint8_t, 4> PreCompiledAdditionTest(armnn::IWorkloadFactory& wor
     IConnectableLayer* const inputLayer1 = net->AddInputLayer(1, "input1");
     inputLayer1->GetOutputSlot(0).SetTensorInfo(inputInfo1);
 
-    IConnectableLayer* const additionLayer = net->AddAdditionLayer("addition");
+    IConnectableLayer* const additionLayer =
+        net->AddElementwiseBinaryLayer(ElementwiseBinaryDescriptor(BinaryOperation::Add), "addition");
     additionLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
     inputLayer0->GetOutputSlot(0).Connect(additionLayer->GetInputSlot(0));
     inputLayer1->GetOutputSlot(0).Connect(additionLayer->GetInputSlot(1));
@@ -1552,9 +1554,10 @@ LayerTestResult<uint8_t, 4> PreCompiledConstMulToDepthwiseTest(armnn::IWorkloadF
     // Construct a network with the Constant-Multiplication pattern
     armnn::INetworkPtr net = armnn::INetwork::Create();
 
-    IConnectableLayer* const inputLayer  = net->AddInputLayer(0, "input");
-    IConnectableLayer* const constLayer  = net->AddConstantLayer(constantTensor);
-    IConnectableLayer* const mulLayer    = net->AddMultiplicationLayer("multiplication");
+    IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
+    IConnectableLayer* const constLayer = net->AddConstantLayer(constantTensor);
+    IConnectableLayer* const mulLayer =
+        net->AddElementwiseBinaryLayer(ElementwiseBinaryDescriptor(BinaryOperation::Mul), "multiplication");
     IConnectableLayer* const outputLayer = net->AddOutputLayer(1, "output");
 
     inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
@@ -1599,9 +1602,10 @@ LayerTestResult<uint8_t, 4> PreCompiledConstAddToDepthwiseTest(armnn::IWorkloadF
     // Construct a network with the Constant-Addition pattern
     armnn::INetworkPtr net = armnn::INetwork::Create();
 
-    IConnectableLayer* const inputLayer  = net->AddInputLayer(0, "input");
-    IConnectableLayer* const constLayer  = net->AddConstantLayer(constantTensor);
-    IConnectableLayer* const addLayer    = net->AddAdditionLayer("addition");
+    IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
+    IConnectableLayer* const constLayer = net->AddConstantLayer(constantTensor);
+    IConnectableLayer* const addLayer =
+        net->AddElementwiseBinaryLayer(ElementwiseBinaryDescriptor(BinaryOperation::Add), "addition");
     IConnectableLayer* const outputLayer = net->AddOutputLayer(1, "output");
 
     inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
@@ -1651,9 +1655,10 @@ LayerTestResult<uint8_t, 4>
     // Construct a network with the Constant-Multiplication pattern
     armnn::INetworkPtr net = armnn::INetwork::Create();
 
-    IConnectableLayer* const inputLayer  = net->AddInputLayer(0, "input");
-    IConnectableLayer* const constLayer  = net->AddConstantLayer(constantTensor);
-    IConnectableLayer* const mulLayer    = net->AddMultiplicationLayer("multiplication");
+    IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
+    IConnectableLayer* const constLayer = net->AddConstantLayer(constantTensor);
+    IConnectableLayer* const mulLayer =
+        net->AddElementwiseBinaryLayer(ElementwiseBinaryDescriptor(BinaryOperation::Mul), "multiplication");
     IConnectableLayer* const outputLayer = net->AddOutputLayer(1, "output");
 
     inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
@@ -1699,9 +1704,10 @@ LayerTestResult<uint8_t, 4>
     // Construct a network with the Constant-Addition pattern
     armnn::INetworkPtr net = armnn::INetwork::Create();
 
-    IConnectableLayer* const inputLayer  = net->AddInputLayer(0, "input");
-    IConnectableLayer* const constLayer  = net->AddConstantLayer(constantTensor);
-    IConnectableLayer* const addLayer    = net->AddAdditionLayer("addition");
+    IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
+    IConnectableLayer* const constLayer = net->AddConstantLayer(constantTensor);
+    IConnectableLayer* const addLayer =
+        net->AddElementwiseBinaryLayer(ElementwiseBinaryDescriptor(BinaryOperation::Add), "addition");
     IConnectableLayer* const outputLayer = net->AddOutputLayer(1, "output");
 
     inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);

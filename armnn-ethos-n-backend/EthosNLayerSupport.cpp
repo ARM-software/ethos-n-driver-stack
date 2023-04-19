@@ -15,6 +15,7 @@
 #include <armnn/Types.hpp>
 #include <armnn/TypesUtils.hpp>
 #include <armnn/utility/Assert.hpp>
+#include <armnn/utility/PolymorphicDowncast.hpp>
 #include <ethosn_support_library/SupportQueries.hpp>
 
 #include <algorithm>
@@ -166,8 +167,6 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
             return IsActivationSupportedImpl(infos[0], infos[1],
                                              *(PolymorphicDowncast<const ActivationDescriptor*>(&descriptor)),
                                              reasonIfUnsupported);
-        case LayerType::Addition:
-            return IsAdditionSupportedImpl(infos[0], infos[1], infos[2], reasonIfUnsupported);
         case LayerType::ArgMinMax:
             return IsArgMinMaxSupportedImpl(infos[0], infos[1],
                                             *(PolymorphicDowncast<const ArgMinMaxDescriptor*>(&descriptor)),
@@ -250,6 +249,20 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
             return IsElementwiseUnarySupportedImpl(
                 infos[0], infos[1], *(PolymorphicDowncast<const ElementwiseUnaryDescriptor*>(&descriptor)),
                 reasonIfUnsupported);
+        case LayerType::ElementwiseBinary:
+        {
+            const ElementwiseBinaryDescriptor& desc =
+                *PolymorphicDowncast<const ElementwiseBinaryDescriptor*>(&descriptor);
+            switch (desc.m_Operation)
+            {
+                case BinaryOperation::Add:
+                    return IsAdditionSupportedImpl(infos[0], infos[1], infos[2], reasonIfUnsupported);
+                case BinaryOperation::Mul:
+                    return IsMultiplicationSupportedImpl(infos[0], infos[1], infos[2], reasonIfUnsupported);
+                default:
+                    return false;
+            }
+        }
         case LayerType::FakeQuantization:
             return IsFakeQuantizationSupportedImpl(
                 infos[0], *(PolymorphicDowncast<const FakeQuantizationDescriptor*>(&descriptor)), reasonIfUnsupported);
@@ -301,8 +314,6 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
             return IsMergeSupportedImpl(infos[0], infos[1], infos[2], reasonIfUnsupported);
         case LayerType::Minimum:
             return IsMinimumSupportedImpl(infos[0], infos[1], infos[2], reasonIfUnsupported);
-        case LayerType::Multiplication:
-            return IsMultiplicationSupportedImpl(infos[0], infos[1], infos[2], reasonIfUnsupported);
         case LayerType::Normalization:
             return IsNormalizationSupportedImpl(infos[0], infos[1],
                                                 *(PolymorphicDowncast<const NormalizationDescriptor*>(&descriptor)),

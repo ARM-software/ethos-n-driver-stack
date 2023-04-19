@@ -662,14 +662,14 @@ TEST_SUITE("EthosNOptimizeSubGraph")
         // Optimize for EthosNAcc with default options. This is expected to throw due to mock support library.
         std::vector<BackendId> backends = { EthosNBackendId() };
         IRuntimePtr runtime(IRuntime::Create(IRuntime::CreationOptions()));
-        OptimizerOptions optOpts;
+        OptimizerOptionsOpaque optOpts;
         CHECK_THROWS_AS(Optimize(*net, backends, runtime->GetDeviceSpec(), optOpts), armnn::InvalidArgumentException);
 
         // Check that support library was called correctly
         CHECK(mockSupportLibrary.m_RecordedDisableWinograd.back() == false);
 
         // Optimize for EthosNAcc (disable Winograd)
-        optOpts.m_ModelOptions = { BackendOptions(EthosNBackend::GetIdStatic(), { { "DisableWinograd", true } }) };
+        optOpts.AddModelOption({ BackendOptions(EthosNBackend::GetIdStatic(), { { "DisableWinograd", true } }) });
         CHECK_THROWS_AS(Optimize(*net, backends, runtime->GetDeviceSpec(), optOpts), armnn::InvalidArgumentException);
 
         // Check that support library was called correctly
@@ -732,14 +732,14 @@ TEST_SUITE("EthosNOptimizeSubGraph")
         // Optimize for EthosNAcc with default options. This is expected to throw due to mock support library.
         std::vector<BackendId> backends = { EthosNBackendId() };
         IRuntimePtr runtime(IRuntime::Create(IRuntime::CreationOptions()));
-        OptimizerOptions optOpts;
+        OptimizerOptionsOpaque optOpts;
         CHECK_THROWS_AS(Optimize(*net, backends, runtime->GetDeviceSpec(), optOpts), armnn::InvalidArgumentException);
 
         // Check that support library was called correctly
         CHECK(mockSupportLibrary.m_RecordedStrictPrecision.back() == false);
 
         // Optimize for EthosNAcc (enable StrictPrecision)
-        optOpts.m_ModelOptions = { BackendOptions(EthosNBackend::GetIdStatic(), { { "StrictPrecision", true } }) };
+        optOpts.AddModelOption({ BackendOptions(EthosNBackend::GetIdStatic(), { { "StrictPrecision", true } }) });
         CHECK_THROWS_AS(Optimize(*net, backends, runtime->GetDeviceSpec(), optOpts), armnn::InvalidArgumentException);
 
         // Check that support library was called correctly

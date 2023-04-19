@@ -170,10 +170,10 @@ TEST_SUITE("EthosNCaching")
             IRuntime::CreationOptions options;
             IRuntimePtr runtimeSave = IRuntime::Create(options);
 
-            armnn::OptimizerOptions saveOptions;
+            armnn::OptimizerOptionsOpaque saveOptions;
             BackendOptions saveBackendOptions(EthosnBackendId,
                                               { { "SaveCachedNetwork", true }, { "CachedNetworkFilePath", filePath } });
-            saveOptions.m_ModelOptions.push_back(saveBackendOptions);
+            saveOptions.AddModelOption(saveBackendOptions);
 
             armnn::IOptimizedNetworkPtr optSaveNetwork =
                 armnn::Optimize(*networkSave, { EthosnBackendId }, runtimeSave->GetDeviceSpec(), saveOptions);
@@ -204,10 +204,10 @@ TEST_SUITE("EthosNCaching")
             IRuntime::CreationOptions options;
             IRuntimePtr runtimeLoad = IRuntime::Create(options);
 
-            armnn::OptimizerOptions loadOptions;
+            armnn::OptimizerOptionsOpaque loadOptions;
             BackendOptions loadBackendOptions(
                 EthosnBackendId, { { "SaveCachedNetwork", false }, { "CachedNetworkFilePath", filePath } });
-            loadOptions.m_ModelOptions.push_back(loadBackendOptions);
+            loadOptions.AddModelOption(loadBackendOptions);
 
             armnn::IOptimizedNetworkPtr optLoadNetwork =
                 armnn::Optimize(*networkLoad, { EthosnBackendId }, runtimeLoad->GetDeviceSpec(), loadOptions);

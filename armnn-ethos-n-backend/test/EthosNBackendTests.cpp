@@ -289,9 +289,9 @@ TEST_SUITE("EthosNImportTensorHandle")
         std::vector<armnn::BackendId> backends = { factory.GetBackendId() };
         armnn::IRuntime::CreationOptions options;
         armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
-        armnn::OptimizerOptions optimizerOptions;
-        optimizerOptions.m_ImportEnabled = true;
-        optimizerOptions.m_ExportEnabled = true;
+        armnn::OptimizerOptionsOpaque optimizerOptions;
+        optimizerOptions.SetImportEnabled(true);
+        optimizerOptions.SetExportEnabled(true);
         armnn::IOptimizedNetworkPtr optimizedNet =
             armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
         CHECK(optimizedNet);
@@ -404,9 +404,9 @@ TEST_SUITE("EthosNImportTensorHandle")
         std::vector<armnn::BackendId> backends = { factory.GetBackendId() };
         armnn::IRuntime::CreationOptions options;
         armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
-        armnn::OptimizerOptions optimizerOptions;
-        optimizerOptions.m_ImportEnabled = false;
-        optimizerOptions.m_ExportEnabled = false;
+        armnn::OptimizerOptionsOpaque optimizerOptions;
+        optimizerOptions.SetImportEnabled(false);
+        optimizerOptions.SetExportEnabled(false);
         armnn::IOptimizedNetworkPtr optimizedNet =
             armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
         CHECK(optimizedNet);
@@ -526,8 +526,8 @@ TEST_SUITE("EthosNImportTensorHandle")
         std::vector<armnn::BackendId> backends = { factory.GetBackendId() };
         armnn::IRuntime::CreationOptions options;
         armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
-        armnn::OptimizerOptions optimizerOptions;
-        optimizerOptions.m_ImportEnabled = false;
+        armnn::OptimizerOptionsOpaque optimizerOptions;
+        optimizerOptions.SetImportEnabled(false);
         armnn::IOptimizedNetworkPtr optimizedNet =
             armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
         CHECK(optimizedNet);
@@ -680,9 +680,9 @@ TEST_SUITE("EthosNImportTensorHandle")
         options.m_CustomAllocatorMap = { { id, std::move(customAllocator) } };
         auto customAllocatorRef      = static_cast<CustomAllocator*>(options.m_CustomAllocatorMap[id].get());
         armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
-        armnn::OptimizerOptions optimizerOptions;
-        optimizerOptions.m_ImportEnabled = true;
-        optimizerOptions.m_ExportEnabled = true;
+        armnn::OptimizerOptionsOpaque optimizerOptions;
+        optimizerOptions.SetImportEnabled(true);
+        optimizerOptions.SetExportEnabled(true);
         armnn::IOptimizedNetworkPtr optimizedNet =
             armnn::Optimize(*net, { id }, runtime->GetDeviceSpec(), optimizerOptions);
         CHECK(optimizedNet);

@@ -22,6 +22,8 @@
 #include <ethosn_driver_library/Network.hpp>
 #include <ethosn_support_library/Support.hpp>
 
+#include <backendsCommon/TensorHandleFactoryRegistry.hpp>
+
 #include <fmt/format.h>
 namespace armnn
 {

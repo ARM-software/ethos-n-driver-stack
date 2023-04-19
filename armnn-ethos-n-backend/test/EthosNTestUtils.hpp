@@ -199,7 +199,7 @@ inline void CreateEthosNPrecompiledWorkloadTest()
     std::vector<armnn::BackendId> backends = { EthosNBackend::GetIdStatic() };
     armnn::IRuntime::CreationOptions options;
     armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
-    armnn::OptimizerOptions optimizerOptions;
+    armnn::OptimizerOptionsOpaque optimizerOptions;
     armnn::IOptimizedNetworkPtr optimizedNet =
         armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
     CHECK(optimizedNet != nullptr);

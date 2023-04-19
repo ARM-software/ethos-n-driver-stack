@@ -109,7 +109,7 @@ TEST_SUITE("EthosNSupport")
         Layer* inputLayer2 = graph.AddLayer<InputLayer>(1, "input2");
         inputLayer2->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
 
-        Layer* additionLayer = graph.AddLayer<AdditionLayer>("addition");
+        Layer* additionLayer = graph.AddLayer<ElementwiseBinaryLayer>(BinaryOperation::Add, "addition");
         Layer* outputLayer   = graph.AddLayer<OutputLayer>(0, "output");
 
         // Set up connections
@@ -1072,7 +1072,8 @@ TEST_SUITE("EthosNSupport")
                                                 "checking for Depthwise support: Weight "
                                                 "for conv must be UINT8_QUANTIZED or INT8_QUANTIZED";
 
-        CHECK(!layerSupport.IsLayerSupported(LayerType::Multiplication, { input0, input1, output }, {}, EmptyOptional(),
+        CHECK(!layerSupport.IsLayerSupported(LayerType::ElementwiseBinary, { input0, input1, output },
+                                             ElementwiseBinaryDescriptor(BinaryOperation::Mul), EmptyOptional(),
                                              EmptyOptional(), reasonIfUnsupported));
         CHECK(reasonIfUnsupported == expectedReasonIfSupported);
     }
@@ -1084,8 +1085,9 @@ TEST_SUITE("EthosNSupport")
         auto ExpectFail = [&layerSupport](const TensorInfo& input0, const TensorInfo& input1, const TensorInfo& output,
                                           const char* expectedFailureReason) {
             std::string failureReason;
-            CHECK(!layerSupport.IsLayerSupported(LayerType::Multiplication, { input0, input1, output }, {},
-                                                 EmptyOptional(), EmptyOptional(), failureReason));
+            CHECK(!layerSupport.IsLayerSupported(LayerType::ElementwiseBinary, { input0, input1, output },
+                                                 ElementwiseBinaryDescriptor(BinaryOperation::Mul), EmptyOptional(),
+                                                 EmptyOptional(), failureReason));
             CHECK(failureReason.find(expectedFailureReason) != std::string::npos);
         };
 
@@ -1203,7 +1205,8 @@ TEST_SUITE("EthosNSupport")
         auto ExpectFail = [&layerSupport](const TensorInfo& input0, const TensorInfo& input1, const TensorInfo& output,
                                           const char* expectedFailureReason) {
             std::string failureReason;
-            CHECK(!layerSupport.IsLayerSupported(LayerType::Addition, { input0, input1, output }, {}, EmptyOptional(),
+            CHECK(!layerSupport.IsLayerSupported(LayerType::ElementwiseBinary, { input0, input1, output },
+                                                 ElementwiseBinaryDescriptor(BinaryOperation::Add), EmptyOptional(),
                                                  EmptyOptional(), failureReason));
             CHECK(failureReason.find(expectedFailureReason) != std::string::npos);
         };

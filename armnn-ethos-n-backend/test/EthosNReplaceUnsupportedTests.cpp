@@ -48,8 +48,9 @@ TEST_SUITE("EthosNReplaceUnsupported")
         // Add the original pattern
         IConnectableLayer* const input    = net->AddInputLayer(0, "input");
         IConnectableLayer* const constant = net->AddConstantLayer(constTensor, "const");
-        IConnectableLayer* const mul      = net->AddMultiplicationLayer("mul");
-        IConnectableLayer* const output   = net->AddOutputLayer(0, "output");
+        IConnectableLayer* const mul =
+            net->AddElementwiseBinaryLayer(ElementwiseBinaryDescriptor(BinaryOperation::Mul), "mul");
+        IConnectableLayer* const output = net->AddOutputLayer(0, "output");
 
         // Create connections between layers
         input->GetOutputSlot(0).SetTensorInfo(inputInfo);
@@ -135,8 +136,9 @@ TEST_SUITE("EthosNReplaceUnsupported")
         // Add the original pattern
         IConnectableLayer* const input    = net->AddInputLayer(0, "input");
         IConnectableLayer* const constant = net->AddConstantLayer(constTensor, "const");
-        IConnectableLayer* const mul      = net->AddMultiplicationLayer("mul");
-        IConnectableLayer* const output   = net->AddOutputLayer(0, "output");
+        IConnectableLayer* const mul =
+            net->AddElementwiseBinaryLayer(ElementwiseBinaryDescriptor(BinaryOperation::Mul), "mul");
+        IConnectableLayer* const output = net->AddOutputLayer(0, "output");
 
         // Create connections between layers
         input->GetOutputSlot(0).SetTensorInfo(inputInfo);
@@ -313,7 +315,8 @@ TEST_SUITE("EthosNReplaceUnsupported")
             isInput0Constant ? AddConstLayer(input0Info, "input0") : net->AddInputLayer(0, "input0");
         IConnectableLayer* const input1 =
             isInput1Constant ? AddConstLayer(input1Info, "input1") : net->AddInputLayer(1, "input1");
-        IConnectableLayer* const add    = net->AddAdditionLayer("add");
+        IConnectableLayer* const add =
+            net->AddElementwiseBinaryLayer(ElementwiseBinaryDescriptor(BinaryOperation::Add), "add");
         IConnectableLayer* const output = net->AddOutputLayer(0, "output");
 
         input0->GetOutputSlot(0).SetTensorInfo(input0Info);
@@ -518,7 +521,8 @@ TEST_SUITE("EthosNReplaceUnsupported")
             isInput0Constant ? AddConstLayer(input0Info, "input0", startData) : net->AddInputLayer(0, "input0");
         IConnectableLayer* const input1 =
             isInput1Constant ? AddConstLayer(input1Info, "input1", startData) : net->AddInputLayer(1, "input1");
-        IConnectableLayer* const mul    = net->AddMultiplicationLayer("mul");
+        IConnectableLayer* const mul =
+            net->AddElementwiseBinaryLayer(ElementwiseBinaryDescriptor(BinaryOperation::Mul), "mul");
         IConnectableLayer* const output = net->AddOutputLayer(0, "output");
 
         input0->GetOutputSlot(0).SetTensorInfo(input0Info);

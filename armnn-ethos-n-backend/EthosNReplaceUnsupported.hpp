@@ -4,6 +4,7 @@
 //
 #pragma once
 
+#include <armnn/Descriptors.hpp>
 #include <armnn/backends/OptimizationViews.hpp>
 #include <armnn/backends/SubgraphView.hpp>
 
