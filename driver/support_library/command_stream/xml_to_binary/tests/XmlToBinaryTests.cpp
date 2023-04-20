@@ -490,18 +490,26 @@ const std::string g_XmlStr =
                     <IFM_PAD_NUM0>
                         <IG0>0x45</IG0>
                         <IG1>0x48</IG1>
+                        <IG2>0x45</IG2>
+                        <IG3>0x48</IG3>
                     </IFM_PAD_NUM0>
                     <IFM_PAD_NUM1>
                         <IG0>0x41</IG0>
                         <IG1>0x61</IG1>
+                        <IG2>0x41</IG2>
+                        <IG3>0x61</IG3>
                     </IFM_PAD_NUM1>
                     <IFM_PAD_NUM2>
                         <IG0>0x42</IG0>
                         <IG1>0x61</IG1>
+                        <IG2>0x42</IG2>
+                        <IG3>0x61</IG3>
                     </IFM_PAD_NUM2>
                     <IFM_PAD_NUM3>
                         <IG0>0x45</IG0>
                         <IG1>0x6a</IG1>
+                        <IG2>0x42</IG2>
+                        <IG3>0x61</IG3>
                     </IFM_PAD_NUM3>
                     <WIDE_KERNEL_OFFSET>0x998765</WIDE_KERNEL_OFFSET>
                     <IFM_TOP_SLOTS>0xee31</IFM_TOP_SLOTS>
@@ -517,34 +525,50 @@ const std::string g_XmlStr =
                     <IFM_CONFIG2_CE0>
                         <IG0>0x145</IG0>
                         <IG1>0x246</IG1>
+                        <IG2>0x145</IG2>
+                        <IG3>0x246</IG3>
                     </IFM_CONFIG2_CE0>
                     <IFM_CONFIG2_CE1>
                         <IG0>0x149</IG0>
                         <IG1>0x250</IG1>
+                        <IG2>0x149</IG2>
+                        <IG3>0x250</IG3>
                     </IFM_CONFIG2_CE1>
                     <IFM_CONFIG2_CE2>
                         <IG0>0x153</IG0>
                         <IG1>0x254</IG1>
+                        <IG2>0x153</IG2>
+                        <IG3>0x254</IG3>
                     </IFM_CONFIG2_CE2>
                     <IFM_CONFIG2_CE3>
                         <IG0>0x157</IG0>
                         <IG1>0x258</IG1>
+                        <IG2>0x157</IG2>
+                        <IG3>0x258</IG3>
                     </IFM_CONFIG2_CE3>
                     <IFM_CONFIG2_CE4>
                         <IG0>0x161</IG0>
                         <IG1>0x262</IG1>
+                        <IG2>0x161</IG2>
+                        <IG3>0x262</IG3>
                     </IFM_CONFIG2_CE4>
                     <IFM_CONFIG2_CE5>
                         <IG0>0x165</IG0>
                         <IG1>0x266</IG1>
+                        <IG2>0x165</IG2>
+                        <IG3>0x266</IG3>
                     </IFM_CONFIG2_CE5>
                     <IFM_CONFIG2_CE6>
                         <IG0>0x169</IG0>
                         <IG1>0x270</IG1>
+                        <IG2>0x169</IG2>
+                        <IG3>0x270</IG3>
                     </IFM_CONFIG2_CE6>
                     <IFM_CONFIG2_CE7>
                         <IG0>0x173</IG0>
                         <IG1>0x274</IG1>
+                        <IG2>0x173</IG2>
+                        <IG3>0x274</IG3>
                     </IFM_CONFIG2_CE7>
                     <NUM_BLOCKS_PROGRAMMED_FOR_MCE>0x80</NUM_BLOCKS_PROGRAMMED_FOR_MCE>
                 </PROGRAM_MCE_EXTRA_DATA>
@@ -1115,11 +1139,11 @@ TEST_CASE("XmlToBinary-BinaryToXml")
         /* IFM_ROW_STRIDE = */ uint32_t{ 0x3423 },
         /* IFM_CONFIG1 = */ uint32_t{ 0xaa8daa },
         /* IFM_PAD = */
-        std::array<std::array<uint32_t, 2>, 4>{
-            std::array<uint32_t, 2>{ 0x45, 0x48 },
-            std::array<uint32_t, 2>{ 0x41, 0x61 },
-            std::array<uint32_t, 2>{ 0x42, 0x61 },
-            std::array<uint32_t, 2>{ 0x45, 0x6a },
+        std::array<std::array<uint32_t, 4>, 4>{
+            std::array<uint32_t, 4>{ 0x45, 0x48, 0x45, 0x48 },
+            std::array<uint32_t, 4>{ 0x41, 0x61, 0x41, 0x61 },
+            std::array<uint32_t, 4>{ 0x42, 0x61, 0x42, 0x61 },
+            std::array<uint32_t, 4>{ 0x45, 0x6a, 0x42, 0x61 },
         },
         /* WIDE_KERNEL_OFFSET = */ uint32_t{ 0x998765 },
         /* IFM_TOP_SLOTS = */ uint32_t{ 0xee31 },
@@ -1130,15 +1154,15 @@ TEST_CASE("XmlToBinary-BinaryToXml")
         /* OFM_CONFIG = */ uint32_t{ 0xa455435 },
         /* WEIGHT_BASE_ADDR = */ std::array<uint32_t, 4>{ 0x34587, 0xa, 0x342, 0xb },
         /* IFM_CONFIG2 = */
-        std::array<std::array<uint32_t, 2>, 8>{
-            std::array<uint32_t, 2>{ 0x145, 0x246 },
-            std::array<uint32_t, 2>{ 0x149, 0x250 },
-            std::array<uint32_t, 2>{ 0x153, 0x254 },
-            std::array<uint32_t, 2>{ 0x157, 0x258 },
-            std::array<uint32_t, 2>{ 0x161, 0x262 },
-            std::array<uint32_t, 2>{ 0x165, 0x266 },
-            std::array<uint32_t, 2>{ 0x169, 0x270 },
-            std::array<uint32_t, 2>{ 0x173, 0x274 },
+        std::array<std::array<uint32_t, 4>, 8>{
+            std::array<uint32_t, 4>{ 0x145, 0x246, 0x145, 0x246 },
+            std::array<uint32_t, 4>{ 0x149, 0x250, 0x149, 0x250 },
+            std::array<uint32_t, 4>{ 0x153, 0x254, 0x153, 0x254 },
+            std::array<uint32_t, 4>{ 0x157, 0x258, 0x157, 0x258 },
+            std::array<uint32_t, 4>{ 0x161, 0x262, 0x161, 0x262 },
+            std::array<uint32_t, 4>{ 0x165, 0x266, 0x165, 0x266 },
+            std::array<uint32_t, 4>{ 0x169, 0x270, 0x169, 0x270 },
+            std::array<uint32_t, 4>{ 0x173, 0x274, 0x173, 0x274 },
         },
         /* m_NumBlocksProgrammedForMce = */ uint32_t{ 128 },
     };

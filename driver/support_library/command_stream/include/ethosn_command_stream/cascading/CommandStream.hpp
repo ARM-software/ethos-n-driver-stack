@@ -235,7 +235,7 @@ struct ProgramMceExtraData
     std::array<std::array<uint32_t, 4>, 8> MUL_ENABLE;    // Indexed by CE then OG
     uint32_t IFM_ROW_STRIDE;
     uint32_t IFM_CONFIG1;
-    std::array<std::array<uint32_t, 2>, 4> IFM_PAD;    // Indexed by subfilter number then IG
+    std::array<std::array<uint32_t, 4>, 4> IFM_PAD;    // Indexed by subfilter number then IG
     uint32_t WIDE_KERNEL_OFFSET;
     uint32_t IFM_TOP_SLOTS;
     uint32_t IFM_MID_SLOTS;
@@ -244,7 +244,7 @@ struct ProgramMceExtraData
     uint32_t OFM_STRIPE_SIZE;
     uint32_t OFM_CONFIG;
     std::array<uint32_t, 4> WEIGHT_BASE_ADDR;              // Indexed by OG
-    std::array<std::array<uint32_t, 2>, 8> IFM_CONFIG2;    // Indexed by CE then IG
+    std::array<std::array<uint32_t, 4>, 8> IFM_CONFIG2;    // Indexed by CE then IG
     /// @}
 
     /// How many blocks will this MCE command send to the PLE.
