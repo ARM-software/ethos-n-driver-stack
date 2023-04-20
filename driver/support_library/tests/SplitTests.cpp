@@ -78,13 +78,6 @@ TEST_CASE("SplitSupported")
                 SplitInfo(0, { 0, 1 }), nullptr, reason, sizeof(reason)) == SupportedLevel::Unsupported);
     REQUIRE(Contains(reason, "Split cannot be performed along batch axis"));
 
-    // Non-multiple of 16 along channels axis
-    REQUIRE(queries.IsSplitSupported(
-                TensorInfo({ 1, 16, 16, 64 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(1, 2)),
-                SplitInfo(3, { 30, 34 }), nullptr, reason, sizeof(reason)) == SupportedLevel::EstimateOnly);
-    REQUIRE(Contains(reason, "Split along the channels dimension (axis 3) requires all output sizes (specified in "
-                             "splitInfo.m_Sizes) to be multiples of 16"));
-
     // Zero point outside of valid range
     {
         REQUIRE(queries.IsSplitSupported(TensorInfo({ 1, 16, 16, 64 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC,

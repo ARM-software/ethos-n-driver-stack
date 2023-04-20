@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -52,36 +52,4 @@ TEST_CASE("ResizeSupported")
     REQUIRE(queries.IsResizeSupported(ResizeInfo(ResizeAlgorithm::BILINEAR, 32, 32, QuantizationInfo(-129, 1.0f)),
                                       input, nullptr, reason, reasonLength) == SupportedLevel::Unsupported);
     REQUIRE(std::string(reason) == "Zero point out of range for resizeInfo");
-}
-
-/// Tests that a network comprising a resize is converted in an identity depthwise convolution with the correct upsample parameter.
-TEST_CASE("Add Resize to a network")
-{
-    // Create the network
-    CompilationOptions options;
-    std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
-    std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
-    std::shared_ptr<Operand> resize =
-        AddResize(network, *input, ResizeInfo(ResizeAlgorithm::BILINEAR, 31, 31, QuantizationInfo(0, 1.0f))).tensor;
-    std::shared_ptr<Output> output = AddOutput(network, *resize).tensor;
-
-    // Compile it
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork = ethosn::support_library::Compile(*network, options);
-
-    // Extract all the conv commands
-    using namespace ethosn::command_stream;
-    CommandStream cmdStream = GetCommandStream(compiledNetwork[0].get());
-    std::vector<McePle> convCmds;
-    for (const auto& cmdHeader : cmdStream)
-    {
-        if (cmdHeader.m_Opcode() == Opcode::OPERATION_MCE_PLE)
-        {
-            convCmds.push_back(cmdHeader.GetCommand<Opcode::OPERATION_MCE_PLE>()->m_Data());
-        }
-    }
-
-    // Check that the conv command is as expected.
-    REQUIRE(convCmds.size() == 1);
-    REQUIRE(convCmds[0].m_MceData().m_OutputShape() == TensorShape{ 1, 31, 31, 16 });
-    REQUIRE(convCmds[0].m_MceData().m_UpsampleType() == UpsampleType::BILINEAR);
 }

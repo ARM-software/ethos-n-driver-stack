@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -62,36 +62,4 @@ TEST_CASE("TanhSupported")
         REQUIRE(queries.IsTanhSupported(input, nullptr, reason, sizeof(reason)) == SupportedLevel::Unsupported);
         REQUIRE(Contains(reason, "Zero point out of range for input info"));
     }
-}
-
-TEST_CASE("Add Tanh")
-{
-    // Create the network
-    CompilationOptions options;
-    std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
-    std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
-    std::shared_ptr<Operand> tanh    = AddTanh(network, *input).tensor;
-    std::shared_ptr<Output> output   = AddOutput(network, *tanh).tensor;
-
-    // Compile it
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, CompilationOptions());
-
-    // Extract all the conv commands
-    using namespace ethosn::command_stream;
-    CommandStream cmdStream = GetCommandStream(compiledNetwork[0].get());
-    std::vector<McePle> convCmds;
-    for (const auto& cmdHeader : cmdStream)
-    {
-        if (cmdHeader.m_Opcode() == Opcode::OPERATION_MCE_PLE)
-        {
-            convCmds.push_back(cmdHeader.GetCommand<Opcode::OPERATION_MCE_PLE>()->m_Data());
-        }
-    }
-
-    // Check that the conv commands are as expected. There should be one which has a tanh afterwards.
-    REQUIRE(convCmds.size() == 1);
-    REQUIRE((convCmds[0].m_MceData().m_ActivationMin() == 0 && convCmds[0].m_MceData().m_ActivationMax() == 44));
-    REQUIRE(
-        (convCmds[0].m_PleData().m_RescaleMultiplier0() == 47274 && convCmds[0].m_PleData().m_RescaleShift0() == 6));
 }

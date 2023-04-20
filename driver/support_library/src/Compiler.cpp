@@ -45,13 +45,6 @@ void DumpNetwork(const DebuggingContext& debuggingContext, const Network& networ
                           [&](std::ofstream& s) { SaveNetworkToDot(network, s, DetailLevel::High); });
 }
 
-bool IsExperimentalCompilerForced()
-{
-    const char* cascadingValue    = "1";
-    const char* cascadingRunValue = std::getenv("FORCE_EXPERIMENTAL_COMPILER");
-    return (cascadingRunValue != nullptr && std::strcmp(cascadingRunValue, cascadingValue) == 0);
-}
-
 }    // namespace
 
 uint32_t CalculateBufferSize(const TensorShape& shape, command_stream::DataFormat dataFormat)
@@ -186,27 +179,10 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
 
     try
     {
-        if (IsExperimentalCompilerForced())
-        {
-            std::clog << "WARNING: Experimental Compiler in use.\n";
-            return RunCascading(m_Network, utils::EmptyOptional{}, m_CompilationOptions, m_Capabilities,
-                                m_DebuggingContext)
-                .compiledOpGraph.m_CompiledNetwork;
-        }
-        else
-        {
-            Convert();
-            Prepare(false);
-            Generate();
-
-            std::set<uint32_t> operationIds                      = m_Network.GetOperationIds();
-            std::unique_ptr<CompiledNetworkImpl> compiledNetwork = std::make_unique<CompiledNetworkImpl>(
-                m_BufferManager.GetConstantDmaData(), m_BufferManager.GetConstantControlUnitData(),
-                m_BufferManager.GetBuffers(), operationIds);
-            return compiledNetwork;
-        }
+        return RunCascading(m_Network, utils::EmptyOptional{}, m_CompilationOptions, m_Capabilities, m_DebuggingContext)
+            .compiledOpGraph.m_CompiledNetwork;
     }
-    catch (const NotSupportedException& e)
+    catch (const std::runtime_error& e)
     {
         // Either we failed compilation or there was not enough SRAM to convert NHWCB to NHWC
         // NNXSW-2802: Temporary fix to print the error but need better approach  for error reporting from support library.
@@ -221,42 +197,16 @@ NetworkPerformanceData Compiler::EstimatePerformance()
 
     NetworkPerformanceData performance;
 
-    if (!m_EstimationOptions.m_Current || IsExperimentalCompilerForced())
+    try
     {
-        try
-        {
-            std::clog << "WARNING: Experimental Compiler in use.\n";
-            performance =
-                RunCascading(m_Network, m_EstimationOptions, m_CompilationOptions, m_Capabilities, m_DebuggingContext)
-                    .GetNetworkPerformanceData();
-        }
-        catch (const std::exception& e)
-        {
-            g_Logger.Warning("Cascading estimation failed with: %s", e.what());
-            throw NotSupportedException("Estimation didn't find any valid performance data to return");
-        }
+        performance =
+            RunCascading(m_Network, m_EstimationOptions, m_CompilationOptions, m_Capabilities, m_DebuggingContext)
+                .GetNetworkPerformanceData();
     }
-    else
+    catch (const std::exception& e)
     {
-        try
-        {
-            try
-            {
-                Convert();
-                Prepare(true);
-            }
-            catch (const NotSupportedException&)
-            {
-                // Conversion and preparation can throw by not creating a valid graph but we should still be able to estimate it.
-            }
-            performance = NonCascadingEstimate(m_Graph, m_EstimationOptions);
-            DumpGraph("GraphFinal");
-        }
-        catch (const std::exception& e)
-        {
-            g_Logger.Warning("Non-cascading estimation failed with: %s", e.what());
-            throw NotSupportedException("Estimation didn't find any valid performance data to return");
-        }
+        g_Logger.Warning("Cascading estimation failed with: %s", e.what());
+        throw NotSupportedException("Estimation didn't find any valid performance data to return");
     }
 
     return performance;

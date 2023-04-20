@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -61,38 +61,6 @@ TEST_CASE("LeakyReluSupported Unsupported zero point out of range")
     REQUIRE(queries.IsLeakyReluSupported(LeakyReluInfo(0.1f, QuantizationInfo(-10, 1.0f)), input, nullptr, reason,
                                          sizeof(reason)) == SupportedLevel::Unsupported);
     REQUIRE(Contains(reason, "Zero point out of range for leakyReluInfo"));
-}
-
-/// Tests that leaky relu produces a valid command stream
-TEST_CASE("LeakyRelu real network")
-{
-    // Create the estimation network
-    CompilationOptions options;
-    std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
-    std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
-    std::shared_ptr<Operand> leakyRelu =
-        AddLeakyRelu(network, *input, LeakyReluInfo(0.1f, QuantizationInfo(0, 0.1f))).tensor;
-    std::shared_ptr<Output> output = AddOutput(network, *leakyRelu).tensor;
-
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork = Compile(*network, options);
-
-    using namespace ethosn::command_stream;
-    CommandStream cmdStream = GetCommandStream(compiledNetwork[0].get());
-    std::vector<McePle> commands;
-    for (const auto& cmdHeader : cmdStream)
-    {
-        if (cmdHeader.m_Opcode() == Opcode::OPERATION_MCE_PLE)
-        {
-            commands.push_back(cmdHeader.GetCommand<Opcode::OPERATION_MCE_PLE>()->m_Data());
-        }
-    }
-
-    REQUIRE(commands.size() == 1);
-    REQUIRE(commands[0].m_PleData().m_Operation() == PleOperation::LEAKY_RELU);
-    REQUIRE(commands[0].m_PleData().m_RescaleMultiplier0() != 0);
-    REQUIRE(commands[0].m_PleData().m_RescaleMultiplier1() != 0);
-    REQUIRE(commands[0].m_PleData().m_RescaleShift0() != 0);
-    REQUIRE(commands[0].m_PleData().m_RescaleShift1() != 0);
 }
 
 /// Tests that a network comprising a single leaky relu creates an mce operation beforehand.

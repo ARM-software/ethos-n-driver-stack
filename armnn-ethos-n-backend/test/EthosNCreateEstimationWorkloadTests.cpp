@@ -161,7 +161,7 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 		"Stream":
 		[
 			{
-				"OperationIds": [ 0, 1 ],
+				"OperationIds": [ 1 ],
 				"ParentIds": [ [] ],
 				"Input":
 				{
@@ -175,9 +175,9 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 				"Output":
 				{
 					"DramParallelBytes": 0,
-					"DramNonParallelBytes": 0,
-					"SramBytes": 4096,
-					"NumCentralStripes": 0,
+					"DramNonParallelBytes": 4096,
+					"SramBytes": 0,
+					"NumCentralStripes": 1,
 					"NumBoundaryStripes": 0,
 					"NumReloads": 0
 				},
@@ -329,7 +329,7 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 		"Stream":
 		[
 			{
-				"OperationIds": [ 0, 1 ],
+				"OperationIds": [ 1 ],
 				"ParentIds": [ [] ],
 				"Input":
 				{
@@ -343,9 +343,9 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 				"Output":
 				{
 					"DramParallelBytes": 0,
-					"DramNonParallelBytes": 0,
-					"SramBytes": 4096,
-					"NumCentralStripes": 0,
+					"DramNonParallelBytes": 4096,
+					"SramBytes": 0,
+					"NumCentralStripes": 1,
 					"NumBoundaryStripes": 0,
 					"NumReloads": 0
 				},
@@ -373,7 +373,7 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 		],
 		"Issues":
 		{
-			"2": "Could not be estimated and has zero performance impact. Reason: Unsupported configuration in AVG pooling."
+			"2": "Could not be estimated and has zero performance impact. Reason: Unsupported configuration in AVG pooling"
 		}
 	}
 }
@@ -421,7 +421,7 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 		"Stream":
 		[
 			{
-				"OperationIds": [ 0, 1, 2, 3 ],
+				"OperationIds": [ 1, 2, 3 ],
 				"ParentIds": [ [] ],
 				"Input":
 				{
@@ -644,7 +644,7 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 		"Stream":
 		[
 			{
-				"OperationIds": [ 0, 1, 2, 3 ],
+				"OperationIds": [ 1, 2, 3 ],
 				"ParentIds": [ [] ],
 				"Input":
 				{
@@ -713,7 +713,7 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 		"Stream":
 		[
 			{
-				"OperationIds": [ 0, 1, 2, 3 ],
+				"OperationIds": [ 1, 2, 3 ],
 				"ParentIds": [ [] ],
 				"Input":
 				{

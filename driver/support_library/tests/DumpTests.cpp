@@ -1,9 +1,13 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #include "../include/ethosn_support_library/Support.hpp"
+#include "../src/cascading/InputPart.hpp"
+#include "../src/cascading/McePart.hpp"
+#include "../src/cascading/NetworkToGraphOfPartsConverter.hpp"
+#include "../src/cascading/OutputPart.hpp"
 #include "TestUtils.hpp"
 
 #include <catch.hpp>
@@ -14,26 +18,57 @@ using namespace ethosn::support_library;
 /// Tests compiler option to omit dump commands.
 TEST_CASE("DumpCmdDisabled")
 {
+    CompilationOptions compOpt;
+    compOpt.m_DebugInfo.m_DumpRam = false;
+
+    TensorInfo inputInfo{
+        { { 1, 16, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo biasInfo0{
+        { { 1, 1, 1, 16 } },
+        DataType::INT32_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+    const std::vector<uint8_t> biasData0(utils::TotalSizeBytes(biasInfo0));
+
+    TensorInfo weightsInfo0{
+        { { 1, 1, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::HWIO,
+        { 0, 1.f },
+    };
+    const std::vector<uint8_t> weightsData0(utils::TotalSizeBytes(weightsInfo0));
+
+    ConvolutionInfo convInfo0{
+        { 0, 0, 0, 0 },
+        { 1, 1 },
+        { 0, 1.f },
+    };
+
+    SplitInfo splitInfo1{ 1, { 9, 7 } };
+
     // Create the network
-    CompilationOptions options;
+    // Input -> Conv -> Split -> Output
+    //                        -> Output
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
-    std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
 
-    std::shared_ptr<Constant> bias =
-        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<int32_t>(16, 0).data())
-            .tensor;
-    std::shared_ptr<Constant> weights =
-        AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
-                    std::vector<uint8_t>(16 * 16 * 16, 0).data())
-            .tensor;
-    std::shared_ptr<Operand> conv =
-        AddConvolution(network, *input, *bias, *weights,
-                       ConvolutionInfo(Padding(0, 0, 0, 0), Stride(1, 1), QuantizationInfo(0, 1.1f)))
-            .tensor;
-    std::shared_ptr<Output> output1 = AddOutput(network, *conv).tensor;
+    std::shared_ptr<Operand> input = AddInput(network, inputInfo).tensor;
 
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, CompilationOptions());
+    std::shared_ptr<Constant> bias0    = AddConstant(network, biasInfo0, biasData0.data()).tensor;
+    std::shared_ptr<Constant> weights0 = AddConstant(network, weightsInfo0, weightsData0.data()).tensor;
+    std::shared_ptr<Operand> conv0     = AddConvolution(network, *input, *bias0, *weights0, convInfo0).tensor;
+
+    std::vector<std::shared_ptr<Operand>> split1 = AddSplit(network, *conv0, splitInfo1).tensors;
+
+    std::shared_ptr<Output> output1 = AddOutput(network, *split1[0]).tensor;
+    std::shared_ptr<Output> output2 = AddOutput(network, *split1[1]).tensor;
+
+    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork = ethosn::support_library::Compile(*network, compOpt);
 
     // Check that there are no dump commands in the stream
     using namespace ethosn::command_stream;
@@ -49,28 +84,57 @@ TEST_CASE("DumpCmdDisabled")
 /// Tests default compiler option to include dump commands.
 TEST_CASE("DumpCmdEnabled")
 {
+    CompilationOptions compOpt;
+    compOpt.m_DebugInfo.m_DumpRam = true;
+
+    TensorInfo inputInfo{
+        { { 1, 16, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo biasInfo0{
+        { { 1, 1, 1, 16 } },
+        DataType::INT32_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+    const std::vector<uint8_t> biasData0(utils::TotalSizeBytes(biasInfo0));
+
+    TensorInfo weightsInfo0{
+        { { 1, 1, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::HWIO,
+        { 0, 1.f },
+    };
+    const std::vector<uint8_t> weightsData0(utils::TotalSizeBytes(weightsInfo0));
+
+    ConvolutionInfo convInfo0{
+        { 0, 0, 0, 0 },
+        { 1, 1 },
+        { 0, 1.f },
+    };
+
+    SplitInfo splitInfo1{ 1, { 9, 7 } };
+
     // Create the network
-    CompilationOptions options;
+    // Input -> Conv -> Split -> Output
+    //                        -> Output
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
-    std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
 
-    std::shared_ptr<Constant> bias =
-        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<int32_t>(16, 0).data())
-            .tensor;
-    std::shared_ptr<Constant> weights =
-        AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
-                    std::vector<uint8_t>(16 * 16 * 16, 0).data())
-            .tensor;
-    std::shared_ptr<Operand> conv =
-        AddConvolution(network, *input, *bias, *weights,
-                       ConvolutionInfo(Padding(0, 0, 0, 0), Stride(1, 1), QuantizationInfo(0, 1.1f)))
-            .tensor;
+    std::shared_ptr<Operand> input = AddInput(network, inputInfo).tensor;
 
-    std::shared_ptr<Output> output1 = AddOutput(network, *conv).tensor;
+    std::shared_ptr<Constant> bias0    = AddConstant(network, biasInfo0, biasData0.data()).tensor;
+    std::shared_ptr<Constant> weights0 = AddConstant(network, weightsInfo0, weightsData0.data()).tensor;
+    std::shared_ptr<Operand> conv0     = AddConvolution(network, *input, *bias0, *weights0, convInfo0).tensor;
 
-    options.m_DebugInfo.m_DumpRam = true;
+    std::vector<std::shared_ptr<Operand>> split1 = AddSplit(network, *conv0, splitInfo1).tensors;
 
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork = ethosn::support_library::Compile(*network, options);
+    std::shared_ptr<Output> output1 = AddOutput(network, *split1[0]).tensor;
+    std::shared_ptr<Output> output2 = AddOutput(network, *split1[1]).tensor;
+
+    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork = ethosn::support_library::Compile(*network, compOpt);
 
     // Check that there are dump commands present in the stream
     using namespace ethosn::command_stream;

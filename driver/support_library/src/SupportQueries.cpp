@@ -343,13 +343,9 @@ const SupportedLevel SupportedLevel::Supported    = SupportedLevel(InternalSuppo
 
 SupportQueries::SupportQueries(const std::vector<char>& caps)
     : m_Capabilities(caps)
-    , m_ForceExperimentalCompiler()
+    , m_ForceExperimentalCompiler(true)
 {
     ValidateCapabilities(m_Capabilities);
-
-    const char* cascadingValue    = "1";
-    const char* cascadingRunValue = std::getenv("FORCE_EXPERIMENTAL_COMPILER");
-    m_ForceExperimentalCompiler = (cascadingRunValue != nullptr && std::strcmp(cascadingRunValue, cascadingValue) == 0);
 }
 
 SupportQueries::SupportQueries(const std::vector<char>& caps, bool forceExperimentalCompiler)

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -112,17 +112,6 @@ TEST_CASE("ConcatenationSupported")
         REQUIRE(Contains(reason, "Provided outputInfo is incorrect"));
     }
 
-    SECTION("Multiple of 16 along channels dimension")
-    {
-        REQUIRE(queries.IsConcatenationSupported(
-                    { TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC),
-                      TensorInfo({ 1, 16, 16, 17 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC) },
-                    ConcatenationInfo(3, QuantizationInfo()), nullptr, reason,
-                    sizeof(reason)) == SupportedLevel::EstimateOnly);
-        REQUIRE(Contains(reason, "Concatenation along the channels dimension (axis 3) requires input tensors with a "
-                                 "multiple of 16 channels"));
-    }
-
     SECTION("Output scale too small")
     {
         REQUIRE(queries.IsConcatenationSupported(
@@ -210,151 +199,4 @@ TEST_CASE("ConcatenationSupported")
                     ConcatenationInfo(3, QuantizationInfo()), &outputInfo) == SupportedLevel::Supported);
         REQUIRE(outputInfo == TensorInfo({ 1, 16, 16, 32 }, DataType::INT8_QUANTIZED, DataFormat::NHWC));
     }
-}
-
-// Tests that a concatenation that can be performed using NHWCB does so,
-// rather than falling back to NHWC.
-TEST_CASE("Concat NHWCB")
-{
-    // Create the network
-    CompilationOptions options;
-    std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
-
-    std::shared_ptr<Operand> input1 =
-        AddInput(network, TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB)).tensor;
-    std::shared_ptr<Operand> relu1 = AddRelu(network, *input1, ReluInfo(0, 255)).tensor;
-
-    std::shared_ptr<Operand> input2 =
-        AddInput(network, TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB)).tensor;
-    std::shared_ptr<Operand> relu2 = AddRelu(network, *input2, ReluInfo(0, 255)).tensor;
-
-    std::shared_ptr<Operand> concat =
-        AddConcatenation(network, { relu1.get(), relu2.get() }, ConcatenationInfo(1, QuantizationInfo())).tensor;
-
-    std::shared_ptr<Output> output = AddOutput(network, *concat).tensor;
-
-    // Compile the network
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork = ethosn::support_library::Compile(*network, options);
-
-    // Extract the McePle operations
-    using namespace ethosn::command_stream;
-    CommandStream cmdStream = GetCommandStream(compiledNetwork[0].get());
-    std::vector<McePle> convCmds;
-    for (const auto& cmdHeader : cmdStream)
-    {
-        if (cmdHeader.m_Opcode() == Opcode::OPERATION_MCE_PLE)
-        {
-            convCmds.push_back(cmdHeader.GetCommand<Opcode::OPERATION_MCE_PLE>()->m_Data());
-        }
-    }
-
-    // There should be two of them, each outputting NHWCB into the final buffer at different supertensor offsets
-    REQUIRE(convCmds.size() == 2);
-    REQUIRE(convCmds[0].m_OutputInfo().m_DataFormat() == ethosn::command_stream::DataFormat::NHWCB);
-    REQUIRE(convCmds[0].m_OutputInfo().m_SupertensorOffset() == TensorShape{ 0, 0, 0, 0 });
-    REQUIRE(convCmds[0].m_OutputInfo().m_SupertensorShape() == TensorShape{ 1, 32, 16, 16 });
-    REQUIRE(convCmds[1].m_OutputInfo().m_DataFormat() == ethosn::command_stream::DataFormat::NHWCB);
-    REQUIRE(convCmds[1].m_OutputInfo().m_SupertensorOffset() == TensorShape{ 0, 16, 0, 0 });
-    REQUIRE(convCmds[1].m_OutputInfo().m_SupertensorShape() == TensorShape{ 1, 32, 16, 16 });
-    REQUIRE(convCmds[0].m_OutputInfo().m_DramBufferId() == convCmds[1].m_OutputInfo().m_DramBufferId());
-}
-
-// Tests that a concatenation that must be performed using NHWC does so,
-// rather than trying to use to NHWCB which can't work.
-TEST_CASE("Concat NHWC")
-{
-    const auto inputDataType         = GENERATE(DataType::INT8_QUANTIZED, DataType::UINT8_QUANTIZED);
-    const auto expectedInputDataType = utils::GetCommandDataType(inputDataType);
-
-    // Create the network
-    CompilationOptions options;
-    std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
-
-    std::shared_ptr<Operand> input1 =
-        AddInput(network, TensorInfo({ 1, 17, 16, 16 }, inputDataType, DataFormat::NHWCB)).tensor;
-    std::shared_ptr<Operand> relu1 = AddRelu(network, *input1, ReluInfo(0, 255)).tensor;
-
-    std::shared_ptr<Operand> input2 =
-        AddInput(network, TensorInfo({ 1, 16, 16, 16 }, inputDataType, DataFormat::NHWCB)).tensor;
-    std::shared_ptr<Operand> relu2 = AddRelu(network, *input2, ReluInfo(0, 255)).tensor;
-
-    std::shared_ptr<Operand> concat =
-        AddConcatenation(network, { relu1.get(), relu2.get() }, ConcatenationInfo(1, QuantizationInfo())).tensor;
-
-    std::shared_ptr<Output> output = AddOutput(network, *concat).tensor;
-
-    // Compile the network
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork = ethosn::support_library::Compile(*network, options);
-
-    // Extract the McePle operations
-    using namespace ethosn::command_stream;
-    CommandStream cmdStream = GetCommandStream(compiledNetwork[0].get());
-    std::vector<McePle> convCmds;
-    for (const auto& cmdHeader : cmdStream)
-    {
-        if (cmdHeader.m_Opcode() == Opcode::OPERATION_MCE_PLE)
-        {
-            convCmds.push_back(cmdHeader.GetCommand<Opcode::OPERATION_MCE_PLE>()->m_Data());
-        }
-    }
-
-    // There should be two of them, each outputting NHWCB into the final buffer at different supertensor offsets
-    REQUIRE(convCmds.size() == 2);
-    REQUIRE(convCmds[0].m_OutputInfo().m_DataType() == expectedInputDataType);
-    REQUIRE(convCmds[0].m_OutputInfo().m_DataFormat() == ethosn::command_stream::DataFormat::NHWC);
-    REQUIRE(convCmds[0].m_OutputInfo().m_SupertensorOffset() == TensorShape{ 0, 0, 0, 0 });
-    REQUIRE(convCmds[0].m_OutputInfo().m_SupertensorShape() == TensorShape{ 1, 33, 16, 16 });
-    REQUIRE(convCmds[1].m_OutputInfo().m_DataType() == expectedInputDataType);
-    REQUIRE(convCmds[1].m_OutputInfo().m_DataFormat() == ethosn::command_stream::DataFormat::NHWC);
-    REQUIRE(convCmds[1].m_OutputInfo().m_SupertensorOffset() == TensorShape{ 0, 17, 0, 0 });
-    REQUIRE(convCmds[1].m_OutputInfo().m_SupertensorShape() == TensorShape{ 1, 33, 16, 16 });
-    REQUIRE(convCmds[0].m_OutputInfo().m_DramBufferId() == convCmds[1].m_OutputInfo().m_DramBufferId());
-}
-
-// Tests that a concatenation with shared inputs success
-TEST_CASE("Concat with shared input")
-{
-    // Create the network
-    CompilationOptions options;
-    std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
-
-    std::shared_ptr<Operand> input1 =
-        AddInput(network, TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB)).tensor;
-    std::shared_ptr<Operand> relu1 = AddRelu(network, *input1, ReluInfo(0, 255)).tensor;
-
-    std::shared_ptr<Operand> input2 =
-        AddInput(network, TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB)).tensor;
-    std::shared_ptr<Operand> relu2 = AddRelu(network, *input2, ReluInfo(0, 255)).tensor;
-
-    std::shared_ptr<Operand> concat =
-        AddConcatenation(network, { relu1.get(), relu2.get() }, ConcatenationInfo(1, QuantizationInfo())).tensor;
-
-    std::shared_ptr<Operand> relu3 = AddRelu(network, *relu2, ReluInfo(0, 255)).tensor;
-
-    std::shared_ptr<Output> output = AddOutput(network, *concat).tensor;
-
-    // Compile the network
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork = ethosn::support_library::Compile(*network, options);
-
-    // Extract the McePle operations
-    using namespace ethosn::command_stream;
-    CommandStream cmdStream = GetCommandStream(compiledNetwork[0].get());
-    std::vector<McePle> convCmds;
-    for (const auto& cmdHeader : cmdStream)
-    {
-        if (cmdHeader.m_Opcode() == Opcode::OPERATION_MCE_PLE)
-        {
-            convCmds.push_back(cmdHeader.GetCommand<Opcode::OPERATION_MCE_PLE>()->m_Data());
-        }
-    }
-
-    // There should be two of them, each outputting NHWCB into the final buffer at different supertensor offsets
-    REQUIRE(convCmds.size() == 2);
-    REQUIRE(convCmds[0].m_OutputInfo().m_DataFormat() == ethosn::command_stream::DataFormat::NHWCB);
-    REQUIRE(convCmds[0].m_OutputInfo().m_SupertensorOffset() == TensorShape{ 0, 0, 0, 0 });
-    REQUIRE(convCmds[0].m_OutputInfo().m_SupertensorShape() == TensorShape{ 1, 32, 16, 16 });
-    REQUIRE(convCmds[1].m_OutputInfo().m_DataFormat() == ethosn::command_stream::DataFormat::NHWCB);
-    REQUIRE(convCmds[1].m_OutputInfo().m_SupertensorOffset() == TensorShape{ 0, 16, 0, 0 });
-    REQUIRE(convCmds[1].m_OutputInfo().m_SupertensorShape() == TensorShape{ 1, 32, 16, 16 });
-    REQUIRE(convCmds[0].m_OutputInfo().m_DramBufferId() == convCmds[1].m_OutputInfo().m_DramBufferId());
 }

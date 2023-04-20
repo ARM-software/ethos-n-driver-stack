@@ -6,6 +6,10 @@
 #include "../include/ethosn_support_library/Support.hpp"
 #include "../include/ethosn_support_library/SupportQueries.hpp"
 #include "../src/GraphNodes.hpp"
+#include "../src/cascading/InputPart.hpp"
+#include "../src/cascading/McePart.hpp"
+#include "../src/cascading/NetworkToGraphOfPartsConverter.hpp"
+#include "../src/cascading/OutputPart.hpp"
 #include "TestUtils.hpp"
 
 #include <catch.hpp>
@@ -148,73 +152,6 @@ TEST_CASE("Requantize EstimateOnly")
     }
 }
 
-/// Tests that a network comprising a single Requantize creates an identity depthwise convolution beforehand.
-TEST_CASE("Add Requantize to a network")
-{
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
-
-    // Create the network
-    CompilationOptions options;
-    std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
-
-    const TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC,
-                               QuantizationInfo(33, 2.0f));
-    std::shared_ptr<Operand> input = AddInput(network, inputInfo).tensor;
-    // overallScale = inputScale * weightScale / outputScale  must be >= 0 and < 1,
-    // which is overallScale = 2.0f * 0.5f (Identity) / 1.5f
-    // if the Requantize quantization info is not taken into account the weights encoder will assert.
-    std::shared_ptr<Operand> requantize =
-        AddRequantize(network, *input, RequantizeInfo(QuantizationInfo(127, 1.5f))).tensor;
-    std::shared_ptr<Output> output = AddOutput(network, *requantize).tensor;
-
-    // Compile it
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, CompilationOptions());
-
-    // Extract all the conv commands
-    using namespace ethosn::command_stream;
-    CommandStream cmdStream = GetCommandStream(compiledNetwork[0].get());
-    std::vector<McePle> convCmds;
-    for (const auto& cmdHeader : cmdStream)
-    {
-        if (cmdHeader.m_Opcode() == Opcode::OPERATION_MCE_PLE)
-        {
-            convCmds.push_back(cmdHeader.GetCommand<Opcode::OPERATION_MCE_PLE>()->m_Data());
-        }
-    }
-
-    // Check that the conv command is as expected.
-    REQUIRE(convCmds.size() == 1);
-    REQUIRE(convCmds[0].m_MceData().m_OutputShape() == TensorShape{ 1, 16, 16, 16 });
-    // Check output zero point
-    REQUIRE(convCmds[0].m_OutputInfo().m_ZeroPoint() == (127));
-}
-
-/// Tests that a network comprising a single Requantize creates an mce operation beforehand.
-TEST_CASE("Single Requantize EstimateOnly")
-{
-
-    // Create the estimation network
-    CompilationOptions options;
-    std::shared_ptr<Network> network = CreateEstimationNetwork(GetRawDefaultCapabilities());
-    std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
-    std::shared_ptr<Operand> requantize =
-        AddRequantize(network, *input, RequantizeInfo(QuantizationInfo(0, 1.0f))).tensor;
-    std::shared_ptr<Output> output = AddOutput(network, *requantize).tensor;
-
-    // Estimate it
-    EstimationOptions estimationOptions{};
-    estimationOptions.m_Current = true;
-
-    std::vector<PassPerformanceData> perfData = EstimatePerformance(*network, options, estimationOptions).m_Stream;
-
-    // Check that it has completed.
-    REQUIRE(perfData.size() > 0U);
-    // Check that it's a Mce plus Fused Ple operation.
-    REQUIRE(perfData.at(0).m_Stats.m_Mce.m_CycleCount == 32U);
-    REQUIRE(perfData.at(0).m_Stats.m_Ple.m_NumOfPatches == 16U);
-}
-
 /// Tests that a network with a requantization with an output scale less than half the input scale can compile
 TEST_CASE("Requantize output scale less than half input scale")
 {
@@ -264,42 +201,69 @@ TEST_CASE("Compile a network with Requantize layer with different input/output t
     auto requantize = AddRequantize(network, *input, requantInfo).tensor;
     auto output     = AddOutput(network, *requantize).tensor;
 
-    ethosn::command_stream::DataType inputTypeInCommandStream;
-    ethosn::command_stream::DataType outputTypeInCommandStream;
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
-    if (inputType == DataType::UINT8_QUANTIZED)
+    REQUIRE(graph.GetNumParts() == 3);
+
+    // Part 0: Input
+    REQUIRE(graph.GetPartInputs(0).size() == 0);
+    REQUIRE(graph.GetPartOutputs(0).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 0, 0 }).has_value() == false);
+
+    const InputPart* inputPart0 = dynamic_cast<const InputPart*>(&graph.GetPart(0));
+    REQUIRE(inputPart0 != nullptr);
+
+    Plans plansInputPart0 =
+        inputPart0->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    CHECK(plansInputPart0.size() == 1);
+
+    Buffer* bufferOutputPart0 = plansInputPart0[0].GetOutputBuffer(PartOutputSlot{ inputPart0->GetPartId(), 0 });
+    REQUIRE(bufferOutputPart0 != nullptr);
+    if (bufferOutputPart0)
     {
-        inputTypeInCommandStream  = ethosn::command_stream::DataType::U8;
-        outputTypeInCommandStream = ethosn::command_stream::DataType::S8;
-    }
-    else
-    {
-        inputTypeInCommandStream  = ethosn::command_stream::DataType::S8;
-        outputTypeInCommandStream = ethosn::command_stream::DataType::U8;
-    }
-
-    CompilationOptions compilationOptions{};
-    compilationOptions.m_StrictPrecision = true;
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, compilationOptions);
-
-    REQUIRE(compiledNetwork.size() == 1);
-
-    // Extract the input/output data types of quantize layer
-    using namespace ethosn::command_stream;
-    CommandStream cmdStream = GetCommandStream(compiledNetwork[0].get());
-    std::vector<McePle> commands;
-    for (const auto& cmdHeader : cmdStream)
-    {
-        if (cmdHeader.m_Opcode() == Opcode::OPERATION_MCE_PLE)
-        {
-            commands.push_back(cmdHeader.GetCommand<Opcode::OPERATION_MCE_PLE>()->m_Data());
-        }
+        REQUIRE(bufferOutputPart0->m_TensorShape == TensorShape{ 1, 16, 16, 16 });
+        REQUIRE(bufferOutputPart0->m_DataType == inputType);
     }
 
-    REQUIRE(commands.size() == 1);
-    REQUIRE(commands[0].m_InputInfo().m_DataType() == inputTypeInCommandStream);
-    REQUIRE(commands[0].m_OutputInfo().m_DataType() == outputTypeInCommandStream);
+    // Part 1: DEPTHWISE_CONVOLUTION on mce
+    REQUIRE(graph.GetPartInputs(1).size() == 1);
+    REQUIRE(graph.GetPartOutputs(1).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
+
+    const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(1));
+    REQUIRE(part != nullptr);
+    auto operation = part->GetMceOperation();
+    REQUIRE(operation.has_value());
+    // Identity McePart is executed as depthwise convolution
+    REQUIRE(operation.value() == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION);
+
+    // Part 2: Output
+    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(2)) != nullptr);
+    REQUIRE(graph.GetPartInputs(2).size() == 1);
+    REQUIRE(graph.GetPartOutputs(2).size() == 0);
+    REQUIRE(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 1);
+    REQUIRE(graph.GetConnectedInputSlots({ 2, 0 }).size() == 0);
+
+    const OutputPart* outputPart2 = dynamic_cast<const OutputPart*>(&graph.GetPart(2));
+    REQUIRE(outputPart2 != nullptr);
+
+    Plans plansOutputPart2 =
+        outputPart2->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    CHECK(plansOutputPart2.size() == 1);
+
+    Buffer* bufferInputPart2 = plansOutputPart2[0].GetInputBuffer(PartInputSlot{ outputPart2->GetPartId(), 0 });
+    REQUIRE(bufferInputPart2 != nullptr);
+    if (bufferInputPart2)
+    {
+        REQUIRE(bufferInputPart2->m_TensorShape == TensorShape{ 1, 16, 16, 16 });
+        REQUIRE(bufferInputPart2->m_DataType == outputType);
+    }
 }
 
 TEST_CASE("RequantizeNode::Apply UINT8")
