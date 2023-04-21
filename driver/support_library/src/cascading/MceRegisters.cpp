@@ -199,6 +199,8 @@ command_stream::cascading::ProgramMceExtraData
 
         if (isDepthwise)
         {
+            assert(numCes <= result.MUL_ENABLE.size());
+
             for (uint32_t ce = 0U; ce < numCes; ++ce)
             {
                 // Calculate how many OFMs the CE will generate
@@ -207,6 +209,7 @@ command_stream::cascading::ProgramMceExtraData
                 // Calculate how many multipliers that will be needed to generate the OFMs
                 // Only a subset of the multipliers are used if the CE has more IGs than OFMs to generate.
                 const uint32_t numOgMulsToEnable = std::min<uint32_t>(numIgs, numOfmsForCe);
+                assert(numOgMulsToEnable <= result.MUL_ENABLE[ce].size());
 
                 // Enable the multipliers needed in the CE's OGs
                 for (uint32_t og = 0U; og < numOgMulsToEnable; ++og)
@@ -293,6 +296,7 @@ command_stream::cascading::ProgramMceExtraData
     {
         // config all IFM PADx IGx registers
         const uint32_t numIgs = caps.GetIgsPerEngine();
+        assert(numIgs <= result.IFM_PAD[0].size());
 
         for (uint32_t ig = 0; ig < numIgs; ++ig)
         {
@@ -536,6 +540,7 @@ command_stream::cascading::ProgramMceExtraData
                                                  ? static_cast<uint32_t>(stripeCoord.ofmChannels)
                                                  : static_cast<uint32_t>(stripeId);
 
+        assert(numOgs <= result.WEIGHT_BASE_ADDR.size());
         for (uint32_t og = 0; og < numOgs; ++og)
         {
             const uint32_t ogIdxWithinEmc = og / numEmcs;
@@ -562,7 +567,8 @@ command_stream::cascading::ProgramMceExtraData
 
             ifmConfig2.set_num_ifm_local(
                 GetNumIfmChannels(isFullyConnected, mceS.defaultStripeSize.ifmChannels, stripeSize.ifmChannels));
-
+            assert(numCes <= result.IFM_CONFIG2.size());
+            assert(numIgs <= result.IFM_CONFIG2[0].size());
             for (uint32_t ig = 0; ig < numIgs; ++ig)
             {
                 for (uint32_t ce = 0; ce < numCes; ++ce)
