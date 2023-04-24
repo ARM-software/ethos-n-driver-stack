@@ -5,11 +5,12 @@
 #pragma once
 
 #include <armnn/BackendOptions.hpp>
+#include <armnn/Optional.hpp>
 #include <armnn/utility/Assert.hpp>
 
 #include <algorithm>
+#include <map>
 #include <string>
-#include <vector>
 
 namespace armnn
 {
@@ -44,22 +45,28 @@ public:
         return static_cast<uint32_t>(m_CompiledNetworks.size());
     }
 
-    std::pair<std::vector<char>, uint32_t> GetCompiledNetworkAndIntermediateSize(uint32_t id) const
+    armnn::Optional<std::pair<std::vector<char>, uint32_t>>
+        GetCompiledNetworkAndIntermediateSize(uint32_t subgraphIdx) const
     {
-        std::vector<char> compiledNetwork = m_CompiledNetworks.at(id);
+        auto foundNetwork = m_CompiledNetworks.find(subgraphIdx);
+        if (foundNetwork == m_CompiledNetworks.end())
+        {
+            return {};
+        }
+        std::vector<char> compiledNetwork = foundNetwork->second;
         ARMNN_ASSERT(compiledNetwork.size() > sizeof(uint32_t));
         uint32_t intermediateSize = 0;
         std::copy_n(compiledNetwork.end() - sizeof(uint32_t), sizeof(uint32_t),
                     reinterpret_cast<char*>(&intermediateSize));
         compiledNetwork.resize(compiledNetwork.size() - sizeof(uint32_t));
-        return { compiledNetwork, intermediateSize };
+        return armnn::Optional<std::pair<std::vector<char>, uint32_t>>({ compiledNetwork, intermediateSize });
     };
 
-    void AddCompiledNetwork(std::vector<char> compiledSubgraph, uint32_t bufferSize)
+    void AddCompiledNetwork(uint32_t subgraphIdx, std::vector<char> compiledSubgraph, uint32_t bufferSize)
     {
         std::copy_n(reinterpret_cast<const char*>(&bufferSize), sizeof(bufferSize),
                     std::back_inserter(compiledSubgraph));
-        m_CompiledNetworks.push_back(compiledSubgraph);
+        m_CompiledNetworks[subgraphIdx] = compiledSubgraph;
     }
     bool GetIsLoaded()
     {
@@ -93,7 +100,7 @@ private:
 
     /// Holds serialized compiled networks temporarily from all subgraphs.
     /// This is used to load or save the compiled networks.
-    std::vector<std::vector<char>> m_CompiledNetworks;
+    std::map<uint32_t, std::vector<char>> m_CompiledNetworks;
 
     // Used to determine if the m_EthosNCachingOptions or m_CompiledNetworks have been loaded or not.
     bool m_IsLoaded;

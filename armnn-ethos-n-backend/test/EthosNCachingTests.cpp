@@ -332,10 +332,11 @@ TEST_SUITE("EthosNCaching")
                 std::ofstream file{ filePath };
             }
             cache.SetEthosNCachingOptions({ backendOptions });
-            cache.AddCompiledNetwork(compiledSubgraph, intermediateBufferSize);
-            std::pair<std::vector<char>, uint32_t> networkAndSize = cache.GetCompiledNetworkAndIntermediateSize(0);
-            CHECK(networkAndSize.first == compiledSubgraph);
-            CHECK(networkAndSize.second == intermediateBufferSize);
+            cache.AddCompiledNetwork(0, compiledSubgraph, intermediateBufferSize);
+            armnn::Optional<std::pair<std::vector<char>, uint32_t>> networkAndSize =
+                cache.GetCompiledNetworkAndIntermediateSize(0);
+            CHECK(networkAndSize.value().first == compiledSubgraph);
+            CHECK(networkAndSize.value().second == intermediateBufferSize);
             CHECK(cache.Save());
         }
         {
@@ -344,9 +345,10 @@ TEST_SUITE("EthosNCaching")
                                           { { "SaveCachedNetwork", false }, { "CachedNetworkFilePath", filePath } });
             cache.SetEthosNCachingOptions({ backendOptions });
             cache.Load();
-            std::pair<std::vector<char>, uint32_t> networkAndSize = cache.GetCompiledNetworkAndIntermediateSize(0);
-            CHECK(networkAndSize.first == compiledSubgraph);
-            CHECK(networkAndSize.second == intermediateBufferSize);
+            armnn::Optional<std::pair<std::vector<char>, uint32_t>> networkAndSize =
+                cache.GetCompiledNetworkAndIntermediateSize(0);
+            CHECK(networkAndSize.value().first == compiledSubgraph);
+            CHECK(networkAndSize.value().second == intermediateBufferSize);
         }
         // Testing loading fails
         {

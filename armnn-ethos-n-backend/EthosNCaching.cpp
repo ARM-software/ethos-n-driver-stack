@@ -136,18 +136,26 @@ bool EthosNCaching::SaveCachedSubgraphs()
     out.write(reinterpret_cast<const char*>(&numOfSubgraphs), sizeof(numOfSubgraphs));
 
     // Write the sizes of each of the compiled networks in order, this is used when reading in.
-    for (uint32_t i = 0; i < numOfSubgraphs; ++i)
+    for (auto&& it : m_CompiledNetworks)
     {
-        size_t compiledNetworkSize = m_CompiledNetworks[i].size();
+        size_t compiledNetworkSize = it.second.size();
         out.write(reinterpret_cast<const char*>(&compiledNetworkSize), sizeof(compiledNetworkSize));
     }
 
-    // Write the compiled networks binary, this is used when reading in using the sizes.
-    for (uint32_t i = 0; i < numOfSubgraphs; ++i)
+    // Write the subgraph index associated with each compiled network
+    for (auto&& it : m_CompiledNetworks)
     {
-        auto bytesToWrite = static_cast<std::streamsize>(sizeof(char) * m_CompiledNetworks[i].size());
-        out.write(reinterpret_cast<const char*>(&m_CompiledNetworks[i][0]), bytesToWrite);
+        uint32_t subgraphIdx = it.first;
+        out.write(reinterpret_cast<const char*>(&subgraphIdx), sizeof(subgraphIdx));
     }
+
+    // Write the compiled networks binary, this is used when reading in using the sizes.
+    for (auto&& it : m_CompiledNetworks)
+    {
+        auto bytesToWrite = static_cast<std::streamsize>(sizeof(char) * it.second.size());
+        out.write(reinterpret_cast<const char*>(&it.second[0]), bytesToWrite);
+    }
+
     if (!out)
     {
         ARMNN_LOG(error) << "Error trying to write to " << filePath << " cached network cannot be saved";
@@ -173,17 +181,17 @@ bool EthosNCaching::LoadCachedSubgraphs()
     std::ifstream in(filePath, std::ios::binary);
 
     // Read in the number of subgraphs, used for the loop limit.
-    uint32_t numOfSubgraphs;
-    in.read(reinterpret_cast<char*>(&numOfSubgraphs), sizeof(numOfSubgraphs));
+    uint32_t numOfNetworks;
+    in.read(reinterpret_cast<char*>(&numOfNetworks), sizeof(numOfNetworks));
     if (!in)
     {
         ARMNN_LOG(error) << "Error trying to read the number of cached subgraphs";
         return false;
     }
 
-    // Read in sizes of each of the compiled networks in order.
+    // Read in sizes of each of the compiled networks
     std::vector<size_t> compiledNetworkSizes;
-    for (uint32_t i = 0; i < numOfSubgraphs; ++i)
+    for (uint32_t i = 0; i < numOfNetworks; ++i)
     {
         size_t size;
         in.read(reinterpret_cast<char*>(&size), sizeof(size));
@@ -195,11 +203,25 @@ bool EthosNCaching::LoadCachedSubgraphs()
 
         compiledNetworkSizes.emplace_back(size);
     }
+    // Read the subgraph index for each compiled network
+    std::vector<uint32_t> compiledNetworkSubgraphIdxs;
+    for (uint32_t i = 0; i < numOfNetworks; ++i)
+    {
+        uint32_t subgraphIdx;
+        in.read(reinterpret_cast<char*>(&subgraphIdx), sizeof(subgraphIdx));
+        if (!in)
+        {
+            ARMNN_LOG(error) << "Error trying to read the subgraph index " << i;
+            return false;
+        }
+        compiledNetworkSubgraphIdxs.emplace_back(subgraphIdx);
+    }
 
     // Read in the compiled networks binary using the sizes.
     for (uint32_t i = 0; i < compiledNetworkSizes.size(); ++i)
     {
-        size_t size = compiledNetworkSizes[i];
+        size_t size        = compiledNetworkSizes[i];
+        size_t subgraphIdx = compiledNetworkSubgraphIdxs[i];
         std::vector<char> binaryContent(size);
 
         auto bytesToRead = static_cast<std::streamsize>(sizeof(char) * size);
@@ -210,7 +232,7 @@ bool EthosNCaching::LoadCachedSubgraphs()
             return false;
         }
 
-        m_CompiledNetworks.push_back(binaryContent);
+        m_CompiledNetworks.emplace(subgraphIdx, binaryContent);
     }
 
     return true;
