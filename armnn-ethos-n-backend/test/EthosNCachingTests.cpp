@@ -333,7 +333,6 @@ TEST_SUITE("EthosNCaching")
             }
             cache.SetEthosNCachingOptions({ backendOptions });
             cache.AddCompiledNetwork(compiledSubgraph, intermediateBufferSize);
-            cache.IncrementSubgraphCount();
             std::pair<std::vector<char>, uint32_t> networkAndSize = cache.GetCompiledNetworkAndIntermediateSize(0);
             CHECK(networkAndSize.first == compiledSubgraph);
             CHECK(networkAndSize.second == intermediateBufferSize);

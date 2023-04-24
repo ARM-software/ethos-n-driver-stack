@@ -67,8 +67,7 @@ EthosNCachingOptions GetEthosNCachingOptionsFromModelOptions(const armnn::ModelO
 }
 
 EthosNCaching::EthosNCaching()
-    : m_SubgraphCount(0)
-    , m_EthosNCachingOptions({ false, "" })
+    : m_EthosNCachingOptions({ false, "" })
     , m_CompiledNetworks()
     , m_IsLoaded(false)
 {}
@@ -133,7 +132,7 @@ bool EthosNCaching::SaveCachedSubgraphs()
     std::ofstream out(filePath, std::ios::binary);
 
     // Write the number of subgraphs, used for the loop limit.
-    uint32_t numOfSubgraphs = m_SubgraphCount;
+    uint32_t numOfSubgraphs = static_cast<uint32_t>(m_CompiledNetworks.size());
     out.write(reinterpret_cast<const char*>(&numOfSubgraphs), sizeof(numOfSubgraphs));
 
     // Write the sizes of each of the compiled networks in order, this is used when reading in.
@@ -221,7 +220,6 @@ void EthosNCaching::Reset()
 {
     if (IsSaving() || IsLoading())
     {
-        m_SubgraphCount        = 0;
         m_EthosNCachingOptions = { false, "" };
         m_CompiledNetworks.clear();
         m_IsLoaded = false;

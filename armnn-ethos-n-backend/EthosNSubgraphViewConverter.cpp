@@ -958,7 +958,6 @@ std::vector<EthosNPreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
             if (caching->IsSaving())
             {
                 caching->AddCompiledNetwork(compiledNetworkData, intermediateBufSize);
-                caching->IncrementSubgraphCount();
             }
 
             auto preCompiledObject = std::make_unique<EthosNPreCompiledObject>(

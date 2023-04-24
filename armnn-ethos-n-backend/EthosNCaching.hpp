@@ -1,5 +1,5 @@
 //
-// Copyright © 2022 Arm Limited.
+// Copyright © 2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -31,17 +31,6 @@ class EthosNCaching
 public:
     EthosNCaching();
     ~EthosNCaching() = default;
-
-    // Getters and Setters
-    uint32_t GetSubgraphCount()
-    {
-        return m_SubgraphCount;
-    };
-
-    void IncrementSubgraphCount()
-    {
-        m_SubgraphCount++;
-    };
 
     EthosNCachingOptions GetEthosNCachingOptions()
     {
@@ -99,9 +88,6 @@ private:
     void Reset();
 
 private:
-    /// Number of subgraphs.
-    uint32_t m_SubgraphCount;
-
     /// Caching options used to save or load compiled networks from all subgraphs.
     EthosNCachingOptions m_EthosNCachingOptions;
 
