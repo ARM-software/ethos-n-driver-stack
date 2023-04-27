@@ -126,6 +126,13 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
         // only m_Output is used by AddPleToOpGraph
         NumMemoryStripes numMemoryStripes;
         numMemoryStripes.m_Output = 2;
+        // Limit the max number of stripes based on the size of the tensor - there is no point considering plans where
+        // we can store more stripes in the tile than there are in the tensor!
+        numMemoryStripes.m_Output =
+            std::min(numMemoryStripes.m_Output,
+                     DivRoundUp(GetHeight(m_OutputTensorShape), GetHeight(outputStripeShape)) *
+                         DivRoundUp(GetWidth(m_OutputTensorShape), GetWidth(outputStripeShape)) *
+                         DivRoundUp(GetChannels(m_OutputTensorShape), GetChannels(outputStripeShape)));
 
         std::vector<Buffer*> pleInputBuffers;
         pleInputBuffers.resize(m_InputTensorShapes.size());
@@ -231,6 +238,13 @@ ethosn::support_library::DotAttributes StandalonePlePart::GetDotAttributes(Detai
         result.m_Label += "OutputQuantizationInfo = " + ToString(m_OutputQuantizationInfo) + "\n";
     }
     return result;
+}
+
+std::vector<BoundaryRequirements> StandalonePlePart::GetInputBoundaryRequirements() const
+{
+    // We can have multiple inputs, but none of them require boundary data because even
+    // for the avgpool kernel, we don't support splitting in width or height.
+    return std::vector<BoundaryRequirements>(m_InputTensorShapes.size(), BoundaryRequirements{});
 }
 
 }    // namespace support_library

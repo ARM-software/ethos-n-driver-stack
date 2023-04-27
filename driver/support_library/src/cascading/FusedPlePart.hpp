@@ -123,6 +123,8 @@ public:
     utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const override;
     bool CanDoubleBufferWeights() const override;
 
+    std::vector<BoundaryRequirements> GetInputBoundaryRequirements() const override;
+
     DotAttributes GetDotAttributes(DetailLevel detail) const override;
 
 private:

@@ -69,6 +69,11 @@ public:
         return m_CanMergeWithChannelSelectorAfter;
     }
 
+    std::vector<BoundaryRequirements> GetInputBoundaryRequirements() const override
+    {
+        return { BoundaryRequirements{} };
+    }
+
     utils::Optional<utils::ConstTensorData> m_ChannelSelectorWeights;
     bool m_CanMergeWithChannelSelectorBefore;
     bool m_CanMergeWithChannelSelectorAfter;

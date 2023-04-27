@@ -1076,6 +1076,10 @@ std::vector<SectionContext> Combiner::ContinueSection(const BasePart& part, cons
             context.hasSectionDoubleBuffered ? context.currNumWeightStripes : currNumWeightStripes;
         Plans plans = part.GetPlans(CascadeType::Middle, blkConfig, sramBuffer, numWeightStripes);
 
+        // We shouldn't generate too many plans here, as it could lead to an explosion of combinations.
+        // Two is fine for now to account for plams with an identity PLE and plans with PleInputBuffer
+        assert(plans.size() <= 2);
+
         for (Plan& plan : plans)
         {
             // Make a copy of the allocator since every plan needs to have its own,

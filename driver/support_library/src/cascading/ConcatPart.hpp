@@ -46,6 +46,8 @@ public:
     const TensorShape& GetOutputTensorShape() const;
     const std::vector<uint32_t>& GetOffsets() const;
 
+    std::vector<BoundaryRequirements> GetInputBoundaryRequirements() const override;
+
 private:
     const std::vector<TensorInfo> m_InputTensorsInfo;
     TensorInfo m_OutputTensorInfo;

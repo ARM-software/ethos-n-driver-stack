@@ -72,6 +72,8 @@ McePart BuildPart(TensorShape inputShape,
     params.m_UpsampleType                   = upsampleType;
     McePart part(std::move(params));
 
+    part.SetOutputBoundaryRequirements({ BoundaryRequirements{} });
+
     return part;
 }
 
@@ -672,6 +674,7 @@ TEST_CASE("McePart GetPlans structure")
         McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, std::move(weights),
                      biasTensorInfo, std::move(bias), stride, padTop, padLeft, csOp, estOps, compOpt, caps,
                      operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, debuggingContext);
+        part.SetOutputBoundaryRequirements({ BoundaryRequirements{} });
 
         CheckPlansParams params;
         params.m_PartId            = partId;
@@ -808,6 +811,7 @@ TEST_CASE("McePart End Cascade full tensor")
         McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, std::move(weights),
                      biasTensorInfo, std::move(bias), stride, padTop, padLeft, csOp, estOps, compOpt, caps,
                      operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, debuggingContext);
+        part.SetOutputBoundaryRequirements({ BoundaryRequirements{} });
 
         CheckPlansParams params;
         params.m_PartId            = partId;
@@ -892,6 +896,7 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
         McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, std::move(weights),
                      biasTensorInfo, std::move(bias), stride, padTop, padLeft, csOp, estOps, compOpt, caps,
                      operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, debuggingContext);
+        part.SetOutputBoundaryRequirements({ BoundaryRequirements{} });
 
         CheckPlansParams params;
         params.m_PartId            = partId;
@@ -1352,13 +1357,10 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
                 Plans plans1 =
                     part1.GetPlans(CascadeType::Middle, requestedBlockConfig, part0OutputBuffer, numWeightStripes);
 
-                // There are 4 plans which are generated
-                // 3 for mce + ple.
-                //   1 output stripes
-                //   2 output stripes
-                //   3 output stripes
+                // There are 2 plans which are generated
+                // 1 for mce + ple with 1 output stripe
                 // 1 for mce only
-                REQUIRE(plans1.size() == 4);
+                REQUIRE(plans1.size() == 2);
                 part1OutputBuffer = plans1[0].m_OpGraph.GetBuffers().back()->Sram();
 
                 Plans plans2 =

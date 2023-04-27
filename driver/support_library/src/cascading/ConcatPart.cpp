@@ -195,5 +195,11 @@ const std::vector<uint32_t>& ConcatPart::GetOffsets() const
     return m_Offsets;
 }
 
+std::vector<BoundaryRequirements> ConcatPart::GetInputBoundaryRequirements() const
+{
+    // No boundary data required for any of our inputs
+    return std::vector<BoundaryRequirements>(m_InputTensorsInfo.size(), BoundaryRequirements{});
+}
+
 }    // namespace support_library
 }    // namespace ethosn

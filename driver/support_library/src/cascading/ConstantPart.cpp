@@ -71,5 +71,11 @@ ethosn::support_library::DotAttributes ConstantPart::GetDotAttributes(DetailLeve
     return result;
 }
 
+std::vector<BoundaryRequirements> ConstantPart::GetInputBoundaryRequirements() const
+{
+    // ConstantPart does not have any inputs
+    return {};
+}
+
 }    // namespace support_library
 }    // namespace ethosn

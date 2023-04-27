@@ -432,10 +432,13 @@ public:
 
     // This method is intended to be called first with PlanPriority::High and after and only if needed
     // with PlanPriority::Low.
-    StripeInfos GenerateStripes(CascadeType cascadeType, utils::Optional<PlanPriority> priorityFilter) const;
+    StripeInfos GenerateStripes(CascadeType cascadeType,
+                                BoundaryRequirements outputBoundaryRequirements,
+                                utils::Optional<PlanPriority> priorityFilter) const;
 
     void CreateNumStripes(CascadeType cascadeType,
-                          bool requiresBoundaryData,
+                          bool inputRequiresBoundaryData,
+                          BoundaryRequirements outputBoundaryRequirements,
                           NumStripes& numStripesInput,
                           NumStripes& numStripesOutput,
                           NumStripes& numStripesWeights,
@@ -463,6 +466,7 @@ public:
 private:
     void GenerateStripes(const ethosn::command_stream::BlockConfig blockConfig,
                          CascadeType cascadeType,
+                         BoundaryRequirements outputBoundaryRequirements,
                          utils::Optional<PlanPriority> priorityFilter,
                          StripeInfos& outStripeInfos) const;
 };

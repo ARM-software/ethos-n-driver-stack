@@ -8,6 +8,7 @@
 #include "../Graph.hpp"
 #include "../Utils.hpp"
 #include "GraphNodes.hpp"
+#include "GraphOfParts.hpp"
 #include "Plan.hpp"
 #include "WeightEncoder.hpp"
 #include "WeightEncoderCache.hpp"
@@ -105,6 +106,11 @@ void BasePart::ModifyActivationBounds(int16_t, int16_t)
 void BasePart::AddOperationId(uint32_t operationId)
 {
     m_CorrespondingOperationIds.insert(operationId);
+}
+
+void BasePart::SetOutputBoundaryRequirements(std::vector<BoundaryRequirements> req)
+{
+    m_OutputBoundaryRequirements = std::move(req);
 }
 
 }    // namespace support_library

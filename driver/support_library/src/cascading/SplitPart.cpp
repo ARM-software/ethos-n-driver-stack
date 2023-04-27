@@ -186,5 +186,12 @@ const std::vector<uint32_t>& SplitPart::GetOffsets() const
     return m_Offsets;
 }
 
+std::vector<BoundaryRequirements> SplitPart::GetInputBoundaryRequirements() const
+{
+    // We have a single input, that does not need any boundary data.
+    // This is pretty much irrelevant anyway because we don't cascade into SplitPart anyway.
+    return { BoundaryRequirements{} };
+}
+
 }    // namespace support_library
 }    // namespace ethosn

@@ -97,5 +97,12 @@ ethosn::support_library::DotAttributes ReshapePart::GetDotAttributes(DetailLevel
     return result;
 }
 
+std::vector<BoundaryRequirements> ReshapePart::GetInputBoundaryRequirements() const
+{
+    // We have a single input, that does not need any boundary data.
+    // This is pretty much irrelevant anyway because we don't cascade into ReshapePart anyway.
+    return { BoundaryRequirements{} };
+}
+
 }    // namespace support_library
 }    // namespace ethosn

@@ -636,7 +636,8 @@ StripeGenerator::StripeGenerator(const TensorShape& mceInput,
 {}
 
 void StripeGenerator::CreateNumStripes(CascadeType cascadeType,
-                                       bool requiresBoundaryData,
+                                       bool inputRequiresBoundaryData,
+                                       BoundaryRequirements outputBoundaryRequirements,
                                        NumStripes& numStripesInput,
                                        NumStripes& numStripesOutput,
                                        NumStripes& numStripesWeights,
@@ -650,7 +651,7 @@ void StripeGenerator::CreateNumStripes(CascadeType cascadeType,
     {
         case CascadeType::Beginning:
         {
-            if (!requiresBoundaryData)
+            if (!inputRequiresBoundaryData)
             {
                 numStripesInput = { 1, 2 };
             }
@@ -658,16 +659,28 @@ void StripeGenerator::CreateNumStripes(CascadeType cascadeType,
             {
                 numStripesInput = { 3, 4 };
             }
-            // Multiple output stripes are needed because the follow layers may require multiple buffers due to boundary data.
-            // These will be filtered out by the following layer.
-            numStripesOutput   = { 1, 3 };
+            // Multiple output stripes may needed because the follow layers may require multiple buffers due to boundary data.
+            if ((outputBoundaryRequirements.m_NeedsBeforeX || outputBoundaryRequirements.m_NeedsBeforeY) &&
+                (outputBoundaryRequirements.m_NeedsAfterX || outputBoundaryRequirements.m_NeedsAfterY))
+            {
+                numStripesOutput = { 3, 3 };
+            }
+            else if (outputBoundaryRequirements.m_NeedsBeforeX || outputBoundaryRequirements.m_NeedsBeforeY ||
+                     outputBoundaryRequirements.m_NeedsAfterX || outputBoundaryRequirements.m_NeedsAfterY)
+            {
+                numStripesOutput = { 2, 2 };
+            }
+            else
+            {
+                numStripesOutput = { 1, 1 };
+            }
             numStripesWeights  = { 1, 2 };
             numStripesPleInput = { 0, 0 };
             break;
         }
         case CascadeType::Lonely:
         {
-            if (!requiresBoundaryData)
+            if (!inputRequiresBoundaryData)
             {
                 numStripesInput = { 1, 2 };
             }
@@ -711,18 +724,20 @@ StripeConfig StripeGenerator::ApplyPleKernelSplitRestrictions(CascadeType cascad
     return result;
 }
 StripeInfos StripeGenerator::GenerateStripes(CascadeType cascadeType,
+                                             BoundaryRequirements outputBoundaryRequirements,
                                              utils::Optional<PlanPriority> priorityFilter) const
 {
     StripeInfos result;
     for (auto&& blockConfig : m_StripeConfig.blockConfigs)
     {
-        GenerateStripes(blockConfig, cascadeType, priorityFilter, result);
+        GenerateStripes(blockConfig, cascadeType, outputBoundaryRequirements, priorityFilter, result);
     }
     return result;
 }
 
 void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig blockConfig,
                                       CascadeType cascadeType,
+                                      BoundaryRequirements outputBoundaryRequirements,
                                       utils::Optional<PlanPriority> priorityFilter,
                                       StripeInfos& outStripeInfos) const
 {
@@ -771,7 +786,8 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             (m_KernelWidth > 1 && GetWidth(mceInputStripe) < GetWidth(m_MceInputTensorShape)) || m_UpscaleFactor > 1 ||
             m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
             m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD;
-        CreateNumStripes(cascadeType, requiresBoundaryData, inputRange, outputRange, weightRange, pleInputRange);
+        CreateNumStripes(cascadeType, requiresBoundaryData, outputBoundaryRequirements, inputRange, outputRange,
+                         weightRange, pleInputRange);
 
         // Limit the max number of stripes based on the size of the tensor - there is no point considering plans where
         // we can store more stripes in the tile than there are in the tensor!

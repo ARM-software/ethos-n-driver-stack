@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "OutputPart.hpp"
+
 #include "../Utils.hpp"
 #include "GraphNodes.hpp"
-#include "OutputPart.hpp"
 #include "PartUtils.hpp"
 #include "Plan.hpp"
 
@@ -70,6 +71,13 @@ ethosn::support_library::DotAttributes OutputPart::GetDotAttributes(DetailLevel 
         result.m_Label += "InputDataType = " + ToString(m_InputDataType) + "\n";
     }
     return result;
+}
+
+std::vector<BoundaryRequirements> OutputPart::GetInputBoundaryRequirements() const
+{
+    // We have a single input, that does not need any boundary data.
+    // This is pretty much irrelevant anyway because we don't cascade into OutputParts anyway.
+    return { BoundaryRequirements{} };
 }
 
 }    // namespace support_library

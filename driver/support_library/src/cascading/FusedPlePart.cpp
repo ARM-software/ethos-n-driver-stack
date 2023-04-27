@@ -291,7 +291,8 @@ Plans FusedPlePart::GetLonelyPlans(uint32_t numWeightStripes) const
     const std::initializer_list<PlanPriority> allPriorities = { PlanPriority::High, PlanPriority::Low };
     for (PlanPriority priority : allPriorities)
     {
-        StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Lonely, priority);
+        StripeInfos stripeInfos =
+            m_StripeGenerator.GenerateStripes(CascadeType::Lonely, m_OutputBoundaryRequirements.at(0), priority);
         for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
         {
             CreateIdentityMceAndFusedPlePlans(i, m_WeightEncoderCache, ret, numWeightStripes);
@@ -314,7 +315,8 @@ Plans FusedPlePart::GetBeginningPlans(uint32_t numWeightStripes) const
         return ret;
     }
 
-    StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Beginning, {});
+    StripeInfos stripeInfos =
+        m_StripeGenerator.GenerateStripes(CascadeType::Beginning, m_OutputBoundaryRequirements.at(0), {});
 
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
@@ -398,14 +400,35 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
         return ret;
     }
 
-    uint32_t maxOutputStripes = 0;
+    NumStripes numStripesOutput;
     // strategy 0
     if (!fullPlane)
     {
         if (m_StripeConfig.splits.mceOutputHeightOnly || m_StripeConfig.splits.mceAndPleOutputHeight)
         {
             // if its the end of a cascade we can double buffer the output, if it's not we need to output up to 3 stripes for neighouring data.
-            maxOutputStripes = isEndOfCascade ? 2 : 3;
+            if (isEndOfCascade)
+            {
+                numStripesOutput = { 1, 2 };
+            }
+            else
+            {
+                BoundaryRequirements outputBoundaryRequirements = m_OutputBoundaryRequirements.at(0);
+                if ((outputBoundaryRequirements.m_NeedsBeforeX || outputBoundaryRequirements.m_NeedsBeforeY) &&
+                    (outputBoundaryRequirements.m_NeedsAfterX || outputBoundaryRequirements.m_NeedsAfterY))
+                {
+                    numStripesOutput = { 3, 3 };
+                }
+                else if (outputBoundaryRequirements.m_NeedsBeforeX || outputBoundaryRequirements.m_NeedsBeforeY ||
+                         outputBoundaryRequirements.m_NeedsAfterX || outputBoundaryRequirements.m_NeedsAfterY)
+                {
+                    numStripesOutput = { 2, 2 };
+                }
+                else
+                {
+                    numStripesOutput = { 1, 1 };
+                }
+            }
         }
         else
         {
@@ -416,27 +439,25 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     else if (isEndOfCascade && fullDepth)
     {
         assert(fullPlane);
-        maxOutputStripes = 1;
+        numStripesOutput = { 1, 1 };
     }
     else if (!isEndOfCascade)
     {
         assert(fullDepth);
-        maxOutputStripes = 1;
+        numStripesOutput = { 1, 1 };
     }
     else if (!fullDepth)
     {
         assert(fullPlane && isEndOfCascade);
         if (m_StripeConfig.splits.mceAndPleOutputDepth)
         {
-            maxOutputStripes = 2;
+            numStripesOutput = { 1, 2 };
         }
         else
         {
             return ret;
         }
     }
-
-    NumStripes numStripesOutput = { 1, maxOutputStripes };
 
     if (prevBuffer->m_Location == Location::Sram)
     {
@@ -565,6 +586,13 @@ ethosn::support_library::DotAttributes FusedPlePart::GetDotAttributes(DetailLeve
             "StripeGenerator.PleShapeMultiplier = " + ToString(m_StripeGenerator.m_PleShapeMultiplier) + "\n";
     }
     return result;
+}
+
+std::vector<BoundaryRequirements> FusedPlePart::GetInputBoundaryRequirements() const
+{
+    // We have a single input. Because our input comes from the MCE, we don't require any boundary data in SRAM so
+    // we set our boundary requirements to false, even though kernels like avg pool do use boundary data.
+    return { BoundaryRequirements{} };
 }
 
 }    // namespace support_library

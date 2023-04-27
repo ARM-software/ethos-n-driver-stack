@@ -22,6 +22,14 @@ namespace support_library
 
 class Buffer;
 
+struct BoundaryRequirements
+{
+    bool m_NeedsBeforeX = false;
+    bool m_NeedsAfterX  = false;
+    bool m_NeedsBeforeY = false;
+    bool m_NeedsAfterY  = false;
+};
+
 enum class CascadeType
 {
     Beginning,
@@ -163,6 +171,12 @@ public:
     virtual bool CanDoubleBufferWeights() const;
     virtual bool IsOutputGuaranteedNhwc() const;
 
+    /// Sets the boundary requirements that we store for each output of this part,
+    /// so that we generate plans with the correct boundary requirements for consuming parts.
+    void SetOutputBoundaryRequirements(std::vector<BoundaryRequirements> req);
+    /// For each input of this Part, do we require boundary data for that input.
+    virtual std::vector<BoundaryRequirements> GetInputBoundaryRequirements() const = 0;
+
     DotAttributes GetDotAttributes(DetailLevel) const override;
 
     virtual ~BasePart()
@@ -226,6 +240,9 @@ protected:
     const EstimationOptions& m_EstimationOptions;
     const CompilationOptions& m_CompilationOptions;
     const HardwareCapabilities& m_Capabilities;
+    /// For each output slot, should we generate plans with boundary data or not.
+    std::vector<BoundaryRequirements> m_OutputBoundaryRequirements;
+
     void AddNewPlan(PartInputMapping&& inputMappings,
                     PartOutputMapping&& outputMappings,
                     OwnedOpGraph&& opGraph,

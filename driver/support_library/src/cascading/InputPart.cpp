@@ -71,5 +71,11 @@ ethosn::support_library::DotAttributes InputPart::GetDotAttributes(DetailLevel d
     return result;
 }
 
+std::vector<BoundaryRequirements> InputPart::GetInputBoundaryRequirements() const
+{
+    // InputParts have no inputs
+    return {};
+}
+
 }    // namespace support_library
 }    // namespace ethosn

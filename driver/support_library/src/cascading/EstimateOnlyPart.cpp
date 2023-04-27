@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "../Utils.hpp"
 #include "EstimateOnlyPart.hpp"
+
+#include "../Utils.hpp"
 #include "GraphNodes.hpp"
 #include "PartUtils.hpp"
 #include "Plan.hpp"
@@ -91,6 +92,12 @@ ethosn::support_library::DotAttributes EstimateOnlyPart::GetDotAttributes(Detail
         result.m_Label += "OutputTensorsInfo = " + ArrayToString(m_OutputTensorsInfo) + "\n";
     }
     return result;
+}
+
+std::vector<BoundaryRequirements> EstimateOnlyPart::GetInputBoundaryRequirements() const
+{
+    // We pessimistically assume that we will need boundary data for all of our inputs
+    return std::vector<BoundaryRequirements>(m_InputTensorsInfo.size(), BoundaryRequirements{ true, true, true, true });
 }
 
 }    // namespace support_library

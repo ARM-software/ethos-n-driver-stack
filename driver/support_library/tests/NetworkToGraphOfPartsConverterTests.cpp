@@ -184,6 +184,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -270,6 +271,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Requantize Same Quantization")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -331,6 +333,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Requantize")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -396,6 +399,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Requantize EstimateOnly")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -596,6 +600,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat NHWC")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -677,6 +682,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Concat Padding")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -794,6 +800,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat EstimateOnly")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -881,6 +888,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1037,6 +1045,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest LeakyRelu Sigmoid Tanh")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1151,6 +1160,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter LeakyRelu EstimateOnly")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1230,6 +1240,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MaxPool_3X3_2_2")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1348,6 +1359,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter FullyConnected")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1435,6 +1447,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter FullyConnected EstimateOnly")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1520,6 +1533,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Basic Depthwise")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1596,6 +1610,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Strided Depthwise")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1689,6 +1704,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Multichannel Depthwise")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1753,6 +1769,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Depthwise EstimateOnly")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1813,6 +1830,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1886,6 +1904,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA EstimateOnly"
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -1951,6 +1970,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2035,6 +2055,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION_RESCALE")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2121,6 +2142,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION EstimateOnly")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2180,6 +2202,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Resize")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2237,6 +2260,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Relu")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2320,6 +2344,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Conv Relu")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2404,6 +2429,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Relu Conv")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2481,6 +2507,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Const as Input EstimateOnly")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2549,6 +2576,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Conv EstimateOnly")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2611,6 +2639,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2673,6 +2702,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution Large Weights")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2749,6 +2779,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution EstimateOnly")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2834,6 +2865,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Reinterpret Quantization")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2890,6 +2922,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Split")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -2959,6 +2992,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Split Padding")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -3027,6 +3061,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Transpose")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -3077,6 +3112,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter SpaceToDepth")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -3131,6 +3167,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Downsample_2x2")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -3200,6 +3237,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter DepthToSpace")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -3256,6 +3294,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter DepthToSpace EstimateOnly")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
@@ -3310,6 +3349,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter EstimateOnly")
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
 
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)

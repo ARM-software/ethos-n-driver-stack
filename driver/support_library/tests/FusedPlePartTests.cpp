@@ -52,6 +52,8 @@ FusedPlePart BuildPart(TensorShape inputShape,
                       compOpts, caps, std::move(operationsIds), DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED,
                       0.0f, debuggingContext);
 
+    part.SetOutputBoundaryRequirements({ BoundaryRequirements{} });
+
     return part;
 }
 
@@ -602,6 +604,7 @@ TEST_CASE("FusedPlePart GetPlans structure")
         const utils::ShapeMultiplier shapeMult  = { 1, 1, 1 };
         FusedPlePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, csOp, shapeMult, estOpts, compOpt, caps,
                           operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, 0.0f, debuggingContext);
+        part.SetOutputBoundaryRequirements({ BoundaryRequirements{} });
 
         CheckPlansParams params;
         params.m_PartId          = partId;
@@ -758,12 +761,14 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
         FusedPlePart partEven(partId, tsInEven, tsOut, inputQuantInfo, outputQuantInfo, csOpEven, shapeMult, estOpts,
                               compOpt, caps, operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, 0.0f,
                               debuggingContext);
+        partEven.SetOutputBoundaryRequirements({ BoundaryRequirements{} });
 
         TensorShape tsInOdd                        = { 1, 129, 129, 64 };
         const command_stream::PleOperation csOpOdd = command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD;
         FusedPlePart partOdd(partId, tsInOdd, tsOut, inputQuantInfo, outputQuantInfo, csOpOdd, shapeMult, estOpts,
                              compOpt, caps, operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, 0.0f,
                              debuggingContext);
+        partOdd.SetOutputBoundaryRequirements({ BoundaryRequirements{} });
 
         CheckPlansParams paramsEven;
         paramsEven.m_PartId          = partId;
@@ -1242,6 +1247,7 @@ TEST_CASE("FusedPlePart GetPlans strategy 0 shape multiplier")
 
         FusedPlePart part = BuildPart(inputShape, outputShape, pleOp, utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 },
                                       compOpts, caps, estOpts, debuggingContext);
+        part.SetOutputBoundaryRequirements({ BoundaryRequirements{} });
 
         WHEN("Asked to generate plans at the beginning of a cascade")
         {
@@ -1293,6 +1299,7 @@ TEST_CASE("FusedPlePart GetPlans invalid previous buffer")
         command_stream::PleOperation pleOp = command_stream::PleOperation::LEAKY_RELU;
 
         FusedPlePart part = BuildPart(inputShape, outputShape, pleOp, compOpts, caps, estOpts, debuggingContext);
+        part.SetOutputBoundaryRequirements({ BoundaryRequirements{} });
 
         WHEN("Asked to generate plans with the number of input stripes > 1")
         {
@@ -1334,6 +1341,7 @@ TEST_CASE("FusedPlePart GetPlans lonely height and width splits")
         command_stream::PleOperation pleOp = command_stream::PleOperation::LEAKY_RELU;
 
         FusedPlePart part = BuildPart(inputShape, outputShape, pleOp, compOpts, caps, estOpts, debuggingContext);
+        part.SetOutputBoundaryRequirements({ BoundaryRequirements{} });
 
         WHEN("Asked to generate plans")
         {
@@ -1531,6 +1539,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
             FusedPlePart part =
                 BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
                           utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, compOpts, caps, estOpts, debuggingContext);
+            part.SetOutputBoundaryRequirements({ BoundaryRequirements{ true, true, true, true } });
 
             Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans MobileNet Part 1 1TOPS_2PLE_RATIO");
@@ -1637,5 +1646,3 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
         }
     }
 }
-
-//TODO: similar tests to above but for VGG16?

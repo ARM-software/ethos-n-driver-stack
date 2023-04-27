@@ -42,6 +42,8 @@ public:
     DotAttributes GetDotAttributes(DetailLevel detail) const override;
     virtual ~ReshapePart();
 
+    std::vector<BoundaryRequirements> GetInputBoundaryRequirements() const override;
+
 private:
     const TensorShape m_InputTensorShape;
     const TensorShape m_OutputTensorShape;

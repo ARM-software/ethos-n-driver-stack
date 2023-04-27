@@ -57,6 +57,8 @@ public:
 
     DotAttributes GetDotAttributes(DetailLevel detail) const override;
 
+    std::vector<BoundaryRequirements> GetInputBoundaryRequirements() const override;
+
 private:
     std::vector<TensorShape> m_InputTensorShapes;
     TensorShape m_OutputTensorShape;

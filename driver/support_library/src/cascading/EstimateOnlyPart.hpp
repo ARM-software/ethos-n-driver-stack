@@ -39,6 +39,8 @@ public:
     DotAttributes GetDotAttributes(DetailLevel detail) const override;
     virtual ~EstimateOnlyPart();
 
+    std::vector<BoundaryRequirements> GetInputBoundaryRequirements() const override;
+
 private:
     const std::vector<TensorInfo> m_InputTensorsInfo;
     const std::vector<TensorInfo> m_OutputTensorsInfo;

@@ -338,6 +338,36 @@ void GraphOfParts::SortAndCompact()
         m_Connections[PartInputSlot{ newDestPartId, c.first.m_InputIndex }] =
             PartOutputSlot{ newSrcPartId, c.second.m_OutputIndex };
     }
+
+    // Fill the boundary requirements for all parts. This is only possible once all connections
+    // have been made so that we know which part(s) consume the output of each part.
+    for (std::pair<const PartId, std::unique_ptr<BasePart>>& p : m_Parts)
+    {
+        BasePart* part = p.second.get();
+
+        const std::vector<PartOutputSlot>& outputSlots = GetPartOutputs(part->GetPartId());
+
+        std::vector<BoundaryRequirements> req(outputSlots.size());
+
+        for (PartOutputSlot outputSlot : outputSlots)
+        {
+            // We should produce boundary data for this output slot, if any of the consuming parts require it.
+            BoundaryRequirements boundaryRequirement;
+            for (PartInputSlot connectedInputSlot : GetConnectedInputSlots(outputSlot))
+            {
+                const std::vector<BoundaryRequirements>& inputReqs =
+                    GetPart(connectedInputSlot.m_PartId).GetInputBoundaryRequirements();
+                BoundaryRequirements inputReq = inputReqs.at(connectedInputSlot.m_InputIndex);
+                boundaryRequirement.m_NeedsBeforeX |= inputReq.m_NeedsBeforeX;
+                boundaryRequirement.m_NeedsAfterX |= inputReq.m_NeedsAfterX;
+                boundaryRequirement.m_NeedsBeforeY |= inputReq.m_NeedsBeforeY;
+                boundaryRequirement.m_NeedsAfterY |= inputReq.m_NeedsAfterY;
+            }
+            req[outputSlot.m_OutputIndex] = boundaryRequirement;
+        }
+
+        part->SetOutputBoundaryRequirements(std::move(req));
+    }
 }
 
 FrozenGraphOfParts::FrozenGraphOfParts(GraphOfParts graph)

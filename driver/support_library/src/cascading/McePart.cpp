@@ -25,72 +25,6 @@ using namespace utils;
 namespace
 {
 
-bool IsSramBufferValid(bool needsBoundaryBeforeX,
-                       bool needsBoundaryAfterX,
-                       bool needsBoundaryBeforeY,
-                       bool needsBoundaryAfterY,
-                       const SramBuffer* sramBuffer)
-{
-    uint32_t heightSplits = DivRoundUp(GetHeight(sramBuffer->m_TensorShape), GetHeight(sramBuffer->m_StripeShape));
-    uint32_t widthSplits  = DivRoundUp(GetWidth(sramBuffer->m_TensorShape), GetWidth(sramBuffer->m_StripeShape));
-    // In the middle of a casade:
-    // If the kernel height/width is 1 we require only 1 input buffer because we don't need boundary data
-    // If the kernel height/width is 2 we require 2 because we only require the top / left boundary data
-    // If the kernel height/width is 3 or more we require 3 as we need top/left and bottom/right boundary data.
-    if (heightSplits > 1 && widthSplits > 1)
-    {
-        // Splitting both width and height is not supported in a cascade
-        return false;
-    }
-    uint32_t split           = 0;
-    bool needsBoundaryBefore = false;
-    bool needsBoundaryAfter  = false;
-    if (heightSplits > 1)
-    {
-        split               = heightSplits;
-        needsBoundaryBefore = needsBoundaryBeforeY;
-        needsBoundaryAfter  = needsBoundaryAfterY;
-    }
-    else
-    {
-        split               = widthSplits;
-        needsBoundaryBefore = needsBoundaryBeforeX;
-        needsBoundaryAfter  = needsBoundaryAfterX;
-    }
-    if (needsBoundaryBefore && needsBoundaryAfter)
-    {
-        // For 3 height splits the number of stripes needs to be the number of splits
-        if (split <= 3)
-        {
-            return sramBuffer->m_NumStripes == std::min(split, 3u);
-        }
-        if (sramBuffer->m_NumStripes < 3)
-        {
-            return false;
-        }
-    }
-    else if (needsBoundaryBefore || needsBoundaryAfter)
-    {
-        // For 2 height splits the number of stripes needs to be the number of splits
-        if (split <= 2)
-        {
-            return sramBuffer->m_NumStripes == std::min(split, 2u);
-        }
-        if (sramBuffer->m_NumStripes != 2)
-        {
-            return false;
-        }
-    }
-    else
-    {
-        if (sramBuffer->m_NumStripes != 1)
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
 struct NumStripesGrouped
 {
     NumStripes m_Input;
@@ -112,7 +46,8 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
                                        const ShapeMultiplier& shapeMultiplier,
                                        const BlockConfig& blockConfig,
                                        CascadeType cascadeType,
-                                       const StripeConfig& stripeConfig)
+                                       const StripeConfig& stripeConfig,
+                                       BoundaryRequirements outputBoundaryRequirements)
 {
     assert(cascadeType == CascadeType::Middle || cascadeType == CascadeType::End);
     const TensorShape& mceInputStripe = sramBuffer->m_StripeShape;
@@ -212,30 +147,48 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
                                             fullWidth ? 0 : GetWidth(mceOutputStripe), memoryOutputChannelsEncoding };
     TensorShape memoryOutputStripe = CreateStripe(outputTensorShape, memoryOutputStripeEncoding, g_BrickGroupShape[3]);
 
-    bool fullDepth            = memoryOutputStripe[3] >= outputTensorShape[3];
-    bool isEndOfCascade       = cascadeType == CascadeType::End;
-    uint32_t maxOutputStripes = 0;
+    bool fullDepth      = memoryOutputStripe[3] >= outputTensorShape[3];
+    bool isEndOfCascade = cascadeType == CascadeType::End;
     // strategy 0
     if (!fullTensor)
     {
         // if its the end of a cascade we can double buffer the output, if it's not we need to output up to 3 stripes for neighouring data.
-        maxOutputStripes = isEndOfCascade ? 2 : 3;
+        if (isEndOfCascade)
+        {
+            numStripes.m_Output = { 1, 2 };
+        }
+        else
+        {
+            if ((outputBoundaryRequirements.m_NeedsBeforeX || outputBoundaryRequirements.m_NeedsBeforeY) &&
+                (outputBoundaryRequirements.m_NeedsAfterX || outputBoundaryRequirements.m_NeedsAfterY))
+            {
+                numStripes.m_Output = { 3, 3 };
+            }
+            else if (outputBoundaryRequirements.m_NeedsBeforeX || outputBoundaryRequirements.m_NeedsBeforeY ||
+                     outputBoundaryRequirements.m_NeedsAfterX || outputBoundaryRequirements.m_NeedsAfterY)
+            {
+                numStripes.m_Output = { 2, 2 };
+            }
+            else
+            {
+                numStripes.m_Output = { 1, 1 };
+            }
+        }
     }
     // Strategy 1/3
     else if (isEndOfCascade && fullDepth)
     {
         assert(fullTensor);
-        maxOutputStripes = 1;
+        numStripes.m_Output = { 1, 1 };
     }
     else if (!isEndOfCascade)
     {
-        maxOutputStripes = 1;
+        numStripes.m_Output = { 1, 1 };
     }
     else if (!fullDepth)
     {
-        maxOutputStripes = 2;
+        numStripes.m_Output = { 1, 2 };
     }
-    numStripes.m_Output = { 1, maxOutputStripes };
 
     PackedBoundaryThickness packedBoundaryThickness = { 0, 0, 0, 0 };
     const uint32_t numIfmLoads                      = 1;
@@ -594,7 +547,8 @@ Plans McePart::GetLonelyPlans(uint32_t numWeightStripes) const
     const std::initializer_list<PlanPriority> allPriorities = { PlanPriority::High, PlanPriority::Low };
     for (PlanPriority priority : allPriorities)
     {
-        StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Lonely, priority);
+        StripeInfos stripeInfos =
+            m_StripeGenerator.GenerateStripes(CascadeType::Lonely, m_OutputBoundaryRequirements.at(0), priority);
         for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
         {
             CreateMceAndIdentityPlePlans(i, m_WeightEncoderCache, ret, numWeightStripes, couldSourceBeFcaf);
@@ -617,7 +571,8 @@ Plans McePart::GetBeginningPlans(uint32_t numWeightStripes) const
         return ret;
     }
 
-    StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Beginning, {});
+    StripeInfos stripeInfos =
+        m_StripeGenerator.GenerateStripes(CascadeType::Beginning, m_OutputBoundaryRequirements.at(0), {});
 
     // The plan will be "glued" to the end plan from the previous section.
     // Therefore the input buffer tile cannot be unconditionally clamped to the
@@ -656,22 +611,8 @@ Plans McePart::GetMiddlePlans(ethosn::command_stream::BlockConfig blockConfig,
 
     uint32_t strideMultiplier = m_Stride.m_X * m_Stride.m_Y;
 
-    bool needsBoundaryBeforeX = kernelWidth >= 2 || m_UpscaleFactor > 1;
-    bool needsBoundaryAfterX  = kernelWidth >= 3 || m_UpscaleFactor > 1;
-    bool needsBoundaryBeforeY = kernelHeight >= 2 || m_UpscaleFactor > 1;
-    bool needsBoundaryAfterY  = kernelHeight >= 3 || m_UpscaleFactor > 1;
-
-    if (!IsSramBufferValid(needsBoundaryBeforeX, needsBoundaryAfterX, needsBoundaryBeforeY, needsBoundaryAfterY,
-                           sramBuffer))
-    {
-        return ret;
-    }
-
     NumStripesGrouped numStripes;
-    numStripes.m_Input = { sramBuffer->m_NumStripes, sramBuffer->m_NumStripes };
-    // Multiple output stripes are needed because the follow layers may require multiple buffers due to boundary data.
-    // These will be filtered out by the following layer
-    numStripes.m_Output   = { 1, 3 };
+    numStripes.m_Input    = { sramBuffer->m_NumStripes, sramBuffer->m_NumStripes };
     numStripes.m_Weights  = { numWeightStripes, numWeightStripes };
     numStripes.m_PleInput = { 0, 0 };
 
@@ -679,7 +620,7 @@ Plans McePart::GetMiddlePlans(ethosn::command_stream::BlockConfig blockConfig,
     auto stripeInfos = GenerateContinueSectionStripeInfos(
         numStripes, sramBuffer, numWeightStripes, isDepthwise, m_Capabilities, m_OutputTensorShape, kernelHeight,
         kernelWidth, strideMultiplier, m_StripeGenerator.m_MceShapeMultiplier, blockConfig, CascadeType::Middle,
-        m_StripeConfig);
+        m_StripeConfig, m_OutputBoundaryRequirements.at(0));
 
     if (!stripeInfos.has_value())
     {
@@ -713,17 +654,6 @@ Plans McePart::GetEndPlans(ethosn::command_stream::BlockConfig blockConfig,
 
     uint32_t strideMultiplier = m_Stride.m_X * m_Stride.m_Y;
 
-    bool needsBoundaryBeforeX = kernelWidth >= 2 || m_UpscaleFactor > 1;
-    bool needsBoundaryAfterX  = kernelWidth >= 3 || m_UpscaleFactor > 1;
-    bool needsBoundaryBeforeY = kernelHeight >= 2 || m_UpscaleFactor > 1;
-    bool needsBoundaryAfterY  = kernelHeight >= 3 || m_UpscaleFactor > 1;
-
-    if (!IsSramBufferValid(needsBoundaryBeforeX, needsBoundaryAfterX, needsBoundaryBeforeY, needsBoundaryAfterY,
-                           sramBuffer))
-    {
-        return ret;
-    }
-
     NumStripesGrouped numStripes;
     numStripes.m_Input    = { sramBuffer->m_NumStripes, sramBuffer->m_NumStripes };
     numStripes.m_Output   = { 1, 2 };
@@ -734,7 +664,7 @@ Plans McePart::GetEndPlans(ethosn::command_stream::BlockConfig blockConfig,
     auto stripeInfos = GenerateContinueSectionStripeInfos(
         numStripes, sramBuffer, numWeightStripes, isDepthwise, m_Capabilities, m_OutputTensorShape, kernelHeight,
         kernelWidth, strideMultiplier, m_StripeGenerator.m_MceShapeMultiplier, blockConfig, CascadeType::End,
-        m_StripeConfig);
+        m_StripeConfig, m_OutputBoundaryRequirements.at(0));
 
     if (!stripeInfos.has_value())
     {
@@ -1074,6 +1004,20 @@ bool McePart::MergeWithChannelSelectorAfter(const utils::ConstTensorData& channe
     m_StripeGenerator.m_MceOutputTensorShape[3] = newOutputDepth;
     m_StripeGenerator.m_PleOutputTensorShape[3] = newOutputDepth;
     return true;
+}
+
+std::vector<BoundaryRequirements> McePart::GetInputBoundaryRequirements() const
+{
+    uint32_t kernelHeight = m_WeightsInfo.m_Dimensions[0];
+    uint32_t kernelWidth  = m_WeightsInfo.m_Dimensions[1];
+
+    BoundaryRequirements result;
+    result.m_NeedsBeforeX = kernelWidth >= 2 || m_UpscaleFactor > 1;
+    result.m_NeedsAfterX  = kernelWidth >= 3 || m_UpscaleFactor > 1;
+    result.m_NeedsBeforeY = kernelHeight >= 2 || m_UpscaleFactor > 1;
+    result.m_NeedsAfterY  = kernelHeight >= 3 || m_UpscaleFactor > 1;
+
+    return { result };
 }
 
 }    // namespace support_library

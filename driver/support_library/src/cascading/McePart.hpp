@@ -129,6 +129,8 @@ public:
     void ModifyActivationBounds(int16_t lowerBound, int16_t upperBound) override;
     bool CanDoubleBufferWeights() const override;
 
+    std::vector<BoundaryRequirements> GetInputBoundaryRequirements() const override;
+
     DotAttributes GetDotAttributes(DetailLevel detail) const override;
 
     void setUninterleavedInputShape(TensorShape uninterleavedInputShape);

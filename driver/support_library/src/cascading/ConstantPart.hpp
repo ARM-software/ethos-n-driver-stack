@@ -41,6 +41,8 @@ public:
     DotAttributes GetDotAttributes(DetailLevel detail) const override;
     virtual ~ConstantPart();
 
+    std::vector<BoundaryRequirements> GetInputBoundaryRequirements() const override;
+
 private:
     const TensorShape m_OutputTensorShape;
     QuantizationInfo m_OutputQuantizationInfo;

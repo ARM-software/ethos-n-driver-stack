@@ -88,6 +88,7 @@ struct hash<ethosn::support_library::PartOutputSlot>
         return ethosn_impl::HashCombine(p.m_PartId, p.m_OutputIndex);
     }
 };
+
 template <>
 struct hash<ethosn::support_library::PartConnection>
 {
