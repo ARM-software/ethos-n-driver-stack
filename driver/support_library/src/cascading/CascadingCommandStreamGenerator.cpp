@@ -34,9 +34,7 @@ CascadingCommandStreamGenerator::CascadingCommandStreamGenerator(const OpGraph& 
     , m_Capabilities{ capabilities }
     , m_CompilationOptions{ compilationOptions }
     , m_DebuggingContext(debuggingContext)
-    , m_FenceOpForIfmS(nullptr)
-    , m_FenceOpForPleL(nullptr)
-    , m_FenceOpForWgtS(nullptr)
+    , m_FenceOp(nullptr)
 {
 
     m_CommandStreamAgents.reserve(m_MergedOpGraph.GetOps().size());
@@ -75,9 +73,7 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
             if (producedBuffer != nullptr && producedBuffer->IsFullTensor() &&
                 !(IsObjectOfType<DmaOp>(currentOp) && producedBuffer->m_Location == Location::Sram))
             {
-                m_FenceOpForIfmS = currentOp;
-                m_FenceOpForPleL = currentOp;
-                m_FenceOpForWgtS = currentOp;
+                m_FenceOp = currentOp;
             }
         }
     }
@@ -362,15 +358,13 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
                 ptrDmaOp, inputBufferId, inputBuffer, outputBuffer->Sram(), dmaOp->m_TransferFormat,
                 inputDramBufferOffset, isExtraIfmStripeAtRightEdge, isExtraIfmStripeAtBottomEdge);
 
-            if (m_FenceOpForIfmS != nullptr)
+            if (m_FenceOp != nullptr)
             {
                 // Note that this is an overly pessimistic approach, as corruption would only happen in practice if the SRAM
                 // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
-                AddReadAfterWriteDependency(
-                    AgentType::IFM_STREAMER, ifmStreamerAgentId,
-                    m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForIfmS)].agent.type,
-                    this->m_OpToAgentIdMapping.at(m_FenceOpForIfmS), m_FenceOpForIfmS);
-                m_FenceOpForIfmS = nullptr;
+                AddReadAfterWriteDependency(AgentType::IFM_STREAMER, ifmStreamerAgentId,
+                                            m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOp)].agent.type,
+                                            this->m_OpToAgentIdMapping.at(m_FenceOp), m_FenceOp);
             }
         }
         else
@@ -378,15 +372,13 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
             // Weight Streamer Agent
             AgentIdType weightStreamerAgentId = AddWeightStreamerToCommandStream(static_cast<DmaOp*>(ptrDmaOp));
 
-            if (m_FenceOpForWgtS != nullptr)
+            if (m_FenceOp != nullptr)
             {
                 // Note that this is an overly pessimistic approach, as corruption would only happen in practice if the SRAM
                 // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
-                AddReadAfterWriteDependency(
-                    AgentType::WGT_STREAMER, weightStreamerAgentId,
-                    m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForWgtS)].agent.type,
-                    this->m_OpToAgentIdMapping.at(m_FenceOpForWgtS), m_FenceOpForWgtS);
-                m_FenceOpForWgtS = nullptr;
+                AddReadAfterWriteDependency(AgentType::WGT_STREAMER, weightStreamerAgentId,
+                                            m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOp)].agent.type,
+                                            this->m_OpToAgentIdMapping.at(m_FenceOp), m_FenceOp);
             }
         }
     }
@@ -452,12 +444,6 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
         // Write After Read Dependency for [PleScheduler][OfmStreamer]
         AddWriteAfterReadDependency(AgentType::OFM_STREAMER, ofmStreamerAgentId, producerAgentType,
                                     m_OpToAgentIdMapping[producerOp], producerOp);
-
-        // Add 'Schedule Time' dependency information to the IfmStreamer and PleScheduler agents
-        // Schedule Time Dependency for [IfmStreamer][OfmStreamer] or
-        // Schedule Time Dependency for [PleScheduler][OfmStreamer]
-        AddScheduleTimeDependency(AgentType::OFM_STREAMER, ofmStreamerAgentId, producerAgentType,
-                                  m_OpToAgentIdMapping[producerOp], producerOp);
     }
     else
     {
@@ -501,15 +487,13 @@ void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
     {
         pleLoaderAgentId = AddPleLoaderToCommandStream(ptrPleOp);
 
-        if (m_FenceOpForPleL != nullptr)
+        if (m_FenceOp != nullptr)
         {
             // Note that this is an overly pessimistic approach, as corruption would only happen in practice if the SRAM
             // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
-            AddReadAfterWriteDependency(
-                AgentType::PLE_LOADER, pleLoaderAgentId,
-                m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForPleL)].agent.type,
-                this->m_OpToAgentIdMapping.at(m_FenceOpForPleL), m_FenceOpForPleL);
-            m_FenceOpForPleL = nullptr;
+            AddReadAfterWriteDependency(AgentType::PLE_LOADER, pleLoaderAgentId,
+                                        m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOp)].agent.type,
+                                        this->m_OpToAgentIdMapping.at(m_FenceOp), m_FenceOp);
         }
     }
 
@@ -535,23 +519,6 @@ void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
     // Write After Read Dependency for [WeightStreamer][MceScheduler]
     AddWriteAfterReadDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::WGT_STREAMER,
                                 m_OpToAgentIdMapping[wgtDmaOp], wgtDmaOp);
-
-    // Add 'Schedule Time' dependency information to the IfmStreamer and WeightStreamer agents
-    // Schedule Time Dependency for [IfmStreamer][MceScheduler] or
-    // Schedule Time Dependency for [PleScheduler][MceScheduler]
-    AddScheduleTimeDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, producerAgentType,
-                              m_OpToAgentIdMapping[producerOp], producerOp);
-    // Schedule Time Dependency for [WeightStreamer][MceScheduler]
-
-    AddScheduleTimeDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::WGT_STREAMER,
-                              m_OpToAgentIdMapping[wgtDmaOp], wgtDmaOp);
-    // Add 'Schedule Time' dependency information to the PLE Loader agent
-    // Schedule Time Dependency for [PLE Loader][MceScheduler]
-    if (ptrPleOp->m_LoadKernel)
-    {
-        AddScheduleTimeDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::PLE_LOADER,
-                                  pleLoaderAgentId, nullptr);
-    }
 }
 
 void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
@@ -609,6 +576,25 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
 
         AgentIdType pleSchedulerAgentId = AddPleSchedulerToCommandStream(static_cast<PleOp*>(ptrPleOp));
 
+        // PleL dependency must come before the IfmS dependency, to make sure the DMAs are scheduled in this order.
+        // This is because PLE code must be loaded before the MCE runs, when running on the model.
+        if (loadKernel)
+        {
+            // Read After Write Dependency for [PleScheduler][PleLoader]
+            AddReadAfterWriteDependency(
+                AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::PLE_LOADER,
+                m_PleKernelToPleLoaderAgentIdMapping[static_cast<PleOp*>(ptrPleOp)->m_PleKernelId], nullptr);
+
+            if (m_FenceOp != nullptr)
+            {
+                // Note that this is an overly pessimistic approach, as corruption would only happen in practice if the SRAM
+                // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
+                AddReadAfterWriteDependency(AgentType::PLE_LOADER, pleLoaderAgentId,
+                                            m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOp)].agent.type,
+                                            this->m_OpToAgentIdMapping.at(m_FenceOp), m_FenceOp);
+            }
+        }
+
         AgentType input0AgentType = m_CommandStreamAgents[m_OpToAgentIdMapping[input0Producer]].agent.type;
 
         // Read After Write Dependency for [PleScheduler][IfmStreamer] or [PleScheduler][PleScheduler]
@@ -622,32 +608,9 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
                                         m_OpToAgentIdMapping[input1Producer], input1Producer);
         }
 
-        if (loadKernel)
-        {
-            // Read After Write Dependency for [PleScheduler][PleLoader]
-            AddReadAfterWriteDependency(
-                AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::PLE_LOADER,
-                m_PleKernelToPleLoaderAgentIdMapping[static_cast<PleOp*>(ptrPleOp)->m_PleKernelId], nullptr);
-
-            if (m_FenceOpForPleL != nullptr)
-            {
-                // Note that this is an overly pessimistic approach, as corruption would only happen in practice if the SRAM
-                // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
-                AddReadAfterWriteDependency(
-                    AgentType::PLE_LOADER, pleLoaderAgentId,
-                    m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForPleL)].agent.type,
-                    this->m_OpToAgentIdMapping.at(m_FenceOpForPleL), m_FenceOpForPleL);
-                m_FenceOpForPleL = nullptr;
-            }
-        }
-
         // Write After Read Dependency for [IfmStreamer][PleScheduler] or [PleScheduler][PleScheduler]
         AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input0AgentType,
                                     m_OpToAgentIdMapping[input0Producer], input0Producer);
-
-        // Schedule Time Dependency for [IfmStreamer][PleScheduler] or [PleScheduler][PleScheduler]
-        AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input0AgentType,
-                                  m_OpToAgentIdMapping[input0Producer], input0Producer);
 
         if (input1Producer != nullptr)
         {
@@ -656,26 +619,14 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
             // Write After Read Dependency for [IfmStreamer][PleScheduler] or [PleScheduler][PleScheduler]
             AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input1AgentType,
                                         m_OpToAgentIdMapping[input1Producer], input1Producer);
-
-            // Schedule Time Dependency for [IfmStreamer][PleScheduler] or [PleScheduler][PleScheduler]
-            AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input1AgentType,
-                                      m_OpToAgentIdMapping[input1Producer], input1Producer);
-        }
-
-        if (loadKernel)
-        {
-            // Schedule Time Dependency for [PleLoader][PleScheduler]
-            AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::PLE_LOADER,
-                                      pleLoaderAgentId, nullptr);
         }
     }
     else
     {
         AgentIdType pleSchedulerAgentId = AddPleSchedulerToCommandStream(static_cast<PleOp*>(ptrPleOp));
 
-        // Read After Write Dependency for [PleScheduler][MceScheduler]
-        AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::MCE_SCHEDULER,
-                                    m_OpToAgentIdMapping[input0Producer], input0Producer);
+        // PleL dependency must come before the IfmS dependency, to make sure the DMAs are scheduled in this order.
+        // This is because PLE code must be loaded before the MCE runs, when running on the model.
         if (loadKernel)
         {
             // Read After Write Dependency for [PleScheduler][PleLoader]
@@ -684,9 +635,9 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
                 m_PleKernelToPleLoaderAgentIdMapping[static_cast<PleOp*>(ptrPleOp)->m_PleKernelId], nullptr);
         }
 
-        // Schedule Time Dependency for [MceScheduler][PleScheduler]
-        AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::MCE_SCHEDULER,
-                                  m_OpToAgentIdMapping[input0Producer], input0Producer);
+        // Read After Write Dependency for [PleScheduler][MceScheduler]
+        AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::MCE_SCHEDULER,
+                                    m_OpToAgentIdMapping[input0Producer], input0Producer);
     }
     ETHOSN_UNUSED(outputBuffer);
 }
@@ -1166,31 +1117,10 @@ inline void CascadingCommandStreamGenerator::AddWriteAfterReadDependency(const A
     Dependency newDependency      = {};
     newDependency.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
     FillProducerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId,
-                                producerOp, DependencyType::Write);
+                                producerOp);
     if (newDependency.relativeAgentId != 0)
     {
         m_CommandStreamAgents[producerAgentId].deps.writeDependencies.push_back(newDependency);
-    }
-}
-
-// Private function to add ScheduleTime Dependency
-// First consumer agent creates the dependency and assign it to the producer agent
-inline void CascadingCommandStreamGenerator::AddScheduleTimeDependency(const AgentType consumerAgentType,
-                                                                       const AgentIdType consumerAgentId,
-                                                                       const AgentType producerAgentType,
-                                                                       const AgentIdType producerAgentId,
-                                                                       const Op* producerOp)
-{
-    AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
-    assert(relativeAgentId <= g_MaxRelativeAgentPosition);
-
-    Dependency newDependency      = {};
-    newDependency.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
-    FillProducerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId,
-                                producerOp, DependencyType::Schedule);
-    if (newDependency.relativeAgentId != 0)
-    {
-        m_CommandStreamAgents[producerAgentId].deps.scheduleDependencies.push_back(newDependency);
     }
 }
 
@@ -1514,16 +1444,16 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
     }
 }
 
-// Private function to fill the dependency data for Write After Read or Schedule Time dependencies
+// Private function to fill the dependency data for Write After Read dependencies
 void CascadingCommandStreamGenerator::FillProducerAgentDependency(
     Dependency& producerAgentDependency,
     const command_stream::cascading::AgentType consumerAgentType,
     const AgentIdType consumerAgentId,
     const command_stream::cascading::AgentType producerAgentType,
     const AgentIdType producerAgentId,
-    const Op* producerOp,
-    DependencyType dependencyType) const
+    const Op* producerOp) const
 {
+    ETHOSN_UNUSED(producerOp);
     const AgentDescAndDeps& consumerAgentAndDeps = m_CommandStreamAgents[consumerAgentId];
     const AgentDesc& consumerAgentData           = consumerAgentAndDeps.agent;
     const uint16_t consumerAgentNumStripes       = consumerAgentAndDeps.agent.numStripesTotal;
@@ -1532,13 +1462,11 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
     const uint16_t producerAgentNumStripes       = producerAgentAndDeps.agent.numStripesTotal;
 
     // Add a new 'Write After Read' dependency or
-    // Add a new 'Schedule Time' dependency
     switch (consumerAgentType)
     {
         case AgentType::IFM_STREAMER:
         {
             // Write After Read Dependency for [OfmStreamer][IfmStreamer] or
-            // Schedule Time Dependency for [OfmStreamer][IfmStreamer]
             if (producerAgentType == AgentType::OFM_STREAMER)
             {
                 // The last OFM stripe is needed by the first IFM stripe
@@ -1562,7 +1490,6 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
         case AgentType::MCE_SCHEDULER:
         {
             // Write After Read Dependency for [IfmStreamer][MceScheduler] or
-            // Schedule Time Dependency for [IfmStreamer][MceScheduler]
             if (producerAgentType == AgentType::IFM_STREAMER)
             {
                 DependencyUtils::CalculateIfmSMceSOuterRatio(consumerAgentAndDeps.agent, producerAgentAndDeps.agent,
@@ -1592,7 +1519,6 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                 producerAgentDependency.boundary = DependencyUtils::CalculateMceSBoundary(consumerAgentData.mce);
             }
             // Write After Read Dependency for [WeightStreamer][MceScheduler] or
-            // Schedule Time Dependency for [WeightStreamer][MceScheduler]
             else if (producerAgentType == AgentType::WGT_STREAMER)
             {
                 // MCE always traverses in IXYO order. Each MCE stripe needs a new weight stripe, unless a weight stripe
@@ -1618,7 +1544,7 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
 
                 producerAgentDependency.boundary = 0;
             }
-            // Schedule Time Dependency for [PleLoader][MceScheduler]
+            // Write After Read Dependency for [PleLoader][MceScheduler]
             else if (producerAgentType == AgentType::PLE_LOADER)
             {
                 producerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
@@ -1633,10 +1559,10 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
 
                 producerAgentDependency.boundary = 0;
             }
-            // Schedule Time Dependency for [PleScheduler][MceScheduler]
+            // Write After Read Dependency for [PleScheduler][MceScheduler]
             else if (producerAgentType == AgentType::PLE_SCHEDULER)
             {
-                if (dependencyType == DependencyType::Write && consumerAgentNumStripes == 1)
+                if (consumerAgentNumStripes == 1)
                 {
                     // For the case where we have the PLE stripes split in height but being written into an output buffer
                     // which is the full tensor, we have only one stripe in the following MceS. We don't want a write dependency
@@ -1684,7 +1610,6 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
         case AgentType::PLE_SCHEDULER:
         {
             // Write After Read Dependency for [IfmStreamer][PleScheduler] or
-            // Schedule Time Dependency for [IfmStreamer][PleScheduler]
             if (producerAgentType == AgentType::IFM_STREAMER)
             {
                 // Calculate outer ratios using number of stripes.
@@ -1695,7 +1620,7 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                     producerAgentData.ifm.fmData.numStripes.width * producerAgentData.ifm.fmData.numStripes.height *
                     producerAgentData.ifm.fmData.numStripes.channels);
             }
-            // Schedule Time Dependency for [MceScheduler][PleScheduler]
+            // Write After Read Dependency for [MceScheduler][PleScheduler]
             else if (producerAgentType == AgentType::MCE_SCHEDULER)
             {
                 // Outer ratio not used (set to max)
@@ -1730,7 +1655,7 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                     producerAgentDependency.boundary = 1;
                 }
             }
-            // Schedule Time Dependency for [PleLoader][PleScheduler]
+            // Write After Read Dependency for [PleLoader][PleScheduler]
             else if (producerAgentType == AgentType::PLE_LOADER)
             {
                 producerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
@@ -1738,7 +1663,7 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                     consumerAgentData.pleS.numStripes.channels);
                 producerAgentDependency.outerRatio.self = 1U;
             }
-            // Schedule Time Dependency for [PleScheduler][PleScheduler]
+            // Write After Read Dependency for [PleScheduler][PleScheduler]
             else if (producerAgentType == AgentType::PLE_SCHEDULER)
             {
                 // We only support strategy 3 (full tensor) cascading for Ple -> Ple
@@ -1755,7 +1680,6 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
         case AgentType::OFM_STREAMER:
         {
             // Write After Read Dependency for [IfmStreamer][OfmStreamer] or
-            // Schedule Time Dependency for [IfmStreamer][OfmStreamer]
             if (producerAgentType == AgentType::IFM_STREAMER)
             {
                 // Simple 1:1 dependency
@@ -1768,7 +1692,6 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                 producerAgentDependency.boundary = 0;
             }
             // Write After Read Dependency for [PleScheduler][OfmStreamer] or
-            // Schedule Time Dependency for [PleScheduler][OfmStreamer]
             else if (producerAgentType == AgentType::PLE_SCHEDULER)
             {
                 // Normally this is a simple 1:1 dependency, but in some cases the PLE can have multiple stripes
@@ -1781,18 +1704,7 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                                                          consumerAgentData.ofm.fmData.defaultStripeSize.height);
                 producerAgentDependency.innerRatio.self = 1;
 
-                command_stream::PleOperation pleOperation = static_cast<const PleOp*>(producerOp)->m_Op;
-                if (dependencyType == DependencyType::Schedule &&
-                    (pleOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
-                     pleOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD) &&
-                    producerAgentData.pleS.numStripes.height > 1)
-                {
-                    producerAgentDependency.boundary = 1;
-                }
-                else
-                {
-                    producerAgentDependency.boundary = 0;
-                }
+                producerAgentDependency.boundary = 0;
             }
             else
             {

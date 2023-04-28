@@ -58,13 +58,6 @@ public:
     const std::unordered_map<DramBuffer*, uint32_t>& GetDramBufToBufIdMapping() const;
 
 private:
-    enum class DependencyType
-    {
-        Read,
-        Write,
-        Schedule,
-    };
-
     // Private functions for processing OpGraph Ops
     void ProcessDmaOp(DmaOp* const ptrDmaOp);
     void ProcessMceOp(Op* const ptrMceOp);
@@ -118,13 +111,6 @@ private:
                                             const command_stream::cascading::AgentType producerAgentType,
                                             const AgentIdType producerAgentId,
                                             const Op* producerOp);
-    // Private function to add ScheduleTime Dependency
-    // First consumer agent creates the dependency and assign it to the producer agent
-    inline void AddScheduleTimeDependency(const command_stream::cascading::AgentType consumerAgentType,
-                                          const AgentIdType consumerAgentId,
-                                          const command_stream::cascading::AgentType producerAgentType,
-                                          const AgentIdType producerAgentId,
-                                          const Op* producerOp);
     // Private function to fill the dependency data for Read After Write or SRAM Overlap dependencies
     void FillConsumerAgentDependency(Dependency& consumerAgentDependency,
                                      const command_stream::cascading::AgentType consumerAgentType,
@@ -132,14 +118,13 @@ private:
                                      const command_stream::cascading::AgentType producerAgentType,
                                      const AgentIdType producerAgentId,
                                      const Op* producerOp) const;
-    // Private function to fill the dependency data for Write After Read or Schedule Time dependencies
+    // Private function to fill the dependency data for Write After Read dependencies
     void FillProducerAgentDependency(Dependency& producerAgentDependency,
                                      const command_stream::cascading::AgentType consumerAgentType,
                                      const AgentIdType consumerAgentId,
                                      const command_stream::cascading::AgentType producerAgentType,
                                      const AgentIdType producerAgentId,
-                                     const Op* producerOp,
-                                     DependencyType dependencyType) const;
+                                     const Op* producerOp) const;
 
     // Private function to add the lifetime information of the intermediate DRAM buffers
     void AddLifetimeInfoForIntermediateDramBuffers();
@@ -185,14 +170,9 @@ private:
     BufferManager m_BufferManager;
 
     /// The most recent Op that could block later Ops from loading data into SRAM, to prevent corruption.
-    /// The next occurence of an IfmS, PleL or WgtS may include a dependency on these to stall them until the
+    /// The next occurence of an IfmS, PleL or WgtS will include a dependency on these to stall them until the
     /// fence Op has finished.
-    /// Further fields may be needed if other/new agent types write to SRAM.
-    /// @{
-    Op* m_FenceOpForIfmS;
-    Op* m_FenceOpForPleL;
-    Op* m_FenceOpForWgtS;
-    /// @}
+    Op* m_FenceOp;
 };
 }    // namespace cascading_compiler
 }    // namespace support_library

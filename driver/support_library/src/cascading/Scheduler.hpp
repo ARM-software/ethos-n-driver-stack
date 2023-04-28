@@ -64,8 +64,6 @@ struct Dependency
 /// Contains dependency info for an agent
 struct AgentDependencyInfo
 {
-    /// Array of schedule dependencies.
-    std::vector<Dependency> scheduleDependencies;
     /// Array of read-after-write dependencies.
     std::vector<Dependency> readDependencies;
     /// Array of write-after-read dependencies related to a tile size. The agent should pause progress before
@@ -149,25 +147,9 @@ public:
     const std::vector<command_stream::cascading::Command>& GetPleCommands() const;
 
 private:
-    bool Finished() const;
-
-    /// Schedules as many stripes as possible from the given agent.
-    void SpinAgent(uint32_t agentId);
-
     /// Schedules the next stripe for the given agent.
     /// Also advances the progress for the given agent.
-    void Schedule(const uint32_t agentId);
-
-    /// Returns whether the next stripe of an agent is "ready" to be scheduled.
-    /// Optionally, only considers dependencies with agents that are some distance away up the
-    /// command stream.
-    bool IsStripeReady(const uint32_t agentId, const uint32_t distanceThreshold = 0) const;
-
-    /// Returns whether the next stripe of an agent is "needed" based on the current scheduling state,
-    /// i.e. relative to the progress made on dependent agents down the sequence if any.
-    bool IsStripeNeeded(const uint32_t agentId) const;
-
-    void LogProgress() const;
+    void ScheduleOneStripe(const uint32_t agentId);
 
     void InsertWriteDependencies(const AgentDependencyInfo& agent,
                                  const uint32_t agentId,
@@ -194,9 +176,6 @@ private:
 
     /// Keeps track of the next stripe that needs to be scheduled for each agent.
     std::vector<uint32_t> m_AgentProgress;
-
-    /// Points to the first non-completed agent
-    uint32_t m_BaseAgentId;
 
     std::vector<command_stream::cascading::Command> m_DmaRdCommands;
     std::vector<command_stream::cascading::Command> m_DmaWrCommands;
