@@ -1,0 +1,1048 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+#
+# Copyright © 2018-2023 Arm Limited.
+# SPDX-License-Identifier: Apache-2.0
+#
+from __future__ import print_function
+
+import os
+import itertools
+import sys
+
+import common
+
+Import("env")
+
+ple_dir = Dir(".").srcnode().abspath
+
+# Don't clean PLE artifacts unless they are mentioned in the targets
+ple_clean = True if any("ple" in target for target in map(str, BUILD_TARGETS)) else False
+
+
+# Creates the actions to build all the PLE kernels.
+# Returns a tuple of (list_of_outputs, list_of_inputs)
+#  where list_of_outputs is a list of tuples of the binary and dump file scons targets for all the PLE kernels
+#  and list_of_inputs is a list of the cpp files used to compile all the PLE kernels
+def compile_all_kernels():
+    outputs = []
+    inputs = []
+    for variant, params in itertools.product(common.variants, kernels_params):
+        cpp = os.path.join("src", ple_kernel_cpps[params["operation"]])
+        name = common.get_string_from_variant_and_kernel_params(variant, params)
+        bin_name = name + ".bin"
+
+        defines = env.Dictionary().get("CPPDEFINES", []) + [
+            "NUM_OFM={}U".format(variant.ces * variant.ogs),
+            "NUM_MCEIF={}U".format(variant.ogs),
+            "NUM_SRAMS={}U".format(variant.emcs),
+            "NUM_PLE_LANES={}U".format(variant.ple_lanes),
+        ]
+        # Convert each kernel parameter into a C++ #define
+        for k, v in params.items():
+            if k == "block_width":
+                defines.append("BLOCK_WIDTH_IN_ELEMENTS={}".format(v))
+            elif k == "block_height":
+                defines.append("BLOCK_HEIGHT_IN_ELEMENTS={}".format(v))
+            elif k == "datatype":
+                defines.append("IS_SIGNED={}".format({"s8": "true", "u8": "false"}[v]))
+            else:
+                defines.append("{}={}".format(k.upper(), v))
+
+        cpppath = list(env["CPPPATH"])
+        cpppath.append(env["arch_regs_dir"])
+        if not env["ple_cluster_build"]:
+            boot_o = env.Object(name + "-boot", "Boot.cpp", CPPDEFINES=defines, CPPPATH=cpppath)
+            cpp_o = env.Object(name, cpp, CPPDEFINES=defines, CPPPATH=cpppath)
+
+            linkflags = list(env["LINKFLAGS"])
+
+            env["PROGSUFFIX"] = ".elf"
+            elf = env.Program(name, (boot_o, cpp_o), LINKFLAGS=linkflags)
+            env["PROGSUFFIX"] = None
+            env.Depends(elf, linker_script)
+
+            dump_tgt = env.Command(
+                name + ".dump",
+                elf,
+                "fromelf --cpu=Cortex-M33.no_dsp --fpu=none -cd --output $TARGET $SOURCE",
+            )
+            bin_tgt = env.Command(
+                bin_name,
+                elf,
+                "fromelf --bin --output $TARGET $SOURCE",
+            )
+
+            if not ple_clean:
+                env.NoClean([boot_o, cpp_o, elf, bin_tgt, dump_tgt])
+
+        else:
+            # If PLE cluster build is used, then the command to build PLE kernels is
+            # defined later instead.
+            dump_tgt = name + ".dump"
+            bin_tgt = bin_name
+
+            if not ple_clean:
+                env.NoClean([bin_tgt, dump_tgt])
+
+        # Add a few scons aliases to make it easy to build groups of related PLE kernels
+        aliases = [
+            # This specific kernel (e.g. ple-kernel-V2442_ADDITION_RESCALE_bw16_bh16_bm1_u8)
+            "ple-kernel-{}".format(name),
+            # All kernels for this variant and operation, but all values of other parameters (e.g. ple-kernel-V2442_ADDITION_RESCALE)
+            "ple-kernel-{}".format(
+                common.get_string_from_variant_and_kernel_params(
+                    variant, {"operation": params["operation"]}
+                )
+            ),
+            # All kernels for this operation, for any variant and any value of other parameters (e.g. ple-kernel-ADDITION_RESCALE)
+            "ple-kernel-{}".format(params["operation"]),
+            # All ple kernels
+            "ple-kernel-all",
+        ]
+        env.Alias(aliases, (bin_tgt, dump_tgt))
+
+        outputs.append((bin_tgt, dump_tgt))
+        inputs.append(cpp)
+
+    return (outputs, inputs)
+
+
+# Lookup specifying which cpp file to compile for which operation
+ple_kernel_cpps = {
+    "ADDITION": "Addition.cpp",
+    "ADDITION_RESCALE": "Addition_Rescale.cpp",
+    "AVGPOOL_3X3_1_1_UDMA": "AvgPool_3x3_1_1_Udma.cpp",
+    "DOWNSAMPLE_2X2": "Downsample_2x2.cpp",
+    "FAULT": "Fault.cpp",
+    "INTERLEAVE_2X2_2_2": "Interleave_2x2_2_2.cpp",
+    "LEAKY_RELU": "LeakyRelu.cpp",
+    "MAXPOOL_2X2_2_2": "MaxPool_2x2_2_2.cpp",
+    "MAXPOOL_3X3_2_2_EVEN": "MaxPool_3x3_2_2_Even.cpp",
+    "MAXPOOL_3X3_2_2_ODD": "MaxPool_3x3_2_2_Odd.cpp",
+    "MEAN_XY_7X7": "MeanXy_7x7.cpp",
+    "MEAN_XY_8X8": "MeanXy_8x8.cpp",
+    "PASSTHROUGH": "Passthrough.cpp",
+    "SIGMOID": "Sigmoid.cpp",
+    "TRANSPOSE_XY": "Transpose_XY.cpp",
+    "MAXPOOL1D": "MaxPool1D.cpp",
+}
+
+# Defines the set of PLE kernels which we compile
+kernels_params = [
+    {
+        "operation": "ADDITION",
+        "block_width": "16",
+        "block_height": "16",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "ADDITION",
+        "block_width": "16",
+        "block_height": "16",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "ADDITION_RESCALE",
+        "block_width": "16",
+        "block_height": "16",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "ADDITION_RESCALE",
+        "block_width": "16",
+        "block_height": "16",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "AVGPOOL_3X3_1_1_UDMA",
+        "datatype": "u8",
+    },
+    {
+        "operation": "AVGPOOL_3X3_1_1_UDMA",
+        "datatype": "s8",
+    },
+    {
+        "operation": "DOWNSAMPLE_2X2",
+        "block_width": "16",
+        "block_height": "16",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "DOWNSAMPLE_2X2",
+        "block_width": "8",
+        "block_height": "32",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "DOWNSAMPLE_2X2",
+        "block_width": "32",
+        "block_height": "8",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "DOWNSAMPLE_2X2",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "DOWNSAMPLE_2X2",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "2",
+    },
+    {
+        "operation": "DOWNSAMPLE_2X2",
+        "block_width": "8",
+        "block_height": "16",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "DOWNSAMPLE_2X2",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "2",
+    },
+    {
+        "operation": "DOWNSAMPLE_2X2",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "4",
+    },
+    {
+        "operation": "INTERLEAVE_2X2_2_2",
+        "block_width": "16",
+        "block_height": "16",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "16",
+        "block_height": "16",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "8",
+        "block_height": "32",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "32",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "2",
+        "datatype": "u8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "8",
+        "block_height": "16",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "2",
+        "datatype": "u8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "4",
+        "datatype": "u8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "16",
+        "block_height": "16",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "8",
+        "block_height": "32",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "32",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "2",
+        "datatype": "s8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "8",
+        "block_height": "16",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "2",
+        "datatype": "s8",
+    },
+    {
+        "operation": "LEAKY_RELU",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "4",
+        "datatype": "s8",
+    },
+    {
+        "operation": "MAXPOOL_2X2_2_2",
+        "block_width": "16",
+        "block_height": "16",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "MAXPOOL_2X2_2_2",
+        "block_width": "32",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "MAXPOOL_2X2_2_2",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "2",
+        "datatype": "u8",
+    },
+    {
+        "operation": "MAXPOOL_2X2_2_2",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "4",
+        "datatype": "u8",
+    },
+    {
+        "operation": "MAXPOOL_2X2_2_2",
+        "block_width": "16",
+        "block_height": "16",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "MAXPOOL_2X2_2_2",
+        "block_width": "32",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "MAXPOOL_2X2_2_2",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "2",
+        "datatype": "s8",
+    },
+    {
+        "operation": "MAXPOOL_2X2_2_2",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "4",
+        "datatype": "s8",
+    },
+    {
+        "operation": "MAXPOOL_3X3_2_2_EVEN",
+        "block_width": "32",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "MAXPOOL_3X3_2_2_EVEN",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "2",
+        "datatype": "u8",
+    },
+    {
+        "operation": "MAXPOOL_3X3_2_2_EVEN",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "4",
+        "datatype": "u8",
+    },
+    {
+        "operation": "MAXPOOL_3X3_2_2_EVEN",
+        "block_width": "32",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "MAXPOOL_3X3_2_2_EVEN",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "2",
+        "datatype": "s8",
+    },
+    {
+        "operation": "MAXPOOL_3X3_2_2_EVEN",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "4",
+        "datatype": "s8",
+    },
+    {
+        "operation": "MAXPOOL_3X3_2_2_ODD",
+        "block_width": "32",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "MAXPOOL_3X3_2_2_ODD",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "2",
+        "datatype": "u8",
+    },
+    {
+        "operation": "MAXPOOL_3X3_2_2_ODD",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "4",
+        "datatype": "u8",
+    },
+    {
+        "operation": "MAXPOOL_3X3_2_2_ODD",
+        "block_width": "32",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "MAXPOOL_3X3_2_2_ODD",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "2",
+        "datatype": "s8",
+    },
+    {
+        "operation": "MAXPOOL_3X3_2_2_ODD",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "4",
+        "datatype": "s8",
+    },
+    {
+        "operation": "MEAN_XY_7X7",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "MEAN_XY_7X7",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "MEAN_XY_8X8",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "MEAN_XY_8X8",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "PASSTHROUGH",
+        "block_width": "16",
+        "block_height": "16",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "PASSTHROUGH",
+        "block_width": "8",
+        "block_height": "32",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "PASSTHROUGH",
+        "block_width": "32",
+        "block_height": "8",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "PASSTHROUGH",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "PASSTHROUGH",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "2",
+    },
+    {
+        "operation": "PASSTHROUGH",
+        "block_width": "8",
+        "block_height": "16",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "PASSTHROUGH",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "PASSTHROUGH",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "2",
+    },
+    {
+        "operation": "PASSTHROUGH",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "4",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "16",
+        "block_height": "16",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "8",
+        "block_height": "32",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "32",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "2",
+        "datatype": "u8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "8",
+        "block_height": "16",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "u8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "2",
+        "datatype": "u8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "4",
+        "datatype": "u8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "16",
+        "block_height": "16",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "8",
+        "block_height": "32",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "32",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "2",
+        "datatype": "s8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "8",
+        "block_height": "16",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "1",
+        "datatype": "s8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "2",
+        "datatype": "s8",
+    },
+    {
+        "operation": "SIGMOID",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "4",
+        "datatype": "s8",
+    },
+    {
+        "operation": "TRANSPOSE_XY",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "TRANSPOSE_XY",
+        "block_width": "16",
+        "block_height": "16",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "TRANSPOSE_XY",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "TRANSPOSE_XY",
+        "block_width": "8",
+        "block_height": "16",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "TRANSPOSE_XY",
+        "block_width": "8",
+        "block_height": "32",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "TRANSPOSE_XY",
+        "block_width": "32",
+        "block_height": "8",
+        "block_multiplier": "1",
+    },
+    {
+        "operation": "TRANSPOSE_XY",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "2",
+    },
+    {
+        "operation": "TRANSPOSE_XY",
+        "block_width": "8",
+        "block_height": "8",
+        "block_multiplier": "4",
+    },
+    {
+        "operation": "TRANSPOSE_XY",
+        "block_width": "16",
+        "block_height": "8",
+        "block_multiplier": "2",
+    },
+    {
+        "operation": "MAXPOOL1D",
+        "datatype": "u8",
+        "is_direction_x": "1",
+    },
+    {
+        "operation": "MAXPOOL1D",
+        "datatype": "u8",
+        "is_direction_y": "1",
+    },
+    {
+        "operation": "MAXPOOL1D",
+        "datatype": "s8",
+        "is_direction_x": "1",
+    },
+    {
+        "operation": "MAXPOOL1D",
+        "datatype": "s8",
+        "is_direction_y": "1",
+    },
+]
+
+# Confirm that each PLE kernel defined above is unique and has a unique identifier
+if len(kernels_params) != len(
+    set([common.get_string_from_kernel_params(i) for i in kernels_params])
+):
+    raise SCons.Errors.BuildError("Duplicate kernels_params or strings generated")
+
+# To enable running multiple scons builds in parallel from the same source directory,
+# tell scons to put the "sconsign" database file inside the build folder so it doesn't clash.
+env.SConsignFile(os.path.join(env["build_dir"], ".sconsign"))
+
+# armclang (and friends) uses Unix-like command line arguments, even when running on Windows.
+# Telling scons to use mingw makes it invoke these tools using Unix-like cmd line args rather than MSVC-like
+if env["PLATFORM"] == "win32":
+    env = env.Clone(tools=["mingw"])
+    env["CCFLAGS"] = str(env["CCFLAGS"]).replace("/nologo", "")
+
+common.setup_toolchain(env, "armclang")
+
+linker_script = File("ple.scatter")
+env.AppendUnique(
+    CCFLAGS=[
+        "-mcpu=Cortex-M33+nodsp",
+        "-mfpu=none",
+        "-mthumb",
+        "-Wall",
+        "-Werror",
+        "-Wsign-conversion",
+        "-Wno-missing-braces",
+        "-fno-unwind-tables",
+        "-flto",
+        "-nostdlib",
+        "-fno-threadsafe-statics",
+    ]
+)
+env.AppendUnique(
+    CXXFLAGS=[
+        "-std=c++20",
+        "-Wold-style-cast",
+        "-fno-rtti",
+        "-ffreestanding",
+        "-fno-exceptions",
+        "-fconstexpr-steps={}".format(200 * 1048576),
+    ]
+)
+# Ordering matters here so dont use AppendUnique
+env.Append(
+    LINKFLAGS=[
+        "--cpu=Cortex-M33.no_dsp.no_fp",
+        "--scatter",
+        linker_script,
+        "--lto",
+        "--inline",
+        "--no_startup",
+        "--no_scanlib",
+        # Set the entry point to be stored in the elf file.
+        # This is needed only to satisfy a linker warning, as we do not use the elf file once we have
+        # extracted its contents. The 'real' entry point is set by the VECTOR_TABLE in boot.cpp.
+        "--entry",
+        "__start",
+        # All linker warnings should be treated as errors
+        "--diag_error=warning",
+    ]
+)
+
+# Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on the install target
+# where the install target is also provided via CPATH.
+env.PrependUnique(
+    CPPPATH=[
+        "include",
+        Dir("include").abspath,
+        env["cmsis_dir"],
+        os.path.join(env["control_unit_dir"], "include"),
+    ]
+)
+if env["ple_logging"].upper() != "OFF":
+    env.AppendUnique(CPPDEFINES=["PLE_LOGGING=PLE_LOGGING_{}".format(env["ple_logging"].upper())])
+
+# Optimization level
+if env["debug"]:
+    env.AppendUnique(CCFLAGS=["-Og", "-g"])
+else:
+    env.AppendUnique(CCFLAGS=["-O3"])
+
+if env["ple_logging"] == "model":
+    env.AppendUnique(LINKFLAGS=['--predefine="-DSRAM_SIZE=0x4000"'])
+    env.AppendUnique(LINKFLAGS=['--predefine="-DSTACK_SIZE=0x400"'])
+
+# Disable copro pipelining for debug purposes if needed
+if env.Dictionary().get("copro_pipeline_disable"):
+    env.AppendUnique(CPPDEFINES=["COPRO_PIPELINE_DISABLE=true"])
+
+# Define command to generate the coprocessor instructions
+script_file = os.path.join(ple_dir, "tools", "CoprocessorInstructionDatabase.py")
+cdp_instructions_csv = os.path.join(ple_dir, "tools", "ple_specs", "CdpInstructions_v417.csv")
+mcr_instructions_csv = os.path.join(ple_dir, "tools", "ple_specs", "McrInstructions_v417.csv")
+instruction_descriptions_csv = os.path.join(
+    ple_dir, "tools", "ple_specs", "InstructionDescriptions_v417.csv"
+)
+instruction_timings_csv = os.path.join(ple_dir, "tools", "ple_specs", "InstructionTimings_v417.csv")
+cdp = env.Command(
+    os.path.join("include", "generated", "cdp_opcodes.h"),
+    [
+        cdp_instructions_csv,
+        instruction_descriptions_csv,
+        script_file,
+        instruction_timings_csv,
+    ],
+    "python3 ${SOURCES[2]} -i ${SOURCES[0]} -d ${SOURCES[1]} -o $TARGET -t ${SOURCES[3]}",
+)
+mcr = env.Command(
+    os.path.join("include", "generated", "mcr_opcodes.h"),
+    [
+        mcr_instructions_csv,
+        instruction_descriptions_csv,
+        script_file,
+        instruction_timings_csv,
+    ],
+    "python3 ${SOURCES[2]} -i ${SOURCES[0]} -d ${SOURCES[1]} -o $TARGET -t ${SOURCES[3]}",
+)
+
+# Add scons targets for all ple kernels
+ple_kernel_targets, ple_kernel_inputs = compile_all_kernels()
+all_bins = [b for (b, d) in ple_kernel_targets]
+
+if env["ple_cluster_build"]:
+    # Define command to build PLE kernels
+    script_file = os.path.join(env["internal_ple_dir"], "tools", "ple_cluster_build_local.sh")
+    outputs = [x for targets in ple_kernel_targets for x in targets]
+    # Define the inputs to this command to be the set of cpp files. This means scons will also detect changes to
+    # included headers and re-run this command when they change. Note that this isn't a full list of dependencies though
+    # - we are missing things like the scatter file and changes to scons files which would ideally trigger a rebuild.
+    # This is a limitation of the current implementation
+    # This list must be sorted as the scons caching mechanism requires the order of dependencies to be the same
+    inputs = sorted(set(ple_kernel_inputs))
+    inputs.insert(0, script_file)
+    env.Command(outputs, inputs, "${SOURCES[0]} " + env["ple_cluster_build_remote_folder"])
+
+this_script = os.path.join(ple_dir, "SConscript")
+
+
+# Add scons target for PleKernelBinaries.hpp
+# This is a generated file which contains a big concatenated binary of all the PLE code,
+# plus a lookup from the PleKernelId enum to get the offset/size within the big binary
+def gen_ple_kernel_binaries_header(source, target, **kwargs):
+    all_bins = source
+
+    # Gather data by reading all the individual PLE binaries
+    all_data_hex = []
+    offset = 0
+    offsets_and_sizes = []
+    for idx, bin in enumerate(all_bins):
+        bin = bin.path
+        size = os.stat(bin).st_size
+        offsets_and_sizes.append((offset, size))
+
+        offset += size
+
+        with open(bin, "rb") as f:
+            all_data_hex.extend(map("0x{:02x}".format, bytearray(f.read())))
+
+    # Write out the generated file
+    with open(target[0].path, "w") as outf:
+        # Add static_asserts to make sure the PleKernelId enum (in the command stream folder)
+        # is up-to-date. This file is manually updated so could get out of sync.
+        for idx, bin in enumerate(all_bins):
+            ple_kernel_id = os.path.splitext(os.path.basename(bin.path))[0]
+            print(
+                'static_assert(static_cast<uint32_t>(ethosn::command_stream::PleKernelId::{}) == {}, "Generated PleKernelBinaries.hpp out of sync with command stream PleKernelId.hpp - please update PleKernelIdsGenerated.hpp in the command stream from the generated PleKernelIds.hpp in the PLE build folder.");'.format(
+                    ple_kernel_id, idx
+                ),
+                file=outf,
+            )
+        print("\n", file=outf)
+
+        # Lookup from PleKernelId enum to offset and size
+        print(
+            "extern const std::pair<uint32_t, uint32_t> g_PleKernelOffsetsAndSizes[] = {", file=outf
+        )
+        for idx, (bin, (offset, size)) in enumerate(zip(all_bins, offsets_and_sizes)):
+            ple_kernel_id = os.path.splitext(os.path.basename(bin.path))[0]
+            print("    // {}: {}".format(idx, ple_kernel_id), file=outf)
+            print("    { " + str(offset) + ", " + str(size) + " },", file=outf)
+        print("};\n", file=outf)
+
+        # Big array of PLE kernel binary data
+        print(
+            "extern const size_t g_PleKernelBinariesSize = {};\n".format(len(all_data_hex))
+            + "extern const uint8_t g_PleKernelBinaries[] PLE_KERNEL_BINARIES_ATTRIBUTES = {",
+            file=outf,
+        )
+        # Wrap for 16 bytes per line
+        assert (
+            len(all_data_hex) % 16 == 0
+        )  # Each individual binary is padded to 16 bytes, so the total should be too
+        for i in range(0, len(all_data_hex), 16):
+            line = ", ".join(all_data_hex[i : i + 16]) + ", "
+            print("    " + line, file=outf)
+        print("};\n", file=outf)
+
+
+ple_kernel_binaries_header = env.Command(
+    os.path.join("include", "ethosn_ple", "PleKernelBinaries.hpp"),
+    [all_bins],
+    gen_ple_kernel_binaries_header,
+)
+env.Alias("PleKernelBinaries.hpp", ple_kernel_binaries_header)
+
+
+# Add scons target for PleKernelsSupportLibrary.hpp
+# This is a generated file containing a lookup from the kernel parameters map to the PleKernelId enum,
+# for use in the support library when picking an appropriate PLE kernel to use.
+def gen_ple_kernels_support_library(source, target, **kwargs):
+    with open(target[0].path, "w") as outf:
+        print("{", file=outf)
+        for variant, kernel_params in itertools.product(variants, kernels_params):
+            ple_kernel_id = get_string_from_variant_and_kernel_params(variant, kernel_params)
+            # Include the variant in the params map
+            kernel_params_inc_variant = kernel_params.copy()
+            kernel_params_inc_variant.update(variant._asdict())
+            params_string = ", ".join(
+                '{ "' + str(k) + '", "' + str(v) + '" }'
+                for k, v in kernel_params_inc_variant.items()
+            )
+            print(
+                "    { { "
+                + params_string
+                + " }, ethosn::command_stream::PleKernelId::"
+                + ple_kernel_id
+                + " },",
+                file=outf,
+            )
+        print("}", file=outf)
+
+
+ple_kernels_support_library_header = env.Command(
+    os.path.join("include", "ethosn_ple", "PleKernelsSupportLibrary.hpp"),
+    [
+        this_script
+    ],  # Needs dependency on this SConscript so that when a new PLE kernel is added it regenerates this
+    gen_ple_kernels_support_library,
+)
+env.Alias("PleKernelsSupportLibrary.hpp", ple_kernels_support_library_header)
+
+
+# Add scons target for PleKernelIds.hpp
+# This is a generated file containing a simple list of all the PLE kernel IDs,
+# for inclusion in the command stream.
+def gen_ple_kernel_ids(source, target, **kwargs):
+    with open(target[0].path, "w") as outf:
+        for variant, kernel_params in itertools.product(variants, kernels_params):
+            ple_kernel_id = get_string_from_variant_and_kernel_params(variant, kernel_params)
+            # Wrap the name in X(...) as this is what we need for the command stream #include
+            print("X(" + ple_kernel_id + ")", file=outf)
+
+
+ple_kernel_ids_header = env.Command(
+    os.path.join("include", "ethosn_ple", "PleKernelIds.hpp"),
+    [
+        this_script
+    ],  # Needs dependency on this SConscript so that when a new PLE kernel is added it regenerates this
+    gen_ple_kernel_ids,
+)
+env.Alias("PleKernelIds.hpp", ple_kernel_ids_header)
+
+
+if not ple_clean:
+    env.NoClean(
+        [
+            ple_kernel_binaries_header,
+            ple_kernels_support_library_header,
+            ple_kernel_ids_header,
+            cdp,
+            mcr,
+        ]
+    )

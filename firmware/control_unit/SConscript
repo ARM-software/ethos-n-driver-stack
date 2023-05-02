@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+#
+# Copyright © 2018-2023 Arm Limited.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+import os
+import common
+import subprocess
+import internal
+from common import setup_plelib_dependency
+
+Import("env")
+
+
+# pylint: disable=used-before-assignment
+common.setup_common_env(env)
+
+env.Replace(CXXSTD="c++17")
+env.AppendUnique(CXXFLAGS=["-Wold-style-cast"])
+env.AppendUnique(CPPFLAGS=["-Wsign-conversion", "-Wno-missing-braces"])
+# Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on the install target
+# where the install target is also provided via CPATH.
+env.PrependUnique(
+    CPPPATH=[
+        os.path.join(env["command_stream_dir"], "include"),
+        os.path.join(env["utils_dir"], "include"),
+        os.path.join(env["support_library_dir"], "include"),
+        # We need the internal Capabilities.hpp header from support_library to fill in the
+        # caps struct. This is yucky but prevents it from being incorrectly used outside
+        # the support library (e.g. in client code)
+        os.path.join(env["support_library_dir"], "src"),
+        env["kernel_module_dir"],
+        os.path.join(common.get_ple_build_dir(env), "include"),
+    ]
+)
+env.Append(CPPFLAGS=["-isystem", env["arch_regs_dir"]])
+
+if env["disable_Pow2"]:
+    env.AppendUnique(CPPDEFINES=["DISABLE_POW2"])
+
+if env["asserts"] == "1" or (env["asserts"] == "debug" and env["debug"]):
+    env.AppendUnique(CPPDEFINES=["CONTROL_UNIT_ASSERTS"])
+
+if env["profiling"]:
+    env.AppendUnique(CPPDEFINES=["CONTROL_UNIT_PROFILING"])
+
+if env["force_ple_fault"]:
+    env.AppendUnique(CPPDEFINES=["CONTROL_UNIT_FORCE_PLE_FAULT"])
+
+# Control Unit external headers
+env.PrependUnique(CPPPATH=[os.path.abspath(os.path.join("include"))])
+
+# Common utils sources
+env.PrependUnique(CPPPATH=[os.path.abspath(os.path.join("common", "include"))])
+common_srcs = [os.path.join("common", "Log.cpp"), os.path.join("common", "Utils.cpp")]
+
+# Unprivileged firmware sources
+env.PrependUnique(CPPPATH=[os.path.abspath(os.path.join("unprivileged", "include"))])
+unprivileged_srcs = [
+    os.path.join("unprivileged", "Firmware.cpp"),
+    os.path.join("unprivileged", "Pmu.cpp"),
+    os.path.join("unprivileged", "Profiling.cpp"),
+    os.path.join("unprivileged", "PleKernelBinaries.cpp"),
+]
+
+config = "debug" if env["debug"] else "release"
+
+# The hardware target doesn't have any libs to share but the list is needed by the model and tests
+libs = []
+
+if env["backend"] == "hardware":
+    # A separate environment is used for the hardware target to retain the original environment for building the tests
+    env_hw = env.Clone()
+    env_hw.AppendUnique(CPPDEFINES=["CONTROL_UNIT_HARDWARE"])
+
+    common.setup_toolchain(env_hw, "armclang")
+
+    linker_script = File("cu.scatter").srcnode().abspath
+    env_hw.AppendUnique(
+        CCFLAGS=[
+            "-mcpu=Cortex-M7+nodsp",
+            "-mfpu=none",
+            "-mthumb",
+            "-fno-unwind-tables",
+            "-flto",
+        ]
+    )
+    # Firmware is always loaded and executed at a fixed address, so doesn't need position-independence
+    env_hw["CPPFLAGS"].remove("-fPIC")
+
+    if env["debug"]:
+        # This makes call stacks more reliable, and is necessary for preventing infinite call stacks
+        env_hw.AppendUnique(CCFLAGS=["-fno-omit-frame-pointer"])
+
+    env_hw.AppendUnique(CXXFLAGS=["-fno-rtti", "-ffreestanding", "-fno-exceptions"])
+    # Default flags are not suitable for armar
+    env_hw.Replace(ARFLAGS=["-rc"])
+    # Ordering matters here so dont use AppendUnique
+    env_hw.Append(
+        LINKFLAGS=[
+            "--cpu=Cortex-M7.no_fp",
+            "--scatter",
+            linker_script,
+            "--lto",
+            "--inline",
+            # Warnings should be treated as errors
+            "--diag_error=warning",
+        ]
+    )
+
+    if "size" in env_hw:
+        env_hw.AppendUnique(LINKFLAGS=['--predefine="-D__rom_size=${size}"'])
+
+    env_hw.Append(CPPFLAGS=["-isystem", env_hw["cmsis_dir"]])
+
+    # LTO does not work with static libs
+    srcs = [
+        # Boot.cpp only contains functions for the vector table that will either never return or are "naked" so we will
+        # always allow the compiler to omit the stack frame pointer to free up r7 for general-purpose use that would
+        # otherwise be reserved for the pointer and to avoid unnecessary stack usage.
+        env_hw.Object(
+            os.path.join("privileged", "Boot.cpp"),
+            CPPFLAGS=env_hw["CPPFLAGS"] + ["-fomit-frame-pointer"],
+        ),
+        os.path.join("privileged", "HardwareHelpers.cpp"),
+        os.path.join("privileged", "MainHardware.cpp"),
+        os.path.join("privileged", "Mpu.cpp"),
+    ]
+
+    srcs.extend(common_srcs)
+    srcs.extend(unprivileged_srcs)
+    srcs.extend([os.path.join("unprivileged", "Task.cpp")])
+
+    # Pylint complains about 'env' name, but this is what scons expexts.
+    # pylint: disable=redefined-outer-name
+    def pack_firmware_binaries(target, source, env):
+        def get_arch_ver(ver):
+            major, minor, patch = ver
+            return str((major << 24) | (minor << 16) | patch)
+
+        packaging_script = str(source[0])
+        elf_file = str(source[1])
+        bin_file = str(source[2])
+
+        cmd = [
+            "python3",
+            packaging_script,
+            "--target",
+            str(target[0]),
+            "--kernel-module-dir",
+            env["kernel_module_dir"],
+            "--bin",
+            bin_file,
+            "--elf",
+            elf_file,
+            "--arch-max",
+            get_arch_ver((1, 4, 255)),
+            "--arch-min",
+            get_arch_ver((1, 4, 4)),
+        ]
+        cmd = " ".join(cmd)
+
+        env.Execute("@" + cmd)
+
+    env_hw["PROGSUFFIX"] = ".elf"
+    elf = env_hw.Program("ethosn", source=srcs)
+    env_hw["PROGSUFFIX"] = None
+    Depends(elf, linker_script)
+    fw_dump = env_hw.Command(
+        "ethosn.dump",
+        elf,
+        "fromelf --cpu=Cortex-M7.no_fp --fpu=none -cdsz --output $TARGET $SOURCE",
+    )
+    bin = env_hw.Command(
+        "ethosn_raw.bin",
+        elf,
+        [
+            "fromelf --bincombined --output $TARGET $SOURCE",
+            # Make sure the output is multiple of 16 bytes
+            common.add_padding(16),
+        ],
+    )
+
+    # Convert bin to hex
+    env_hw.Command(
+        "ethosn.hex",
+        bin,
+        r"""hexdump -ve '"%0.8_ax: " 4/4 "%08x " "\n"' $SOURCE > $TARGET""",
+    )
+
+    big_bin = env_hw.Command(
+        "ethosn.bin",
+        [os.path.join(env_hw["control_unit_dir"], "pack_binaries.py"), elf, bin],
+        pack_firmware_binaries,
+    )
+    env.Depends(big_bin, os.path.join(env["kernel_module_dir"], "ethosn_firmware.h"))
+
+elif env["backend"] == "model":
+    env.AppendUnique(CPPDEFINES=["CONTROL_UNIT_MODEL"])
+    # Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on the
+    # install target where the install target is also provided via CPATH.
+    env.PrependUnique(CPPPATH=[os.path.abspath(os.path.join("model", "include")), env["model_dir"]])
+
+    # Allow the model build to access the internal unprivileged headers
+    env.PrependUnique(CPPPATH=[os.path.abspath(os.path.join("unprivileged"))])
+
+    model_srcs = [
+        os.path.join("model", "ModelFirmwareInterface.cpp"),
+        os.path.join("model", "ModelHal.cpp"),
+    ]
+
+    control_unit_lib = env.StaticLibrary(
+        "control_unit", [model_srcs, unprivileged_srcs, common_srcs]
+    )
+
+    srcs = env.Object([os.path.join("model", "MainModel.cpp")])
+    libs += [
+        control_unit_lib,
+        File(
+            os.path.join(
+                env["model_dir"],
+                "build",
+                "bin",
+                "{}_n78".format(config),
+                "libbennto_common_n78.a",
+            )
+        ),
+        "dl",
+        "pthread",
+    ]
+    env.Program("control_unit_model", srcs, LIBS=libs)
+else:
+    raise RuntimeError("Invalid backend: " + env["backend"])
+
+# Build unit tests, if requested. These are only available when using the model.
+if env["tests"] and env["backend"] == "model":
+    SConscript(dirs="tests", duplicate=False, exports=["env", "libs"])

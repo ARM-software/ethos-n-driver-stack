@@ -9,6 +9,7 @@ build/
 __pycache__/
 .sconf_temp
 options.py
+internal/npu_model/
 
 # Coverage
 coverage-report/

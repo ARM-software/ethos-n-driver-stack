@@ -1,0 +1,59 @@
+#! cpp
+
+// Some regions need to be aligned to pages in the host OS.
+// We don't know what page size will be used (it is configurable),
+// so we pick a conservatively large value to ensure it is aligned.
+#define PAGE_SIZE 65536
+
+CU_IMAGE 0 NOCOMPRESS
+{
+    ROM_EXEC 0x0 ALIGN 64
+    {
+        * (BOOT, +FIRST)
+        * (InRoot$$Sections)      ; All library sections that must be in a
+                                  ; root region, for example, __main.o,
+                                  ; __scatter*.o, __dc*.o, and *Region$$Table
+        * (+RO, *.ro)             ; Code and const data
+    }
+
+    // The "bss" section is required for global variables, and is required for using some C++ runtime functions,
+    // such as sprintf, though I am not sure why.
+    // The "FIXED" attribute prevents some execution regions and load regions overlapping.
+    // In an OS environment the loader would allocate and zero this region, but in our case this is simply a zeroed
+    // section of the firmware binary, thanks to the PLE data being at the end.
+    GLOBAL_VARIABLES +0 FIXED { *(.bss) }
+
+    // PLE kernel binaries. Be careful moving this section because it is currently the only thing making the binary
+    // contain a zeroed space for the GLOBAL_VARIABLES section (above).
+    // This section must be page aligned so it can be mapped into the SMMU separately
+    // from the above code sections.
+    // The "FIXED" attribute prevents some execution regions and load regions overlapping.
+    PLE_DATA +0 ALIGN PAGE_SIZE FIXED
+    {
+        * (PLE_DATA)
+    }
+
+    // This section must be page aligned so it can be mapped into the SMMU separately
+    // from the above PLE_DATA.
+    VECTOR_TABLE +0 ALIGN PAGE_SIZE FIXED
+    {
+        * (VECTOR_TABLE)
+    }
+
+    // This section must be aligned such that the NPU can have a region (number 2) that
+    // includes everything up to this point, but not the unprivileged stack.
+    // Therefore the offset must be a power-of-two, which we hardcode here. See Boot.cpp for
+    // MPU details.
+    UNPRIV_STACK 0x00200000 FIXED
+    {
+        * (UNPRIV_STACK)
+    }
+
+    // This section must be aligned such that the NPU can have a region (number 3) that
+    // includes it. Therefore its alignment must be a multiple of its size, which we hardcode
+    // here.
+    PRIV_STACK 0x00240000 FIXED
+    {
+        * (PRIV_STACK)
+    }
+}

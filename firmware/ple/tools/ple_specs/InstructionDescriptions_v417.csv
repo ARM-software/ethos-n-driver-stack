@@ -1,0 +1,317 @@
+Instruction,Summary,Description,Syntax,Operation
+,,,,
+,,,,
+Arithmetic instructions,,,,
+ADD.8,Add 8-bit,"8-bit integer addition, writing the 8-bit result to the destination register","ADD.8 Rd, Rn, Rm",Rd[7:0] =  Rn[7:0] +  Rm[7:0]
+SUB.8,Subtract 8-bit,"8-bit integer subtract, writing the 8-bit result to the destination register","SUB.8 Rd, Rn, Rm",Rd[7:0] =  Rn[7:0] -  Rm[7:0]
+ADDS.8,Add 8-bit setting flags,"8-bit integer addition, writing the 8-bit result to the destination register, result sets flag registers","ADDS.8 Rd, Rn, Rm","Rd[7:0] =  Rn[7:0] +  Rm[7:0]
+Flags are update"
+SUBS.8,Subtract 8-bit setting flags,"8-bit integer subtract, writing the 8-bit result to the destination register, result sets flag registers","SUBS.8 Rd, Rn, Rm","Rd[7:0] =  Rn[7:0] -  Rm[7:0]
+Flags are updated"
+UMAX.8,Unsigned maximum 8-bit,"8-bit unsigned maximum, writing the unsigned maximum 8-bit result to the destination register","MAXU.8 Rd, Rn, Rm","Rd[7:0] = maxu(Rn[7:0], Rm[7:0])"
+SMAX.8,Signed maximum 8-bit,"8-bit signed maximum, writing the signed maximum 8-bit result to the destination register","MAXS.8 Rd, Rn, Rm","Rd[7:0] = maxs(Rn[7:0], Rm[7:0])"
+UMIN.8,Unsigned minimum 8-bit,"8-bit unsigned minimum, writing the unsigned minimum 8-bit result to the destination register","MINU.8 Rd, Rn, Rm","Rd[7:0] = minu(Rn[7:0], Rm[7:0])"
+SMIN.8,Signed minimum 8-bit,"8-bit signed minimum, writing the signed minimum 8-bit result to the destination register","MINS.8 Rd, Rn, Rm","Rd[7:0] = mins(Rn[7:0], Rm[7:0])"
+CMP.8,Compare 8-bit setting flags,"8-bit integer compare, result sets flag registers",,
+CSEL.8,Conditional select 8-bit,"Conditionally select Src0 or Src1, writing the 8-bit result to the destination register","CSEL.8 Rd, Rn, Rm, #cond4","if (flag(#cond4))
+  Rd[7:0] = Rn[7:0]
+else
+  Rd[7:0] = Rm[7:0]"
+ADD.16,Add 16-bit,"16-bit integer addition, writing the 16-bit result to the destination register","ADD.16 Rd, Rn, Rm",Rd[15:0] = Rn[15:0] + Rm[15:0]
+SUB.16,Subtract 16-bit,"16-bit integer subtract, writing the 16-bit result to the destination register","SUB.16 Rd, Rn, Rm",Rd[15:0] = Rn[15:0] - Rm[15:0]
+ADDS.16,Add 16-bit setting flags,"16-bit integer addition, writing the 16-bit result to the destination register, result sets flag registers","ADDS.16 Rd, Rn, Rm","Rd[15:0] = Rn[15:0] + Rm[15:0]
+Flags are updated"
+SUBS.16,Subtract 16-bit setting flags,"16-bit integer subtract, writing the 16-bit result to the destination register, result sets flag registers","SUBS.16 Rd, Rn, Rm","Rd[15:0] = Rn[15:0] - Rm[15:0]
+Flags are updated"
+ADC.16,Add with carry 16-bit,"16-bit integer addition with carry, writing the 16-bit result to the destination register","ADC.16 Rd, Rn, Rm",Rd[15:0] = Rn[15:0] + Rm[15:0] + Carry flag
+SBC.16,Subtract with carry 16-bit,"16-bit integer subtract with carry, writing the 16-bit result to the destination register","SBC.16 Rd, Rn, Rm",Rd[15:0] = Rn[15:0] - Rm[15:0] - Carry flag
+ADCS.16,Add with carry 16-bit setting flags,"16-bit integer addition with carry, writing the 16-bit result to the destination register, result sets flags registers","ADC.16 Rd, Rn, Rm","Rd[15:0] = Rn[15:0] + Rm[15:0] + Carry flag
+Flags are updated
+"
+SBCS.16,Subtract with carry 16-bit setting flags,"16-bit integer subtract with carry, writing the 16-bit result to the destination register, result sets flag registers","SBC.16 Rd, Rn, Rm","Rd[15:0] = Rn[15:0] - Rm[15:0] - Carry flag
+Flags are updated"
+UMAX.16,Unsigned maximum 16-bit,"16-bit unsigned maximum, writing the unsigned maximum 16-bit result to the destination register","MAXU.16 Rd, Rn, Rm","Rd[15:0] = maxu(Rn[15:0], Rm[15:0])"
+SMAX.16,Signed maximum 16-bit,"16-bit signed maximum, writing the signed maximum 16-bit result to the destination register","MAXS.16 Rd, Rn, Rm","Rd[15:0] = maxs(Rn[15:0], Rm[15:0])"
+UMIN.16,Unsigned minimum 16-bit,"16-bit unsigned minimum, writing the unsigned minimum 16-bit result to the destination register","MINU.16 Rd, Rn, Rm","Rd[15:0] = minu(Rn[15:0], Rm[15:0])"
+SMIN.16,Signed minimum 16-bit,"16-bit signed minimum, writing the signed minimum 16-bit result to the destination register","MINS.16 Rd, Rn, Rm","Rd[15:0] = mins(Rn[15:0], Rm[15:0])"
+CMP.16,Compare 16-bit setting flags,"16-bit integer compare, result sets flag registers",,
+CSEL.16,Conditional select 16-bit,"Conditionally select Src0 or Src1, writing the 16-bit result to the destination register","CSEL.16 Rd, Rn, Rm, #cond4","if (flag(#cond4))
+  Rd[15:0] = Rn[15:0]
+else
+  Rd[15:0] = Rm[15:0]"
+REGREPADD.8,Register replicate add 8-bit,Register replicate add 8-bit,"REGREPADD.8 Rn, Rm, Rt","Adds register Rn with the replicated value provided on ARM register Rt.
+The 32-bit value of Rt is provided on the coprocessor write data bus, however only the low 8-bits are used. This 8-bits are replicated to all 16 lanes to generate a 128-bit value. This value is then added to Rn[7:0] and the 8-bit result is written to Rm.
+Rm[7:0] = Rn[7:0] + Rt[7:0]"
+REGREPADD.16,Register replicate add 16-bit,Register replicate add 16-bit,"REGREPADD.16 Rn, Rm, Rt","Adds register Rn with the replicated value provided on ARM register Rt.
+The 32-bit value of Rt is provided on the coprocessor write data bus, however only the low 16-bits are used. This 16-bits are replicated to all 16 lanes to generate a 256-bit value. This value is then added to Rn[15:0] and the 16-bit result is written to Rm.
+Rm[15:0] = Rn[15:0] + Rt[15:0]"
+ABS.8,Absolute 8-bit,"8-bit absolute value, writing the 8-bit result to the destination register","ABS.8 Rd, Rm",Rd[7:0] = Abs(Rm[7:0])
+ABSS.8,Absolute 8-bit setting flags,"8-bit absolute value, writing the 8-bit result to the destination register, result sets flags registers","ABSS.8 Rd, Rm","Rd[7:0] = Abs(Rm[7:0])
+Flags are updated "
+ABS.16,Absolute 16-bit,"16-bit absolute value, writing the 16-bit result to the destination register","ABS.16 Rd, Rm",Rd[15:0] = Abs(Rm[15:0])
+ABSS.16,Absolute 16-bit setting flags,"16-bit absolute value, writing the 16-bit result to the destination register, result set flags registers","ABSS.16 Rd, Rm","Rd[15:0] = Abs(Rm[15:0])
+Flags are updated"
+REGREPRSB.8,Register replicate reverse substract 8-bit,Register replicate reverse substract 8-bit,"REGREPRSB.8 Rn, Rm, Rt","Adds the reverse value of register Rn with the replicated value provided on ARM register Rt.
+The 32-bit value of Rt is provided on the coprocessor write data bus, however only the low 8-bits are used. This 8-bits are replicated to all 16 lanes to generate a 128-bit value. This value is then added to the reverse value of Rn[7:0] and the 8-bit result is written to Rm.
+Rm[7:0] = AddWithCarry(NOT(Rn[7:0]), Rt[7:0], '1')"
+REGREPRSBS.8,"Register replicate reverse substract 8-bit,
+settings flags","Register replicate reverse substract 8-bit, result set flags registers","REGREPRSBS.8 Rn, Rm, Rt",Same as REGREPRSB.8 but flags are also updated
+REGREPRSB.16,Register replicate reverse substract 16-bit,Register replicate reverse substract 16-bit,"REGREPRSB.16 Rn, Rm, Rt","Adds the reverse value of register Rn with the replicated value provided on ARM register Rt.
+The 32-bit value of Rt is provided on the coprocessor write data bus, however only the low 16-bits are used. This 16-bits are replicated to all 16 lanes to generate a 256-bit value. This value is then added to the reverse value of Rn[15:0] and the 16-bit result is written to Rm.
+Rm[15:0] = AddWithCarry(NOT(Rn[15:0]), Rt[15:0], '1')"
+REGREPRSB.16,"Register replicate reverse substract 16-bit,
+setting flags","Register replicate reverse substract 16-bit, result set flags registers","REGREPRSBS.16 Rn, Rm, Rt",Same as REGREPRSB.16 but flags are also updated
+,,,,
+Logical instructions,,,,
+AND.8,Logical AND 8-bit,"8-bit logical bitwise AND, writing the 8-bit result to the destination register ","AND.8 Rd, Rn, Rm",Rd[7:0] = Rn[7:0] & Rm[7:0]
+OR.8,Logical OR 8-bit,"8-bit logical bitwise OR, writing the 8-bit result to the destination register ","OR.8 Rd, Rn, Rm",Rd[7:0] = Rn[7:0] | Rm[7:0]
+NAND.8,Logical NAND 8-bit,"8-bit logical bitwise NAND, writing the 8-bit result to the destination register ","NAND.8 Rd, Rn, Rm",Rd[7:0] = ~(Rn[7:0] & Rm[7:0])
+NOR.8,Logical NOR 8-bit,"8-bit logical bitwise NOR, writing the 8-bit result to the destination register ","NOR.8 Rd, Rn, Rm",Rd[7:0] = ~(Rn[7:0] | Rm[7:0])
+XOR.8,Logical XOR 8-bit,"8-bit logical bitwise XOR, writing the 8-bit result to the destination register ","XOR.8 Rd, Rn, Rm",Rd[7:0] = Rn[7:0] ^ Rm[7:0]
+XNOR.8,Logical XNOR 8-bit,"8-bit logical bitwise XNOR, writing the 8-bit result to the destination register ","XNOR.8 Rd, Rn, Rm",Rd[7:0] = ~(Rn[7:0] ^ Rm[7:0])
+NOT,Logical NOT 8-bit,"8-bit logical bitwise NOT, writing the 8-bit result to the destination register","NOT.8 Rd, Rn",Rd[7:0] = ~Rn[7:0]
+,,,,
+Shift instructions,,,,
+ASRR.8,Arithmetic shift right register 8-bit,"8-bit arithmetic shift right, shift specified in register, writing the 8-bit result to the destination register","ASRR.8 Rd, Rn, Rm",Rd[7:0] = arithmetic_shift_right(Rn[7:0] by Rm[7:0])
+LSRR.8,Logical shift right register 8-bit,"8-bit logical shift right, shift specified in register, writing the 8-bit result to the destination register","LSRR.8 Rd, Rn, Rm",Rd[7:0] = logical_shift_right(Rn[7:0] by Rm[7:0])
+LSLR.8,Logical shift left register 8-bit,"8-bit logical shift left, shift specified in register, writing the 8-bit result to the destination register","LSLR.8, Rd, Rn, Rm",Rd[7:0] = logical_shift_left(Rn[7:0] by Rm[7:0])
+ROLR.8,Rotate left register 8-bit,"8-bit rotate left, shift specified in register, writing the 8-bit result to the destination register","ROLR.8 Rd, Rn, Rm",Rd[7:0] = rotate_left(Rn[7:0] by Rm[7:0])
+ASR.8,Arithmetic shift right immediate 8-bit,"8-bit arithmetic shift right, shift specified by immediate, writing the 8-bit result to the destination register","ASR.8 Rd, Rn, #imm3",Rd[7:0] = arithmetic_shift_right(Rn[7:0] by imm3)
+LSR.8,Logical shift right immediate 8-bit,"8-bit logical shift right, shift specified by immediate, writing the 8-bit result to the destination register","LSR.8 Rd, Rn, #imm3",Rd[7:0] = logical_shift_right(Rn[7:0] by imm3)
+LSL.8,Logical shift left immediate 8-bit,"8-bit logical shift left, shift specified by immediate, writing the 8-bit result to the destination register","LSL.8, Rd, Rn, #imm3",Rd[7:0] = logical_shift_left(Rn[7:0] by imm3)
+ROL.8,Rotate left immediate 8-bit,"8-bit rotate left, shift specified by immediate, writing the 8-bit result to the destination register","ROL.8 Rd, Rn, #imm3",Rd[7:0] = rotate_left(Rn[7:0] by imm3)
+ASRR.16,Arithmetic shift right register 16-bit,"16-bit arithmetic shift right, shift specified in register, writing the 16-bit result to the destination register","ASRR.16 Rd, Rn, Rm",Rd[15:0] = arithmetic_shift_right(Rn[15:0] by Rm)
+LSRR.16,Logical shift right register 16-bit,"16-bit logical shift right, shift specified in register, writing the 16-bit result to the destination register","LSRR.16 Rd, Rn, Rm",Rd[15:0] = logical_shift_right(Rn[15:0] by Rm)
+LSLR.16,Logical shift left register 16-bit,"16-bit logical shift left, shift specified in register, writing the 16-bit result to the destination register","LSLR.16 Rd, Rn, Rm",Rd[15:0] = logical_shift_left(Rn[15:0] by Rm)
+ROLR.16,Rotate left register 16-bit,"16-bit rotate left, shift specified in register, writing the 16-bit result to the destination register","ROLR.16 Rd, Rn, Rm",Rd[15:0] = rotate_left(Rn[15:0] by Rm)
+ASR.16,Arithmetic shift right immediate 16-bit,"16-bit arithmetic shift right, shift specified by immediate, writing the 16-bit result to the destination register","ASR.16 Rd, Rn, #imm4",Rd[15:0] = arithmetic_shift_right(Rn[15:0] by imm4)
+LSR.16,Logical shift right immediate 16-bit,"16-bit logical shift right, shift specified by immediate, writing the 16-bit result to the destination register","LSR.16 Rd, Rn, #imm4",Rd[15:0] = logical_shift_right(Rn[15:0] by imm4)
+LSL.16,Logical shift left immediate 16-bit,"16-bit logical shift left, shift specified by immediate, writing the 16-bit result to the destination register","LSL.16 Rd, Rn, #imm4",Rd[15:0] = logical_shift_left(Rn[15:0] by imm4)
+ROL.16,Rotate left immediate 16-bit,"16-bit rotate left, shift specified by immediate, writing the 16-bit result to the destination register","ROL.16 Rd, Rn, #imm4",Rd[15:0] = rotate_left(Rn[15:0] by imm4)
+ASRSAT.16.8,Arithmetic shift right 16-bit with saturation,"16-bit arithmetic shift right, shift specified by 5-bit immediate, sign-saturate to 8-bit and write the 8-bit result to the destination register","ASRSAT.16.8 Rd, Rn, #imm5","shift = arithmetic_shift_right(Rn[15:0] by imm5)
+Rd[7:0] = SignedSat(shift, 8)"
+ASRSAT.32.16,Arithmetic shift right 32-bit with saturation,"32-bit arithmetic shift right, shift specified by 5-bit immediate, sign-saturate to 16-bit and write the 16-bit result to the destination register","ASRSAT.32.16 Rd, Rn, #imm5","shift = arithmetic_shift_right(Rn[31:0] by imm5)
+Rd[15:0] = SignedSat(shift, 16)"
+LSRSAT.16.8,Logical shift right 16-bit with saturation,"16-bit logical shift right, shift specified by 5-bit immediate, unsign-saturate to 8-bit and write the 8-bit result to the destination register","LSRSAT.16.8 Rd, Rn, #imm5","shift = logical_shift_right(Rn[15:0] by imm5)
+Rd[7:0] = UnsignedSat(shift, 8)"
+LSRSAT.32.16,Logical shift right 32-bit with saturation,"32-bit logical shift right, shift specified by 5-bit immediate, unsign-saturate to 16-bit and write the 16-bit result to the destination register","LSRSAT.32.16 Rd, Rn, #imm5","shift = logical_shift_right(Rn[31:0] by imm5)
+Rd[15:0] = UnsignedSat(shift, 16)"
+ASRSAT.16.8,Arithmetic shift right 16-bit with saturation,"16-bit arithmetic shift right, shift specified by an Arm register, sign-saturate to 8-bit and write the 8-bit result to the destination register","ASRSAT.16 Rd, Rn, Rm","shift = arithmetic_shift_right(Rn[15:0] by Rm[4:0])
+Rd[7:0] = SignedSat(shift, 8)"
+ASRSAT.32.16,Arithmetic shift right 32-bit with saturation,"32-bit arithmetic shift right, shift specified by an Arm register, sign-saturate to 16-bit and write the 16-bit result to the destination register","ASRSAT.32 Rd, Rn, Rm","shift = arithmetic_shift_right(Rn[31:0] by Rm[4:0])
+Rd[15:0] = SignedSat(shift, 16)"
+LSRSAT.16.8,Logical shift right 16-bit with saturation,"16-bit logical shift right, shift specified by an Arm register, unsign-saturate to 8-bit and write the 8-bit result to the destination register","LSRSAT.16 Rd, Rn, Rm","shift = logical_shift_right(Rn[15:0] by Rm[4:0])
+Rd[7:0] = UnsignedSat(shift, 8)"
+LSRSAT.32.16,Logical shift right 32-bit with saturation,"32-bit logical shift right, shift specified by an Arm register, unsign-saturate to 16-bit and write the 16-bit result to the destination register","LSRSAT.32 Rd, Rn, Rm","shift = logical_shift_right(Rn[31:0] by Rm[4:0])
+Rd[15:0] = UnsignedSat(shift, 16)"
+,,,,
+Special functions,,,,
+RELU.8,RELU 8-bit,"8-bit RELU, writing the 8-bit result to the destination register","RELU.8 Rd, Rn",Rd[7:0] = relu(Rn[7:0]
+EXP2.16,Exp2 16-bit ,"16-bit exponential 2, writing the 16-bit result to the destination register","EXP2.16 Rd, Rn",Rd[15:0] = exp2(Rn[15:0])
+LOG2.16,Log2 16-bit,"16-bit logarithm 2, writing the 16-bit result to the destination register","LOG2.16 Rd, Rn",Rd[15:0] = log2(Rn[15:0])
+RCP.16,Reciprocal 16-bit,"16-bit reciprocal, writing the 16-bit result to the destination register","RCP.16 Rd, Rn",Rd[15:0] = rcp(Rn[15:0])
+RSQRT.16,Square root 16-bit,"16-bit square root, writing the 16-bit result to the destination register","SQRT.16 Rd, Rn",Rd[15:0] = sqrt(Rn[15:0])
+,,,,
+Move and format instructions,,,,
+MOV.8,Move register 8-bit,8-bit move copies a value from a register to the 8-bit destination register,"MOV.8 Rd, Rn",Rd[7:0] = Rn[7:0]
+MOV.16,Move register 16-bit,16-bit move copies a value from a register to the 16-bit destination register,"MOV.16 Rd, Rn",Rd[15:0] = Rn[15:0]
+SWZ.8,Swizzle 8-bit,"For each 8-bit destination lane, Rd, select a byte from one of four registers, Rn, Rn+1, Rm, Rm+1, and any lane within register","SWZ.8 Rd, Rn, Rm, #swzsel4","The swzsel4 field indicates which 64-bit swz_subreg register and which 32-bit swz_reg to use. The four source registers are fetched from the register file, Rn, Rn+1, Rm, Rm+1. For each lane in the destination the appropraite 2-bits of the swz_reg indicates which source register to select, and the appropriate 4-bits indicate which lane in the register to select. The selected byte is then provided to the destination lane."
+SWZ.8.ZEXT.16,Swizzle 16-bit,"For each 8-bit destination lane, Rd, select a byte from one of four registers, Rn, Rn+1, Rm, Rm+1, and any lane within register. The upper 8-bit of the destination Rd, is 0.","SWZ.8.ZEXT.16 Rd, Rn, Rm, #swzsel",
+REGREP.8,Register replicate 8-bit,Register replicate 8-bit,"REGREP.8 Rm, Rt","Set the specified register based on the contents of ARM register Rt.
+The 32-bit value of Rt is provided on the coprocessor write data bus, however only the low 8-bits are used. This 8-bits is replicated to all 16 lanes to generate a 128-bit value. This value is the written to register Rd.
+
+Rm[127:0] = {16{Rt[7:0]}}"
+REGREP.16,Register replicate 16-bit,Register replicate 16-bit,"REGREP.16 Rm, Rt","Set the specified register based on the contents of ARM register Rt.
+The 32-bit value of Rt is provided on the coprocessor write data bus, however only the low 16-bits are used. This 16-bits are replicated to all 16 lanes to generate a 256-bit value. This value is the written to register Rd (effectively, Rd and Rd+1)
+
+Rm[255:0] = {16{Rt[15:0]}}"
+,,,,
+Multiply,,,,
+UMUL.8,Unsigned 8-bit multiply,"Two unsigned 8-bit multiplies, writing the 16-bit result to the destination register","UMUL.8 Rd, Rn, Rm",Rd[15:0] = unsigned(Rn[7:0]) * unsigned(Rm[7:0])
+SMUL.8,Signed 8-bit multiply,"Two signed 8-bit multiplies, writing the 16-bit result to the destination register","SMUL.8 Rd, Rn, Rm",Rd[15:0] = signed(Rn[7:0]) * signed(Rm[7:0])
+UMMUL.16.8,Unsigned 16-bit by 8-bit most significant word multiply,"Multiplies unsigned 16-bit by unsigned 8-bit values, writing most significant 16-bit result to the destination register","UMMUL.16.8 Rd, Rn, Rm","Intermediate[23:0] = unsigned(Rn[15:0]) * unsigned(Rm[7:0]))
+Rd[15:0] = Intermediate[23:8]"
+SMMUL.16.8,Signed 16-bit by 8-bit most significant word multiply,"Multiplies signed 16-bit by signed 8-bit values, writing most significant 16-bit result to the destination register","SMMUL.16.8 Rd, Rn, Rm","Intermediate[23:0] = signed(Rn[15:0]) * signed(Rm[7:0]))
+Rd[15:0] = Intermediate[23:8]"
+UMMUL.16,Unsigned most significant word multiply,"Multiplies two unsigned 16-bit values, extracts the most significant 16-bits of the results, and writes those bits to the 16-bit destination register",UMMUL.16,"Intermediate[31:0] = unsigned(Rn[15:0]) * unsigned(Rm[15:0])
+Rd[15:0] = Intermediate[31:16]"
+SMMUL.16,Signed most significant word multiply,"Multiplies two signed 16-bit values, extracts the most significant 16-bits of the results, and writes those bits to the 16-bit destination register",SMMUL.16,"Intermediate[31:0] = signed(Rn[15:0]) * signed(Rm[15:0])
+Rd[15:0] = Intermediate[31:16]"
+UMUL.16,Unsigned least significant word multiply,"Multiplies two unsigned 16-bit values, extracts the least significant 16-bits of the results, and writes those bits to the 16-bit destination register",UMUL.16,"Intermediate[31:0] = unsigned(Rn[15:0]) * unsigned(Rm[15:0])
+Rd[15:0] = Intermediate[15:0]"
+SMUL.16,Signed least significant word multiply,"Multiplies two signed 16-bit values, extracts the least significant 16-bits of the results, and writes those bits to the 16-bit destination register",SMUL.16,"Intermediate[31:0] = signed(Rn[15:0]) * signed(Rm[15:0])
+Rd[15:0] = Intermediate[15:0]"
+SUMMUL.16,"Signed, unsigned most significant word multiply","Multiplies signed 16-bit and unsigned 16-bit values, extracts the most significant 16-bits of the results, and writes those bits to the 16-bit destination register",SUMMUL.16,"Intermediate[31:0] = signed(Rn[15:0]) * unsigned(Rm[15:0])
+Rd[15:0] = Intermediate[31:16]"
+UMULL.16,Unsigned long 16-bit multiply ,"Multiplies two unsigned 16-bit values, writing the 32-bit result to the destination register","UMULL.16 Rd, Rn, Rm",Rd[31:0] = unsigned(Rn[15:0]) * unsigned(Rm[15:0])
+SMULL.16,Signed long 16-bit multiply ,"Multiplies two signed 16-bit values, writing the 32-bit result to the destination register","SMULL.16 Rd, Rn, Rm",Rd[31:0] = signed(Rn[15:0]) * signed(Rm[15:0])
+SUMULL.16,"Signed 16-bit, unsigned 16-bit long multiply ","Multiplies signed 16-bit and unsigned 16-bit values, writing the 32-bit result to the destination register","SUMULL.16 Rd, Rn, Rm",Rd[31:0] = signed(Rn[15:0]) * unsigned(Rm[15:0])
+,,,,
+Accumulator instructions,,,,
+UMLA.8,Unsigned 8-bit multiply accumulate ,"Two unsigned 8-bit multiplies, accumulating the 16-bit result to the 32-bit accumulator","UMLA.8 Rn, Rm",Acc[31:0] = Acc[31:0] + (unsigned(Rn[7:0] * unsigned(Rm[7:0]))
+SMLA.8,Signed 8-bit multiply accumulate ,"Two signed 8-bit multiplies, accumulating the 16-bit result to the 32-bit accumulator","SMLA.8 Rn, Rm",Acc[31:0] = Acc[31:0] + (signed(Rn[7:0] * signed(Rm[7:0]))
+UMLA.16.8,,16-bit unsigned value multiplied by 8-bit unsigned value resulting in a 24-bit result. 24-bit result added to 32-bit accumulator,"UMLA.16.8 Rn, Rm",Acc[31:0] = Acc[31:0] + (unsigned(Rn[15:0]) * unsigned(Rm[7:0]))
+SMLA.16.8,Signed Most Significant Word Multiply Accumulate,Multiplies signed 16 and signed 8-bit values. The 24-bit result is added to the 32-bit accumulator,"SMLA.16.8 Rn, Rm",Acc[31:0] = Acc[31:0] + (signed(Rn[15:0]) * signed(Rm[7:0]))
+UMLA.16,Unsigned 16-bit multiply accumulate ,"Two unsigned 16-bit multiplies, accumulating the 32-bit result to the 32-bit accumulator","UMLA.16 Rn, Rm",Acc[31:0] = Acc[31:0] + (unsigned(Rn[15:0] * unsigned(Rm[15:0]))
+SMLA.16,Signed 16-bit multiply accumulate ,"Two signed 16-bit multiplies, accumulating the 32-bit result to the 32-bit accumulator","SMLA.16 Rn, Rm",Acc[31:0] = Acc[31:0] + (signed(Rn[15:0] * signed(Rm[15:0]))
+ASR8ACC,Arithmetic shift right 8 accumulator ,"Arithmetic shift right accumulator by 8, writing the result to the accumulator register",ASR8ACC ,"Acc[31:0] = arithmetic_shift_right(Acc by 8)
+Acc[31:0] = {{8(Acc[31]}, Acc[31:8])"
+ASR16ACC,Arithmetic shift right 16 accumulator ,"Arithmetic shift right accumulator by 16, writing the result to the accumulator register",ASR16ACC ,"Acc[31:0] = arithmetic_shift_right(Acc by 16)
+Acc[31:0] = {{16(Acc[31]}, Acc[31:16])"
+LSR8ACC,Logical shift right 8 accumulator ,"Logical shift right accumulator by 8, writing the result to the accumulator register",LSR8ACC ,"Acc[31:0] = logical_shift_right(Acc by 8)
+Acc[31:0] = {{8(1'b0}}, Acc[31:8])"
+LSR16ACC,Logical shift right 16 accumulator ,"Logical shift right accumulator by 16, writing the result to the accumulator register",LSR16ACC ,"Acc[31:0] = logical_shift_right(Acc by 16)
+Acc[31:0] = {{16(1'b0}}, Acc[31:16])"
+ADDACC.8,Add register to accumulator 8-bit,Add 8-bit register to accumulator,"ADDACC.8 Rn, #sel2","(sel==0): Acc[31:0] = Acc[31:0] + Rn[7:0]
+(sel==1): Acc[31:0] = Acc[31:0] + {Rn[7:0], 8'b0}
+(sel==2): Acc[31:0] = Acc[31:0] + {Rn[7:0], 16'b0}
+(sel==3): Acc[31:0] = Acc[31:0] + {Rn[7:0], 24'b0}"
+ADDACC.16,Add register to accumulator 16-bit,Add 16-bit register to accumulator,"ADDACC.16 Rn, #sel1","(sel==0): Acc[31:0] = Acc[31:0] + Rn[15:0]
+(sel==1): Acc[31:0] = Acc[31:0] + {Rn[15:0], 16'b0}"
+MOVACC.8,Move register to accumulator 8-bit,Move 8-bit register to accumulator,"MOVACC.8 Rn, #sel2","(sel==0): Acc[7:0] = Rn[7:0]
+(sel==1): Acc[15:8] = Rn[7:0]
+(sel==2): Acc[23:16] = Rn[7:0]
+(sel==3): Acc[31:24] = Rn[7:0]"
+MOVREG.8,Move accumulator to register 8-bit,Move 8-bit accumulator to register,"MOVREG.8 Rd, #sel2","(sel2 == 0): Rd[7:0] = Acc[7:0]
+(sel2 == 1): Rd[7:0] = Acc[15:8]
+(sel2 == 2): Rd[7:0] = Acc[23:16]
+(sel2 == 3): Rd[7:0] = Acc[31:24]   "
+MOVREGSAT.8,Saturating move accumulator to register 8-bit,Move saturated 8-bit portion of signed 32-bit accumulator to 8-bit register,"MOVREGSAT.8 Rd, #sel2","(sel2 == 0): Rd[7:0] = SignedSaturate(Acc[7:0])
+(sel2 == 1): Rd[7:0] = SignedSaturate(Acc[15:8])
+(sel2 == 2): Rd[7:0] = SignedSaturate(Acc[23:16])
+(sel2 == 3): Rd[7:0] = Acc[31:24]
+Example:
+If lowest 8-bit byte moved and accumulator is 0x00_00_00_05, the result will be 0x05
+If lowest 8-bit byte moved and accumulator is 0x00_00_01_05, the result will be 0x7f, the largest 8-bit postive number
+If lowest 8-bit byte moved and accumulator is 0x80_00_00_05, the result will be 0x80, the largest 8-bit negative number
+If lowest 8-bit byte moved and accumulator is 0x00_00_00_80, the result will be 0x7f, the largest 8-bit positive number"
+MOVACC.16,Move register to accumulator 16-bit,Move 16-bit register to accumulator,"MOVACC.16 Rn, #sel1","(sel==0): Acc[15:0] = Rn[15:0]
+(sel==1): Acc[31:16] = Rn[15:0]"
+MOVREG.16,Move accumulator to register 16-bit,Move 16-bit accumulator to register,"MOVREG.8 Rd, #sel1","(sel1 == 0): Rd[15:0] = Acc[15:0]
+(sel1 == 1): Rd[15:0] = Acc[31:16]"
+MOVREGSAT.16,Saturating move accumulator to register 16-bit,Move saturated 16-bit portion of signed 32-bit accumulator to 16-bit register,"MOVREGSAT.8 Rd, #sel1","(sel1 == 0): Rd[15:0] = SignedSaturate(Acc[15:0])
+(sel1 == 1): Rd[15:0] = Acc[31:16]
+Example:
+If low 16-bit word moved and accumulator is 0x00_00_00_05, the result will be 0x00_05
+If low 16-bit word moved and accumulator is 0x00_00_01_05, the result will be 0x7f_ff, the largest positive 16-bit number
+If low 16-bit word moved and accumulator is 0x80_00_7f_ff, the result will be 0x80_00 the largest 16-bit negative number
+If low 16-bit word moved and accumulator is 0x00_00_80_00, the result will be 0x7f_ff the largest 16-bit positive number"
+,,,,
+Control instructions,,,,
+SET_BASEREG,Set base register,Set base registers,SET_BASEREG Rt,"Set the VE base registers based on the contents of ARM register Rt. The 32-bit value of Rt is placed on the coprocessor write data bus,. A base register is only updated if the respective enable bit is HIGH.
+
+Note: The base register addresses are always even; I.e. the LSB is always 0.
+
+if (Rt[7]==1?b1)
+  base_reg0={Rt[6:1], 1?b0}
+if (Rt[15]==1?b1)
+  base_reg1={Rt[14:9], 1?b0}
+if (Rt[15]==1?b1)
+  base_reg2={Rt[22:17], 1?b0}
+if (Rt[31]==1?b1)
+  base_reg3={Rt[30:25], 1?b0}"
+SET_RELU,Set RELU,Set upper and lower RELU limits,SET_RELU Rt,"Set the VE relu_low and relu_high registers based on the contents of ARM register Rt.
+The 32-bit value of Rt is provided on the coprocessor write data bus, however, only the low 16-bits are used.
+
+relu_low = Rt[7:0]
+relu_high = Rt[15:8]"
+SET_SWZSEL_REG_SEL,Set swizzle select register select,Set the specified 32-bit swz_reg register. The swz_subreg is chosen by the 4-bit swzsel field. ,SET_SWZSEL_REG_SEL Rt,This instruction sets the specified 32-bit swz_reg with the 32-bit value Rt provided on the coprocessor write data bus.
+SET_SWZSEL_SUBREG_SEL,Set swizzle select sub-register select,Set the specified 64-bit swz_subreg register. The swz_subreg is chosen by the 4-bit swzsel field. ,"SET_SWZSEL_SUBREG_SEL Rt, Rt2",This instruction sets the specified 64-bit swz_subreg with the 64-bit value provided on the Rt and Rt2 registers. The 64-bit value is provided on the coprocessor write data bus.
+SET_PLE_LANE_SEL,Set the PLE lane select register,Set the PLE lane select register used to direct coprocessor instrucions on specific PLE lanes,SET_PLE_LANE_SEL Rt,This instruction sets the PLE lane select register with the value Rt[1:0] provided on the coprocessor write data bus.
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,

@@ -6,8 +6,54 @@
 #
 
 import os
+import re
+from collections import namedtuple
 import SCons.Script
 import SCons.Variables.PathVariable as PathVariable
+
+
+class Variant(namedtuple("Variant", ("ces", "ogs", "emcs", "ple_lanes"))):
+    pass
+
+
+variants = [
+    Variant(ces=2, ogs=4, emcs=4, ple_lanes=2),
+    Variant(ces=4, ogs=4, emcs=4, ple_lanes=2),
+    Variant(ces=8, ogs=2, emcs=2, ple_lanes=2),
+    Variant(ces=8, ogs=4, emcs=2, ple_lanes=2),
+]
+
+# Lookup from PLE parameter names to a short *unique* code to use to generate unique short identifiers
+SHORT_PARAMS_LOOKUP = {
+    "operation": "",  # Implicit from the value, so no prefix needed
+    "block_width": "bw",
+    "block_height": "bh",
+    "block_multiplier": "bm",
+    "datatype": "",  # Implicit from the value, so no prefix needed
+    "is_direction_x": "dx",
+    "is_direction_y": "dy",
+    "pooling_size": "ps",
+}
+
+# Converts a dict of PLE kernel parameter names and values into a string that uniquely identifies it.
+# This should be safe to use as a filename or identifier. e.g.:
+#    { "operation": "ADDITION", "block_width":"16", "datatype": "u8" } => ADDITION_bw16_u8
+def get_string_from_kernel_params(params):
+    unique_name = []
+    for k, v in params.items():
+        # Keep it short by using a short code for each option
+        unique_name.append("{}{}".format(SHORT_PARAMS_LOOKUP[k], v))
+    # Remove invalid filename characters
+    unique_name = [re.sub(r'[/\\?%*:|"<>,]', "", str(x)) for x in unique_name]
+    return "_".join(unique_name)
+
+
+# Similar to the above, but also includes the variant, producing something like:
+#    V2442_ADDITION_RESCALE_bw16_bh16_bm1_u8
+def get_string_from_variant_and_kernel_params(variant, params):
+    params_string = get_string_from_kernel_params(params)
+    # 'V' prefix (for variant) is important so that the identifier doesn't start with a number
+    return f"V{variant.ces}{variant.ogs}{variant.emcs}{variant.ple_lanes}_{params_string}"
 
 
 def create_variables():
@@ -38,6 +84,7 @@ def create_variables():
         ("CPATH", "Append to the C include path list the compiler uses"),
         ("LPATH", "Append to the library path list the compiler uses"),
         ("scons_extra", "Extra scons files to be loaded, separated by comma.", ""),
+        ("scons_dev_optional", "Optional scons files to be loaded, separated by comma.", ""),
         PathVariable(
             "install_prefix",
             "Installation prefix",
@@ -74,6 +121,22 @@ def load_extras(env):
         for s in scripts:
             env.SConscript(s, exports=["env"])
 
+def load_optional(env):
+    "Load any optional dev scons scripts, specified in scons_dev_optional variable"
+    scriptpath = env.get("scons_dev_optional")
+    if scriptpath:
+        scripts = [s for s in scriptpath.split(",") if s]  # Ignore empty entries
+        for s in scripts:
+            opt = os.path.split(s)
+            if ("dev_optional_params.scons" in opt):
+                root_dir = env.Dir('#').abspath
+                path = os.path.join(root_dir, s)
+                if (not os.path.isfile(path)):
+                    return False
+                env.SConscript(s, exports=["env"])
+                return True
+
+    return False
 
 def add_env_var(env, variable):
     """
@@ -390,3 +453,32 @@ def add_padding(align):
             f.write(b"\x00" * (new_sz - sz))
 
     return add_padding_fn
+
+
+def get_control_unit_build_type(env, backend):
+    return get_build_type(env)
+
+
+def get_control_unit_build_dir(env, backend):
+    build_type = get_control_unit_build_type(env, backend)
+    config = "{}_{}".format(build_type, backend)
+    return get_build_dir(env, env["control_unit_dir"], config)
+
+
+def setup_plelib_dependency(env):
+    """
+    Setup plelib dependency.
+
+    Args:
+        env (SCons.Environment): The scons environment to use
+    """
+    ple_include = os.path.join(get_ple_build_dir(env), "include")
+
+    # Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on
+    # the install target where the install target is also provided via CPATH.
+    env.PrependUnique(CPPPATH=[ple_include])
+
+
+def get_ple_build_dir(env):
+    config = "release"
+    return get_build_dir(env, env["ple_dir"], config)

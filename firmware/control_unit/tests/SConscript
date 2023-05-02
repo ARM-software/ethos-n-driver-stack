@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+#
+# Copyright © 2018-2023 Arm Limited.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+import common
+import os
+
+Import("env", "libs")
+
+srcs = [
+    "UnitTestsMain.cpp",
+]
+
+# Building the unit tests with the model on Aarch64 is not supported.
+# Therefore, we don't define targets and dependencies when backend="model" and
+# platform="aarch64"
+if env["backend"] == "model" and env["platform"] == "native":
+    common.setup_toolchain(env, env["platform"])
+    srcs += [
+        "ComparisonUtils.cpp",
+        "ContainersTests.cpp",
+        "FixedStringTests.cpp",
+        "MailboxTests.cpp",
+        "UnitTests.cpp",
+        "TestUtils.cpp",
+        "DmaLoadWeightsCmdTests.cpp",
+        "DmaRdWrCmdIfmNhwcTests.cpp",
+        "PleStripeCmdTests.cpp",
+    ]
+    # Add dependency on libXmlToBinary if we need to be able to dump command streams.
+    env.PrependUnique(CPPPATH=[env["lib_xml_to_binary_dir"]])
+    lib_xml_to_binary = File(
+        os.path.join(common.get_lib_xml_to_binary_build_dir(env), "libXmlToBinary.a")
+    )
+    libs.extend([lib_xml_to_binary])
+
+if not (env["backend"] == "model" and env["platform"] == "aarch64"):
+    unitTests = env.Program("UnitTests", srcs, LIBS=libs)
+    # Clean up artefacts produced from executing the unit test
+    Clean(unitTests, ["#/hello.hex", "#/uscript_ufile.txt"])
+
+    if env["backend"] == "model":
+        testAlias = env.Alias("control-unit-unit-tests", unitTests, unitTests[0].abspath)
+        env.Alias("unit-tests", testAlias)
+        AlwaysBuild(testAlias)

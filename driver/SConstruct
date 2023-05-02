@@ -80,6 +80,13 @@ var.AddVariables(
         "",
         PathVariable.PathAccept,
     ),
+    PathVariable(
+        "cmsis_dir",
+        "Path to the CMSIS core include path used when building the firmware.",
+        "",
+        PathVariable.PathAccept,
+    ),
+    BoolVariable("profiling", "Enable performance profiling", False),
 )
 
 env = Environment(variables=var)
@@ -95,10 +102,17 @@ env["command_stream_dir"] = os.path.join(env["support_library_dir"], "command_st
 env["utils_dir"] = "utils"
 env["lib_xml_to_binary_dir"] = os.path.join(env["command_stream_dir"], "xml_to_binary")
 env["system_tests_dir"] = os.path.join("..", "tools", "system_tests")
+env["control_unit_dir"] = os.path.join("..", "firmware", "control_unit")
+env["ple_dir"] = os.path.join("..", "firmware", "ple")
 
 # These can be overridden by developer options, if applicable
 env["kernel_module_dir"] = os.path.join("..", "kernel-module")
 env["target"] = "kmod"
+env["force_ple_fault"] = False
+env["ple_logging"] = "off"
+env["arch_regs_dir"] = os.path.join("..", "firmware", "include")
+env["ple_cluster_build"] = False
+env["disable_Pow2"] = False
 
 # Because these path arguments may be relative, they must be correctly interpreted as relative to the top-level
 # folder rather than the 'build' subdirectory, which is what scons would do if they were passed to the SConscript
@@ -113,6 +127,10 @@ common.abs_path(
         "lib_xml_to_binary_dir",
         "kernel_module_dir",
         "system_tests_dir",
+        "control_unit_dir",
+        "ple_dir",
+        "arch_regs_dir",
+        "cmsis_dir",
     ],
 )
 
@@ -126,13 +144,31 @@ Default(
     common.get_command_stream_build_dir(env),
 )
 
+optional_var = ""
+optional_dir = ""
+if (common.load_optional(env)):
+    optional_dir = env["optional_dir"]
+    optional_var = env["optional_var"]
 
-Export("env")
-common.load_extras(env)
+if (optional_var):
+    env[optional_var] = optional_dir
 
 # Process all modules which use a variant_dir
 # We're going to clone this, in the current form, some modules are polluting the env, breaking subsequent builds.
 env_backup = env
+
+# PLE kernels are always compiled in release mode, PLE debugging is not supported
+env = env_backup.Clone()
+env["debug"] = False
+SConscript(
+    dirs=env["ple_dir"],
+    variant_dir=common.get_ple_build_dir(env),
+    duplicate=False,
+    exports="env",
+)
+
+Export("env")
+common.load_extras(env_backup)
 
 env = env_backup.Clone()
 SConscript(
@@ -183,6 +219,19 @@ if env["tests"]:
         duplicate=False,
         exports="env",
     )
+
+env = env_backup.Clone()  # making sure we're starting with a clean config
+variant_dir = common.get_control_unit_build_dir(env, "hardware")
+# Create aliases for the hardware targets so you can run:
+# scons control_unit-hardware
+Alias(["control_unit-all", "control_unit-hardware"], variant_dir)
+env["backend"] = "hardware"
+SConscript(
+    dirs=env["control_unit_dir"],
+    variant_dir=variant_dir,
+    duplicate=False,
+    exports="env",
+)
 
 aliases = default_ans.keys()
 env.Help("\n")

@@ -19,12 +19,18 @@ env.PrependUnique(
         os.path.join(env["driver_library_dir"], "include"),
         os.path.join(env["utils_dir"], "include"),
         os.path.join(env["support_library_dir"], "include"),
-        os.path.join(env["armnn_dir"], "include"),
-        os.path.join(env["armnn_dir"], "profiling"),
         os.path.join(env["unit_test_kernel_dir"], "usr", "include"),
         env["kernel_module_dir"],
     ]
 )
+
+if env["armnn_dir"]:
+    env.PrependUnique(
+        CPPPATH=[
+            os.path.join(env["armnn_dir"], "include"),
+            os.path.join(env["armnn_dir"], "profiling"),
+        ]
+    )
 
 # The TZMP1 test kernel module is only available in a TZMP1 build
 if env.get("npu_security") == "tzmp1":
@@ -48,11 +54,14 @@ env.AppendUnique(CPPDEFINES=["TARGET_" + env["target"].upper()])
 
 common.setup_toolchain(env, env["platform"])
 
+if env["armnn_dir"]:
+    env.PrependUnique(LIBPATH=[common.get_armnn_build_dir(env)])
+
 libs = [
     File(os.path.join(common.get_support_library_build_dir(env), "libEthosNSupport.so")),
     File(os.path.join(common.get_driver_library_build_dir(env), "libEthosNDriver.so")),
-    File(os.path.join(common.get_armnn_build_dir(env), "libarmnn.so")),
-    File(os.path.join(common.get_armnn_build_dir(env), "libarmnnTfLiteParser.so")),
+    "libarmnn.so",
+    "libarmnnTfLiteParser.so",
     "pthread",
 ]
 

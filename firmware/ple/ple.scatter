@@ -1,0 +1,40 @@
+#! armclang --target=arm-arm-none-eabi -mcpu=Cortex-M33+nodsp -E -x c
+// The above command tells the linker to first run this file through the C preprocessor.
+
+#ifndef SRAM_SIZE
+#define SRAM_SIZE 0x1000
+#endif
+
+#ifndef STACK_SIZE
+#define STACK_SIZE 0x1C0
+#endif
+
+#if STACK_SIZE < 64
+// If the stack size is too small then we may have problems when swapping PLE
+// kernels at runtime. See the comment in Common.hpp. This limit was chosen
+// fairly arbitrarily - it needs to be at least 32 (i.e. sizeof(IrqContext))
+// plus the stack usage of main(), which is currently 8.
+#error "Stack size is too small - see above comment"
+#endif
+
+PLE_MCU_RAM 0x0 NOCOMPRESS SRAM_SIZE
+{
+    ROM_COMMON +0 ALIGN 16
+    {
+        * (VECTOR_TABLE, +FIRST)                        ; Vector table
+        * (BOOT_BSS, BOOT_DATA, BOOT_RODATA, BOOT_TEXT) ; Reset stub
+    }
+
+    RAM +0 ALIGN 16
+    {
+        * (+RO, +RW, +ZI)         ; all other sections
+    }
+
+    // No data is placed here - it's just an empty section needed to get the linker to
+    // pad the binary size to a multiple of 16, which is a requirement for the UDMA
+    PADDING +0 ALIGN 16 EMPTY 0
+    {
+    }
+
+    STACK (SRAM_SIZE - STACK_SIZE) EMPTY STACK_SIZE {}
+}
