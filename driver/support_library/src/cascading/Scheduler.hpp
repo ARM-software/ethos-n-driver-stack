@@ -147,6 +147,20 @@ public:
     const std::vector<command_stream::cascading::Command>& GetPleCommands() const;
 
 private:
+    /// Wraps a list of Commands along with storage of which stripe ID was last waited
+    /// for on each agent. This allows us to avoid inserting redundant WaitForAgents on
+    /// stripes which we can guarantee are already complete.
+    class CommandQueue
+    {
+    public:
+        void Push(const command_stream::cascading::Command& c);
+        const std::vector<command_stream::cascading::Command>& GetCommands() const;
+
+    private:
+        std::vector<command_stream::cascading::Command> m_Commands;
+        std::map<uint32_t, uint32_t> m_LastStripeWaitedForAgent;
+    };
+
     /// Schedules the next stripe for the given agent.
     /// Also advances the progress for the given agent.
     void ScheduleOneStripe(const uint32_t agentId);
@@ -155,12 +169,12 @@ private:
                                  const uint32_t agentId,
                                  const uint32_t stripeId,
                                  const uint16_t tileSize,
-                                 std::vector<command_stream::cascading::Command>& commands);
+                                 CommandQueue& commands);
     void InsertReadDependencies(const AgentDependencyInfo& agent,
                                 const uint32_t agentId,
                                 const uint32_t stripeId,
                                 const utils::Optional<command_stream::cascading::AgentType> agentTypeToIgnore,
-                                std::vector<command_stream::cascading::Command>& commands);
+                                CommandQueue& commands);
 
     void ScheduleIfmStreamerStripe(const uint32_t agentId, uint32_t stripeId);
     void ScheduleWgtStreamerStripe(const uint32_t agentId, uint32_t stripeId);
@@ -177,10 +191,10 @@ private:
     /// Keeps track of the next stripe that needs to be scheduled for each agent.
     std::vector<uint32_t> m_AgentProgress;
 
-    std::vector<command_stream::cascading::Command> m_DmaRdCommands;
-    std::vector<command_stream::cascading::Command> m_DmaWrCommands;
-    std::vector<command_stream::cascading::Command> m_MceCommands;
-    std::vector<command_stream::cascading::Command> m_PleCommands;
+    CommandQueue m_DmaRdCommands;
+    CommandQueue m_DmaWrCommands;
+    CommandQueue m_MceCommands;
+    CommandQueue m_PleCommands;
 };
 
 }    // namespace support_library

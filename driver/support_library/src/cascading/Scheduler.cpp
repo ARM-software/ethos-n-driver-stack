@@ -133,11 +133,32 @@ void DumpDependencies(std::ofstream& f, const std::vector<AgentDescAndDeps>& age
 
 }    // namespace
 
+void Scheduler::CommandQueue::Push(const command_stream::cascading::Command& c)
+{
+    if (c.type == CommandType::WaitForAgent)
+    {
+        // Skip adding this command if we've already waited for this stripe (or a later one)
+        auto lastStripeWaitedForIt = m_LastStripeWaitedForAgent.find(c.agentId);
+        if (lastStripeWaitedForIt != m_LastStripeWaitedForAgent.end() && lastStripeWaitedForIt->second >= c.stripeId)
+        {
+            return;
+        }
+        // Remember that we've now waited for this stripe, so that future waits might be skippable.
+        m_LastStripeWaitedForAgent[c.agentId] = c.stripeId;
+    }
+    m_Commands.push_back(c);
+}
+
+const std::vector<command_stream::cascading::Command>& Scheduler::CommandQueue::GetCommands() const
+{
+    return m_Commands;
+}
+
 void Scheduler::InsertWriteDependencies(const AgentDependencyInfo& agent,
                                         const uint32_t agentId,
                                         const uint32_t stripeId,
                                         const uint16_t tileSize,
-                                        std::vector<Command>& commands)
+                                        CommandQueue& commands)
 {
     if (stripeId < tileSize)
     {
@@ -158,14 +179,8 @@ void Scheduler::InsertWriteDependencies(const AgentDependencyInfo& agent,
         }
         if (stripeToWaitFor >= 0)
         {
-            // When stripeId == tileSize, it is needed to insert the wait because this is the first stripe that
-            // overwrite something in the tile.
-            if ((stripeId == tileSize) ||
-                (stripeToWaitFor != GetLastReaderOfEvictedStripeId(writeDependency, stripeId - 1, tileSize)))
-            {
-                commands.push_back(
-                    Command{ CommandType::WaitForAgent, otherAgentId, static_cast<uint32_t>(stripeToWaitFor), 0 });
-            }
+            commands.Push(
+                Command{ CommandType::WaitForAgent, otherAgentId, static_cast<uint32_t>(stripeToWaitFor), 0 });
         }
     }
 }
@@ -174,7 +189,7 @@ void Scheduler::InsertReadDependencies(const AgentDependencyInfo& agent,
                                        const uint32_t agentId,
                                        const uint32_t stripeId,
                                        const utils::Optional<AgentType> agentTypeToIgnore,
-                                       std::vector<Command>& commands)
+                                       CommandQueue& commands)
 {
     for (const auto& readDependency : agent.readDependencies)
     {
@@ -194,13 +209,8 @@ void Scheduler::InsertReadDependencies(const AgentDependencyInfo& agent,
             }
             if (stripeToWaitFor >= 0)
             {
-                // When the very first stripe is scheduled (i.e. stripeId == 0), it is needed to wait
-                // that the read dependency is met before programing the stripe.
-                if ((stripeId == 0) || (stripeToWaitFor != GetLargestNeededStripeId(readDependency, stripeId - 1)))
-                {
-                    commands.push_back(
-                        Command{ CommandType::WaitForAgent, otherAgentId, static_cast<uint32_t>(stripeToWaitFor), 0 });
-                }
+                commands.Push(
+                    Command{ CommandType::WaitForAgent, otherAgentId, static_cast<uint32_t>(stripeToWaitFor), 0 });
             }
         }
     }
@@ -220,7 +230,7 @@ void Scheduler::ScheduleIfmStreamerStripe(const uint32_t agentId, uint32_t strip
     const uint32_t numChunks = CalculateNumChunks(agentAndDeps.agent.ifm, stripeId);
     for (uint32_t i = 0; i < numChunks; ++i)
     {
-        m_DmaRdCommands.push_back(Command{ CommandType::LoadIfmStripe, agentId, stripeId, 0 });
+        m_DmaRdCommands.Push(Command{ CommandType::LoadIfmStripe, agentId, stripeId, 0 });
     }
 }
 
@@ -235,7 +245,7 @@ void Scheduler::ScheduleWgtStreamerStripe(const uint32_t agentId, uint32_t strip
     InsertWriteDependencies(agentAndDeps.deps, agentId, stripeId, tileSize, m_DmaRdCommands);
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_DmaRdCommands);
 
-    m_DmaRdCommands.push_back(Command{ CommandType::LoadWgtStripe, agentId, stripeId, 0 });
+    m_DmaRdCommands.Push(Command{ CommandType::LoadWgtStripe, agentId, stripeId, 0 });
 }
 
 void Scheduler::ScheduleMceSchedulerStripe(const uint32_t agentId, uint32_t stripeId)
@@ -246,11 +256,11 @@ void Scheduler::ScheduleMceSchedulerStripe(const uint32_t agentId, uint32_t stri
 
     g_Logger.Verbose("Schedule MceSchedulerStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
-    m_MceCommands.push_back(Command{ CommandType::ProgramMceStripe, agentId, stripeId, 0 });
+    m_MceCommands.Push(Command{ CommandType::ProgramMceStripe, agentId, stripeId, 0 });
 
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_MceCommands);
 
-    m_MceCommands.push_back(Command{ CommandType::StartMceStripe, agentId, stripeId, 0 });
+    m_MceCommands.Push(Command{ CommandType::StartMceStripe, agentId, stripeId, 0 });
 }
 
 void Scheduler::SchedulePleLoaderStripe(const uint32_t agentId, uint32_t stripeId)
@@ -265,7 +275,7 @@ void Scheduler::SchedulePleLoaderStripe(const uint32_t agentId, uint32_t stripeI
 
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_DmaRdCommands);
 
-    m_DmaRdCommands.push_back(Command{ CommandType::LoadPleCode, agentId, stripeId, 0 });
+    m_DmaRdCommands.Push(Command{ CommandType::LoadPleCode, agentId, stripeId, 0 });
 }
 
 void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stripeId)
@@ -288,7 +298,7 @@ void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stri
     const auto agentTypeToIgnore = AgentType::MCE_SCHEDULER;
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, agentTypeToIgnore, m_PleCommands);
 
-    m_PleCommands.push_back(Command{ CommandType::StartPleStripe, agentId, stripeId, 0 });
+    m_PleCommands.Push(Command{ CommandType::StartPleStripe, agentId, stripeId, 0 });
 }
 
 void Scheduler::ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t stripeId)
@@ -304,7 +314,7 @@ void Scheduler::ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t strip
     const uint32_t numChunks = CalculateNumChunks(agentAndDeps.agent.ofm, stripeId);
     for (uint32_t i = 0; i < numChunks; ++i)
     {
-        m_DmaWrCommands.push_back(Command{ CommandType::StoreOfmStripe, agentId, stripeId, 0 });
+        m_DmaWrCommands.Push(Command{ CommandType::StoreOfmStripe, agentId, stripeId, 0 });
     }
 }
 
@@ -316,22 +326,22 @@ Scheduler::Scheduler(const std::vector<AgentDescAndDeps>& agents, const Debuggin
 
 const std::vector<Command>& Scheduler::GetDmaRdCommands() const
 {
-    return m_DmaRdCommands;
+    return m_DmaRdCommands.GetCommands();
 }
 
 const std::vector<Command>& Scheduler::GetDmaWrCommands() const
 {
-    return m_DmaWrCommands;
+    return m_DmaWrCommands.GetCommands();
 }
 
 const std::vector<Command>& Scheduler::GetMceCommands() const
 {
-    return m_MceCommands;
+    return m_MceCommands.GetCommands();
 }
 
 const std::vector<Command>& Scheduler::GetPleCommands() const
 {
-    return m_PleCommands;
+    return m_PleCommands.GetCommands();
 }
 
 void Scheduler::ScheduleOneStripe(const uint32_t agentId)
