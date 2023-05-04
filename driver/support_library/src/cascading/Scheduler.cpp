@@ -154,6 +154,27 @@ const std::vector<command_stream::cascading::Command>& Scheduler::CommandQueue::
     return m_Commands;
 }
 
+Scheduler::CommandQueue& Scheduler::GetQueueForAgentType(AgentType agentType)
+{
+    switch (agentType)
+    {
+        case AgentType::IFM_STREAMER:
+            return m_DmaRdCommands;
+        case AgentType::WGT_STREAMER:
+            return m_DmaRdCommands;
+        case AgentType::MCE_SCHEDULER:
+            return m_MceCommands;
+        case AgentType::PLE_LOADER:
+            return m_DmaRdCommands;
+        case AgentType::PLE_SCHEDULER:
+            return m_PleCommands;
+        case AgentType::OFM_STREAMER:
+            return m_DmaWrCommands;
+        default:
+            throw InternalErrorException("Unknown agent type");
+    }
+}
+
 void Scheduler::InsertWriteDependencies(const AgentDependencyInfo& agent,
                                         const uint32_t agentId,
                                         const uint32_t stripeId,
@@ -179,8 +200,23 @@ void Scheduler::InsertWriteDependencies(const AgentDependencyInfo& agent,
         }
         if (stripeToWaitFor >= 0)
         {
-            commands.Push(
-                Command{ CommandType::WaitForAgent, otherAgentId, static_cast<uint32_t>(stripeToWaitFor), 0 });
+            bool sameQueue = &GetQueueForAgentType(m_Agents[otherAgentId].agent.type) == &commands;
+            // Don't add dependencies on earlier stripes in the same queue as the order enforces this anyway.
+            if (!sameQueue)
+            {
+                commands.Push(
+                    Command{ CommandType::WaitForAgent, otherAgentId, static_cast<uint32_t>(stripeToWaitFor), 0 });
+            }
+            else if (sameQueue && m_AgentProgress[otherAgentId] < static_cast<uint32_t>(stripeToWaitFor))
+            {
+                // Dependencies to later stripes in the same queue are always invalid
+                // and indicate there is an issue in the dependencies.
+                throw InternalErrorException(
+                    (std::string(
+                         "Invalid scheduling detected due to dependencies on later stripes in the same queue: agent ") +
+                     std::to_string(agentId) + " has write dependency on agent " + std::to_string(otherAgentId))
+                        .c_str());
+            }
         }
     }
 }
@@ -209,8 +245,23 @@ void Scheduler::InsertReadDependencies(const AgentDependencyInfo& agent,
             }
             if (stripeToWaitFor >= 0)
             {
-                commands.Push(
-                    Command{ CommandType::WaitForAgent, otherAgentId, static_cast<uint32_t>(stripeToWaitFor), 0 });
+                bool sameQueue = &GetQueueForAgentType(m_Agents[otherAgentId].agent.type) == &commands;
+                // Don't add dependencies on earlier stripes in the same queue as the order enforces this anyway.
+                if (!sameQueue)
+                {
+                    commands.Push(
+                        Command{ CommandType::WaitForAgent, otherAgentId, static_cast<uint32_t>(stripeToWaitFor), 0 });
+                }
+                else if (sameQueue && m_AgentProgress[otherAgentId] < static_cast<uint32_t>(stripeToWaitFor))
+                {
+                    // Dependencies to later stripes in the same queue are always invalid
+                    // and indicate there is an issue in the dependencies.
+                    throw InternalErrorException((std::string("Invalid scheduling detected due to dependencies on "
+                                                              "later stripes in the same queue: agent ") +
+                                                  std::to_string(agentId) + " has read dependency on agent " +
+                                                  std::to_string(otherAgentId))
+                                                     .c_str());
+                }
             }
         }
     }

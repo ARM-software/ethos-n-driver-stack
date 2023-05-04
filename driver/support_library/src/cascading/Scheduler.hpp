@@ -183,6 +183,8 @@ private:
     void SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stripeId);
     void ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t stripeId);
 
+    CommandQueue& GetQueueForAgentType(command_stream::cascading::AgentType agentType);
+
     const DebuggingContext& m_DebuggingContext;
 
     /// The list of agents that this Scheduler will process.
