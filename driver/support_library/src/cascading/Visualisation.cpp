@@ -1287,19 +1287,19 @@ void SaveCompiledOpGraphToDot(const OpGraph& graph,
                               DetailLevel detailLevel)
 {
     std::map<Op*, std::string> extraOpDetails;
-    for (const auto pair : compilationDetails.m_OpToAgentIdMapping)
+    for (const auto& pair : compilationDetails.m_OpToAgentIdMapping)
     {
         extraOpDetails[pair.first] = "Agent ID: " + std::to_string(pair.second);
     }
 
     std::map<Buffer*, std::string> extraBufferDetails;
-    for (const auto pair : compilationDetails.m_BufferIds)
+    for (const auto& pair : compilationDetails.m_BufferIds)
     {
         extraBufferDetails[pair.first] = "Buffer ID: " + std::to_string(pair.second);
     }
 
     std::map<uint32_t, std::pair<size_t, size_t>> passAgentIdRanges;
-    for (const auto pair : compilationDetails.m_EstimatedOpGraph.m_OpToPass)
+    for (const auto& pair : compilationDetails.m_EstimatedOpGraph.m_OpToPass)
     {
         auto it = passAgentIdRanges.insert({ pair.second, { std::numeric_limits<uint32_t>::max(), 0 } });
 
@@ -1310,7 +1310,7 @@ void SaveCompiledOpGraphToDot(const OpGraph& graph,
     }
 
     std::map<uint32_t, std::string> extraPassDetails;
-    for (const auto pair : passAgentIdRanges)
+    for (const auto& pair : passAgentIdRanges)
     {
         extraPassDetails[pair.first] =
             "Agent IDs: " + std::to_string(pair.second.first) + " - " + std::to_string(pair.second.second);
@@ -1500,7 +1500,7 @@ void SaveCombinationToDot(const Combination& combination, std::ostream& stream, 
         const std::unordered_map<PartInputSlot, std::shared_ptr<StartingGlue>>& startingGlues = elem.m_StartingGlues;
         std::map<PartInputSlot, std::shared_ptr<StartingGlue>> startingGluesOrdered(startingGlues.begin(),
                                                                                     startingGlues.end());
-        for (const std::pair<PartInputSlot, std::shared_ptr<StartingGlue>>& slotAndStartingGlue : startingGluesOrdered)
+        for (const auto& slotAndStartingGlue : startingGluesOrdered)
         {
             StartingGlue* startingGlue = slotAndStartingGlue.second.get();
             std::string glueLabel      = "Part " + std::to_string(partId) + " " + plan.m_DebugTag + " Starting Glue";
@@ -1526,7 +1526,7 @@ void SaveCombinationToDot(const Combination& combination, std::ostream& stream, 
         const std::unordered_map<PartOutputSlot, std::shared_ptr<EndingGlue>>& endingGlues = elem.m_EndingGlues;
         std::map<PartOutputSlot, std::shared_ptr<EndingGlue>> endingGluesOrdered(endingGlues.begin(),
                                                                                  endingGlues.end());
-        for (const std::pair<PartOutputSlot, std::shared_ptr<EndingGlue>>& slotAndEndingGlue : endingGluesOrdered)
+        for (const auto& slotAndEndingGlue : endingGluesOrdered)
         {
             EndingGlue* endingGlue = slotAndEndingGlue.second.get();
             std::string glueLabel  = "Part " + std::to_string(partId) + " " + plan.m_DebugTag + " Ending Glue";

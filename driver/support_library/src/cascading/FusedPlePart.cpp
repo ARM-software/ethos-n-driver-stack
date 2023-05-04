@@ -400,7 +400,7 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
         return ret;
     }
 
-    NumStripes numStripesOutput;
+    NumStripes numStripesOutput = { 0, 0 };
     // strategy 0
     if (!fullPlane)
     {
