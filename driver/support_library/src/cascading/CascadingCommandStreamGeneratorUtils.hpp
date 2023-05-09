@@ -740,10 +740,13 @@ int8_t CalculateMceSBoundary(const MceSDesc& mce)
     uint8_t maxFilterWidth  = utils::Max<uint8_t>(mce.filterShape, [](const FilterShape& s) { return s.width; });
     uint8_t maxFilterHeight = utils::Max<uint8_t>(mce.filterShape, [](const FilterShape& s) { return s.height; });
 
-    bool needsBoundaryBeforeX = mce.numStripes.ofmWidth > 1 && !mce.isPackedBoundaryX &&
-                                (maxFilterWidth >= 2 || mce.upsampleType != MceUpsampleType::OFF);
-    bool needsBoundaryBeforeY = mce.numStripes.ofmHeight > 1 && !mce.isPackedBoundaryY &&
-                                (maxFilterHeight >= 2 || mce.upsampleType != MceUpsampleType::OFF);
+    bool multiIfmStripeX = mce.numStripes.ofmWidth > 1 || mce.isExtraIfmStripeAtRightEdge;
+    bool multiIfmStripeY = mce.numStripes.ofmHeight > 1 || mce.isExtraIfmStripeAtBottomEdge;
+
+    bool needsBoundaryBeforeX =
+        multiIfmStripeX && !mce.isPackedBoundaryX && (maxFilterWidth >= 2 || mce.upsampleType != MceUpsampleType::OFF);
+    bool needsBoundaryBeforeY =
+        multiIfmStripeY && !mce.isPackedBoundaryY && (maxFilterHeight >= 2 || mce.upsampleType != MceUpsampleType::OFF);
     return needsBoundaryBeforeX || needsBoundaryBeforeY;
 }
 
