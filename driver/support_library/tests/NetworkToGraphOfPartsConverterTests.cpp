@@ -3520,17 +3520,23 @@ TEST_CASE("NetworkToGraphOfPartsConverter EstimateOnly")
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
 
-    TensorInfo inputInfo{ { 1, 1, 1, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, { 0, 1.f } };
+    TensorInfo inputInfo1{ { 1, 1, 1, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, { 0, 1.f } };
+    TensorInfo inputInfo2{ { 1, 1, 1, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, { 0, 1.f } };
+    TensorInfo outputInfo1{ { 1, 1, 1, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, { 0, 1.f } };
+    TensorInfo outputInfo2{ { 1, 1, 1, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, { 0, 1.f } };
 
     std::string reasonForEstimateOnly = "EstimateOnly operation added.";
-    EstimateOnlyInfo estimateOnlyInfo({ inputInfo }, reasonForEstimateOnly);
+    EstimateOnlyInfo estimateOnlyInfo({ outputInfo1, outputInfo2 }, reasonForEstimateOnly);
 
     const std::shared_ptr<Network> network =
         CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
-    TensorAndId<Operand> input = AddInput(network, inputInfo);
-    TensorsAndId estimateOnly = AddEstimateOnly(network, std::vector<Operand*>{ input.tensor.get() }, estimateOnlyInfo);
-    TensorAndId<Output> output = AddOutput(network, *estimateOnly.tensors[0], DataFormat::NHWCB);
+    TensorAndId<Operand> input1 = AddInput(network, inputInfo1);
+    TensorAndId<Operand> input2 = AddInput(network, inputInfo2);
+    TensorsAndId estimateOnly =
+        AddEstimateOnly(network, std::vector<Operand*>{ input1.tensor.get(), input2.tensor.get() }, estimateOnlyInfo);
+    TensorAndId<Output> output1 = AddOutput(network, *estimateOnly.tensors[0], DataFormat::NHWCB);
+    TensorAndId<Output> output2 = AddOutput(network, *estimateOnly.tensors[1], DataFormat::NHWCB);
 
     bool dumpToFile = false;
     if (dumpToFile)
@@ -3551,9 +3557,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter EstimateOnly")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
     }
 
-    REQUIRE(graph.GetNumParts() == 3);
+    REQUIRE(graph.GetNumParts() == 5);
 
-    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
+    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(2));
     REQUIRE(estimateOnlyPart != nullptr);
     auto plans = estimateOnlyPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
     REQUIRE(plans[0].GetInputBuffer(PartInputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==

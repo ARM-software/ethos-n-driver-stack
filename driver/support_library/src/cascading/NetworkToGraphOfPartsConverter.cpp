@@ -1049,7 +1049,6 @@ void NetworkToGraphOfPartsConverter::Visit(MeanXy& meanxy)
 
 void NetworkToGraphOfPartsConverter::Visit(EstimateOnly& estimateOnly)
 {
-    std::vector<BasePart*> parts;
     // Convert from DataFormat to CompilerFormat needed for the EstimateOnly.
     CompilerDataFormat compilerDataFormat =
         ConvertExternalToCompilerDataFormat(estimateOnly.GetEstimateOnlyInfo().m_OutputInfos[0].m_DataFormat);
@@ -1064,9 +1063,21 @@ void NetworkToGraphOfPartsConverter::Visit(EstimateOnly& estimateOnly)
         estimateOnly.GetEstimateOnlyInfo().m_OutputInfos, compilerDataFormat,
         std::set<uint32_t>{ estimateOnly.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-    parts.push_back(estimateOnlyPart.get());
+    EstimateOnlyPart* estimateOnlyPartRaw = estimateOnlyPart.get();
     m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
-    ConnectParts(estimateOnly, parts);
+
+    // Connect to inputs
+    for (uint32_t inputSlot = 0; inputSlot < estimateOnly.GetInputs().size(); ++inputSlot)
+    {
+        const Operand* op = estimateOnly.GetInputs()[inputSlot];
+        m_GraphOfParts.AddConnection({ estimateOnlyPartRaw->GetPartId(), inputSlot },
+                                     { m_OperandToPart.at(op)->GetPartId(), op->GetProducerOutputIndex() });
+    }
+
+    for (const Operand& outputOperand : estimateOnly.GetOutputs())
+    {
+        m_OperandToPart[&outputOperand] = estimateOnlyPartRaw;
+    }
 }
 
 void NetworkToGraphOfPartsConverter::Visit(Resize& resize)
@@ -1656,16 +1667,16 @@ GraphOfParts NetworkToGraphOfPartsConverter::ReleaseGraphOfParts()
     return std::move(m_GraphOfParts);
 }
 
-void NetworkToGraphOfPartsConverter::ConnectParts(Operation& operation, std::vector<BasePart*>& m_Part)
+void NetworkToGraphOfPartsConverter::ConnectParts(Operation& operation, std::vector<BasePart*>& parts)
 {
     // This function currently supports Operations with no/single Output.
     // cppcheck-suppress assertWithSideEffect
     assert(operation.GetOutputs().size() <= 1);
 
     // Loop through all parts in the vector of BaseParts and connect them together.
-    for (uint32_t i = 0; i < static_cast<uint32_t>(m_Part.size()) - 1; i++)
+    for (uint32_t i = 0; i < static_cast<uint32_t>(parts.size()) - 1; i++)
     {
-        m_GraphOfParts.AddConnection({ m_Part[i + 1]->GetPartId(), 0 }, { m_Part[i]->GetPartId(), 0 });
+        m_GraphOfParts.AddConnection({ parts[i + 1]->GetPartId(), 0 }, { parts[i]->GetPartId(), 0 });
     }
 
     uint32_t i = 0;
@@ -1673,7 +1684,7 @@ void NetworkToGraphOfPartsConverter::ConnectParts(Operation& operation, std::vec
     // the preceding Part that has the same Operand as output.
     for (const Operand* op : operation.GetInputs())
     {
-        m_GraphOfParts.AddConnection({ m_Part.front()->GetPartId(), i },
+        m_GraphOfParts.AddConnection({ parts.front()->GetPartId(), i },
                                      { m_OperandToPart.at(op)->GetPartId(), op->GetProducerOutputIndex() });
         i += 1;
     }
@@ -1681,9 +1692,10 @@ void NetworkToGraphOfPartsConverter::ConnectParts(Operation& operation, std::vec
     // Check if current operation has outputs and if so mark them for connection with the subsequent operation.
     if (operation.GetOutputs().size() > 0)
     {
-        m_OperandToPart[&operation.GetOutput(0)] = m_Part.back();
+        m_OperandToPart[&operation.GetOutput(0)] = parts.back();
     }
 }
+
 void NetworkToGraphOfPartsConverter::ConnectNoOp(Operation& operation)
 {
     // Sanity check for single input support
@@ -1694,5 +1706,6 @@ void NetworkToGraphOfPartsConverter::ConnectNoOp(Operation& operation)
         m_OperandToPart[&operation.GetOutput(i)] = m_OperandToPart[&operation.GetInput(0)];
     }
 }
+
 }    // namespace support_library
 }    // namespace ethosn
