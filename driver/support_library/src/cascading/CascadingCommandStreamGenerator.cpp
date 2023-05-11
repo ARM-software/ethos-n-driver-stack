@@ -48,6 +48,16 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
 {
     assert(m_MergedOpGraph.GetOps().size() != 0 && m_CommandStreamAgents.size() == 0);
 
+    // If an initial dump is requested, add the sram dump command at the head of the stream.
+    if (m_DebuggingContext.m_DebugInfo.m_InitialSramDump)
+    {
+        ethosn::command_stream::DumpSram cmdStrDumpSram;
+        const char dumpName[] = "initial_ce";
+        static_assert(sizeof(dumpName) <= sizeof(cmdStrDumpSram.m_Filename()), "");
+        std::copy(std::begin(dumpName), std::end(dumpName), cmdStrDumpSram.m_Filename().begin());
+        m_CommandStream.EmplaceBack(cmdStrDumpSram);
+    }
+
     try
     {
         for (auto currentOp : m_MergedOpGraph.GetOps())
