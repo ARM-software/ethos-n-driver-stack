@@ -167,7 +167,7 @@ public:
     virtual utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const;
 
     virtual bool HasActivationBounds() const;
-    virtual void ModifyActivationBounds(int16_t lowerBound, int16_t upperBound);
+    virtual void ApplyActivationBounds(int16_t lowerBound, int16_t upperBound);
     virtual bool CanDoubleBufferWeights() const;
     virtual bool IsOutputGuaranteedNhwc() const;
 

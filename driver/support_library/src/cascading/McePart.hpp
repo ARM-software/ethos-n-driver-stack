@@ -126,7 +126,7 @@ public:
     utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const override;
 
     bool HasActivationBounds() const override;
-    void ModifyActivationBounds(int16_t lowerBound, int16_t upperBound) override;
+    void ApplyActivationBounds(int16_t lowerBound, int16_t upperBound) override;
     bool CanDoubleBufferWeights() const override;
 
     std::vector<BoundaryRequirements> GetInputBoundaryRequirements() const override;

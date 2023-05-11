@@ -96,7 +96,7 @@ bool BasePart::IsOutputGuaranteedNhwc() const
     return false;
 }
 
-void BasePart::ModifyActivationBounds(int16_t, int16_t)
+void BasePart::ApplyActivationBounds(int16_t, int16_t)
 {}
 
 void BasePart::AddOperationId(uint32_t operationId)

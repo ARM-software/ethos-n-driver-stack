@@ -1128,9 +1128,10 @@ void NetworkToGraphOfPartsConverter::Visit(Relu& relu)
     BasePart* inputPart = iterator->second;
     assert(inputPart);
 
-    // Multiple cases. Mce -> Relu. We need to update the relu bounds in the mce op
-    // not mce -> Relu. We need to insert an identity mce operation with new relu bounds
-    if (!inputPart->HasActivationBounds())
+    // Multiple cases:
+    //    * Mce -> Relu, and no other consumers of the Mce: We need to update the relu bounds in the mce op.
+    //    * Otherwise: We need to insert an identity mce operation with new relu bounds
+    if (!inputPart->HasActivationBounds() || inputOperand.GetConsumers().size() > 1)
     {
         std::unique_ptr<McePart> mcePart = CreateIdentityMcePart(
             inputOperand.GetTensorInfo().m_Dimensions, inputOperand.GetTensorInfo().m_QuantizationInfo,
@@ -1144,7 +1145,7 @@ void NetworkToGraphOfPartsConverter::Visit(Relu& relu)
     }
 
     // If the input to the relu has activations we need to modify them
-    inputPart->ModifyActivationBounds(info.m_LowerBound, info.m_UpperBound);
+    inputPart->ApplyActivationBounds(info.m_LowerBound, info.m_UpperBound);
     inputPart->AddOperationId(relu.GetId());
     m_OperandToPart[&relu.GetOutput(0)] = inputPart;
 }

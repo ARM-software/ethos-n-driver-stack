@@ -746,10 +746,10 @@ bool McePart::CanDoubleBufferWeights() const
     return true;
 }
 
-void McePart::ModifyActivationBounds(int16_t lowerBound, int16_t upperBound)
+void McePart::ApplyActivationBounds(int16_t lowerBound, int16_t upperBound)
 {
-    m_LowerBound = lowerBound;
-    m_UpperBound = upperBound;
+    m_LowerBound = std::max(m_LowerBound, lowerBound);
+    m_UpperBound = std::min(m_UpperBound, upperBound);
 }
 
 ethosn::support_library::DotAttributes McePart::GetDotAttributes(DetailLevel detail) const
