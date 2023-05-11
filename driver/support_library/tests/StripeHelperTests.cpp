@@ -110,6 +110,17 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
         CHECK(impl::IsSramBufferCompatibleWithDramBuffer(*sram.get(), *dram.get(), dramOffset) == false);
     }
 
+    SECTION("DRAM offset must be aligned to the format's block size (NHWC) with width 1")
+    {
+        sram->m_TensorShape    = { 1, 16, 1, 32 };
+        sram->m_StripeShape    = { 1, 16, 8, 32 };
+        dram->m_Format         = CascadingBufferFormat::NHWC;
+        dram->m_TensorShape    = { 1, 32, 1, 32 };
+        TensorShape dramOffset = { 0, 0, 0, 3 };
+        // Any offset in C is fine for NHWC as long as width is 1.
+        CHECK(impl::IsSramBufferCompatibleWithDramBuffer(*sram.get(), *dram.get(), dramOffset) == true);
+    }
+
     SECTION("DRAM offset must be aligned to the format's block size (NHWCB)")
     {
         sram->m_TensorShape    = { 1, 16, 16, 16 };
@@ -194,6 +205,16 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
         CHECK(impl::IsSramBufferCompatibleWithDramBuffer(*sram.get(), *dram.get(), dramOffset) == false);
 
         sram->m_StripeShape = { 1, 16, 16, 32 };
+        CHECK(impl::IsSramBufferCompatibleWithDramBuffer(*sram.get(), *dram.get(), dramOffset) == true);
+    }
+
+    SECTION("NHWC depth split is allowed with width 1")
+    {
+        sram->m_TensorShape    = { 1, 16, 1, 32 };
+        sram->m_StripeShape    = { 1, 16, 8, 16 };
+        dram->m_Format         = CascadingBufferFormat::NHWC;
+        dram->m_TensorShape    = { 1, 16, 1, 32 };
+        TensorShape dramOffset = { 0, 0, 0, 0 };
         CHECK(impl::IsSramBufferCompatibleWithDramBuffer(*sram.get(), *dram.get(), dramOffset) == true);
     }
 

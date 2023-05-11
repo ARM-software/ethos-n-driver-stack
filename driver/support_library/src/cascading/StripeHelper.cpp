@@ -400,8 +400,15 @@ bool IsSramBufferCompatibleWithDramBuffer(const TensorShape& sramTensorShape,
     switch (dramFormat)
     {
         case CascadingBufferFormat::NHWC:
-            requiredMultiple = { 1, 1, 1, 0xffffffff };    // No offset in C is allowed
+        {
+            // No offset in C is allowed
+            // However we allow splitting in depth only if the width is 1. When the width is 1 the firmware can support splitting in depth,
+            // but for other cases it can't (this isn't strictly true, but is a conservative approximation - what matters
+            // here is that we support at least the cases we claim to, which is when width == 1 - see IsTensorDepthSupported).
+            uint32_t channelMultiple = GetWidth(dramTensorShapeNoReshape) == 1 ? 1 : 0xffffffff;
+            requiredMultiple         = { 1, 1, 1, channelMultiple };
             break;
+        }
         case CascadingBufferFormat::NHWCB:
             requiredMultiple = g_BrickGroupShape;
             break;
@@ -423,9 +430,10 @@ bool IsSramBufferCompatibleWithDramBuffer(const TensorShape& sramTensorShape,
         }
     }
 
-    // NHWC can't split depth
+    // NHWC can't split depth except when width is 1 as described as above
     if (dramFormat == CascadingBufferFormat::NHWC &&
-        utils::GetChannels(stripeShape) < utils::GetChannels(dramTensorShapeNoReshape))
+        utils::GetChannels(stripeShape) < utils::GetChannels(dramTensorShapeNoReshape) &&
+        utils::GetWidth(dramTensorShapeNoReshape) > 1)
     {
         return false;
     }
@@ -528,7 +536,13 @@ std::unique_ptr<SramBuffer>
         {
             case CascadingBufferFormat::NHWC:
                 // The firmware cannot split NHWC tensors along channels, so we must use the full depth.
-                minStripeShape[3] = utils::RoundUpToNearestMultiple(shape[3], utils::GetChannels(g_BrickGroupShape));
+                // However we allow splitting in depth only if the width is 1. When the width is 1 the firmware can support splitting in depth,
+                // but for other cases it can't (this isn't strictly true, but is a conservative approximation - what matters
+                // here is that we support at least the cases we claim to, which is when width == 1 - see IsTensorDepthSupported).
+                minStripeShape[3] =
+                    GetWidth(shape) == 1
+                        ? GetChannels(g_BrickGroupShape)
+                        : utils::RoundUpToNearestMultiple(shape[3], utils::GetChannels(g_BrickGroupShape));
                 break;
             case CascadingBufferFormat::NHWCB:
                 minStripeShape = g_BrickGroupShape;
@@ -551,8 +565,8 @@ std::unique_ptr<SramBuffer>
 
     // Set the SRAM buffer's stripe size to be the largest shape that fits in SRAM,
     // to minimise stripe processing overhead.
-    TensorShape bestStripeShape;
-    uint32_t bestScore = 0;
+    TensorShape bestStripeShape = {};
+    uint32_t bestScore          = 0;
     // Inclusive loops so that we generate candidates that split only one or two of the dimensions, or none of them.
     for (uint32_t stripeHeight :
          StripeShapeLoop::Inclusive(utils::GetHeight(shape), baseHeight, minHeightMultiplier, maxHeightMultiplier))
@@ -581,6 +595,11 @@ std::unique_ptr<SramBuffer>
                 }
             }
         }
+    }
+
+    if (bestStripeShape == TensorShape{})
+    {
+        throw InternalErrorException("Failed to find valid stripe shape for intermediate SRAM buffer");
     }
 
     std::unique_ptr<SramBuffer> sramBuffer = SramBufferBuilder()

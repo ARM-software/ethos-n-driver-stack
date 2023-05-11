@@ -293,6 +293,8 @@ bool IsTensorDepthSupported(
         // Note:
         //   This is a relax check if Width size is 1 because the DMA is capable of splitting in channels
         //   (we can 'pretend' that the channels is actually the width)
+        // This is particularly important for better support of fully connected layers as these can have
+        // a large depth with width=1.
         return true;
     }
 

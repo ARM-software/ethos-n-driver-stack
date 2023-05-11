@@ -496,7 +496,11 @@ FmsDmaRegParams
 
     using namespace command_stream::cascading;
 
-    assert(stripeSize.channels == fmData.supertensorSizeInCells.channels && "NHWC transfer cannot split channels");
+    if (fmData.supertensorSizeInCells.width != 1)
+    {
+        assert(stripeSize.channels == fmData.supertensorSizeInCells.channels &&
+               "NHWC transfer cannot split channels unless width is 1");
+    }
 
     FmsDmaRegParams fmsDmaParams = {};
 
