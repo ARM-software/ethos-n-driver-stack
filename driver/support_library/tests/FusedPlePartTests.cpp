@@ -1545,16 +1545,16 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
             SavePlansToDot(plans, "FusedPlePart GetPlans MobileNet Part 1 1TOPS_2PLE_RATIO");
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
-                return plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 16, 224, 16 } &&
+                return plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 16, 224, 8 } &&
                        // The 1x1 convolution doesn't need neighbouring data but we double buffer.
                        plan.m_InputSram->Sram()->m_NumStripes == 2 &&
                        plan.m_WeightsSram->Sram()->m_StripeShape ==
-                           TensorShape{ 1, 1, 16, 1 } &&    // Identity depthwise
+                           TensorShape{ 1, 1, 8, 1 } &&    // Identity depthwise
                        plan.m_WeightsSram->Sram()->m_NumStripes == 1 &&
-                       plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 16, 224, 16 } &&
-                       plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 16, 1 } &&
-                       plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 16, 224, 16 } &&
-                       plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ { 1, 16, 224, 16 } } &&
+                       plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 16, 224, 8 } &&
+                       plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 8, 1 } &&
+                       plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 16, 224, 8 } &&
+                       plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ { 1, 16, 224, 8 } } &&
                        plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 8, 112, 32 } &&
                        // 2 stripes are accumulated in sram to make up a full brick-group
                        plan.m_OutputSram->Sram()->m_StripeShape == TensorShape{ 1, 8, 112, 32 } &&

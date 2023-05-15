@@ -1366,54 +1366,6 @@ TEST_CASE("McePart GetPlans Split input in height and width in the case of block
     }
 }
 
-TEST_CASE("McePart GetPlans Split input in depth")
-{
-    GIVEN("An McePart for a convolution")
-    {
-        const CompilationOptions compOpt;
-        const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, 0);
-        const EstimationOptions estOpts;
-        DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-
-        const command_stream::BlockConfig blockConfig = { 8u, 8u };
-        const uint32_t channels =
-            utils::DivRoundUp(caps.GetTotalSramSize(), blockConfig.m_BlockWidth() * blockConfig.m_BlockHeight());
-
-        TensorShape tsIn  = { 1, 64, 64, channels };
-        TensorShape tsOut = { 1, 64, 64, 64 };
-        McePart part      = BuildPart(tsIn, tsOut, { 1, 1, channels, 64 }, command_stream::MceOperation::CONVOLUTION,
-                                 Stride{ 2U, 2U }, 0, 0, compOpt, caps, estOpts, debuggingContext);
-
-        WHEN("Asked to generate plans")
-        {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
-            SavePlansToDot(plans, "McePart GetPlans Split input in depth");
-
-            THEN("The plans are valid, do not have unexpected stripe configs but do have expected stripe configs")
-            {
-                CHECK(caps.GetNumberOfOgs() < channels);
-                CheckPlansParams params;
-                params.m_InputShape  = tsIn;
-                params.m_OutputShape = tsOut;
-                params.m_All         = [&](const PlanDesc& plan) {
-                    CHECK(
-                        !(plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 16, 16, caps.GetNumberOfOgs() } &&
-                          plan.m_InputSram->Sram()->m_NumStripes == 1));
-                    CHECK(
-                        !(plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 16, 16, caps.GetNumberOfOgs() } &&
-                          plan.m_InputSram->Sram()->m_NumStripes == 2));
-                };
-                params.m_Any.push_back([&](const PlanDesc& plan) {
-                    return plan.m_InputSram->Sram()->m_StripeShape ==
-                               TensorShape{ 1, 16, 16, caps.GetNumberOfOgs() * 4 } &&
-                           (plan.m_InputSram->Sram()->m_NumStripes == 1 || plan.m_InputSram->Sram()->m_NumStripes == 2);
-                });
-                CheckPlans(plans, params);
-            }
-        }
-    }
-}
-
 TEST_CASE("McePart GetPlans Split output in depth")
 {
     GIVEN("An McePart for a convolution")

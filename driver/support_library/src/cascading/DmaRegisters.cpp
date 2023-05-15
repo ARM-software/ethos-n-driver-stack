@@ -660,7 +660,10 @@ void ConfigureChunks(DmaCmdState& state,
     assert((stripeSize.width % 8U) == 0 && "Stripe width must be a multiple of the brickgroup width");
     assert((dramPosition.height % 8U) == 0 && "dramPosition must be a multiple of the brickgroup height");
     assert((dramPosition.width % 8U) == 0 && "dramPosition must be a multiple of the brickgroup width");
-    assert((dramPosition.channels % 16U) == 0 && "dramPosition must be a multiple of the brickgroup channels");
+    if (dramPosition.channels % 16U > 0)
+    {
+        assert((stripeSize.channels <= (16 - dramPosition.channels % 16U)) && "Can't go through boundary of 16");
+    }
     assert((sramWidthSkipPerRow % 8U) == 0 && "sramWidthSkipPerRow must be a multiple of the brickgroup width");
 
     // Consistent non-zero DRAM stride needed for output streaming to use DRAM striding
@@ -717,7 +720,8 @@ void ConfigureChunks(DmaCmdState& state,
     state.dramBufferOffsetForFirstChunk +=
         dramPosition.width / nhwcbBrickGroupShape.width * brickGroupStride.width +
         dramPosition.height / nhwcbBrickGroupShape.height * brickGroupStride.height +
-        dramPosition.channels / nhwcbBrickGroupShape.channels * brickGroupStride.channels;
+        dramPosition.channels / nhwcbBrickGroupShape.channels * brickGroupStride.channels +
+        (dramPosition.channels % 16) * 16;
 
     state.sramSlotOffsetForFirstChunk = sramOffset;
 }

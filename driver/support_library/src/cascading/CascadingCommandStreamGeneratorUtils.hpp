@@ -550,7 +550,8 @@ inline void SetPlesTileInfo(const HardwareCapabilities& hwCap, PleSDesc& pleS, c
         utils::DivRoundUp(utils::GetHeight(outputBuffer->m_StripeShape), pleS.defaultStripeSize.height);
     pleS.ofmTile.numSlots = ethosn::utils::NumericCast<uint16_t>(outputBuffer->m_NumStripes * ratio);
     pleS.ofmTile.slotSize = ethosn::utils::NumericCast<uint32_t>(utils::DivRoundUp(
-        pleS.defaultStripeSize.width * pleS.defaultStripeSize.height * pleS.defaultStripeSize.channels,
+        pleS.defaultStripeSize.width * pleS.defaultStripeSize.height *
+            utils::RoundUpToNearestMultiple(pleS.defaultStripeSize.channels, utils::GetChannels(g_BrickGroupShape)),
         hwCap.GetNumberOfSrams()));
 }
 
