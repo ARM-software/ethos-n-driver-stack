@@ -113,7 +113,6 @@ command_stream::cascading::ProgramMceStripeCommand GenerateProgramMceStripeComma
     ProgramMceStripeCommand result = {};
     result.type                    = CommandType::ProgramMceStripe;
     result.agentId                 = agentId;
-    result.stripeId                = stripeId;
 
     assert((((mceS.convStrideXy.x == 2) && (mceS.convStrideXy.y == 2)) ||
             ((mceS.convStrideXy.x == 1) && (mceS.convStrideXy.y == 1))));
@@ -640,7 +639,6 @@ command_stream::cascading::StartMceStripeCommand GenerateStartMceStripeCommand(c
     StartMceStripeCommand result = {};
     result.type                  = CommandType::StartMceStripe;
     result.agentId               = agentId;
-    result.stripeId              = stripeId;
 
     const bool isFullyConnected = mceS.mceOpMode == command_stream::cascading::MceOperation::FULLY_CONNECTED;
 

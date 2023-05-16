@@ -110,27 +110,27 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
             case AgentType::IFM_STREAMER:
             {
                 IfmS ifmS = CreateIfmS(agentAndDeps.agent.ifm);
-                agents.push_back({ agentAndDeps.agent.numStripesTotal, ifmS });
+                agents.push_back({ ifmS });
                 break;
             }
             case AgentType::WGT_STREAMER:
             {
                 WgtS wgtS     = {};
                 wgtS.bufferId = agentAndDeps.agent.wgt.bufferId;
-                agents.push_back({ agentAndDeps.agent.numStripesTotal, wgtS });
+                agents.push_back({ wgtS });
                 break;
             }
             case AgentType::MCE_SCHEDULER:
             {
                 MceS mceS = CreateMceS(agentAndDeps.agent.mce);
-                agents.push_back({ agentAndDeps.agent.numStripesTotal, mceS });
+                agents.push_back({ mceS });
                 break;
             }
             case AgentType::PLE_LOADER:
             {
                 PleL pleL        = {};
                 pleL.pleKernelId = agentAndDeps.agent.pleL.pleKernelId;
-                agents.push_back({ agentAndDeps.agent.numStripesTotal, pleL });
+                agents.push_back({ pleL });
                 break;
             }
             case AgentType::PLE_SCHEDULER:
@@ -139,13 +139,13 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
                 pleS.inputMode         = agentAndDeps.agent.pleS.inputMode;
                 pleS.pleKernelId       = agentAndDeps.agent.pleS.pleKernelId;
                 pleS.pleKernelSramAddr = agentAndDeps.agent.pleS.pleKernelSramAddr;
-                agents.push_back({ agentAndDeps.agent.numStripesTotal, pleS });
+                agents.push_back({ pleS });
                 break;
             }
             case AgentType::OFM_STREAMER:
             {
                 OfmS ofmS = CreateOfmS(agentAndDeps.agent.ofm);
-                agents.push_back({ agentAndDeps.agent.numStripesTotal, ofmS });
+                agents.push_back({ ofmS });
                 break;
             }
             default:

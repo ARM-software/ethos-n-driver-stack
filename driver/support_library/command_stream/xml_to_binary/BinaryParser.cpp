@@ -792,59 +792,59 @@ void Parse(std::stringstream& parent, const Delay& value)
 
 void Parse(std::stringstream& parent, const cascading::IfmS& ifms)
 {
-    Parse(parent, "<IFM_STREAMER>", 4, true);
+    Parse(parent, "<IFM_STREAMER>", 3, true);
 
-    Parse(parent, "<BUFFER_ID>", 5, false);
+    Parse(parent, "<BUFFER_ID>", 4, false);
     ParseAsNum(parent, ifms.bufferId);
     Parse(parent, "</BUFFER_ID>", 0, true);
 
-    Parse(parent, "<DMA_COMP_CONFIG0>", 5, false);
+    Parse(parent, "<DMA_COMP_CONFIG0>", 4, false);
     ParseAsHex(parent, ifms.DMA_COMP_CONFIG0);
     Parse(parent, "</DMA_COMP_CONFIG0>", 0, true);
 
-    Parse(parent, "<DMA_STRIDE1>", 5, false);
+    Parse(parent, "<DMA_STRIDE1>", 4, false);
     ParseAsHex(parent, ifms.DMA_STRIDE1);
     Parse(parent, "</DMA_STRIDE1>", 0, true);
 
-    Parse(parent, "<DMA_STRIDE2>", 5, false);
+    Parse(parent, "<DMA_STRIDE2>", 4, false);
     ParseAsHex(parent, ifms.DMA_STRIDE2);
     Parse(parent, "</DMA_STRIDE2>", 0, true);
 
-    Parse(parent, "</IFM_STREAMER>", 4, true);
+    Parse(parent, "</IFM_STREAMER>", 3, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::OfmS& ofms)
 {
-    Parse(parent, "<OFM_STREAMER>", 4, true);
+    Parse(parent, "<OFM_STREAMER>", 3, true);
 
-    Parse(parent, "<BUFFER_ID>", 5, false);
+    Parse(parent, "<BUFFER_ID>", 4, false);
     ParseAsNum(parent, ofms.bufferId);
     Parse(parent, "</BUFFER_ID>", 0, true);
 
-    Parse(parent, "<DMA_COMP_CONFIG0>", 5, false);
+    Parse(parent, "<DMA_COMP_CONFIG0>", 4, false);
     ParseAsHex(parent, ofms.DMA_COMP_CONFIG0);
     Parse(parent, "</DMA_COMP_CONFIG0>", 0, true);
 
-    Parse(parent, "<DMA_STRIDE1>", 5, false);
+    Parse(parent, "<DMA_STRIDE1>", 4, false);
     ParseAsHex(parent, ofms.DMA_STRIDE1);
     Parse(parent, "</DMA_STRIDE1>", 0, true);
 
-    Parse(parent, "<DMA_STRIDE2>", 5, false);
+    Parse(parent, "<DMA_STRIDE2>", 4, false);
     ParseAsHex(parent, ofms.DMA_STRIDE2);
     Parse(parent, "</DMA_STRIDE2>", 0, true);
 
-    Parse(parent, "</OFM_STREAMER>", 4, true);
+    Parse(parent, "</OFM_STREAMER>", 3, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::WgtS& wgts)
 {
-    Parse(parent, "<WGT_STREAMER>", 4, true);
+    Parse(parent, "<WGT_STREAMER>", 3, true);
 
-    Parse(parent, "<BUFFER_ID>", 5, false);
+    Parse(parent, "<BUFFER_ID>", 4, false);
     ParseAsNum(parent, wgts.bufferId);
     Parse(parent, "</BUFFER_ID>", 0, true);
 
-    Parse(parent, "</WGT_STREAMER>", 4, true);
+    Parse(parent, "</WGT_STREAMER>", 3, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::MceOperation value)
@@ -877,68 +877,68 @@ void Parse(std::stringstream& parent, const cascading::MceOperation value)
 
 void Parse(std::stringstream& parent, const cascading::MceS& mces)
 {
-    Parse(parent, "<MCE_SCHEDULER>", 4, true);
+    Parse(parent, "<MCE_SCHEDULER>", 3, true);
 
-    Parse(parent, "<MCE_OP_MODE>", 5, false);
+    Parse(parent, "<MCE_OP_MODE>", 4, false);
     Parse(parent, mces.mceOpMode);
     Parse(parent, "</MCE_OP_MODE>", 0, true);
 
-    Parse(parent, "<PLE_KERNEL_ID>", 5, false);
+    Parse(parent, "<PLE_KERNEL_ID>", 4, false);
     Parse(parent, cascading::PleKernelId2String(mces.pleKernelId), 0, false);
     Parse(parent, "</PLE_KERNEL_ID>", 0, true);
 
-    Parse(parent, "<ACTIVATION_CONFIG>", 5, false);
+    Parse(parent, "<ACTIVATION_CONFIG>", 4, false);
     ParseAsHex(parent, mces.ACTIVATION_CONFIG);
     Parse(parent, "</ACTIVATION_CONFIG>", 0, true);
 
-    Parse(parent, "<WIDE_KERNEL_CONTROL>", 5, false);
+    Parse(parent, "<WIDE_KERNEL_CONTROL>", 4, false);
     ParseAsHex(parent, mces.WIDE_KERNEL_CONTROL);
     Parse(parent, "</WIDE_KERNEL_CONTROL>", 0, true);
 
-    Parse(parent, "<FILTER>", 5, false);
+    Parse(parent, "<FILTER>", 4, false);
     ParseAsHex(parent, mces.FILTER);
     Parse(parent, "</FILTER>", 0, true);
 
-    Parse(parent, "<IFM_ZERO_POINT>", 5, false);
+    Parse(parent, "<IFM_ZERO_POINT>", 4, false);
     ParseAsHex(parent, mces.IFM_ZERO_POINT);
     Parse(parent, "</IFM_ZERO_POINT>", 0, true);
 
-    Parse(parent, "<IFM_DEFAULT_SLOT_SIZE>", 5, false);
+    Parse(parent, "<IFM_DEFAULT_SLOT_SIZE>", 4, false);
     ParseAsHex(parent, mces.IFM_DEFAULT_SLOT_SIZE);
     Parse(parent, "</IFM_DEFAULT_SLOT_SIZE>", 0, true);
 
-    Parse(parent, "<IFM_SLOT_STRIDE>", 5, false);
+    Parse(parent, "<IFM_SLOT_STRIDE>", 4, false);
     ParseAsHex(parent, mces.IFM_SLOT_STRIDE);
     Parse(parent, "</IFM_SLOT_STRIDE>", 0, true);
 
-    Parse(parent, "<STRIPE_BLOCK_CONFIG>", 5, false);
+    Parse(parent, "<STRIPE_BLOCK_CONFIG>", 4, false);
     ParseAsHex(parent, mces.STRIPE_BLOCK_CONFIG);
     Parse(parent, "</STRIPE_BLOCK_CONFIG>", 0, true);
 
-    Parse(parent, "<DEPTHWISE_CONTROL>", 5, false);
+    Parse(parent, "<DEPTHWISE_CONTROL>", 4, false);
     ParseAsHex(parent, mces.DEPTHWISE_CONTROL);
     Parse(parent, "</DEPTHWISE_CONTROL>", 0, true);
 
-    Parse(parent, "<IFM_SLOT_BASE_ADDRESS>", 5, false);
+    Parse(parent, "<IFM_SLOT_BASE_ADDRESS>", 4, false);
     ParseAsHex(parent, mces.IFM_SLOT_BASE_ADDRESS);
     Parse(parent, "</IFM_SLOT_BASE_ADDRESS>", 0, true);
 
-    Parse(parent, "<PLE_MCEIF_CONFIG>", 5, false);
+    Parse(parent, "<PLE_MCEIF_CONFIG>", 4, false);
     ParseAsHex(parent, mces.PLE_MCEIF_CONFIG);
     Parse(parent, "</PLE_MCEIF_CONFIG>", 0, true);
 
-    Parse(parent, "</MCE_SCHEDULER>", 4, true);
+    Parse(parent, "</MCE_SCHEDULER>", 3, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::PleL& plel)
 {
-    Parse(parent, "<PLE_LOADER>", 4, true);
+    Parse(parent, "<PLE_LOADER>", 3, true);
 
-    Parse(parent, "<PLE_KERNEL_ID>", 5, false);
+    Parse(parent, "<PLE_KERNEL_ID>", 4, false);
     Parse(parent, cascading::PleKernelId2String(plel.pleKernelId), 0, false);
     Parse(parent, "</PLE_KERNEL_ID>", 0, true);
 
-    Parse(parent, "</PLE_LOADER>", 4, true);
+    Parse(parent, "</PLE_LOADER>", 3, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::PleInputMode value)
@@ -976,24 +976,24 @@ void Parse(std::stringstream& parent, const cascading::PleInputMode value)
 
 void Parse(std::stringstream& parent, const cascading::PleS& ples)
 {
-    Parse(parent, "<PLE_SCHEDULER>", 4, true);
+    Parse(parent, "<PLE_SCHEDULER>", 3, true);
 
-    Parse(parent, "<INPUT_MODE>", 5, false);
+    Parse(parent, "<INPUT_MODE>", 4, false);
     Parse(parent, ples.inputMode);
     Parse(parent, "</INPUT_MODE>", 0, true);
 
-    Parse(parent, "<PLE_KERNEL_ID>", 5, false);
+    Parse(parent, "<PLE_KERNEL_ID>", 4, false);
     Parse(parent, cascading::PleKernelId2String(ples.pleKernelId), 0, false);
     Parse(parent, "</PLE_KERNEL_ID>", 0, true);
 
-    Parse(parent, "<PLE_KERNEL_SRAM_ADDR>", 5, false);
+    Parse(parent, "<PLE_KERNEL_SRAM_ADDR>", 4, false);
     ParseAsNum(parent, ples.pleKernelSramAddr);
     Parse(parent, "</PLE_KERNEL_SRAM_ADDR>", 0, true);
 
-    Parse(parent, "</PLE_SCHEDULER>", 4, true);
+    Parse(parent, "</PLE_SCHEDULER>", 3, true);
 }
 
-void Parse(std::stringstream& parent, const cascading::AgentData& data)
+void Parse(std::stringstream& parent, const cascading::Agent& data)
 {
     switch (data.type)
     {
@@ -1023,19 +1023,6 @@ void Parse(std::stringstream& parent, const cascading::AgentData& data)
     };
 }
 
-void Parse(std::stringstream& parent, const cascading::Agent& agent)
-{
-    Parse(parent, "<AGENT>", 3, true);
-
-    Parse(parent, "<NUM_STRIPES_TOTAL>", 4, false);
-    ParseAsNum(parent, agent.numStripesTotal);
-    Parse(parent, "</NUM_STRIPES_TOTAL>", 0, true);
-
-    Parse(parent, agent.data);
-
-    Parse(parent, "</AGENT>", 3, true);
-}
-
 const char* AgentTypeToString(cascading::AgentType t)
 {
     switch (t)
@@ -1057,27 +1044,38 @@ const char* AgentTypeToString(cascading::AgentType t)
     }
 }
 
-void Parse(std::stringstream& parent, const cascading::WaitForAgentCommand& waitCommand, const cascading::Agent* agents)
+const char* CounterNameToString(cascading::CounterName c)
+{
+    switch (c)
+    {
+        case cascading::CounterName::DmaRd:
+            return "DmaRd";
+        case cascading::CounterName::DmaWr:
+            return "DmaWr";
+        case cascading::CounterName::MceStripe:
+            return "MceStripe";
+        case cascading::CounterName::PleStripe:
+            return "PleStripe";
+        default:
+            throw ParseException("Invalid counter name: " + std::to_string(static_cast<uint32_t>(c)));
+    }
+}
+
+void Parse(std::stringstream& parent, const cascading::WaitForCounterCommand& waitCommand)
 {
     using namespace ethosn::command_stream::cascading;
 
-    Parse(parent, "<WAIT_FOR_AGENT_COMMAND>", 3, true);
+    Parse(parent, "<WAIT_FOR_COUNTER_COMMAND>", 3, true);
 
-    // Add helpful comment to indicate the agent type being waited for
-    Parse(parent,
-          ("<!-- Waited-for agent type is " + std::string(AgentTypeToString(agents[waitCommand.agentId].data.type)) +
-           " -->")
-              .c_str(),
-          4, true);
-    Parse(parent, "<AGENT_ID>", 4, false);
-    ParseAsNum(parent, waitCommand.agentId);
-    Parse(parent, "</AGENT_ID>", 0, true);
+    Parse(parent, "<COUNTER_NAME>", 4, false);
+    Parse(parent, CounterNameToString(waitCommand.counterName), 0, false);
+    Parse(parent, "</COUNTER_NAME>", 0, true);
 
-    Parse(parent, "<STRIPE_ID>", 4, false);
-    ParseAsNum(parent, waitCommand.stripeId);
-    Parse(parent, "</STRIPE_ID>", 0, true);
+    Parse(parent, "<COUNTER_VALUE>", 4, false);
+    ParseAsNum(parent, waitCommand.counterValue);
+    Parse(parent, "</COUNTER_VALUE>", 0, true);
 
-    Parse(parent, "</WAIT_FOR_AGENT_COMMAND>", 3, true);
+    Parse(parent, "</WAIT_FOR_COUNTER_COMMAND>", 3, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::DmaCommand& dmaCommand, const cascading::Agent* agents)
@@ -1087,17 +1085,12 @@ void Parse(std::stringstream& parent, const cascading::DmaCommand& dmaCommand, c
     Parse(parent, "<DMA_COMMAND>", 3, true);
 
     // Add helpful comment to indicate the agent type (DmaCommands are used for several different kinds of agent)
-    Parse(
-        parent,
-        ("<!-- Agent type is " + std::string(AgentTypeToString(agents[dmaCommand.agentId].data.type)) + " -->").c_str(),
-        4, true);
+    Parse(parent,
+          ("<!-- Agent type is " + std::string(AgentTypeToString(agents[dmaCommand.agentId].type)) + " -->").c_str(), 4,
+          true);
     Parse(parent, "<AGENT_ID>", 4, false);
     ParseAsNum(parent, dmaCommand.agentId);
     Parse(parent, "</AGENT_ID>", 0, true);
-
-    Parse(parent, "<STRIPE_ID>", 4, false);
-    ParseAsNum(parent, dmaCommand.stripeId);
-    Parse(parent, "</STRIPE_ID>", 0, true);
 
     Parse(parent, "<DRAM_OFFSET>", 4, false);
     ParseAsHex(parent, dmaCommand.m_DramOffset);
@@ -1135,10 +1128,6 @@ void Parse(std::stringstream& parent, const cascading::DmaCommand& dmaCommand, c
     ParseAsHex(parent, dmaCommand.DMA_CMD);
     Parse(parent, "</DMA_CMD>", 0, true);
 
-    Parse(parent, "<IS_LAST_CHUNK>", 4, false);
-    ParseAsNum(parent, dmaCommand.m_IsLastChunk);
-    Parse(parent, "</IS_LAST_CHUNK>", 0, true);
-
     Parse(parent, "</DMA_COMMAND>", 3, true);
 }
 
@@ -1151,10 +1140,6 @@ void Parse(std::stringstream& parent, const cascading::ProgramMceStripeCommand& 
     Parse(parent, "<AGENT_ID>", 4, false);
     ParseAsNum(parent, programMceCommand.agentId);
     Parse(parent, "</AGENT_ID>", 0, true);
-
-    Parse(parent, "<STRIPE_ID>", 4, false);
-    ParseAsNum(parent, programMceCommand.stripeId);
-    Parse(parent, "</STRIPE_ID>", 0, true);
 
     for (size_t ce = 0; ce < programMceCommand.MUL_ENABLE.size(); ++ce)
     {
@@ -1278,10 +1263,6 @@ void Parse(std::stringstream& parent, const cascading::StartMceStripeCommand& st
     ParseAsNum(parent, startMceStripeCommand.agentId);
     Parse(parent, "</AGENT_ID>", 0, true);
 
-    Parse(parent, "<STRIPE_ID>", 4, false);
-    ParseAsNum(parent, startMceStripeCommand.stripeId);
-    Parse(parent, "</STRIPE_ID>", 0, true);
-
     Parse(parent, "<CE_ENABLES>", 4, false);
     ParseAsNum(parent, startMceStripeCommand.CE_ENABLES);
     Parse(parent, "</CE_ENABLES>", 0, true);
@@ -1298,10 +1279,6 @@ void Parse(std::stringstream& parent, const cascading::StartPleStripeCommand& st
     Parse(parent, "<AGENT_ID>", 4, false);
     ParseAsNum(parent, startPleStripeCommand.agentId);
     Parse(parent, "</AGENT_ID>", 0, true);
-
-    Parse(parent, "<STRIPE_ID>", 4, false);
-    ParseAsNum(parent, startPleStripeCommand.stripeId);
-    Parse(parent, "</STRIPE_ID>", 0, true);
 
     for (size_t i = 0; i < startPleStripeCommand.SCRATCH.size(); ++i)
     {
@@ -1321,8 +1298,8 @@ void Parse(std::stringstream& parent, const cascading::Command& cmd, const casca
 
     switch (cmd.type)
     {
-        case CommandType::WaitForAgent:
-            Parse(parent, static_cast<const WaitForAgentCommand&>(cmd), agents);
+        case CommandType::WaitForCounter:
+            Parse(parent, static_cast<const WaitForCounterCommand&>(cmd));
             break;
         case CommandType::LoadIfmStripe:
             Parse(parent, static_cast<const DmaCommand&>(cmd), agents);

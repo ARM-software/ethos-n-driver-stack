@@ -73,7 +73,6 @@ command_stream::cascading::StartPleStripeCommand
     StartPleStripeCommand result = {};
     result.type                  = CommandType::StartPleStripe;
     result.agentId               = agentId;
-    result.stripeId              = stripeId;
 
     ncu_ple_interface::StripeInfo pleInfo = {};
 

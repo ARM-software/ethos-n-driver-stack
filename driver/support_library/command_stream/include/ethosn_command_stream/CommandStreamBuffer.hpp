@@ -108,16 +108,16 @@ struct CommandVariant
 
     union
     {
-        cascading::WaitForAgentCommand waitForAgent;
+        cascading::WaitForCounterCommand waitForCounter;
         cascading::DmaCommand dma;
         cascading::ProgramMceStripeCommand programMceStripe;
         cascading::StartMceStripeCommand startMceStripe;
         cascading::StartPleStripeCommand startPleStripe;
     };
 
-    explicit CommandVariant(const cascading::WaitForAgentCommand& c)
+    explicit CommandVariant(const cascading::WaitForCounterCommand& c)
         : type(c.type)
-        , waitForAgent(c)
+        , waitForCounter(c)
     {}
     explicit CommandVariant(const cascading::DmaCommand& c)
         : type(c.type)
@@ -142,8 +142,8 @@ struct CommandVariant
     {
         switch (type)
         {
-            case cascading::CommandType::WaitForAgent:
-                return waitForAgent;
+            case cascading::CommandType::WaitForCounter:
+                return waitForCounter;
             case cascading::CommandType::LoadIfmStripe:
                 return dma;
             case cascading::CommandType::LoadWgtStripe:
@@ -231,8 +231,8 @@ inline void AddCascade(ethosn::command_stream::CommandStreamBuffer& cmdStream,
             // and so would waste command stream space.
             switch (c.type)
             {
-                case CommandType::WaitForAgent:
-                    cmdStream.EmplaceBack(c.waitForAgent);
+                case CommandType::WaitForCounter:
+                    cmdStream.EmplaceBack(c.waitForCounter);
                     break;
                 case CommandType::LoadIfmStripe:
                     cmdStream.EmplaceBack(c.dma);

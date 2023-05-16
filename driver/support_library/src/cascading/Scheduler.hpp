@@ -161,7 +161,7 @@ private:
 
     private:
         std::vector<ethosn::command_stream::CommandVariant> m_Commands;
-        std::map<uint32_t, uint32_t> m_LastStripeWaitedForAgent;
+        std::map<ethosn::command_stream::cascading::CounterName, uint32_t> m_LastValueWaitedForCounterName;
     };
 
     /// Schedules the next stripe for the given agent.
@@ -187,6 +187,10 @@ private:
     void ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t stripeId);
 
     CommandQueue& GetQueueForAgentType(command_stream::cascading::AgentType agentType);
+    void PushWaitForCounterCommand(command_stream::cascading::AgentType otherAgentType,
+                                   uint32_t otherAgentId,
+                                   uint32_t otherStripeId,
+                                   CommandQueue& commands);
 
     const DebuggingContext& m_DebuggingContext;
 
@@ -203,6 +207,15 @@ private:
 
     uint32_t m_NextRdDmaCmdId = 0;
     uint32_t m_NextWrDmaCmdId = 4;
+
+    std::map<std::pair<uint32_t, uint32_t>, uint32_t> m_DmaRdCounters;
+    std::map<std::pair<uint32_t, uint32_t>, uint32_t> m_DmaWrCounters;
+    std::map<std::pair<uint32_t, uint32_t>, uint32_t> m_MceStripeCounters;
+    std::map<std::pair<uint32_t, uint32_t>, uint32_t> m_PleStripeCounters;
+    uint32_t m_DmaRdCounter     = 0;
+    uint32_t m_DmaWrCounter     = 0;
+    uint32_t m_MceStripeCounter = 0;
+    uint32_t m_PleStripeCounter = 0;
 
     const HardwareCapabilities& m_Capabilities;
 };

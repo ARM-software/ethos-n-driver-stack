@@ -324,66 +324,48 @@ const std::string g_XmlStr =
     <CASCADE>
         <AGENTS>
             <!-- Agent 0 -->
-            <AGENT>
-                <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
-                <WGT_STREAMER>
-                    <BUFFER_ID>3</BUFFER_ID>
-                </WGT_STREAMER>
-            </AGENT>
+            <WGT_STREAMER>
+                <BUFFER_ID>3</BUFFER_ID>
+            </WGT_STREAMER>
             <!-- Agent 1 -->
-            <AGENT>
-                <NUM_STRIPES_TOTAL>96</NUM_STRIPES_TOTAL>
-                <IFM_STREAMER>
-                    <BUFFER_ID>3</BUFFER_ID>
-                    <DMA_COMP_CONFIG0>0x3534265</DMA_COMP_CONFIG0>
-                    <DMA_STRIDE1>0x23424</DMA_STRIDE1>
-                    <DMA_STRIDE2>0x213426</DMA_STRIDE2>
-                </IFM_STREAMER>
-            </AGENT>
+            <IFM_STREAMER>
+                <BUFFER_ID>3</BUFFER_ID>
+                <DMA_COMP_CONFIG0>0x3534265</DMA_COMP_CONFIG0>
+                <DMA_STRIDE1>0x23424</DMA_STRIDE1>
+                <DMA_STRIDE2>0x213426</DMA_STRIDE2>
+            </IFM_STREAMER>
             <!-- Agent 2 -->
-            <AGENT>
-                <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
-                <OFM_STREAMER>
-                    <BUFFER_ID>0</BUFFER_ID>
-                    <DMA_COMP_CONFIG0>0x89679</DMA_COMP_CONFIG0>
-                    <DMA_STRIDE1>0x12346</DMA_STRIDE1>
-                    <DMA_STRIDE2>0x209347f</DMA_STRIDE2>
-                </OFM_STREAMER>
-            </AGENT>
+            <OFM_STREAMER>
+                <BUFFER_ID>0</BUFFER_ID>
+                <DMA_COMP_CONFIG0>0x89679</DMA_COMP_CONFIG0>
+                <DMA_STRIDE1>0x12346</DMA_STRIDE1>
+                <DMA_STRIDE2>0x209347f</DMA_STRIDE2>
+            </OFM_STREAMER>
             <!-- Agent 3 -->
-            <AGENT>
-                <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
-                <MCE_SCHEDULER>
-                    <MCE_OP_MODE>DEPTHWISE_CONVOLUTION</MCE_OP_MODE>
-                    <PLE_KERNEL_ID>DOWNSAMPLE_2X2_16X16_1</PLE_KERNEL_ID>
-                    <ACTIVATION_CONFIG>0x12348235</ACTIVATION_CONFIG>
-                    <WIDE_KERNEL_CONTROL>0x87978</WIDE_KERNEL_CONTROL>
-                    <FILTER>0x1234675</FILTER>
-                    <IFM_ZERO_POINT>0x234235</IFM_ZERO_POINT>
-                    <IFM_DEFAULT_SLOT_SIZE>0x234</IFM_DEFAULT_SLOT_SIZE>
-                    <IFM_SLOT_STRIDE>0x8679</IFM_SLOT_STRIDE>
-                    <STRIPE_BLOCK_CONFIG>0x1845768</STRIPE_BLOCK_CONFIG>
-                    <DEPTHWISE_CONTROL>0x11234</DEPTHWISE_CONTROL>
-                    <IFM_SLOT_BASE_ADDRESS>0x32442335</IFM_SLOT_BASE_ADDRESS>
-                    <PLE_MCEIF_CONFIG>0x10098957</PLE_MCEIF_CONFIG>
-                </MCE_SCHEDULER>
-            </AGENT>
+            <MCE_SCHEDULER>
+                <MCE_OP_MODE>DEPTHWISE_CONVOLUTION</MCE_OP_MODE>
+                <PLE_KERNEL_ID>DOWNSAMPLE_2X2_16X16_1</PLE_KERNEL_ID>
+                <ACTIVATION_CONFIG>0x12348235</ACTIVATION_CONFIG>
+                <WIDE_KERNEL_CONTROL>0x87978</WIDE_KERNEL_CONTROL>
+                <FILTER>0x1234675</FILTER>
+                <IFM_ZERO_POINT>0x234235</IFM_ZERO_POINT>
+                <IFM_DEFAULT_SLOT_SIZE>0x234</IFM_DEFAULT_SLOT_SIZE>
+                <IFM_SLOT_STRIDE>0x8679</IFM_SLOT_STRIDE>
+                <STRIPE_BLOCK_CONFIG>0x1845768</STRIPE_BLOCK_CONFIG>
+                <DEPTHWISE_CONTROL>0x11234</DEPTHWISE_CONTROL>
+                <IFM_SLOT_BASE_ADDRESS>0x32442335</IFM_SLOT_BASE_ADDRESS>
+                <PLE_MCEIF_CONFIG>0x10098957</PLE_MCEIF_CONFIG>
+            </MCE_SCHEDULER>
             <!-- Agent 4 -->
-            <AGENT>
-                <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
-                <PLE_LOADER>
-                    <PLE_KERNEL_ID>SIGMOID_16X8_1_S</PLE_KERNEL_ID>
-                </PLE_LOADER>
-            </AGENT>
+            <PLE_LOADER>
+                <PLE_KERNEL_ID>SIGMOID_16X8_1_S</PLE_KERNEL_ID>
+            </PLE_LOADER>
             <!-- Agent 5 -->
-            <AGENT>
-                <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
-                <PLE_SCHEDULER>
-                    <INPUT_MODE>MCE_ONE_OG</INPUT_MODE>
-                    <PLE_KERNEL_ID>DOWNSAMPLE_2X2_16X16_1</PLE_KERNEL_ID>
-                    <PLE_KERNEL_SRAM_ADDR>4096</PLE_KERNEL_SRAM_ADDR>
-                </PLE_SCHEDULER>
-            </AGENT>
+            <PLE_SCHEDULER>
+                <INPUT_MODE>MCE_ONE_OG</INPUT_MODE>
+                <PLE_KERNEL_ID>DOWNSAMPLE_2X2_16X16_1</PLE_KERNEL_ID>
+                <PLE_KERNEL_SRAM_ADDR>4096</PLE_KERNEL_SRAM_ADDR>
+            </PLE_SCHEDULER>
         </AGENTS>)"
     R"(
         <DMA_RD_COMMANDS>
@@ -391,7 +373,6 @@ const std::string g_XmlStr =
             <DMA_COMMAND>
                 <!-- Agent type is WGT_STREAMER -->
                 <AGENT_ID>0</AGENT_ID>
-                <STRIPE_ID>0</STRIPE_ID>
                 <DRAM_OFFSET>0x123412</DRAM_OFFSET>
                 <SRAM_ADDR>0x6543</SRAM_ADDR>
                 <DMA_SRAM_STRIDE>0x2345</DMA_SRAM_STRIDE>
@@ -401,7 +382,6 @@ const std::string g_XmlStr =
                 <DMA_EMCS>0x989</DMA_EMCS>
                 <DMA_TOTAL_BYTES>0xfea</DMA_TOTAL_BYTES>
                 <DMA_CMD>0xa</DMA_CMD>
-                <IS_LAST_CHUNK>1</IS_LAST_CHUNK>
             </DMA_COMMAND>
         </DMA_RD_COMMANDS>
         <DMA_WR_COMMANDS>
@@ -409,7 +389,6 @@ const std::string g_XmlStr =
             <DMA_COMMAND>
                 <!-- Agent type is OFM_STREAMER -->
                 <AGENT_ID>2</AGENT_ID>
-                <STRIPE_ID>3</STRIPE_ID>
                 <DRAM_OFFSET>0xabe</DRAM_OFFSET>
                 <SRAM_ADDR>0x6ee</SRAM_ADDR>
                 <DMA_SRAM_STRIDE>0xebbb5</DMA_SRAM_STRIDE>
@@ -419,7 +398,6 @@ const std::string g_XmlStr =
                 <DMA_EMCS>0xdd2</DMA_EMCS>
                 <DMA_TOTAL_BYTES>0xfa12a</DMA_TOTAL_BYTES>
                 <DMA_CMD>0x11a</DMA_CMD>
-                <IS_LAST_CHUNK>0</IS_LAST_CHUNK>
             </DMA_COMMAND>
         </DMA_WR_COMMANDS>)"
     R"(
@@ -427,7 +405,6 @@ const std::string g_XmlStr =
             <!-- Mce Command 0 -->
             <PROGRAM_MCE_STRIPE_COMMAND>
                 <AGENT_ID>0</AGENT_ID>
-                <STRIPE_ID>0</STRIPE_ID>
                 <MUL_ENABLE_CE0>
                     <OG0>0x45</OG0>
                     <OG1>0x46</OG1>
@@ -566,21 +543,18 @@ const std::string g_XmlStr =
             <!-- Mce Command 1 -->
             <START_MCE_STRIPE_COMMAND>
                 <AGENT_ID>0</AGENT_ID>
-                <STRIPE_ID>0</STRIPE_ID>
                 <CE_ENABLES>74666</CE_ENABLES>
             </START_MCE_STRIPE_COMMAND>
         </MCE_COMMANDS>
         <PLE_COMMANDS>
             <!-- Ple Command 0 -->
-            <WAIT_FOR_AGENT_COMMAND>
-                <!-- Waited-for agent type is WGT_STREAMER -->
-                <AGENT_ID>0</AGENT_ID>
-                <STRIPE_ID>0</STRIPE_ID>
-            </WAIT_FOR_AGENT_COMMAND>
+            <WAIT_FOR_COUNTER_COMMAND>
+                <COUNTER_NAME>DmaRd</COUNTER_NAME>
+                <COUNTER_VALUE>0</COUNTER_VALUE>
+            </WAIT_FOR_COUNTER_COMMAND>
             <!-- Ple Command 1 -->
             <START_PLE_STRIPE_COMMAND>
                 <AGENT_ID>0</AGENT_ID>
-                <STRIPE_ID>0</STRIPE_ID>
                 <SCRATCH0>0x125aa</SCRATCH0>
                 <SCRATCH1>0x126aa</SCRATCH1>
                 <SCRATCH2>0x127aa</SCRATCH2>
@@ -999,18 +973,16 @@ TEST_CASE("XmlToBinary-BinaryToXml")
 
     /* Agent 0 = */
     cascading::Agent agent0 = {
-        /* NumStripesTotal = */ uint16_t{ 64 },
         /* AgentData = */
-        cascading::AgentData{ cascading::WgtS{
+        { cascading::WgtS{
             /* BufferId = */ uint16_t{ 3 },
         } },
     };
 
     /* Agent 1 = */
     cascading::Agent agent1 = {
-        /* NumStripesTotal = */ uint16_t{ 96 },
         /* AgentData = */
-        cascading::AgentData{ cascading::IfmS{
+        { cascading::IfmS{
             /* BufferId = */ uint16_t{ 3 },
             /* DMA_COMP_CONFIG0 = */ uint32_t{ 0x3534265 },
             /* DMA_STRIDE1 = */ uint32_t{ 0x23424 },
@@ -1020,9 +992,8 @@ TEST_CASE("XmlToBinary-BinaryToXml")
 
     /* Agent 2 = */
     cascading::Agent agent2 = {
-        /* NumStripesTotal = */ uint16_t{ 64 },
         /* AgentData = */
-        cascading::AgentData{ cascading::OfmS{
+        { cascading::OfmS{
             /* BufferId = */ uint16_t{ 0 },
             /* DMA_COMP_CONFIG0 = */ uint32_t{ 0x89679 },
             /* DMA_STRIDE1 = */ uint32_t{ 0x12346 },
@@ -1032,45 +1003,42 @@ TEST_CASE("XmlToBinary-BinaryToXml")
 
     /* Agent 3 = */
     cascading::Agent agent3 = {
-        /* NumStripesTotal = */ uint16_t{ 64 },
         /* AgentData = */
-        cascading::AgentData{ /* MceScheduler = */
-                              cascading::MceS{
-                                  /* MceOpMode = */ cascading::MceOperation::DEPTHWISE_CONVOLUTION,
-                                  /* PleKernelId = */ cascading::PleKernelId::DOWNSAMPLE_2X2_16X16_1,
-                                  /* ACTIVATION_CONFIG = */ uint32_t{ 0x12348235 },
-                                  /* WIDE_KERNEL_CONTROL = */ uint32_t{ 0x87978 },
-                                  /* FILTER = */ uint32_t{ 0x1234675 },
-                                  /* IFM_ZERO_POINT = */ uint32_t{ 0x234235 },
-                                  /* IFM_DEFAULT_SLOT_SIZE = */ uint32_t{ 0x234 },
-                                  /* IFM_SLOT_STRIDE = */ uint32_t{ 0x8679 },
-                                  /* STRIPE_BLOCK_CONFIG = */ uint32_t{ 0x1845768 },
-                                  /* DEPTHWISE_CONTROL = */ uint32_t{ 0x11234 },
-                                  /* IFM_SLOT_BASE_ADDRESS = */ uint32_t{ 0x32442335 },
-                                  /* PLE_MCEIF_CONFIG = */ uint32_t{ 0x10098957 },
-                              } },
+        { /* MceScheduler = */
+          cascading::MceS{
+              /* MceOpMode = */ cascading::MceOperation::DEPTHWISE_CONVOLUTION,
+              /* PleKernelId = */ cascading::PleKernelId::DOWNSAMPLE_2X2_16X16_1,
+              /* ACTIVATION_CONFIG = */ uint32_t{ 0x12348235 },
+              /* WIDE_KERNEL_CONTROL = */ uint32_t{ 0x87978 },
+              /* FILTER = */ uint32_t{ 0x1234675 },
+              /* IFM_ZERO_POINT = */ uint32_t{ 0x234235 },
+              /* IFM_DEFAULT_SLOT_SIZE = */ uint32_t{ 0x234 },
+              /* IFM_SLOT_STRIDE = */ uint32_t{ 0x8679 },
+              /* STRIPE_BLOCK_CONFIG = */ uint32_t{ 0x1845768 },
+              /* DEPTHWISE_CONTROL = */ uint32_t{ 0x11234 },
+              /* IFM_SLOT_BASE_ADDRESS = */ uint32_t{ 0x32442335 },
+              /* PLE_MCEIF_CONFIG = */ uint32_t{ 0x10098957 },
+          } },
     };
 
     /* Agent 4 = */
     cascading::Agent agent4 = {
-        /* NumStripesTotal = */ uint16_t{ 64 },
         /* AgentData = */
-        cascading::AgentData{ /* PleLoader = */
-                              cascading::PleL{
-                                  /* PleKernelId = */ cascading::PleKernelId::SIGMOID_16X8_1_S,
-                              } },
+        { /* PleLoader = */
+          cascading::PleL{
+              /* PleKernelId = */ cascading::PleKernelId::SIGMOID_16X8_1_S,
+          } },
     };
 
     /* Agent 5 = */
     cascading::Agent agent5 = {
-        /* NumStripesTotal = */ uint16_t{ 64 },
         /* AgentData = */
-        cascading::AgentData{ /* PleScheduler = */
-                              cascading::PleS{
-                                  /* InputMode = */ cascading::PleInputMode::MCE_ONE_OG,
-                                  /* PleKernelId = */ cascading::PleKernelId::DOWNSAMPLE_2X2_16X16_1,
-                                  /* PleKernelSramAddress = */ uint32_t{ 4096 },
-                              } },
+        { /* PleScheduler = */
+          cascading::PleS{
+              /* InputMode = */ cascading::PleInputMode::MCE_ONE_OG,
+              /* PleKernelId = */ cascading::PleKernelId::DOWNSAMPLE_2X2_16X16_1,
+              /* PleKernelSramAddress = */ uint32_t{ 4096 },
+          } },
     };
 
     std::vector<ethosn::command_stream::CommandVariant> dmaRdCommands;
@@ -1081,7 +1049,6 @@ TEST_CASE("XmlToBinary-BinaryToXml")
     cascading::DmaCommand cascadingDmaRdCommand1 = {};
     cascadingDmaRdCommand1.type                  = cascading::CommandType::LoadIfmStripe;
     cascadingDmaRdCommand1.agentId               = 0;
-    cascadingDmaRdCommand1.stripeId              = 0;
     cascadingDmaRdCommand1.m_DramOffset          = uint32_t{ 0x123412 };
     cascadingDmaRdCommand1.SRAM_ADDR             = uint32_t{ 0x6543 };
     cascadingDmaRdCommand1.DMA_SRAM_STRIDE       = uint32_t{ 0x2345 };
@@ -1091,13 +1058,11 @@ TEST_CASE("XmlToBinary-BinaryToXml")
     cascadingDmaRdCommand1.DMA_EMCS              = uint32_t{ 0x989 };
     cascadingDmaRdCommand1.DMA_TOTAL_BYTES       = uint32_t{ 0xfea };
     cascadingDmaRdCommand1.DMA_CMD               = uint32_t{ 0xa };
-    cascadingDmaRdCommand1.m_IsLastChunk         = uint8_t{ 1 };
     dmaRdCommands.push_back(ethosn::command_stream::CommandVariant(cascadingDmaRdCommand1));
 
     cascading::DmaCommand cascadingDmaWrCommand1 = {};
     cascadingDmaWrCommand1.type                  = cascading::CommandType::StoreOfmStripe;
     cascadingDmaWrCommand1.agentId               = 2;
-    cascadingDmaWrCommand1.stripeId              = 3;
     cascadingDmaWrCommand1.m_DramOffset          = uint32_t{ 0xabe };
     cascadingDmaWrCommand1.SRAM_ADDR             = uint32_t{ 0x6ee };
     cascadingDmaWrCommand1.DMA_SRAM_STRIDE       = uint32_t{ 0xebbb5 };
@@ -1107,13 +1072,11 @@ TEST_CASE("XmlToBinary-BinaryToXml")
     cascadingDmaWrCommand1.DMA_EMCS              = uint32_t{ 0xdd2 };
     cascadingDmaWrCommand1.DMA_TOTAL_BYTES       = uint32_t{ 0xfa12a };
     cascadingDmaWrCommand1.DMA_CMD               = uint32_t{ 0x11a };
-    cascadingDmaWrCommand1.m_IsLastChunk         = uint8_t{ 0 };
     dmaWrCommands.push_back(ethosn::command_stream::CommandVariant(cascadingDmaWrCommand1));
 
     cascading::ProgramMceStripeCommand cascadingMceCommand1 = {};
     cascadingMceCommand1.type                               = cascading::CommandType::ProgramMceStripe;
     cascadingMceCommand1.agentId                            = 0;
-    cascadingMceCommand1.stripeId                           = 0;
     cascadingMceCommand1.CE_CONTROL                         = uint32_t{ 0x54768 };
     cascadingMceCommand1.MUL_ENABLE =
         std::array<std::array<uint32_t, 4>, 8>{
@@ -1156,20 +1119,18 @@ TEST_CASE("XmlToBinary-BinaryToXml")
     cascading::StartMceStripeCommand cascadingMceCommand2 = {};
     cascadingMceCommand2.type                             = cascading::CommandType::StartMceStripe;
     cascadingMceCommand2.agentId                          = 0;
-    cascadingMceCommand2.stripeId                         = 0;
     cascadingMceCommand2.CE_ENABLES                       = 0x123aa;
     mceCommands.push_back(ethosn::command_stream::CommandVariant(cascadingMceCommand2));
 
-    cascading::WaitForAgentCommand cascadingPleCommand1 = {};
-    cascadingPleCommand1.type                           = cascading::CommandType::WaitForAgent;
-    cascadingPleCommand1.agentId                        = 0;
-    cascadingPleCommand1.stripeId                       = 0;
+    cascading::WaitForCounterCommand cascadingPleCommand1 = {};
+    cascadingPleCommand1.type                             = cascading::CommandType::WaitForCounter;
+    cascadingPleCommand1.counterName                      = cascading::CounterName::DmaRd;
+    cascadingPleCommand1.counterValue                     = 0;
     pleCommands.push_back(ethosn::command_stream::CommandVariant(cascadingPleCommand1));
 
     cascading::StartPleStripeCommand cascadingPleCommand2 = {};
     cascadingPleCommand2.type                             = cascading::CommandType::StartPleStripe;
     cascadingPleCommand2.agentId                          = 0;
-    cascadingPleCommand2.stripeId                         = 0;
     cascadingPleCommand2.SCRATCH = { 0x125aa, 0x126aa, 0x127aa, 0x128aa, 0x129aa, 0x130aa, 0x131aa, 0x132aa };
     pleCommands.push_back(ethosn::command_stream::CommandVariant(cascadingPleCommand2));
 

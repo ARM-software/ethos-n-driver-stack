@@ -136,18 +136,18 @@ void DumpDependencies(std::ofstream& f, const std::vector<AgentDescAndDeps>& age
 
 void Scheduler::CommandQueue::Push(const CommandVariant& c)
 {
-    if (c.type == CommandType::WaitForAgent)
+    if (c.type == CommandType::WaitForCounter)
     {
-        const WaitForAgentCommand& waitCommand = c.waitForAgent;
-        // Skip adding this command if we've already waited for this stripe (or a later one)
-        auto lastStripeWaitedForIt = m_LastStripeWaitedForAgent.find(waitCommand.agentId);
-        if (lastStripeWaitedForIt != m_LastStripeWaitedForAgent.end() &&
-            lastStripeWaitedForIt->second >= waitCommand.stripeId)
+        const WaitForCounterCommand& waitCommand = c.waitForCounter;
+        // Skip adding this command if we've already waited for this counter (or a later one)
+        auto lastStripeWaitedForIt = m_LastValueWaitedForCounterName.find(waitCommand.counterName);
+        if (lastStripeWaitedForIt != m_LastValueWaitedForCounterName.end() &&
+            lastStripeWaitedForIt->second >= waitCommand.counterValue)
         {
             return;
         }
-        // Remember that we've now waited for this stripe, so that future waits might be skippable.
-        m_LastStripeWaitedForAgent[waitCommand.agentId] = waitCommand.stripeId;
+        // Remember that we've now waited for this counter value, so that future waits might be skippable.
+        m_LastValueWaitedForCounterName[waitCommand.counterName] = waitCommand.counterValue;
     }
     m_Commands.push_back(c);
 }
@@ -176,6 +176,46 @@ Scheduler::CommandQueue& Scheduler::GetQueueForAgentType(AgentType agentType)
         default:
             throw InternalErrorException("Unknown agent type");
     }
+}
+
+void Scheduler::PushWaitForCounterCommand(AgentType otherAgentType,
+                                          uint32_t otherAgentId,
+                                          uint32_t otherStripeId,
+                                          CommandQueue& commands)
+{
+    WaitForCounterCommand waitCommand;
+    waitCommand.type = CommandType::WaitForCounter;
+    switch (otherAgentType)
+    {
+        case AgentType::IFM_STREAMER:
+            waitCommand.counterName  = CounterName::DmaRd;
+            waitCommand.counterValue = m_DmaRdCounters.at(std::make_pair(otherAgentId, otherStripeId));
+            break;
+        case AgentType::WGT_STREAMER:
+            waitCommand.counterName  = CounterName::DmaRd;
+            waitCommand.counterValue = m_DmaRdCounters.at(std::make_pair(otherAgentId, otherStripeId));
+            break;
+        case AgentType::MCE_SCHEDULER:
+            waitCommand.counterName  = CounterName::MceStripe;
+            waitCommand.counterValue = m_MceStripeCounters.at(std::make_pair(otherAgentId, otherStripeId));
+            break;
+        case AgentType::PLE_LOADER:
+            waitCommand.counterName  = CounterName::DmaRd;
+            waitCommand.counterValue = m_DmaRdCounters.at(std::make_pair(otherAgentId, otherStripeId));
+            break;
+        case AgentType::PLE_SCHEDULER:
+            waitCommand.counterName  = CounterName::PleStripe;
+            waitCommand.counterValue = m_PleStripeCounters.at(std::make_pair(otherAgentId, otherStripeId));
+            break;
+        case AgentType::OFM_STREAMER:
+            waitCommand.counterName  = CounterName::DmaWr;
+            waitCommand.counterValue = m_DmaWrCounters.at(std::make_pair(otherAgentId, otherStripeId));
+            break;
+        default:
+            throw InternalErrorException("Unknown agent type");
+    }
+
+    commands.Push(CommandVariant(waitCommand));
 }
 
 void Scheduler::InsertWriteDependencies(const AgentDependencyInfo& agent,
@@ -207,11 +247,7 @@ void Scheduler::InsertWriteDependencies(const AgentDependencyInfo& agent,
             // Don't add dependencies on earlier stripes in the same queue as the order enforces this anyway.
             if (!sameQueue)
             {
-                WaitForAgentCommand waitCommand;
-                waitCommand.type     = CommandType::WaitForAgent;
-                waitCommand.agentId  = otherAgentId;
-                waitCommand.stripeId = stripeToWaitFor;
-                commands.Push(CommandVariant(waitCommand));
+                PushWaitForCounterCommand(m_Agents[otherAgentId].agent.type, otherAgentId, stripeToWaitFor, commands);
             }
             else if (sameQueue && m_AgentProgress[otherAgentId] < static_cast<uint32_t>(stripeToWaitFor))
             {
@@ -255,11 +291,8 @@ void Scheduler::InsertReadDependencies(const AgentDependencyInfo& agent,
                 // Don't add dependencies on earlier stripes in the same queue as the order enforces this anyway.
                 if (!sameQueue)
                 {
-                    WaitForAgentCommand waitCommand;
-                    waitCommand.type     = CommandType::WaitForAgent;
-                    waitCommand.agentId  = otherAgentId;
-                    waitCommand.stripeId = stripeToWaitFor;
-                    commands.Push(CommandVariant(waitCommand));
+                    PushWaitForCounterCommand(m_Agents[otherAgentId].agent.type, otherAgentId, stripeToWaitFor,
+                                              commands);
                 }
                 else if (sameQueue && m_AgentProgress[otherAgentId] < static_cast<uint32_t>(stripeToWaitFor))
                 {
@@ -295,6 +328,9 @@ void Scheduler::ScheduleIfmStreamerStripe(const uint32_t agentId, uint32_t strip
         m_DmaRdCommands.Push(CommandVariant(cmd));
         m_NextRdDmaCmdId = (m_NextRdDmaCmdId + 1) % 4;
     }
+
+    m_DmaRdCounter += numChunks;
+    m_DmaRdCounters[std::make_pair(agentId, stripeId)] = m_DmaRdCounter;
 }
 
 void Scheduler::ScheduleWgtStreamerStripe(const uint32_t agentId, uint32_t stripeId)
@@ -312,6 +348,9 @@ void Scheduler::ScheduleWgtStreamerStripe(const uint32_t agentId, uint32_t strip
                                                         m_NextRdDmaCmdId);
     m_DmaRdCommands.Push(CommandVariant(cmd));
     m_NextRdDmaCmdId = (m_NextRdDmaCmdId + 1) % 4;
+
+    m_DmaRdCounter += 1;
+    m_DmaRdCounters[std::make_pair(agentId, stripeId)] = m_DmaRdCounter;
 }
 
 void Scheduler::ScheduleMceSchedulerStripe(const uint32_t agentId, uint32_t stripeId)
@@ -329,6 +368,9 @@ void Scheduler::ScheduleMceSchedulerStripe(const uint32_t agentId, uint32_t stri
 
     auto cmd2 = GenerateStartMceStripeCommand(agentAndDeps.agent.mce, agentId, stripeId, m_Capabilities);
     m_MceCommands.Push(CommandVariant(cmd2));
+
+    m_MceStripeCounter += 1;
+    m_MceStripeCounters[std::make_pair(agentId, stripeId)] = m_MceStripeCounter;
 }
 
 void Scheduler::SchedulePleLoaderStripe(const uint32_t agentId, uint32_t stripeId)
@@ -343,10 +385,13 @@ void Scheduler::SchedulePleLoaderStripe(const uint32_t agentId, uint32_t stripeI
 
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_DmaRdCommands);
 
-    auto cmd = GenerateDmaCommandForLoadPleCode(m_Agents[agentId].agent.pleL, agentId, stripeId, m_Capabilities,
-                                                m_NextRdDmaCmdId);
+    auto cmd =
+        GenerateDmaCommandForLoadPleCode(m_Agents[agentId].agent.pleL, agentId, m_Capabilities, m_NextRdDmaCmdId);
     m_DmaRdCommands.Push(CommandVariant(cmd));
     m_NextRdDmaCmdId = (m_NextRdDmaCmdId + 1) % 4;
+
+    m_DmaRdCounter += 1;
+    m_DmaRdCounters[std::make_pair(agentId, stripeId)] = m_DmaRdCounter;
 }
 
 void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stripeId)
@@ -371,6 +416,9 @@ void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stri
 
     auto cmd = GenerateStartPleStripeCommand(m_Agents[agentId].agent.pleS, agentId, stripeId);
     m_PleCommands.Push(CommandVariant(cmd));
+
+    m_PleStripeCounter += 1;
+    m_PleStripeCounters[std::make_pair(agentId, stripeId)] = m_PleStripeCounter;
 }
 
 void Scheduler::ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t stripeId)
@@ -391,6 +439,9 @@ void Scheduler::ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t strip
         m_DmaWrCommands.Push(CommandVariant(cmd));
         m_NextWrDmaCmdId = 4 + ((m_NextWrDmaCmdId + 1) % 4);
     }
+
+    m_DmaWrCounter += numChunks;
+    m_DmaWrCounters[std::make_pair(agentId, stripeId)] = m_DmaWrCounter;
 }
 
 Scheduler::Scheduler(const std::vector<AgentDescAndDeps>& agents,

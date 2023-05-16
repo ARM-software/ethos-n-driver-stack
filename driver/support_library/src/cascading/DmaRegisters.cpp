@@ -1162,7 +1162,6 @@ command_stream::cascading::DmaCommand GenerateDmaCommandForLoadIfmStripe(const I
     DmaCommand result = {};
     result.type       = CommandType::LoadIfmStripe;
     result.agentId    = agentId;
-    result.stripeId   = stripeId;
 
     DmaCmdState chunkState = {};
     chunkState.numChunks   = { 1, 1, 1 };
@@ -1220,19 +1219,15 @@ command_stream::cascading::DmaCommand GenerateDmaCommandForLoadIfmStripe(const I
 
     result.DMA_CMD = rdCmd.word;
 
-    result.m_IsLastChunk = (chunkId == CalculateNumChunks(ifmS, stripeId) - 1);
-
     return result;
 }
 
 command_stream::cascading::DmaCommand GenerateDmaCommandForLoadWgtStripe(
     const WgtSDesc& wgtS, uint32_t agentId, uint32_t stripeId, const HardwareCapabilities& caps, uint32_t nextDmaCmdId)
 {
-    DmaCommand result    = {};
-    result.type          = CommandType::LoadWgtStripe;
-    result.agentId       = agentId;
-    result.stripeId      = stripeId;
-    result.m_IsLastChunk = 1;    // Weights are always transferred in one chunk
+    DmaCommand result = {};
+    result.type       = CommandType::LoadWgtStripe;
+    result.agentId    = agentId;
 
     WgtSWorkSize stripeCoord;
     stripeCoord.ifmChannels =
@@ -1285,14 +1280,14 @@ command_stream::cascading::DmaCommand GenerateDmaCommandForLoadWgtStripe(
     return result;
 }
 
-command_stream::cascading::DmaCommand GenerateDmaCommandForLoadPleCode(
-    const PleLDesc& pleL, uint32_t agentId, uint32_t stripeId, const HardwareCapabilities& caps, uint32_t nextDmaCmdId)
+command_stream::cascading::DmaCommand GenerateDmaCommandForLoadPleCode(const PleLDesc& pleL,
+                                                                       uint32_t agentId,
+                                                                       const HardwareCapabilities& caps,
+                                                                       uint32_t nextDmaCmdId)
 {
-    DmaCommand result    = {};
-    result.type          = CommandType::LoadPleCode;
-    result.agentId       = agentId;
-    result.stripeId      = stripeId;
-    result.m_IsLastChunk = 1;    // Ple code is always transferred in one chunk
+    DmaCommand result = {};
+    result.type       = CommandType::LoadPleCode;
+    result.agentId    = agentId;
 
     {
         sram_addr_r sramAddrReg;
@@ -1329,7 +1324,6 @@ command_stream::cascading::DmaCommand GenerateDmaCommandForStoreOfmStripe(const 
     DmaCommand result = {};
     result.type       = CommandType::StoreOfmStripe;
     result.agentId    = agentId;
-    result.stripeId   = stripeId;
 
     DmaCmdState chunkState = {};
     chunkState.numChunks   = { 1, 1, 1 };
@@ -1384,8 +1378,6 @@ command_stream::cascading::DmaCommand GenerateDmaCommandForStoreOfmStripe(const 
 
         result.DMA_CMD = wrCmd.word;
     }
-
-    result.m_IsLastChunk = (chunkId == CalculateNumChunks(ofmS, stripeId) - 1);
 
     return result;
 }

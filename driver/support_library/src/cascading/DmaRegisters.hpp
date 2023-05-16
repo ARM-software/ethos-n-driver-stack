@@ -156,8 +156,10 @@ command_stream::cascading::DmaCommand GenerateDmaCommandForLoadWgtStripe(
 
 /// Generates the DmaCommand needed for the given PLE loader agent.
 /// All stripes require the same DMA command, so no stripeId is needed.
-command_stream::cascading::DmaCommand GenerateDmaCommandForLoadPleCode(
-    const PleLDesc& pleL, uint32_t agentId, uint32_t stripeId, const HardwareCapabilities& caps, uint32_t nextDmaCmdId);
+command_stream::cascading::DmaCommand GenerateDmaCommandForLoadPleCode(const PleLDesc& pleL,
+                                                                       uint32_t agentId,
+                                                                       const HardwareCapabilities& caps,
+                                                                       uint32_t nextDmaCmdId);
 
 /// Generates the DmaCommand needed for the given stripe and chunk of the given OFM streamer agent.
 command_stream::cascading::DmaCommand GenerateDmaCommandForStoreOfmStripe(const OfmSDesc& ofmS,

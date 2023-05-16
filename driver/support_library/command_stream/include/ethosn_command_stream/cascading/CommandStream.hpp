@@ -134,7 +134,7 @@ enum class AgentType : uint32_t
 /// Immutable tagged union of agent data that can only be constructed from the concrete agent data type.
 /// The corresponding constructor overload will set the enum tag accordingly. Note that constructors are
 /// intentionally not explicit because implicit conversion is desirable for cleaner code.
-struct AgentData
+struct Agent
 {
     const AgentType type;
 
@@ -148,57 +148,47 @@ struct AgentData
         const OfmS ofm;
     };
 
-    constexpr AgentData(const AgentData& other) = default;
+    constexpr Agent(const Agent& other) = default;
 
-    AgentData& operator=(const AgentData& other)
+    Agent& operator=(const Agent& other)
     {
-        return *new (this) AgentData{ other };
+        return *new (this) Agent{ other };
     }
 
-    constexpr AgentData(const IfmS& data)
+    constexpr Agent(const IfmS& data)
         : type{ AgentType::IFM_STREAMER }
         , ifm{ data }
     {}
 
-    constexpr AgentData(const WgtS& data)
+    constexpr Agent(const WgtS& data)
         : type{ AgentType::WGT_STREAMER }
         , wgt{ data }
     {}
 
-    constexpr AgentData(const MceS& data)
+    constexpr Agent(const MceS& data)
         : type{ AgentType::MCE_SCHEDULER }
         , mce{ data }
     {}
 
-    constexpr AgentData(const PleL& data)
+    constexpr Agent(const PleL& data)
         : type{ AgentType::PLE_LOADER }
         , pleL{ data }
     {}
 
-    constexpr AgentData(const PleS& data)
+    constexpr Agent(const PleS& data)
         : type{ AgentType::PLE_SCHEDULER }
         , pleS{ data }
     {}
 
-    constexpr AgentData(const OfmS& data)
+    constexpr Agent(const OfmS& data)
         : type{ AgentType::OFM_STREAMER }
         , ofm{ data }
     {}
 };
 
-/// Contains both common data (common to all types of agent) and tagged data (specific for
-/// an agent type) for an agent
-struct Agent
-{
-    // Total number of stripes for this Agent including reloads (if any)
-    uint16_t numStripesTotal;
-    /// Agent-type-specific data
-    AgentData data;
-};
-
 enum class CommandType : uint32_t
 {
-    WaitForAgent,
+    WaitForCounter,
     LoadIfmStripe,
     LoadWgtStripe,
     ProgramMceStripe,
@@ -221,12 +211,20 @@ struct Command
     size_t GetSize() const;
 };
 
-/// Data for CommandType::WaitForAgent, which describes waiting for an agent to
-/// have completed a certain stripe.
-struct WaitForAgentCommand : public Command
+enum class CounterName : uint32_t
 {
-    uint32_t agentId;
-    uint32_t stripeId;
+    DmaRd,
+    DmaWr,
+    MceStripe,
+    PleStripe,
+};
+
+/// Data for CommandType::WaitForCounter, which describes waiting for a progress
+/// counter to reach a certain value.
+struct WaitForCounterCommand : public Command
+{
+    CounterName counterName;
+    uint32_t counterValue;
 };
 
 /// Data for CommandType::LoadIfmStripe, LoadWgtStripe, LoadPleCode and StoreOfmStripe,
@@ -234,7 +232,6 @@ struct WaitForAgentCommand : public Command
 struct DmaCommand : public Command
 {
     uint32_t agentId;
-    uint32_t stripeId;
 
     /// Offset in bytes into the DRAM buffer to start the DMA.
     uint32_t m_DramOffset;
@@ -251,11 +248,6 @@ struct DmaCommand : public Command
     uint32_t DMA_TOTAL_BYTES;
     uint32_t DMA_CMD;
     /// @}
-
-    /// Some stripes require multiple DMA commands (each called a 'chunk').
-    /// This field indicates if this is the last chunk for the stripe, otherwise further commands
-    /// need to be completed before the stripe is complete.
-    uint8_t m_IsLastChunk;
 };
 
 /// Data for CommandType::ProgramMceStripe,
@@ -263,7 +255,6 @@ struct DmaCommand : public Command
 struct ProgramMceStripeCommand : public Command
 {
     uint32_t agentId;
-    uint32_t stripeId;
 
     /// Register values for the MCE, which are set differently for each stripe of the agent.
     /// @{
@@ -292,7 +283,6 @@ struct ProgramMceStripeCommand : public Command
 struct StartMceStripeCommand : public Command
 {
     uint32_t agentId;
-    uint32_t stripeId;
     /// Register value.
     uint32_t CE_ENABLES;
 };
@@ -302,7 +292,6 @@ struct StartMceStripeCommand : public Command
 struct StartPleStripeCommand : public Command
 {
     uint32_t agentId;
-    uint32_t stripeId;
     /// Register values.
     std::array<uint32_t, 8> SCRATCH;
 };
@@ -311,8 +300,8 @@ inline size_t Command::GetSize() const
 {
     switch (type)
     {
-        case CommandType::WaitForAgent:
-            return sizeof(WaitForAgentCommand);
+        case CommandType::WaitForCounter:
+            return sizeof(WaitForCounterCommand);
         case CommandType::LoadIfmStripe:
             return sizeof(DmaCommand);
         case CommandType::LoadWgtStripe:

@@ -128,8 +128,6 @@ TEST_CASE("Cascading/Dma_Rd_Wr_CmdNhwcb")
         // Call Handle()
         DmaCommand data = GenerateDmaCommandForLoadIfmStripe(ifmsData, 0, stripeId, 0, caps, 0);
 
-        CHECK(data.m_IsLastChunk == true);
-
         {
             // Offset from fmData, not calculated by firmware
             uint32_t dramOffset = ifmsData.fmData.dramOffset;
@@ -262,7 +260,6 @@ TEST_CASE("Cascading/Dma_Rd_Wr_CmdNhwcb")
         for (uint8_t chunkId = 0; chunkId < 4; chunkId++)
         {
             DmaCommand data = GenerateDmaCommandForLoadIfmStripe(ifmsData, 0, stripeId, chunkId, caps, 0);
-            CHECK(data.m_IsLastChunk == (chunkId < 3 ? false : true));
 
             // Verify registers written
 
@@ -389,7 +386,6 @@ TEST_CASE("Cascading/Dma_Rd_Wr_CmdNhwcb")
         for (uint8_t chunkId = 0; chunkId < 2; chunkId++)
         {
             DmaCommand data = GenerateDmaCommandForLoadIfmStripe(ifmsData, 0, stripeId, chunkId, caps, 0);
-            CHECK(data.m_IsLastChunk == (chunkId < 1 ? false : true));
 
             // Dram and Sram addresses are offset based on the chunk being loaded
             sram_addr_r sramReg;
@@ -547,8 +543,6 @@ TEST_CASE("Cascading/Dma_Rd_Wr_CmdNhwcb")
                 CHECK(data.DMA_TOTAL_BYTES == tot.word);
             }
             CHECK(data.DMA_CMD == ExpectedCmdRegRd(0));
-
-            CHECK(data.m_IsLastChunk == (chunkId < 3 ? false : true));
 
             CHECK(data.DMA_CMD == ExpectedCmdRegRd(0));
 
@@ -752,7 +746,6 @@ TEST_CASE("Cascading/Dma_Rd_Wr_CmdNhwcb")
         for (uint8_t chunkId = 0; chunkId < 2; chunkId++)
         {
             DmaCommand data = GenerateDmaCommandForStoreOfmStripe(ofmsData, 0, stripeId, chunkId, caps, 4);
-            CHECK(data.m_IsLastChunk == (chunkId >= 1 ? true : false));
 
             {
                 CHECK(data.m_DramOffset == dramOffset);
@@ -855,7 +848,6 @@ TEST_CASE("Cascading/Dma_Rd_Wr_CmdNhwcb")
         // res should be complete on the first call
         // sramAddr and dramOffset should be offset after each call
         DmaCommand data = GenerateDmaCommandForStoreOfmStripe(ofmsData, 0, stripeId, 0, caps, 4);
-        CHECK(data.m_IsLastChunk == true);
 
         // Dram and Sram addresses are offset based on the chunk being loaded
         sram_addr_r sramReg;
