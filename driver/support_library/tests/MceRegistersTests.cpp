@@ -69,8 +69,8 @@ TEST_CASE("Cascading/MceSDesc/Depthwise")
 
     auto CheckEnabledMuls = [&](const HardwareCapabilities& caps, uint32_t ceIdx, uint32_t expectedMulsOg0,
                                 uint32_t expectedMulsOg1, uint32_t expectedMulsOg2, uint32_t expectedMulsOg3) {
-        MceS agent               = CreateMceS(mceS);
-        ProgramMceExtraData data = GenerateProgramMceExtraData(mceS, 0, caps);
+        MceS agent                   = CreateMceS(mceS);
+        ProgramMceStripeCommand data = GenerateProgramMceStripeCommand(mceS, 0, 0, caps);
 
         ce_control_r ceControl = data.CE_CONTROL;
         CHECK(ceControl.get_wit_broadcast_mode() == wit_broadcast_mode_t::LOCAL);
@@ -166,7 +166,7 @@ TEST_CASE("Cascading/MceSDesc/WeightsAddress")
                            uint32_t expectedAddressOg2, uint32_t expectedAddressOg3) {
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO);
 
-        ProgramMceExtraData data = GenerateProgramMceExtraData(mceS, stripeId, caps);
+        ProgramMceStripeCommand data = GenerateProgramMceStripeCommand(mceS, 0, stripeId, caps);
 
         weight_base_addr_og0_r expected;
         expected.set_address(expectedAddressOg0);
@@ -248,7 +248,7 @@ TEST_CASE("Cascading/MceSDesc/Edge Stripe")
                            uint32_t expectedStripeOfm, uint32_t expectedStripeIfm) {
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO);
 
-        ProgramMceExtraData data = GenerateProgramMceExtraData(mceS, stripeId, caps);
+        ProgramMceStripeCommand data = GenerateProgramMceStripeCommand(mceS, 0, stripeId, caps);
 
         ofm_stripe_size_r expectedOfmStripeSize;
         expectedOfmStripeSize.set_ofm_stripe_height(expectedOfmStripeHeight);
@@ -356,7 +356,7 @@ TEST_CASE("Cascading/MceSDesc/Slots")
 
             const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO);
 
-            ProgramMceExtraData data = GenerateProgramMceExtraData(mceS, stripeId, caps);
+            ProgramMceStripeCommand data = GenerateProgramMceStripeCommand(mceS, 0, stripeId, caps);
 
             ifm_top_slots_r expectedTopSlotsReg;
             expectedTopSlotsReg.set_top_left_slot(expectedTopSlots[0]);

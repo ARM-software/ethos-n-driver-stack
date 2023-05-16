@@ -39,10 +39,10 @@ TEST_CASE("Cascading/DmaRdCmdWeights/Emcs")
 
     // All stripes are copied to all EMCs (0xFFFF). Even for the last stripe which might
     // contain less OFMs than the number of EMCs, because it is padded by the support library
-    DmaExtraData data1 = GenerateDmaExtraDataForLoadWgtStripe(wgts, 0, caps, 0);
+    DmaCommand data1 = GenerateDmaCommandForLoadWgtStripe(wgts, 0, 0, caps, 0);
     CHECK(data1.DMA_EMCS == 0xFFFF);
 
-    DmaExtraData data2 = GenerateDmaExtraDataForLoadWgtStripe(wgts, wgts.numStripes.ofmChannels - 1U, caps, 0);
+    DmaCommand data2 = GenerateDmaCommandForLoadWgtStripe(wgts, 0, wgts.numStripes.ofmChannels - 1U, caps, 0);
     CHECK(data2.DMA_EMCS == 0xFFFF);
 }
 
@@ -126,7 +126,7 @@ TEST_CASE("Cascading/Dma_Rd_Wr_CmdNhwcb")
                 caps.GetNumberOfPleLanes());
 
         // Call Handle()
-        DmaExtraData data = GenerateDmaExtraDataForLoadIfmStripe(ifmsData, stripeId, 0, caps, 0);
+        DmaCommand data = GenerateDmaCommandForLoadIfmStripe(ifmsData, 0, stripeId, 0, caps, 0);
 
         CHECK(data.m_IsLastChunk == true);
 
@@ -261,7 +261,7 @@ TEST_CASE("Cascading/Dma_Rd_Wr_CmdNhwcb")
         // sramAddr and dramOffset should be offset more each call
         for (uint8_t chunkId = 0; chunkId < 4; chunkId++)
         {
-            DmaExtraData data = GenerateDmaExtraDataForLoadIfmStripe(ifmsData, stripeId, chunkId, caps, 0);
+            DmaCommand data = GenerateDmaCommandForLoadIfmStripe(ifmsData, 0, stripeId, chunkId, caps, 0);
             CHECK(data.m_IsLastChunk == (chunkId < 3 ? false : true));
 
             // Verify registers written
@@ -388,7 +388,7 @@ TEST_CASE("Cascading/Dma_Rd_Wr_CmdNhwcb")
         // sramAddr and dramOffset should be offset more each call
         for (uint8_t chunkId = 0; chunkId < 2; chunkId++)
         {
-            DmaExtraData data = GenerateDmaExtraDataForLoadIfmStripe(ifmsData, stripeId, chunkId, caps, 0);
+            DmaCommand data = GenerateDmaCommandForLoadIfmStripe(ifmsData, 0, stripeId, chunkId, caps, 0);
             CHECK(data.m_IsLastChunk == (chunkId < 1 ? false : true));
 
             // Dram and Sram addresses are offset based on the chunk being loaded
@@ -515,7 +515,7 @@ TEST_CASE("Cascading/Dma_Rd_Wr_CmdNhwcb")
         // sramAddr and dramOffset should be offset more each call
         for (uint8_t chunkId = 0; chunkId < 4; chunkId++)
         {
-            DmaExtraData data = GenerateDmaExtraDataForLoadIfmStripe(ifmsData, stripeId, chunkId, caps, 0);
+            DmaCommand data = GenerateDmaCommandForLoadIfmStripe(ifmsData, 0, stripeId, chunkId, caps, 0);
 
             {
                 CHECK(data.m_DramOffset == dramOffset);
@@ -615,7 +615,7 @@ TEST_CASE("Cascading/Dma_Rd_Wr_CmdNhwcb")
         // 7. Call Handle() again with same data, and verify rd/wr_id is changed
 
         // Test setup: initialize HAL, HwAbstraction
-        DmaExtraData data = GenerateDmaExtraDataForStoreOfmStripe(ofmsData, stripeId, 0, caps, 4);
+        DmaCommand data = GenerateDmaCommandForStoreOfmStripe(ofmsData, 0, stripeId, 0, caps, 4);
 
         {
             // Offset from fmData, not calculated by firmware
@@ -751,7 +751,7 @@ TEST_CASE("Cascading/Dma_Rd_Wr_CmdNhwcb")
         // sramAddr and dramOffset should be offset after each call
         for (uint8_t chunkId = 0; chunkId < 2; chunkId++)
         {
-            DmaExtraData data = GenerateDmaExtraDataForStoreOfmStripe(ofmsData, stripeId, chunkId, caps, 4);
+            DmaCommand data = GenerateDmaCommandForStoreOfmStripe(ofmsData, 0, stripeId, chunkId, caps, 4);
             CHECK(data.m_IsLastChunk == (chunkId >= 1 ? true : false));
 
             {
@@ -854,7 +854,7 @@ TEST_CASE("Cascading/Dma_Rd_Wr_CmdNhwcb")
         // Call Handle() once
         // res should be complete on the first call
         // sramAddr and dramOffset should be offset after each call
-        DmaExtraData data = GenerateDmaExtraDataForStoreOfmStripe(ofmsData, stripeId, 0, caps, 4);
+        DmaCommand data = GenerateDmaCommandForStoreOfmStripe(ofmsData, 0, stripeId, 0, caps, 4);
         CHECK(data.m_IsLastChunk == true);
 
         // Dram and Sram addresses are offset based on the chunk being loaded

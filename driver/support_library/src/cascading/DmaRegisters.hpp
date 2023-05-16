@@ -142,24 +142,30 @@ uint32_t CalculateNumChunks(const IfmSDesc& ifmS, uint32_t stripeId);
 uint32_t CalculateNumChunks(const OfmSDesc& ofmS, uint32_t stripeId);
 /// @}
 
-/// Generates the DmaExtraData needed for the given stripe and chunk of the given IFM streamer agent.
-command_stream::cascading::DmaExtraData GenerateDmaExtraDataForLoadIfmStripe(
-    const IfmSDesc& ifmS, uint32_t stripeId, uint32_t chunkId, const HardwareCapabilities& caps, uint32_t nextDmaCmdId);
+/// Generates the DmaCommand needed for the given stripe and chunk of the given IFM streamer agent.
+command_stream::cascading::DmaCommand GenerateDmaCommandForLoadIfmStripe(const IfmSDesc& ifmS,
+                                                                         uint32_t agentId,
+                                                                         uint32_t stripeId,
+                                                                         uint32_t chunkId,
+                                                                         const HardwareCapabilities& caps,
+                                                                         uint32_t nextDmaCmdId);
 
-/// Generates the DmaExtraData needed for the given stripe of the given weight streamer agent.
-command_stream::cascading::DmaExtraData GenerateDmaExtraDataForLoadWgtStripe(const WgtSDesc& wgtS,
-                                                                             uint32_t stripeId,
-                                                                             const HardwareCapabilities& caps,
-                                                                             uint32_t nextDmaCmdId);
+/// Generates the DmaCommand needed for the given stripe of the given weight streamer agent.
+command_stream::cascading::DmaCommand GenerateDmaCommandForLoadWgtStripe(
+    const WgtSDesc& wgtS, uint32_t agentId, uint32_t stripeId, const HardwareCapabilities& caps, uint32_t nextDmaCmdId);
 
-/// Generates the DmaExtraData needed for the given PLE loader agent.
+/// Generates the DmaCommand needed for the given PLE loader agent.
 /// All stripes require the same DMA command, so no stripeId is needed.
-command_stream::cascading::DmaExtraData
-    GenerateDmaExtraDataForLoadPleCode(const PleLDesc& pleL, const HardwareCapabilities& caps, uint32_t nextDmaCmdId);
+command_stream::cascading::DmaCommand GenerateDmaCommandForLoadPleCode(
+    const PleLDesc& pleL, uint32_t agentId, uint32_t stripeId, const HardwareCapabilities& caps, uint32_t nextDmaCmdId);
 
-/// Generates the DmaExtraData needed for the given stripe and chunk of the given OFM streamer agent.
-command_stream::cascading::DmaExtraData GenerateDmaExtraDataForStoreOfmStripe(
-    const OfmSDesc& ofmS, uint32_t stripeId, uint32_t chunkId, const HardwareCapabilities& caps, uint32_t nextDmaCmdId);
+/// Generates the DmaCommand needed for the given stripe and chunk of the given OFM streamer agent.
+command_stream::cascading::DmaCommand GenerateDmaCommandForStoreOfmStripe(const OfmSDesc& ofmS,
+                                                                          uint32_t agentId,
+                                                                          uint32_t stripeId,
+                                                                          uint32_t chunkId,
+                                                                          const HardwareCapabilities& caps,
+                                                                          uint32_t nextDmaCmdId);
 
 /// Creates an IfmS/OfmS agent for the command stream, by copying the relevant parts of the given IfmSDesc/OfmSDesc
 /// which do not vary between stripes of the agent.

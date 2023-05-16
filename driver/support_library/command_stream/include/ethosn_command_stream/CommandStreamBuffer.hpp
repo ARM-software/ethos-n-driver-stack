@@ -7,6 +7,9 @@
 
 #include "CommandStream.hpp"
 
+#include <numeric>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace ethosn
@@ -88,22 +91,90 @@ private:
     uint32_t m_Count;
 };
 
+/// A variant (tagged union) which holds one of the concrete Command subtypes.
+/// This is used to store and build up vectors of commands, which isn't easy to do with the
+/// Command type from the command stream, as each Command can be a different type that means
+/// unique_ptrs (or similar) would be needed, which then needs virtual destructors, which we don't
+/// want to add into the command stream types.
+/// We don't want to use this type in the command stream itself, because the union will take up
+/// as much space as the largest member, which in this case is quite large (ProgramMceStripeCommand
+/// is way bigger than the others), and so would waste command stream space.
+struct CommandVariant
+{
+    /// Even though all the Command subtypes have a `type` field too, we have no (safe) way to
+    /// access them, unless we know which union member is active, so we need to duplicate this
+    /// here.
+    cascading::CommandType type;
+
+    union
+    {
+        cascading::WaitForAgentCommand waitForAgent;
+        cascading::DmaCommand dma;
+        cascading::ProgramMceStripeCommand programMceStripe;
+        cascading::StartMceStripeCommand startMceStripe;
+        cascading::StartPleStripeCommand startPleStripe;
+    };
+
+    explicit CommandVariant(const cascading::WaitForAgentCommand& c)
+        : type(c.type)
+        , waitForAgent(c)
+    {}
+    explicit CommandVariant(const cascading::DmaCommand& c)
+        : type(c.type)
+        , dma(c)
+    {}
+    explicit CommandVariant(const cascading::ProgramMceStripeCommand& c)
+        : type(c.type)
+        , programMceStripe(c)
+    {}
+    explicit CommandVariant(const cascading::StartMceStripeCommand& c)
+        : type(c.type)
+        , startMceStripe(c)
+    {}
+    explicit CommandVariant(const cascading::StartPleStripeCommand& c)
+        : type(c.type)
+        , startPleStripe(c)
+    {}
+
+    /// All the Command subtypes inherit Command, and this provides a (safe) way to
+    /// get access to that, without the caller having to know the actual Command subtype.
+    const cascading::Command& AsBaseCommand() const
+    {
+        switch (type)
+        {
+            case cascading::CommandType::WaitForAgent:
+                return waitForAgent;
+            case cascading::CommandType::LoadIfmStripe:
+                return dma;
+            case cascading::CommandType::LoadWgtStripe:
+                return dma;
+            case cascading::CommandType::ProgramMceStripe:
+                return programMceStripe;
+            case cascading::CommandType::StartMceStripe:
+                return startMceStripe;
+            case cascading::CommandType::LoadPleCode:
+                return dma;
+            case cascading::CommandType::StartPleStripe:
+                return startPleStripe;
+            case cascading::CommandType::StoreOfmStripe:
+                return dma;
+            default:
+                throw std::runtime_error("Invalid cascading command type: " +
+                                         std::to_string(static_cast<uint32_t>(type)));
+        }
+    }
+};
+
 /// Adds a new command of type CASCADE to the given `cmdStream`. The CASCADE command will contain
-/// all of the agents, commands and extra data provided. The extra data is automatically associated
-/// with commands based on the type of the commands, and is assumed to be in the same order.
+/// all of the agents and commands provided.
 inline void AddCascade(ethosn::command_stream::CommandStreamBuffer& cmdStream,
                        const std::vector<cascading::Agent>& agents,
-                       const std::vector<cascading::Command>& dmaRdCommands,
-                       const std::vector<cascading::Command>& dmaWrCommands,
-                       const std::vector<cascading::Command>& mceCommands,
-                       const std::vector<cascading::Command>& pleCommands,
-                       const std::vector<cascading::DmaExtraData>& dmaExtraData,
-                       const std::vector<cascading::ProgramMceExtraData>& programMceExtraData,
-                       const std::vector<cascading::StartMceExtraData>& startMceExtraData,
-                       const std::vector<cascading::StartPleExtraData>& startPleExtraData)
+                       const std::vector<CommandVariant>& dmaRdCommands,
+                       const std::vector<CommandVariant>& dmaWrCommands,
+                       const std::vector<CommandVariant>& mceCommands,
+                       const std::vector<CommandVariant>& pleCommands)
 {
     using namespace ethosn::command_stream::cascading;
-    using Command = ethosn::command_stream::cascading::Command;
 
     command_stream::Cascade cascade;
     uint32_t offset = sizeof(command_stream::Cascade);
@@ -112,44 +183,31 @@ inline void AddCascade(ethosn::command_stream::CommandStreamBuffer& cmdStream,
     cascade.NumAgents    = static_cast<uint32_t>(agents.size());
     offset += cascade.NumAgents * static_cast<uint32_t>(sizeof(Agent));
 
+    // Helper function to sum up the size of all commands in a list (as each Command may be
+    // a different type, and so have a different size).
+    auto sumCommandSize = [](const std::vector<CommandVariant>& commands) {
+        return std::accumulate(commands.begin(), commands.end(), 0u, [](uint32_t sum, const auto& cmd) {
+            return sum + static_cast<uint32_t>(cmd.AsBaseCommand().GetSize());
+        });
+    };
+
     cascade.DmaRdCommandsOffset = offset;
     cascade.NumDmaRdCommands    = static_cast<uint32_t>(dmaRdCommands.size());
-    offset += cascade.NumDmaRdCommands * static_cast<uint32_t>(sizeof(Command));
+    offset += sumCommandSize(dmaRdCommands);
 
     cascade.DmaWrCommandsOffset = offset;
     cascade.NumDmaWrCommands    = static_cast<uint32_t>(dmaWrCommands.size());
-    offset += cascade.NumDmaWrCommands * static_cast<uint32_t>(sizeof(Command));
+    offset += sumCommandSize(dmaWrCommands);
 
     cascade.MceCommandsOffset = offset;
     cascade.NumMceCommands    = static_cast<uint32_t>(mceCommands.size());
-    offset += cascade.NumMceCommands * static_cast<uint32_t>(sizeof(Command));
+    offset += sumCommandSize(mceCommands);
 
     cascade.PleCommandsOffset = offset;
     cascade.NumPleCommands    = static_cast<uint32_t>(pleCommands.size());
-    offset += cascade.NumPleCommands * static_cast<uint32_t>(sizeof(Command));
-
-    cascade.DmaExtraDataOffset = offset;
-    cascade.NumDmaExtraData    = static_cast<uint32_t>(dmaExtraData.size());
-    offset += cascade.NumDmaExtraData * static_cast<uint32_t>(sizeof(DmaExtraData));
-
-    cascade.ProgramMceExtraDataOffset = offset;
-    cascade.NumProgramMceExtraData    = static_cast<uint32_t>(programMceExtraData.size());
-    offset += cascade.NumProgramMceExtraData * static_cast<uint32_t>(sizeof(ProgramMceExtraData));
-
-    cascade.StartMceExtraDataOffset = offset;
-    cascade.NumStartMceExtraData    = static_cast<uint32_t>(startMceExtraData.size());
-    offset += cascade.NumStartMceExtraData * static_cast<uint32_t>(sizeof(StartMceExtraData));
-
-    cascade.StartPleExtraDataOffset = offset;
-    cascade.NumStartPleExtraData    = static_cast<uint32_t>(startPleExtraData.size());
-    offset += cascade.NumStartPleExtraData * static_cast<uint32_t>(sizeof(StartPleExtraData));
+    offset += sumCommandSize(pleCommands);
 
     cascade.TotalSize = offset;
-
-    size_t dmaExtraDataOffset        = cascade.DmaExtraDataOffset;
-    size_t programMceExtraDataOffset = cascade.ProgramMceExtraDataOffset;
-    size_t startMceExtraDataOffset   = cascade.StartMceExtraDataOffset;
-    size_t startPleExtraDataOffset   = cascade.StartPleExtraDataOffset;
 
     // The cascade command "header"
     cmdStream.EmplaceBack(cascade);
@@ -160,80 +218,54 @@ inline void AddCascade(ethosn::command_stream::CommandStreamBuffer& cmdStream,
         cmdStream.EmplaceBack<Agent>(agent);
     }
 
-    // The four command arrays
-    for (uint32_t cmdIdx = 0; cmdIdx < dmaRdCommands.size(); ++cmdIdx)
-    {
-        Command c = dmaRdCommands[cmdIdx];
-        // Set offset to extra data (if appropriate), assuming that everything is in the same order
-        if (c.type == CommandType::LoadIfmStripe || c.type == CommandType::LoadWgtStripe ||
-            c.type == CommandType::LoadPleCode)
+    // The four command lists
+    auto appendCommandList = [&](const std::vector<CommandVariant>& commands) {
+        for (uint32_t cmdIdx = 0; cmdIdx < commands.size(); ++cmdIdx)
         {
-            c.extraDataOffset =
-                static_cast<uint32_t>(dmaExtraDataOffset - (cascade.DmaRdCommandsOffset + cmdIdx * sizeof(Command)));
-            dmaExtraDataOffset += sizeof(DmaExtraData);
+            const CommandVariant& c = commands[cmdIdx];
+            // Convert to the concrete command type before appending to the command list,
+            // otherwise only the base Command fields would be added.
+            // Note that we don't add the CommandVariants themselves to the command stream itself,
+            // because the union will take up as much space as the largest member, which in this
+            // case is quite large (ProgramMceStripeCommand is way bigger than the others),
+            // and so would waste command stream space.
+            switch (c.type)
+            {
+                case CommandType::WaitForAgent:
+                    cmdStream.EmplaceBack(c.waitForAgent);
+                    break;
+                case CommandType::LoadIfmStripe:
+                    cmdStream.EmplaceBack(c.dma);
+                    break;
+                case CommandType::LoadWgtStripe:
+                    cmdStream.EmplaceBack(c.dma);
+                    break;
+                case CommandType::ProgramMceStripe:
+                    cmdStream.EmplaceBack(c.programMceStripe);
+                    break;
+                case CommandType::StartMceStripe:
+                    cmdStream.EmplaceBack(c.startMceStripe);
+                    break;
+                case CommandType::LoadPleCode:
+                    cmdStream.EmplaceBack(c.dma);
+                    break;
+                case CommandType::StartPleStripe:
+                    cmdStream.EmplaceBack(c.startPleStripe);
+                    break;
+                case CommandType::StoreOfmStripe:
+                    cmdStream.EmplaceBack(c.dma);
+                    break;
+                default:
+                    throw std::runtime_error("Invalid cascading command type: " +
+                                             std::to_string(static_cast<uint32_t>(c.type)));
+            }
         }
-        cmdStream.EmplaceBack(c);
-    }
-    for (uint32_t cmdIdx = 0; cmdIdx < dmaWrCommands.size(); ++cmdIdx)
-    {
-        Command c = dmaWrCommands[cmdIdx];
-        // Set offset to extra data (if appropriate), assuming that everything is in the same order
-        if (c.type == CommandType::StoreOfmStripe)
-        {
-            c.extraDataOffset =
-                static_cast<uint32_t>(dmaExtraDataOffset - (cascade.DmaWrCommandsOffset + cmdIdx * sizeof(Command)));
-            dmaExtraDataOffset += sizeof(DmaExtraData);
-        }
-        cmdStream.EmplaceBack(c);
-    }
-    for (uint32_t cmdIdx = 0; cmdIdx < mceCommands.size(); ++cmdIdx)
-    {
-        Command c = mceCommands[cmdIdx];
-        // Set offset to extra data (if appropriate), assuming that everything is in the same order
-        if (c.type == CommandType::ProgramMceStripe)
-        {
-            c.extraDataOffset = static_cast<uint32_t>(programMceExtraDataOffset -
-                                                      (cascade.MceCommandsOffset + cmdIdx * sizeof(Command)));
-            programMceExtraDataOffset += sizeof(ProgramMceExtraData);
-        }
-        else if (c.type == CommandType::StartMceStripe)
-        {
-            c.extraDataOffset =
-                static_cast<uint32_t>(startMceExtraDataOffset - (cascade.MceCommandsOffset + cmdIdx * sizeof(Command)));
-            startMceExtraDataOffset += sizeof(StartMceExtraData);
-        }
-        cmdStream.EmplaceBack(c);
-    }
-    for (uint32_t cmdIdx = 0; cmdIdx < pleCommands.size(); ++cmdIdx)
-    {
-        Command c = pleCommands[cmdIdx];
-        // Set offset to extra data (if appropriate), assuming that everything is in the same order
-        if (c.type == CommandType::StartPleStripe)
-        {
-            c.extraDataOffset =
-                static_cast<uint32_t>(startPleExtraDataOffset - (cascade.PleCommandsOffset + cmdIdx * sizeof(Command)));
-            startPleExtraDataOffset += sizeof(StartPleExtraData);
-        }
-        cmdStream.EmplaceBack(c);
-    }
+    };
 
-    // The four extra data arrays
-    for (const DmaExtraData& d : dmaExtraData)
-    {
-        cmdStream.EmplaceBack(d);
-    }
-    for (const ProgramMceExtraData& d : programMceExtraData)
-    {
-        cmdStream.EmplaceBack(d);
-    }
-    for (const StartMceExtraData& d : startMceExtraData)
-    {
-        cmdStream.EmplaceBack(d);
-    }
-    for (const StartPleExtraData& d : startPleExtraData)
-    {
-        cmdStream.EmplaceBack(d);
-    }
+    appendCommandList(dmaRdCommands);
+    appendCommandList(dmaWrCommands);
+    appendCommandList(mceCommands);
+    appendCommandList(pleCommands);
 }
 
 }    // namespace command_stream

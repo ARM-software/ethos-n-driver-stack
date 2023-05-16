@@ -67,9 +67,13 @@ uint16_t PleDfcAddr(Tile tile, uint32_t stripeId)
 
 }    // namespace
 
-command_stream::cascading::StartPleExtraData GenerateStartPleExtraData(const PleSDesc& pleS, uint32_t stripeId)
+command_stream::cascading::StartPleStripeCommand
+    GenerateStartPleStripeCommand(const PleSDesc& pleS, uint32_t agentId, uint32_t stripeId)
 {
-    StartPleExtraData result = {};
+    StartPleStripeCommand result = {};
+    result.type                  = CommandType::StartPleStripe;
+    result.agentId               = agentId;
+    result.stripeId              = stripeId;
 
     ncu_ple_interface::StripeInfo pleInfo = {};
 

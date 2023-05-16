@@ -566,12 +566,12 @@ FmsDmaRegParams GetDmaParams(TensorSize& stripeSize,
 }
 
 /// Common code for both IFM and OFM.
-void GenerateDmaExtraDataCommon(const FmSDesc& fmData,
-                                uint32_t stripeId,
-                                bool input,
-                                DmaExtraData& extraData,
-                                const HardwareCapabilities& caps,
-                                const DmaCmdState& chunkState)
+void GenerateDmaCommandCommon(const FmSDesc& fmData,
+                              uint32_t stripeId,
+                              bool input,
+                              DmaCommand& cmd,
+                              const HardwareCapabilities& caps,
+                              const DmaCmdState& chunkState)
 {
     TensorSize stripeCoord;
     stripeCoord.width  = (static_cast<uint32_t>(stripeId) / fmData.stripeIdStrides.width) % fmData.numStripes.width;
@@ -597,10 +597,10 @@ void GenerateDmaExtraDataCommon(const FmSDesc& fmData,
     {
         sram_addr_r sramAddr;
         sramAddr.set_address(fmsDmaParams.sramAddr);
-        extraData.SRAM_ADDR = sramAddr.word;
+        cmd.SRAM_ADDR = sramAddr.word;
     }
     {
-        extraData.m_DramOffset = fmsDmaParams.dramOffset;
+        cmd.m_DramOffset = fmsDmaParams.dramOffset;
     }
     if (!isNhwcb)
     {
@@ -610,35 +610,35 @@ void GenerateDmaExtraDataCommon(const FmSDesc& fmData,
         {
             sramStride.set_sram_row_stride(fmsDmaParams.sramRowStride);
         }
-        extraData.DMA_SRAM_STRIDE = sramStride.word;
+        cmd.DMA_SRAM_STRIDE = sramStride.word;
     }
 
     {
         dma_channels_r channels;
         channels.set_channels(fmsDmaParams.channels);
-        extraData.DMA_CHANNELS = channels.word;
+        cmd.DMA_CHANNELS = channels.word;
     }
     {
-        extraData.DMA_EMCS = fmsDmaParams.emcMask;
+        cmd.DMA_EMCS = fmsDmaParams.emcMask;
     }
 
     if (!isNhwcb || (!input && fmsDmaParams.stride0 != 0U))
     {
         dma_stride0_r stride0;
         stride0.set_inner_stride(fmsDmaParams.stride0);
-        extraData.DMA_STRIDE0 = stride0.word;
+        cmd.DMA_STRIDE0 = stride0.word;
     }
     {
         dma_total_bytes_r tot;
         tot.set_total_bytes(fmsDmaParams.totalBytes);
-        extraData.DMA_TOTAL_BYTES = tot.word;
+        cmd.DMA_TOTAL_BYTES = tot.word;
     }
 
     if (isFcaf)
     {
         dma_stride3_r stride3;
         stride3.set_stride3(fmsDmaParams.stride3);
-        extraData.DMA_STRIDE3 = stride3.word;
+        cmd.DMA_STRIDE3 = stride3.word;
     }
 }
 
@@ -1152,10 +1152,17 @@ uint32_t CalculateNumChunks(const OfmSDesc& ofmS, uint32_t stripeId)
     return numChunks;
 }
 
-command_stream::cascading::DmaExtraData GenerateDmaExtraDataForLoadIfmStripe(
-    const IfmSDesc& ifmS, uint32_t stripeId, uint32_t chunkId, const HardwareCapabilities& caps, uint32_t nextDmaCmdId)
+command_stream::cascading::DmaCommand GenerateDmaCommandForLoadIfmStripe(const IfmSDesc& ifmS,
+                                                                         uint32_t agentId,
+                                                                         uint32_t stripeId,
+                                                                         uint32_t chunkId,
+                                                                         const HardwareCapabilities& caps,
+                                                                         uint32_t nextDmaCmdId)
 {
-    DmaExtraData result = {};
+    DmaCommand result = {};
+    result.type       = CommandType::LoadIfmStripe;
+    result.agentId    = agentId;
+    result.stripeId   = stripeId;
 
     DmaCmdState chunkState = {};
     chunkState.numChunks   = { 1, 1, 1 };
@@ -1172,7 +1179,7 @@ command_stream::cascading::DmaExtraData GenerateDmaExtraDataForLoadIfmStripe(
     }
 
     // Write dma registers using common method
-    GenerateDmaExtraDataCommon(ifmS.fmData, stripeId, true, result, caps, chunkState);
+    GenerateDmaCommandCommon(ifmS.fmData, stripeId, true, result, caps, chunkState);
 
     // Prepare read command
     dma_rd_cmd_r rdCmd;
@@ -1218,12 +1225,13 @@ command_stream::cascading::DmaExtraData GenerateDmaExtraDataForLoadIfmStripe(
     return result;
 }
 
-command_stream::cascading::DmaExtraData GenerateDmaExtraDataForLoadWgtStripe(const WgtSDesc& wgtS,
-                                                                             uint32_t stripeId,
-                                                                             const HardwareCapabilities& caps,
-                                                                             uint32_t nextDmaCmdId)
+command_stream::cascading::DmaCommand GenerateDmaCommandForLoadWgtStripe(
+    const WgtSDesc& wgtS, uint32_t agentId, uint32_t stripeId, const HardwareCapabilities& caps, uint32_t nextDmaCmdId)
 {
-    DmaExtraData result  = {};
+    DmaCommand result    = {};
+    result.type          = CommandType::LoadWgtStripe;
+    result.agentId       = agentId;
+    result.stripeId      = stripeId;
     result.m_IsLastChunk = 1;    // Weights are always transferred in one chunk
 
     WgtSWorkSize stripeCoord;
@@ -1277,10 +1285,13 @@ command_stream::cascading::DmaExtraData GenerateDmaExtraDataForLoadWgtStripe(con
     return result;
 }
 
-command_stream::cascading::DmaExtraData
-    GenerateDmaExtraDataForLoadPleCode(const PleLDesc& pleL, const HardwareCapabilities& caps, uint32_t nextDmaCmdId)
+command_stream::cascading::DmaCommand GenerateDmaCommandForLoadPleCode(
+    const PleLDesc& pleL, uint32_t agentId, uint32_t stripeId, const HardwareCapabilities& caps, uint32_t nextDmaCmdId)
 {
-    DmaExtraData result  = {};
+    DmaCommand result    = {};
+    result.type          = CommandType::LoadPleCode;
+    result.agentId       = agentId;
+    result.stripeId      = stripeId;
     result.m_IsLastChunk = 1;    // Ple code is always transferred in one chunk
 
     {
@@ -1308,10 +1319,17 @@ command_stream::cascading::DmaExtraData
     return result;
 }
 
-command_stream::cascading::DmaExtraData GenerateDmaExtraDataForStoreOfmStripe(
-    const OfmSDesc& ofmS, uint32_t stripeId, uint32_t chunkId, const HardwareCapabilities& caps, uint32_t nextDmaCmdId)
+command_stream::cascading::DmaCommand GenerateDmaCommandForStoreOfmStripe(const OfmSDesc& ofmS,
+                                                                          uint32_t agentId,
+                                                                          uint32_t stripeId,
+                                                                          uint32_t chunkId,
+                                                                          const HardwareCapabilities& caps,
+                                                                          uint32_t nextDmaCmdId)
 {
-    DmaExtraData result = {};
+    DmaCommand result = {};
+    result.type       = CommandType::StoreOfmStripe;
+    result.agentId    = agentId;
+    result.stripeId   = stripeId;
 
     DmaCmdState chunkState = {};
     chunkState.numChunks   = { 1, 1, 1 };
@@ -1321,7 +1339,7 @@ command_stream::cascading::DmaExtraData GenerateDmaExtraDataForStoreOfmStripe(
     }
 
     // Write DMA registers using common method
-    GenerateDmaExtraDataCommon(ofmS.fmData, stripeId, false, result, caps, chunkState);
+    GenerateDmaCommandCommon(ofmS.fmData, stripeId, false, result, caps, chunkState);
 
     // The last write should be to DMA_DMA_WR_CMD, which will push the command to the HW queue
     {

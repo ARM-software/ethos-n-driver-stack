@@ -12,6 +12,7 @@
 #include "PleRegisters.hpp"
 
 #include "../include/ethosn_support_library/Optional.hpp"
+#include "ethosn_command_stream/CommandStreamBuffer.hpp"
 
 namespace ethosn
 {
@@ -137,14 +138,16 @@ struct AgentDescAndDeps
 class Scheduler
 {
 public:
-    Scheduler(const std::vector<AgentDescAndDeps>& agents, const DebuggingContext& debuggingContext);
+    Scheduler(const std::vector<AgentDescAndDeps>& agents,
+              const HardwareCapabilities& capabilities,
+              const DebuggingContext& debuggingContext);
 
     void Schedule();
 
-    const std::vector<command_stream::cascading::Command>& GetDmaRdCommands() const;
-    const std::vector<command_stream::cascading::Command>& GetDmaWrCommands() const;
-    const std::vector<command_stream::cascading::Command>& GetMceCommands() const;
-    const std::vector<command_stream::cascading::Command>& GetPleCommands() const;
+    const std::vector<ethosn::command_stream::CommandVariant>& GetDmaRdCommands() const;
+    const std::vector<ethosn::command_stream::CommandVariant>& GetDmaWrCommands() const;
+    const std::vector<ethosn::command_stream::CommandVariant>& GetMceCommands() const;
+    const std::vector<ethosn::command_stream::CommandVariant>& GetPleCommands() const;
 
 private:
     /// Wraps a list of Commands along with storage of which stripe ID was last waited
@@ -153,11 +156,11 @@ private:
     class CommandQueue
     {
     public:
-        void Push(const command_stream::cascading::Command& c);
-        const std::vector<command_stream::cascading::Command>& GetCommands() const;
+        void Push(const ethosn::command_stream::CommandVariant& c);
+        const std::vector<ethosn::command_stream::CommandVariant>& GetCommands() const;
 
     private:
-        std::vector<command_stream::cascading::Command> m_Commands;
+        std::vector<ethosn::command_stream::CommandVariant> m_Commands;
         std::map<uint32_t, uint32_t> m_LastStripeWaitedForAgent;
     };
 
@@ -197,6 +200,11 @@ private:
     CommandQueue m_DmaWrCommands;
     CommandQueue m_MceCommands;
     CommandQueue m_PleCommands;
+
+    uint32_t m_NextRdDmaCmdId = 0;
+    uint32_t m_NextWrDmaCmdId = 4;
+
+    const HardwareCapabilities& m_Capabilities;
 };
 
 }    // namespace support_library

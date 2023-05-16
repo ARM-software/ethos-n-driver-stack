@@ -98,77 +98,8 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
     AddLifetimeInfoForIntermediateDramBuffers();
 
     // Use the dependencies to generate the lists of commands
-    Scheduler scheduler(m_CommandStreamAgents, m_DebuggingContext);
+    Scheduler scheduler(m_CommandStreamAgents, m_Capabilities, m_DebuggingContext);
     scheduler.Schedule();
-
-    // Generate register values for each command, and store them in the extra data
-    std::vector<DmaExtraData> dmaExtraData;
-    std::vector<ProgramMceExtraData> programMceExtraData;
-    std::vector<StartMceExtraData> startMceExtraData;
-    std::vector<StartPleExtraData> startPleExtraData;
-    uint32_t nextRdDmaCmdId = 0;
-    uint32_t nextWrDmaCmdId = 4;
-
-    std::map<std::pair<uint32_t, uint32_t>, uint32_t> agentAndStripeToChunkRd;
-    for (const Command& c : scheduler.GetDmaRdCommands())
-    {
-        if (c.type == CommandType::LoadIfmStripe)
-        {
-            uint32_t& chunkId = agentAndStripeToChunkRd[std::make_pair(c.agentId, c.stripeId)];
-            dmaExtraData.push_back(GenerateDmaExtraDataForLoadIfmStripe(
-                m_CommandStreamAgents[c.agentId].agent.ifm, c.stripeId, chunkId, m_Capabilities, nextRdDmaCmdId));
-
-            nextRdDmaCmdId = (nextRdDmaCmdId + 1) % 4;
-            ++chunkId;
-        }
-        else if (c.type == CommandType::LoadWgtStripe)
-        {
-            dmaExtraData.push_back(GenerateDmaExtraDataForLoadWgtStripe(m_CommandStreamAgents[c.agentId].agent.wgt,
-                                                                        c.stripeId, m_Capabilities, nextRdDmaCmdId));
-
-            nextRdDmaCmdId = (nextRdDmaCmdId + 1) % 4;
-        }
-        else if (c.type == CommandType::LoadPleCode)
-        {
-            dmaExtraData.push_back(GenerateDmaExtraDataForLoadPleCode(m_CommandStreamAgents[c.agentId].agent.pleL,
-                                                                      m_Capabilities, nextRdDmaCmdId));
-
-            nextRdDmaCmdId = (nextRdDmaCmdId + 1) % 4;
-        }
-    }
-    std::map<std::pair<uint32_t, uint32_t>, uint32_t> agentAndStripeToChunkWr;
-    for (const Command& c : scheduler.GetDmaWrCommands())
-    {
-        if (c.type == CommandType::StoreOfmStripe)
-        {
-            uint32_t& chunkId = agentAndStripeToChunkWr[std::make_pair(c.agentId, c.stripeId)];
-            dmaExtraData.push_back(GenerateDmaExtraDataForStoreOfmStripe(
-                m_CommandStreamAgents[c.agentId].agent.ofm, c.stripeId, chunkId, m_Capabilities, nextWrDmaCmdId));
-            nextWrDmaCmdId = 4 + ((nextWrDmaCmdId + 1) % 4);
-            ++chunkId;
-        }
-    }
-    for (const Command& c : scheduler.GetMceCommands())
-    {
-        if (c.type == CommandType::ProgramMceStripe)
-        {
-            programMceExtraData.push_back(
-                GenerateProgramMceExtraData(m_CommandStreamAgents[c.agentId].agent.mce, c.stripeId, m_Capabilities));
-        }
-        else if (c.type == CommandType::StartMceStripe)
-        {
-            startMceExtraData.push_back(
-                GenerateStartMceExtraData(m_CommandStreamAgents[c.agentId].agent.mce, c.stripeId, m_Capabilities));
-        }
-    }
-    for (const Command& c : scheduler.GetPleCommands())
-    {
-        if (c.type == CommandType::StartPleStripe)
-        {
-            startPleExtraData.push_back(
-                GenerateStartPleExtraData(m_CommandStreamAgents[c.agentId].agent.pleS, c.stripeId));
-        }
-    }
 
     // Convert the AgentDesc structs into Agents for the command stream
     std::vector<Agent> agents;
@@ -224,8 +155,7 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
 
     // Store the arrays of agents, commands and extra data into the command for the command stream
     command_stream::AddCascade(m_CommandStream, agents, scheduler.GetDmaRdCommands(), scheduler.GetDmaWrCommands(),
-                               scheduler.GetMceCommands(), scheduler.GetPleCommands(), dmaExtraData,
-                               programMceExtraData, startMceExtraData, startPleExtraData);
+                               scheduler.GetMceCommands(), scheduler.GetPleCommands());
 
     // Add DUMP_DRAM commands to the command stream, if requested.
     if (m_DebuggingContext.m_DebugInfo.m_DumpRam)

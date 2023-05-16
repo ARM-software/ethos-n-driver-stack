@@ -1023,32 +1023,6 @@ void Parse(std::stringstream& parent, const cascading::AgentData& data)
     };
 }
 
-const char* CommandTypeToString(cascading::CommandType t)
-{
-    using namespace ethosn::command_stream::cascading;
-    switch (t)
-    {
-        case CommandType::WaitForAgent:
-            return "WaitForAgent";
-        case CommandType::LoadIfmStripe:
-            return "LoadIfmStripe";
-        case CommandType::LoadWgtStripe:
-            return "LoadWgtStripe";
-        case CommandType::ProgramMceStripe:
-            return "ProgramMceStripe";
-        case CommandType::StartMceStripe:
-            return "StartMceStripe";
-        case CommandType::LoadPleCode:
-            return "LoadPleCode";
-        case CommandType::StartPleStripe:
-            return "StartPleStripe";
-        case CommandType::StoreOfmStripe:
-            return "StoreOfmStripe";
-        default:
-            throw ParseException("Invalid cascading command type: " + std::to_string(static_cast<uint32_t>(t)));
-    }
-}
-
 void Parse(std::stringstream& parent, const cascading::Agent& agent)
 {
     Parse(parent, "<AGENT>", 3, true);
@@ -1083,257 +1057,297 @@ const char* AgentTypeToString(cascading::AgentType t)
     }
 }
 
-void Parse(std::stringstream& parent, const cascading::DmaExtraData& dmaExtraData)
+void Parse(std::stringstream& parent, const cascading::WaitForAgentCommand& waitCommand, const cascading::Agent* agents)
 {
-    (void)(dmaExtraData);
     using namespace ethosn::command_stream::cascading;
 
-    Parse(parent, "<DMA_EXTRA_DATA>", 4, true);
+    Parse(parent, "<WAIT_FOR_AGENT_COMMAND>", 3, true);
 
-    Parse(parent, "<DRAM_OFFSET>", 5, false);
-    ParseAsHex(parent, dmaExtraData.m_DramOffset);
-    Parse(parent, "</DRAM_OFFSET>", 0, true);
+    // Add helpful comment to indicate the agent type being waited for
+    Parse(parent,
+          ("<!-- Waited-for agent type is " + std::string(AgentTypeToString(agents[waitCommand.agentId].data.type)) +
+           " -->")
+              .c_str(),
+          4, true);
+    Parse(parent, "<AGENT_ID>", 4, false);
+    ParseAsNum(parent, waitCommand.agentId);
+    Parse(parent, "</AGENT_ID>", 0, true);
 
-    Parse(parent, "<SRAM_ADDR>", 5, false);
-    ParseAsHex(parent, dmaExtraData.SRAM_ADDR);
-    Parse(parent, "</SRAM_ADDR>", 0, true);
+    Parse(parent, "<STRIPE_ID>", 4, false);
+    ParseAsNum(parent, waitCommand.stripeId);
+    Parse(parent, "</STRIPE_ID>", 0, true);
 
-    Parse(parent, "<DMA_SRAM_STRIDE>", 5, false);
-    ParseAsHex(parent, dmaExtraData.DMA_SRAM_STRIDE);
-    Parse(parent, "</DMA_SRAM_STRIDE>", 0, true);
-
-    Parse(parent, "<DMA_STRIDE0>", 5, false);
-    ParseAsHex(parent, dmaExtraData.DMA_STRIDE0);
-    Parse(parent, "</DMA_STRIDE0>", 0, true);
-
-    Parse(parent, "<DMA_STRIDE3>", 5, false);
-    ParseAsHex(parent, dmaExtraData.DMA_STRIDE3);
-    Parse(parent, "</DMA_STRIDE3>", 0, true);
-
-    Parse(parent, "<DMA_CHANNELS>", 5, false);
-    ParseAsHex(parent, dmaExtraData.DMA_CHANNELS);
-    Parse(parent, "</DMA_CHANNELS>", 0, true);
-
-    Parse(parent, "<DMA_EMCS>", 5, false);
-    ParseAsHex(parent, dmaExtraData.DMA_EMCS);
-    Parse(parent, "</DMA_EMCS>", 0, true);
-
-    Parse(parent, "<DMA_TOTAL_BYTES>", 5, false);
-    ParseAsHex(parent, dmaExtraData.DMA_TOTAL_BYTES);
-    Parse(parent, "</DMA_TOTAL_BYTES>", 0, true);
-
-    Parse(parent, "<DMA_CMD>", 5, false);
-    ParseAsHex(parent, dmaExtraData.DMA_CMD);
-    Parse(parent, "</DMA_CMD>", 0, true);
-
-    Parse(parent, "<IS_LAST_CHUNK>", 5, false);
-    ParseAsNum(parent, dmaExtraData.m_IsLastChunk);
-    Parse(parent, "</IS_LAST_CHUNK>", 0, true);
-
-    Parse(parent, "</DMA_EXTRA_DATA>", 4, true);
+    Parse(parent, "</WAIT_FOR_AGENT_COMMAND>", 3, true);
 }
 
-void Parse(std::stringstream& parent, const cascading::ProgramMceExtraData& programMceExtraData)
+void Parse(std::stringstream& parent, const cascading::DmaCommand& dmaCommand, const cascading::Agent* agents)
 {
-    (void)(programMceExtraData);
     using namespace ethosn::command_stream::cascading;
 
-    Parse(parent, "<PROGRAM_MCE_EXTRA_DATA>", 4, true);
+    Parse(parent, "<DMA_COMMAND>", 3, true);
 
-    for (size_t ce = 0; ce < programMceExtraData.MUL_ENABLE.size(); ++ce)
+    // Add helpful comment to indicate the agent type (DmaCommands are used for several different kinds of agent)
+    Parse(
+        parent,
+        ("<!-- Agent type is " + std::string(AgentTypeToString(agents[dmaCommand.agentId].data.type)) + " -->").c_str(),
+        4, true);
+    Parse(parent, "<AGENT_ID>", 4, false);
+    ParseAsNum(parent, dmaCommand.agentId);
+    Parse(parent, "</AGENT_ID>", 0, true);
+
+    Parse(parent, "<STRIPE_ID>", 4, false);
+    ParseAsNum(parent, dmaCommand.stripeId);
+    Parse(parent, "</STRIPE_ID>", 0, true);
+
+    Parse(parent, "<DRAM_OFFSET>", 4, false);
+    ParseAsHex(parent, dmaCommand.m_DramOffset);
+    Parse(parent, "</DRAM_OFFSET>", 0, true);
+
+    Parse(parent, "<SRAM_ADDR>", 4, false);
+    ParseAsHex(parent, dmaCommand.SRAM_ADDR);
+    Parse(parent, "</SRAM_ADDR>", 0, true);
+
+    Parse(parent, "<DMA_SRAM_STRIDE>", 4, false);
+    ParseAsHex(parent, dmaCommand.DMA_SRAM_STRIDE);
+    Parse(parent, "</DMA_SRAM_STRIDE>", 0, true);
+
+    Parse(parent, "<DMA_STRIDE0>", 4, false);
+    ParseAsHex(parent, dmaCommand.DMA_STRIDE0);
+    Parse(parent, "</DMA_STRIDE0>", 0, true);
+
+    Parse(parent, "<DMA_STRIDE3>", 4, false);
+    ParseAsHex(parent, dmaCommand.DMA_STRIDE3);
+    Parse(parent, "</DMA_STRIDE3>", 0, true);
+
+    Parse(parent, "<DMA_CHANNELS>", 4, false);
+    ParseAsHex(parent, dmaCommand.DMA_CHANNELS);
+    Parse(parent, "</DMA_CHANNELS>", 0, true);
+
+    Parse(parent, "<DMA_EMCS>", 4, false);
+    ParseAsHex(parent, dmaCommand.DMA_EMCS);
+    Parse(parent, "</DMA_EMCS>", 0, true);
+
+    Parse(parent, "<DMA_TOTAL_BYTES>", 4, false);
+    ParseAsHex(parent, dmaCommand.DMA_TOTAL_BYTES);
+    Parse(parent, "</DMA_TOTAL_BYTES>", 0, true);
+
+    Parse(parent, "<DMA_CMD>", 4, false);
+    ParseAsHex(parent, dmaCommand.DMA_CMD);
+    Parse(parent, "</DMA_CMD>", 0, true);
+
+    Parse(parent, "<IS_LAST_CHUNK>", 4, false);
+    ParseAsNum(parent, dmaCommand.m_IsLastChunk);
+    Parse(parent, "</IS_LAST_CHUNK>", 0, true);
+
+    Parse(parent, "</DMA_COMMAND>", 3, true);
+}
+
+void Parse(std::stringstream& parent, const cascading::ProgramMceStripeCommand& programMceCommand)
+{
+    using namespace ethosn::command_stream::cascading;
+
+    Parse(parent, "<PROGRAM_MCE_STRIPE_COMMAND>", 3, true);
+
+    Parse(parent, "<AGENT_ID>", 4, false);
+    ParseAsNum(parent, programMceCommand.agentId);
+    Parse(parent, "</AGENT_ID>", 0, true);
+
+    Parse(parent, "<STRIPE_ID>", 4, false);
+    ParseAsNum(parent, programMceCommand.stripeId);
+    Parse(parent, "</STRIPE_ID>", 0, true);
+
+    for (size_t ce = 0; ce < programMceCommand.MUL_ENABLE.size(); ++ce)
     {
         std::string beginElementName = std::string("<MUL_ENABLE_CE") + std::to_string(ce) + ">";
-        Parse(parent, beginElementName.c_str(), 5, true);
+        Parse(parent, beginElementName.c_str(), 4, true);
 
-        for (size_t og = 0; og < programMceExtraData.MUL_ENABLE[ce].size(); ++og)
+        for (size_t og = 0; og < programMceCommand.MUL_ENABLE[ce].size(); ++og)
         {
             std::string beginElementName = std::string("<OG") + std::to_string(og) + ">";
-            Parse(parent, beginElementName.c_str(), 6, false);
+            Parse(parent, beginElementName.c_str(), 5, false);
 
-            ParseAsHex(parent, programMceExtraData.MUL_ENABLE[ce][og]);
+            ParseAsHex(parent, programMceCommand.MUL_ENABLE[ce][og]);
 
             std::string endElementName = std::string("</OG") + std::to_string(og) + ">";
             Parse(parent, endElementName.c_str(), 0, true);
         }
 
         std::string endElementName = std::string("</MUL_ENABLE_CE") + std::to_string(ce) + ">";
-        Parse(parent, endElementName.c_str(), 5, true);
+        Parse(parent, endElementName.c_str(), 4, true);
     }
 
-    Parse(parent, "<IFM_ROW_STRIDE>", 5, false);
-    ParseAsHex(parent, programMceExtraData.IFM_ROW_STRIDE);
+    Parse(parent, "<IFM_ROW_STRIDE>", 4, false);
+    ParseAsHex(parent, programMceCommand.IFM_ROW_STRIDE);
     Parse(parent, "</IFM_ROW_STRIDE>", 0, true);
 
-    Parse(parent, "<IFM_CONFIG1>", 5, false);
-    ParseAsHex(parent, programMceExtraData.IFM_CONFIG1);
+    Parse(parent, "<IFM_CONFIG1>", 4, false);
+    ParseAsHex(parent, programMceCommand.IFM_CONFIG1);
     Parse(parent, "</IFM_CONFIG1>", 0, true);
 
-    for (size_t num = 0; num < programMceExtraData.IFM_PAD.size(); ++num)
+    for (size_t num = 0; num < programMceCommand.IFM_PAD.size(); ++num)
     {
         std::string beginElementName = std::string("<IFM_PAD_NUM") + std::to_string(num) + ">";
-        Parse(parent, beginElementName.c_str(), 5, true);
+        Parse(parent, beginElementName.c_str(), 4, true);
 
-        for (size_t ig = 0; ig < programMceExtraData.IFM_PAD[num].size(); ++ig)
+        for (size_t ig = 0; ig < programMceCommand.IFM_PAD[num].size(); ++ig)
         {
             std::string beginElementName = std::string("<IG") + std::to_string(ig) + ">";
-            Parse(parent, beginElementName.c_str(), 6, false);
+            Parse(parent, beginElementName.c_str(), 5, false);
 
-            ParseAsHex(parent, programMceExtraData.IFM_PAD[num][ig]);
+            ParseAsHex(parent, programMceCommand.IFM_PAD[num][ig]);
 
             std::string endElementName = std::string("</IG") + std::to_string(ig) + ">";
             Parse(parent, endElementName.c_str(), 0, true);
         }
 
         std::string endElementName = std::string("</IFM_PAD_NUM") + std::to_string(num) + ">";
-        Parse(parent, endElementName.c_str(), 5, true);
+        Parse(parent, endElementName.c_str(), 4, true);
     }
 
-    Parse(parent, "<WIDE_KERNEL_OFFSET>", 5, false);
-    ParseAsHex(parent, programMceExtraData.WIDE_KERNEL_OFFSET);
+    Parse(parent, "<WIDE_KERNEL_OFFSET>", 4, false);
+    ParseAsHex(parent, programMceCommand.WIDE_KERNEL_OFFSET);
     Parse(parent, "</WIDE_KERNEL_OFFSET>", 0, true);
 
-    Parse(parent, "<IFM_TOP_SLOTS>", 5, false);
-    ParseAsHex(parent, programMceExtraData.IFM_TOP_SLOTS);
+    Parse(parent, "<IFM_TOP_SLOTS>", 4, false);
+    ParseAsHex(parent, programMceCommand.IFM_TOP_SLOTS);
     Parse(parent, "</IFM_TOP_SLOTS>", 0, true);
 
-    Parse(parent, "<IFM_MID_SLOTS>", 5, false);
-    ParseAsHex(parent, programMceExtraData.IFM_MID_SLOTS);
+    Parse(parent, "<IFM_MID_SLOTS>", 4, false);
+    ParseAsHex(parent, programMceCommand.IFM_MID_SLOTS);
     Parse(parent, "</IFM_MID_SLOTS>", 0, true);
 
-    Parse(parent, "<IFM_BOTTOM_SLOTS>", 5, false);
-    ParseAsHex(parent, programMceExtraData.IFM_BOTTOM_SLOTS);
+    Parse(parent, "<IFM_BOTTOM_SLOTS>", 4, false);
+    ParseAsHex(parent, programMceCommand.IFM_BOTTOM_SLOTS);
     Parse(parent, "</IFM_BOTTOM_SLOTS>", 0, true);
 
-    Parse(parent, "<IFM_SLOT_PAD_CONFIG>", 5, false);
-    ParseAsHex(parent, programMceExtraData.IFM_SLOT_PAD_CONFIG);
+    Parse(parent, "<IFM_SLOT_PAD_CONFIG>", 4, false);
+    ParseAsHex(parent, programMceCommand.IFM_SLOT_PAD_CONFIG);
     Parse(parent, "</IFM_SLOT_PAD_CONFIG>", 0, true);
 
-    Parse(parent, "<OFM_STRIPE_SIZE>", 5, false);
-    ParseAsHex(parent, programMceExtraData.OFM_STRIPE_SIZE);
+    Parse(parent, "<OFM_STRIPE_SIZE>", 4, false);
+    ParseAsHex(parent, programMceCommand.OFM_STRIPE_SIZE);
     Parse(parent, "</OFM_STRIPE_SIZE>", 0, true);
 
-    Parse(parent, "<OFM_CONFIG>", 5, false);
-    ParseAsHex(parent, programMceExtraData.OFM_CONFIG);
+    Parse(parent, "<OFM_CONFIG>", 4, false);
+    ParseAsHex(parent, programMceCommand.OFM_CONFIG);
     Parse(parent, "</OFM_CONFIG>", 0, true);
 
-    for (size_t og = 0; og < programMceExtraData.WEIGHT_BASE_ADDR.size(); ++og)
+    for (size_t og = 0; og < programMceCommand.WEIGHT_BASE_ADDR.size(); ++og)
     {
         std::string beginElementName = std::string("<WEIGHT_BASE_ADDR_OG") + std::to_string(og) + ">";
-        Parse(parent, beginElementName.c_str(), 5, false);
-        ParseAsHex(parent, programMceExtraData.WEIGHT_BASE_ADDR[og]);
+        Parse(parent, beginElementName.c_str(), 4, false);
+        ParseAsHex(parent, programMceCommand.WEIGHT_BASE_ADDR[og]);
         std::string endElementName = std::string("</WEIGHT_BASE_ADDR_OG") + std::to_string(og) + ">";
         Parse(parent, endElementName.c_str(), 0, true);
     }
 
-    for (size_t ce = 0; ce < programMceExtraData.IFM_CONFIG2.size(); ++ce)
+    for (size_t ce = 0; ce < programMceCommand.IFM_CONFIG2.size(); ++ce)
     {
         std::string beginElementName = std::string("<IFM_CONFIG2_CE") + std::to_string(ce) + ">";
-        Parse(parent, beginElementName.c_str(), 5, true);
+        Parse(parent, beginElementName.c_str(), 4, true);
 
-        for (size_t ig = 0; ig < programMceExtraData.IFM_CONFIG2[ce].size(); ++ig)
+        for (size_t ig = 0; ig < programMceCommand.IFM_CONFIG2[ce].size(); ++ig)
         {
             std::string beginElementName = std::string("<IG") + std::to_string(ig) + ">";
-            Parse(parent, beginElementName.c_str(), 6, false);
+            Parse(parent, beginElementName.c_str(), 5, false);
 
-            ParseAsHex(parent, programMceExtraData.IFM_CONFIG2[ce][ig]);
+            ParseAsHex(parent, programMceCommand.IFM_CONFIG2[ce][ig]);
 
             std::string endElementName = std::string("</IG") + std::to_string(ig) + ">";
             Parse(parent, endElementName.c_str(), 0, true);
         }
 
         std::string endElementName = std::string("</IFM_CONFIG2_CE") + std::to_string(ce) + ">";
-        Parse(parent, endElementName.c_str(), 5, true);
+        Parse(parent, endElementName.c_str(), 4, true);
     }
 
-    Parse(parent, "<NUM_BLOCKS_PROGRAMMED_FOR_MCE>", 5, false);
-    ParseAsHex(parent, programMceExtraData.m_NumBlocksProgrammedForMce);
+    Parse(parent, "<NUM_BLOCKS_PROGRAMMED_FOR_MCE>", 4, false);
+    ParseAsHex(parent, programMceCommand.m_NumBlocksProgrammedForMce);
     Parse(parent, "</NUM_BLOCKS_PROGRAMMED_FOR_MCE>", 0, true);
 
-    Parse(parent, "</PROGRAM_MCE_EXTRA_DATA>", 4, true);
+    Parse(parent, "</PROGRAM_MCE_STRIPE_COMMAND>", 3, true);
 }
 
-void Parse(std::stringstream& parent, const cascading::StartMceExtraData& startMceExtraData)
+void Parse(std::stringstream& parent, const cascading::StartMceStripeCommand& startMceStripeCommand)
 {
     using namespace ethosn::command_stream::cascading;
 
-    Parse(parent, "<START_MCE_EXTRA_DATA>", 4, true);
+    Parse(parent, "<START_MCE_STRIPE_COMMAND>", 3, true);
 
-    Parse(parent, "<CE_ENABLES>", 5, false);
-    ParseAsNum(parent, startMceExtraData.CE_ENABLES);
+    Parse(parent, "<AGENT_ID>", 4, false);
+    ParseAsNum(parent, startMceStripeCommand.agentId);
+    Parse(parent, "</AGENT_ID>", 0, true);
+
+    Parse(parent, "<STRIPE_ID>", 4, false);
+    ParseAsNum(parent, startMceStripeCommand.stripeId);
+    Parse(parent, "</STRIPE_ID>", 0, true);
+
+    Parse(parent, "<CE_ENABLES>", 4, false);
+    ParseAsNum(parent, startMceStripeCommand.CE_ENABLES);
     Parse(parent, "</CE_ENABLES>", 0, true);
 
-    Parse(parent, "</START_MCE_EXTRA_DATA>", 4, true);
+    Parse(parent, "</START_MCE_STRIPE_COMMAND>", 3, true);
 }
 
-void Parse(std::stringstream& parent, const cascading::StartPleExtraData& startPleExtraData)
+void Parse(std::stringstream& parent, const cascading::StartPleStripeCommand& startPleStripeCommand)
 {
     using namespace ethosn::command_stream::cascading;
 
-    Parse(parent, "<START_PLE_EXTRA_DATA>", 4, true);
+    Parse(parent, "<START_PLE_STRIPE_COMMAND>", 3, true);
 
-    for (size_t i = 0; i < startPleExtraData.SCRATCH.size(); ++i)
+    Parse(parent, "<AGENT_ID>", 4, false);
+    ParseAsNum(parent, startPleStripeCommand.agentId);
+    Parse(parent, "</AGENT_ID>", 0, true);
+
+    Parse(parent, "<STRIPE_ID>", 4, false);
+    ParseAsNum(parent, startPleStripeCommand.stripeId);
+    Parse(parent, "</STRIPE_ID>", 0, true);
+
+    for (size_t i = 0; i < startPleStripeCommand.SCRATCH.size(); ++i)
     {
         std::string beginElementName = std::string("<SCRATCH") + std::to_string(i) + ">";
-        Parse(parent, beginElementName.c_str(), 5, false);
-        ParseAsHex(parent, startPleExtraData.SCRATCH[i]);
+        Parse(parent, beginElementName.c_str(), 4, false);
+        ParseAsHex(parent, startPleStripeCommand.SCRATCH[i]);
         std::string endElementName = std::string("</SCRATCH") + std::to_string(i) + ">";
         Parse(parent, endElementName.c_str(), 0, true);
     }
 
-    Parse(parent, "</START_PLE_EXTRA_DATA>", 4, true);
+    Parse(parent, "</START_PLE_STRIPE_COMMAND>", 3, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::Command& cmd, const cascading::Agent* agents)
 {
     using namespace ethosn::command_stream::cascading;
 
-    Parse(parent, "<COMMAND>", 3, true);
-
-    Parse(parent, "<TYPE>", 4, false);
-    Parse(parent, std::string(CommandTypeToString(cmd.type)), 0, false);
-    Parse(parent, "</TYPE>", 0, true);
-
-    // Add helpful comment to indicate the agent type
-    Parse(parent,
-          ("<!-- Agent type is " + std::string(AgentTypeToString(agents[cmd.agentId].data.type)) + " -->").c_str(), 4,
-          true);
-    Parse(parent, "<AGENT_ID>", 4, false);
-    ParseAsNum(parent, cmd.agentId);
-    Parse(parent, "</AGENT_ID>", 0, true);
-
-    Parse(parent, "<STRIPE_ID>", 4, false);
-    ParseAsNum(parent, cmd.stripeId);
-    Parse(parent, "</STRIPE_ID>", 0, true);
-
-    // Show extra data as appropriate for this type of Command
-    if (cmd.extraDataOffset > 0)
+    switch (cmd.type)
     {
-        switch (cmd.type)
-        {
-            case CommandType::WaitForAgent:
-                break;                           // No extra data
-            case CommandType::LoadIfmStripe:     // deliberate fallthrough
-            case CommandType::LoadWgtStripe:     // deliberate fallthrough
-            case CommandType::LoadPleCode:       // deliberate fallthrough
-            case CommandType::StoreOfmStripe:    // deliberate fallthrough
-                Parse(parent, cmd.GetDmaExtraData());
-                break;
-            case CommandType::ProgramMceStripe:
-                Parse(parent, cmd.GetProgramMceExtraData());
-                break;
-            case CommandType::StartMceStripe:
-                Parse(parent, cmd.GetStartMceExtraData());
-                break;
-            case CommandType::StartPleStripe:
-                Parse(parent, cmd.GetStartPleExtraData());
-                break;
-            default:
-                throw ParseException("Invalid cascading command type: " +
-                                     std::to_string(static_cast<uint32_t>(cmd.type)));
-        }
+        case CommandType::WaitForAgent:
+            Parse(parent, static_cast<const WaitForAgentCommand&>(cmd), agents);
+            break;
+        case CommandType::LoadIfmStripe:
+            Parse(parent, static_cast<const DmaCommand&>(cmd), agents);
+            break;
+        case CommandType::LoadWgtStripe:
+            Parse(parent, static_cast<const DmaCommand&>(cmd), agents);
+            break;
+        case CommandType::ProgramMceStripe:
+            Parse(parent, static_cast<const ProgramMceStripeCommand&>(cmd));
+            break;
+        case CommandType::StartMceStripe:
+            Parse(parent, static_cast<const StartMceStripeCommand&>(cmd));
+            break;
+        case CommandType::LoadPleCode:
+            Parse(parent, static_cast<const DmaCommand&>(cmd), agents);
+            break;
+        case CommandType::StartPleStripe:
+            Parse(parent, static_cast<const StartPleStripeCommand&>(cmd));
+            break;
+        case CommandType::StoreOfmStripe:
+            Parse(parent, static_cast<const DmaCommand&>(cmd), agents);
+            break;
+        default:
+            throw ParseException("Invalid cascading command type: " + std::to_string(static_cast<uint32_t>(cmd.type)));
     }
-
-    Parse(parent, "</COMMAND>", 3, true);
 }
 
 void Parse(std::stringstream& parent, const Cascade& value)
@@ -1343,12 +1357,17 @@ void Parse(std::stringstream& parent, const Cascade& value)
 
     Parse(parent, "<CASCADE>", 1, true);
 
-    // Calculate pointers to each of the agent and command arrays
+    // Calculate pointers to the agent array and command lists
     const Agent* agentsArray          = value.GetAgentsArray();
-    const Command* dmaRdCommandsArray = value.GetDmaRdCommandsArray();
-    const Command* dmaWrCommandsArray = value.GetDmaWrCommandsArray();
-    const Command* mceCommandsArray   = value.GetMceCommandsArray();
-    const Command* pleCommandsArray   = value.GetPleCommandsArray();
+    const Command* dmaRdCommandsBegin = value.GetDmaRdCommandsBegin();
+    const Command* dmaWrCommandsBegin = value.GetDmaWrCommandsBegin();
+    const Command* mceCommandsBegin   = value.GetMceCommandsBegin();
+    const Command* pleCommandsBegin   = value.GetPleCommandsBegin();
+
+    // Moves command pointer to next Command (each Command has different length)
+    auto getNextCommand = [](const Command* c) {
+        return reinterpret_cast<const Command*>(reinterpret_cast<const char*>(c) + c->GetSize());
+    };
 
     Parse(parent, "<AGENTS>", 2, true);
     for (uint32_t agentId = 0; agentId < value.NumAgents; ++agentId)
@@ -1364,7 +1383,8 @@ void Parse(std::stringstream& parent, const Cascade& value)
     {
         // Add helpful comment to indicate the command idx (very useful for long command streams)
         Parse(parent, "<!-- DmaRd Command " + std::to_string(commandIdx) + " -->", 3, true);
-        Parse(parent, dmaRdCommandsArray[commandIdx], agentsArray);
+        Parse(parent, *dmaRdCommandsBegin, agentsArray);
+        dmaRdCommandsBegin = getNextCommand(dmaRdCommandsBegin);
     }
     Parse(parent, "</DMA_RD_COMMANDS>", 2, true);
 
@@ -1373,7 +1393,8 @@ void Parse(std::stringstream& parent, const Cascade& value)
     {
         // Add helpful comment to indicate the command idx (very useful for long command streams)
         Parse(parent, "<!-- DmaWr Command " + std::to_string(commandIdx) + " -->", 3, true);
-        Parse(parent, dmaWrCommandsArray[commandIdx], agentsArray);
+        Parse(parent, *dmaWrCommandsBegin, agentsArray);
+        dmaWrCommandsBegin = getNextCommand(dmaWrCommandsBegin);
     }
     Parse(parent, "</DMA_WR_COMMANDS>", 2, true);
 
@@ -1382,7 +1403,8 @@ void Parse(std::stringstream& parent, const Cascade& value)
     {
         // Add helpful comment to indicate the command idx (very useful for long command streams)
         Parse(parent, "<!-- Mce Command " + std::to_string(commandIdx) + " -->", 3, true);
-        Parse(parent, mceCommandsArray[commandIdx], agentsArray);
+        Parse(parent, *mceCommandsBegin, agentsArray);
+        mceCommandsBegin = getNextCommand(mceCommandsBegin);
     }
     Parse(parent, "</MCE_COMMANDS>", 2, true);
 
@@ -1391,7 +1413,8 @@ void Parse(std::stringstream& parent, const Cascade& value)
     {
         // Add helpful comment to indicate the command idx (very useful for long command streams)
         Parse(parent, "<!-- Ple Command " + std::to_string(commandIdx) + " -->", 3, true);
-        Parse(parent, pleCommandsArray[commandIdx], agentsArray);
+        Parse(parent, *pleCommandsBegin, agentsArray);
+        pleCommandsBegin = getNextCommand(pleCommandsBegin);
     }
     Parse(parent, "</PLE_COMMANDS>", 2, true);
 

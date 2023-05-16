@@ -5,11 +5,13 @@
 
 #include "../src/DebuggingContext.hpp"
 #include "../src/cascading/Scheduler.hpp"
+#include "TestUtils.hpp"
 
 #include <catch.hpp>
 
 using namespace ethosn::support_library;
 using namespace ethosn::command_stream::cascading;
+using CommandVariant = ethosn::command_stream::CommandVariant;
 
 const char* CommandTypeToString(CommandType t)
 {
@@ -38,46 +40,140 @@ const char* CommandTypeToString(CommandType t)
     }
 }
 
-namespace ethosn
+struct TestCommand
 {
-namespace command_stream
-{
-namespace cascading
-{
-bool operator==(const Command& lhs, const Command& rhs)
-{
-    static_assert(sizeof(Command) ==
-                      sizeof(lhs.type) + sizeof(lhs.agentId) + sizeof(lhs.stripeId) + sizeof(lhs.extraDataOffset),
-                  "New fields added");
-    return lhs.type == rhs.type && lhs.agentId == rhs.agentId && lhs.stripeId == rhs.stripeId &&
-           lhs.extraDataOffset == rhs.extraDataOffset;
-}
+    CommandType type;
+    uint32_t agentId;
+    uint32_t stripeId;
+};
 
-}    // namespace cascading
-}    // namespace command_stream
-}    // namespace ethosn
+inline bool operator==(const TestCommand& lhs, const TestCommand& rhs)
+{
+    static_assert(sizeof(TestCommand) == sizeof(lhs.type) + sizeof(lhs.agentId) + sizeof(lhs.stripeId),
+                  "New fields added");
+    return lhs.type == rhs.type && lhs.agentId == rhs.agentId && lhs.stripeId == rhs.stripeId;
+}
 
 namespace Catch
 {
 template <>
-struct StringMaker<Command>
+struct StringMaker<TestCommand>
 {
-    static std::string convert(const Command& c)
+    static std::string convert(const TestCommand& c)
     {
-        return "\n  Command { CommandType::" + std::string(CommandTypeToString(c.type)) + ", " +
+        return "\n  TestCommand { CommandType::" + std::string(CommandTypeToString(c.type)) + ", " +
                std::to_string(c.agentId) + ", " + std::to_string(c.stripeId) + ", 0 }";
     }
 };
 }    // namespace Catch
 
-struct StripeQueue
+void CompareCommandArrays(const std::vector<CommandVariant>& a, const std::vector<TestCommand>& b)
 {
-    bool limitedQueue   = false;
-    uint32_t numStripes = 0;
-};
+    std::vector<TestCommand> converted;
+    for (const CommandVariant& cmd : a)
+    {
+        TestCommand c;
+        c.type = cmd.type;
+        switch (cmd.type)
+        {
+            case CommandType::WaitForAgent:
+                c.agentId  = cmd.waitForAgent.agentId;
+                c.stripeId = cmd.waitForAgent.stripeId;
+                break;
+            case CommandType::LoadIfmStripe:
+                c.agentId  = cmd.dma.agentId;
+                c.stripeId = cmd.dma.stripeId;
+                break;
+            case CommandType::LoadWgtStripe:
+                c.agentId  = cmd.dma.agentId;
+                c.stripeId = cmd.dma.stripeId;
+                break;
+            case CommandType::ProgramMceStripe:
+                c.agentId  = cmd.programMceStripe.agentId;
+                c.stripeId = cmd.programMceStripe.stripeId;
+                break;
+            case CommandType::StartMceStripe:
+                c.agentId  = cmd.startMceStripe.agentId;
+                c.stripeId = cmd.startMceStripe.stripeId;
+                break;
+            case CommandType::LoadPleCode:
+                c.agentId  = cmd.dma.agentId;
+                c.stripeId = cmd.dma.stripeId;
+                break;
+            case CommandType::StartPleStripe:
+                c.agentId  = cmd.startPleStripe.agentId;
+                c.stripeId = cmd.startPleStripe.stripeId;
+                break;
+            case CommandType::StoreOfmStripe:
+                c.agentId  = cmd.dma.agentId;
+                c.stripeId = cmd.dma.stripeId;
+                break;
+            default:
+                break;
+        }
+        converted.push_back(c);
+    }
+    CHECK(converted == b);
+}
+
+IfmSDesc MakeIfmSDesc()
+{
+    IfmSDesc result{};
+    result.fmData.tile.numSlots          = 1;
+    result.fmData.stripeIdStrides        = { 1, 1, 1 };
+    result.fmData.numStripes             = { 1, 1, 1 };
+    result.fmData.edgeStripeSize         = { 1, 1, 1 };
+    result.fmData.supertensorSizeInCells = { 1, 1 };
+    return result;
+}
+
+WgtSDesc MakeWgtSDesc()
+{
+    WgtSDesc result{};
+    result.tile.numSlots   = 2;
+    result.stripeIdStrides = { 1, 1 };
+    result.numStripes      = { 1, 1 };
+    static std::vector<WeightsMetadata> wgtMetadata{ { 0, 0 } };
+    result.metadata = &wgtMetadata;
+    return result;
+}
+
+MceSDesc MakeMceSDesc()
+{
+    MceSDesc result{};
+    result.stripeIdStrides  = { 1, 1, 1, 1 };
+    result.numStripes       = { 1, 1, 1, 1 };
+    result.edgeStripeSize   = { 1, 1, 1, 1 };
+    result.convStrideXy     = { 1, 1 };
+    result.ifmTile.numSlots = 1;
+    result.wgtTile.numSlots = 1;
+    result.blockSize        = { 16, 16 };
+    return result;
+}
+
+PleSDesc MakePleSDesc()
+{
+    PleSDesc result{};
+    result.ofmTile.numSlots = 1;
+    result.stripeIdStrides  = { 1, 1, 1 };
+    result.numStripes       = { 1, 1, 1 };
+    return result;
+}
+
+OfmSDesc MakeOfmSDesc()
+{
+    OfmSDesc result{};
+    result.fmData.tile.numSlots          = 1;
+    result.fmData.stripeIdStrides        = { 1, 1, 1 };
+    result.fmData.numStripes             = { 1, 1, 1 };
+    result.fmData.edgeStripeSize         = { 1, 1, 1 };
+    result.fmData.supertensorSizeInCells = { 1, 1 };
+    return result;
+}
 
 TEST_CASE("Cascading/Scheduler/ComplexSingleLayer")
 {
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
     //        IfmS               WgtS                MceS                      PleL/PleS/OfmS
     //       (load x3)          (load x1)           (xyz order)               (accumulate all mce stripes)
     //                                               +----------+              +----------+
@@ -100,16 +196,16 @@ TEST_CASE("Cascading/Scheduler/ComplexSingleLayer")
     //   |          |/                         |          |/             |          |/
     //   +----------+                          +----------+              +----------+
     //
-    IfmSDesc ifms{};
+    IfmSDesc ifms             = MakeIfmSDesc();
     ifms.fmData.tile.numSlots = 4;
 
-    WgtSDesc wgts{};
+    WgtSDesc wgts      = MakeWgtSDesc();
     wgts.tile.numSlots = 2;
 
-    PleSDesc ples{};
+    PleSDesc ples         = MakePleSDesc();
     ples.ofmTile.numSlots = 2;
 
-    OfmSDesc ofms{};
+    OfmSDesc ofms             = MakeOfmSDesc();
     ofms.fmData.tile.numSlots = 2;
 
     std::vector<AgentDescAndDeps> complexSingleLayerCmdStream{
@@ -135,7 +231,7 @@ TEST_CASE("Cascading/Scheduler/ComplexSingleLayer")
             },
         },
         AgentDescAndDeps{
-            AgentDesc(9, MceSDesc{}),
+            AgentDesc(9, MakeMceSDesc()),
             {
                 /* .readDependencies     = */
                 { {
@@ -165,99 +261,101 @@ TEST_CASE("Cascading/Scheduler/ComplexSingleLayer")
         },
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadIfmStripe, 0, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 2, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 3, 0 },
-        Command { CommandType::WaitForAgent, 3, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 4, 0 },
-        Command { CommandType::WaitForAgent, 3, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 6, 0 },
-        Command { CommandType::WaitForAgent, 3, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 8, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 9, 0 },
-        Command { CommandType::WaitForAgent, 3, 3, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 10, 0 },
-        Command { CommandType::WaitForAgent, 3, 4, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 11, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 12, 0 },
-        Command { CommandType::WaitForAgent, 3, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 13, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 14, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 15, 0 },
-        Command { CommandType::WaitForAgent, 3, 6, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 16, 0 },
-        Command { CommandType::WaitForAgent, 3, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 17, 0 },
-        Command { CommandType::LoadPleCode, 2, 0, 0 }
+        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 2 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 3 },
+        TestCommand { CommandType::WaitForAgent, 3, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 4 },
+        TestCommand { CommandType::WaitForAgent, 3, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 6 },
+        TestCommand { CommandType::WaitForAgent, 3, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 8 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 9 },
+        TestCommand { CommandType::WaitForAgent, 3, 3 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 10 },
+        TestCommand { CommandType::WaitForAgent, 3, 4 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 11 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 12 },
+        TestCommand { CommandType::WaitForAgent, 3, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 13 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 14 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 15 },
+        TestCommand { CommandType::WaitForAgent, 3, 6 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 16 },
+        TestCommand { CommandType::WaitForAgent, 3, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 17 },
+        TestCommand { CommandType::LoadPleCode, 2, 0 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedDmaWrCommands{
-        Command{ CommandType::WaitForAgent, 4, 0, 0 },
-        Command{ CommandType::StoreOfmStripe, 5, 0, 0 },
+    const std::vector<TestCommand> expectedDmaWrCommands{
+        TestCommand{ CommandType::WaitForAgent, 4, 0 },
+        TestCommand{ CommandType::StoreOfmStripe, 5, 0 },
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 3, 0, 0 },
-        Command { CommandType::WaitForAgent, 0, 2, 0 },
-        Command { CommandType::WaitForAgent, 1, 0, 0 },
-        Command { CommandType::StartMceStripe, 3, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 1, 0 },
-        Command { CommandType::WaitForAgent, 0, 4, 0 },
-        Command { CommandType::StartMceStripe, 3, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 2, 0 },
-        Command { CommandType::WaitForAgent, 0, 5, 0 },
-        Command { CommandType::StartMceStripe, 3, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 3, 0 },
-        Command { CommandType::WaitForAgent, 0, 8, 0 },
-        Command { CommandType::WaitForAgent, 1, 1, 0 },
-        Command { CommandType::StartMceStripe, 3, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 4, 0 },
-        Command { CommandType::WaitForAgent, 0, 10, 0 },
-        Command { CommandType::StartMceStripe, 3, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 5, 0 },
-        Command { CommandType::WaitForAgent, 0, 11, 0 },
-        Command { CommandType::StartMceStripe, 3, 5, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 6, 0 },
-        Command { CommandType::WaitForAgent, 0, 14, 0 },
-        Command { CommandType::WaitForAgent, 1, 2, 0 },
-        Command { CommandType::StartMceStripe, 3, 6, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 7, 0 },
-        Command { CommandType::WaitForAgent, 0, 16, 0 },
-        Command { CommandType::StartMceStripe, 3, 7, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 8, 0 },
-        Command { CommandType::WaitForAgent, 0, 17, 0 },
-        Command { CommandType::StartMceStripe, 3, 8,  0}
+        TestCommand { CommandType::ProgramMceStripe, 3, 0 },
+        TestCommand { CommandType::WaitForAgent, 0, 2 },
+        TestCommand { CommandType::WaitForAgent, 1, 0 },
+        TestCommand { CommandType::StartMceStripe, 3, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 1 },
+        TestCommand { CommandType::WaitForAgent, 0, 4 },
+        TestCommand { CommandType::StartMceStripe, 3, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 2 },
+        TestCommand { CommandType::WaitForAgent, 0, 5 },
+        TestCommand { CommandType::StartMceStripe, 3, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 3 },
+        TestCommand { CommandType::WaitForAgent, 0, 8 },
+        TestCommand { CommandType::WaitForAgent, 1, 1 },
+        TestCommand { CommandType::StartMceStripe, 3, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 4 },
+        TestCommand { CommandType::WaitForAgent, 0, 10 },
+        TestCommand { CommandType::StartMceStripe, 3, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 5 },
+        TestCommand { CommandType::WaitForAgent, 0, 11 },
+        TestCommand { CommandType::StartMceStripe, 3, 5 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 6 },
+        TestCommand { CommandType::WaitForAgent, 0, 14 },
+        TestCommand { CommandType::WaitForAgent, 1, 2 },
+        TestCommand { CommandType::StartMceStripe, 3, 6 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 7 },
+        TestCommand { CommandType::WaitForAgent, 0, 16 },
+        TestCommand { CommandType::StartMceStripe, 3, 7 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 8 },
+        TestCommand { CommandType::WaitForAgent, 0, 17 },
+        TestCommand { CommandType::StartMceStripe, 3, 8 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
-        Command{ CommandType::WaitForAgent, 2, 0, 0 },
-        Command{ CommandType::StartPleStripe, 4, 0, 0 },
+    const std::vector<TestCommand> expectedPleCommands{
+        TestCommand{ CommandType::WaitForAgent, 2, 0 },
+        TestCommand{ CommandType::StartPleStripe, 4, 0 },
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(complexSingleLayerCmdStream, debuggingContext);
+    Scheduler scheduler(complexSingleLayerCmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/Scheduler/Strategy7")
 {
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
     //        IfmS                       WgtS                MceS                            PleL/PleS/OfmS
     //       (load x3)                  (load x1)           (xyz order)                     (accumulate all mce stripes)
     //                                                        +----+----+----+----+              +-------------------+
@@ -274,16 +372,16 @@ TEST_CASE("Cascading/Scheduler/Strategy7")
     //   |    |    |    |    |/         +-+             |    |    |    |    |/             |                   |/
     //   +----+----+----+----+                          +----+----+----+----+              +-------------------+
     //
-    IfmSDesc ifms{};
+    IfmSDesc ifms             = MakeIfmSDesc();
     ifms.fmData.tile.numSlots = 4;
 
-    WgtSDesc wgts{};
+    WgtSDesc wgts      = MakeWgtSDesc();
     wgts.tile.numSlots = 2;
 
-    PleSDesc ples{};
+    PleSDesc ples         = MakePleSDesc();
     ples.ofmTile.numSlots = 2;
 
-    OfmSDesc ofms{};
+    OfmSDesc ofms             = MakeOfmSDesc();
     ofms.fmData.tile.numSlots = 2;
 
     std::vector<AgentDescAndDeps> strategy7CmdStream{
@@ -309,7 +407,7 @@ TEST_CASE("Cascading/Scheduler/Strategy7")
             },
         },
         AgentDescAndDeps{
-            AgentDesc(72, MceSDesc{}),
+            AgentDesc(72, MakeMceSDesc()),
             {
                 /*.readDependencies =*/
                 { {
@@ -339,424 +437,426 @@ TEST_CASE("Cascading/Scheduler/Strategy7")
         },
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadIfmStripe, 0, 0, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 1, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 3, 0 },
-        Command { CommandType::WaitForAgent, 3, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 4, 0 },
-        Command { CommandType::WaitForAgent, 3, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 5, 0 },
-        Command { CommandType::WaitForAgent, 3, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 6, 0 },
-        Command { CommandType::WaitForAgent, 3, 3, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 7, 0 },
-        Command { CommandType::WaitForAgent, 3, 4, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 8, 0 },
-        Command { CommandType::WaitForAgent, 3, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 9, 0 },
-        Command { CommandType::WaitForAgent, 3, 6, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 10, 0 },
-        Command { CommandType::WaitForAgent, 3, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 11, 0 },
-        Command { CommandType::WaitForAgent, 3, 8, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 12, 0 },
-        Command { CommandType::WaitForAgent, 3, 9, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 13, 0 },
-        Command { CommandType::WaitForAgent, 3, 10, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 14, 0 },
-        Command { CommandType::WaitForAgent, 3, 11, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 15, 0 },
-        Command { CommandType::WaitForAgent, 3, 12, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 16, 0 },
-        Command { CommandType::WaitForAgent, 3, 13, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 17, 0 },
-        Command { CommandType::WaitForAgent, 3, 14, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 18, 0 },
-        Command { CommandType::WaitForAgent, 3, 15, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 19, 0 },
-        Command { CommandType::WaitForAgent, 3, 16, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 20, 0 },
-        Command { CommandType::WaitForAgent, 3, 17, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 21, 0 },
-        Command { CommandType::WaitForAgent, 3, 18, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 22, 0 },
-        Command { CommandType::WaitForAgent, 3, 19, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 23, 0 },
-        Command { CommandType::WaitForAgent, 3, 20, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 24, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 2, 0 },
-        Command { CommandType::WaitForAgent, 3, 21, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 25, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 3, 0 },
-        Command { CommandType::WaitForAgent, 3, 22, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 26, 0 },
-        Command { CommandType::WaitForAgent, 3, 23, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 27, 0 },
-        Command { CommandType::WaitForAgent, 3, 24, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 28, 0 },
-        Command { CommandType::WaitForAgent, 3, 25, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 29, 0 },
-        Command { CommandType::WaitForAgent, 3, 26, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 30, 0 },
-        Command { CommandType::WaitForAgent, 3, 27, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 31, 0 },
-        Command { CommandType::WaitForAgent, 3, 28, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 32, 0 },
-        Command { CommandType::WaitForAgent, 3, 29, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 33, 0 },
-        Command { CommandType::WaitForAgent, 3, 30, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 34, 0 },
-        Command { CommandType::WaitForAgent, 3, 31, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 35, 0 },
-        Command { CommandType::WaitForAgent, 3, 32, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 36, 0 },
-        Command { CommandType::WaitForAgent, 3, 33, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 37, 0 },
-        Command { CommandType::WaitForAgent, 3, 34, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 38, 0 },
-        Command { CommandType::WaitForAgent, 3, 35, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 39, 0 },
-        Command { CommandType::WaitForAgent, 3, 36, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 40, 0 },
-        Command { CommandType::WaitForAgent, 3, 37, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 41, 0 },
-        Command { CommandType::WaitForAgent, 3, 38, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 42, 0 },
-        Command { CommandType::WaitForAgent, 3, 39, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 43, 0 },
-        Command { CommandType::WaitForAgent, 3, 40, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 44, 0 },
-        Command { CommandType::WaitForAgent, 3, 41, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 45, 0 },
-        Command { CommandType::WaitForAgent, 3, 42, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 46, 0 },
-        Command { CommandType::WaitForAgent, 3, 43, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 47, 0 },
-        Command { CommandType::WaitForAgent, 3, 44, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 48, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 4, 0 },
-        Command { CommandType::WaitForAgent, 3, 45, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 49, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 5, 0 },
-        Command { CommandType::WaitForAgent, 3, 46, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 50, 0 },
-        Command { CommandType::WaitForAgent, 3, 47, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 51, 0 },
-        Command { CommandType::WaitForAgent, 3, 48, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 52, 0 },
-        Command { CommandType::WaitForAgent, 3, 49, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 53, 0 },
-        Command { CommandType::WaitForAgent, 3, 50, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 54, 0 },
-        Command { CommandType::WaitForAgent, 3, 51, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 55, 0 },
-        Command { CommandType::WaitForAgent, 3, 52, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 56, 0 },
-        Command { CommandType::WaitForAgent, 3, 53, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 57, 0 },
-        Command { CommandType::WaitForAgent, 3, 54, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 58, 0 },
-        Command { CommandType::WaitForAgent, 3, 55, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 59, 0 },
-        Command { CommandType::WaitForAgent, 3, 56, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 60, 0 },
-        Command { CommandType::WaitForAgent, 3, 57, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 61, 0 },
-        Command { CommandType::WaitForAgent, 3, 58, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 62, 0 },
-        Command { CommandType::WaitForAgent, 3, 59, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 63, 0 },
-        Command { CommandType::WaitForAgent, 3, 60, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 64, 0 },
-        Command { CommandType::WaitForAgent, 3, 61, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 65, 0 },
-        Command { CommandType::WaitForAgent, 3, 62, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 66, 0 },
-        Command { CommandType::WaitForAgent, 3, 63, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 67, 0 },
-        Command { CommandType::WaitForAgent, 3, 64, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 68, 0 },
-        Command { CommandType::WaitForAgent, 3, 65, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 69, 0 },
-        Command { CommandType::WaitForAgent, 3, 66, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 70, 0 },
-        Command { CommandType::WaitForAgent, 3, 67, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 71, 0 }
+        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 1 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 3 },
+        TestCommand { CommandType::WaitForAgent, 3, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 4 },
+        TestCommand { CommandType::WaitForAgent, 3, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 5 },
+        TestCommand { CommandType::WaitForAgent, 3, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 6 },
+        TestCommand { CommandType::WaitForAgent, 3, 3 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 7 },
+        TestCommand { CommandType::WaitForAgent, 3, 4 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 8 },
+        TestCommand { CommandType::WaitForAgent, 3, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 9 },
+        TestCommand { CommandType::WaitForAgent, 3, 6 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 10 },
+        TestCommand { CommandType::WaitForAgent, 3, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 11 },
+        TestCommand { CommandType::WaitForAgent, 3, 8 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 12 },
+        TestCommand { CommandType::WaitForAgent, 3, 9 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 13 },
+        TestCommand { CommandType::WaitForAgent, 3, 10 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 14 },
+        TestCommand { CommandType::WaitForAgent, 3, 11 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 15 },
+        TestCommand { CommandType::WaitForAgent, 3, 12 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 16 },
+        TestCommand { CommandType::WaitForAgent, 3, 13 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 17 },
+        TestCommand { CommandType::WaitForAgent, 3, 14 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 18 },
+        TestCommand { CommandType::WaitForAgent, 3, 15 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 19 },
+        TestCommand { CommandType::WaitForAgent, 3, 16 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 20 },
+        TestCommand { CommandType::WaitForAgent, 3, 17 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 21 },
+        TestCommand { CommandType::WaitForAgent, 3, 18 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 22 },
+        TestCommand { CommandType::WaitForAgent, 3, 19 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 23 },
+        TestCommand { CommandType::WaitForAgent, 3, 20 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 24 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 2 },
+        TestCommand { CommandType::WaitForAgent, 3, 21 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 25 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 3 },
+        TestCommand { CommandType::WaitForAgent, 3, 22 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 26 },
+        TestCommand { CommandType::WaitForAgent, 3, 23 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 27 },
+        TestCommand { CommandType::WaitForAgent, 3, 24 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 28 },
+        TestCommand { CommandType::WaitForAgent, 3, 25 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 29 },
+        TestCommand { CommandType::WaitForAgent, 3, 26 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 30 },
+        TestCommand { CommandType::WaitForAgent, 3, 27 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 31 },
+        TestCommand { CommandType::WaitForAgent, 3, 28 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 32 },
+        TestCommand { CommandType::WaitForAgent, 3, 29 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 33 },
+        TestCommand { CommandType::WaitForAgent, 3, 30 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 34 },
+        TestCommand { CommandType::WaitForAgent, 3, 31 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 35 },
+        TestCommand { CommandType::WaitForAgent, 3, 32 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 36 },
+        TestCommand { CommandType::WaitForAgent, 3, 33 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 37 },
+        TestCommand { CommandType::WaitForAgent, 3, 34 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 38 },
+        TestCommand { CommandType::WaitForAgent, 3, 35 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 39 },
+        TestCommand { CommandType::WaitForAgent, 3, 36 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 40 },
+        TestCommand { CommandType::WaitForAgent, 3, 37 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 41 },
+        TestCommand { CommandType::WaitForAgent, 3, 38 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 42 },
+        TestCommand { CommandType::WaitForAgent, 3, 39 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 43 },
+        TestCommand { CommandType::WaitForAgent, 3, 40 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 44 },
+        TestCommand { CommandType::WaitForAgent, 3, 41 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 45 },
+        TestCommand { CommandType::WaitForAgent, 3, 42 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 46 },
+        TestCommand { CommandType::WaitForAgent, 3, 43 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 47 },
+        TestCommand { CommandType::WaitForAgent, 3, 44 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 48 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 4 },
+        TestCommand { CommandType::WaitForAgent, 3, 45 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 49 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 5 },
+        TestCommand { CommandType::WaitForAgent, 3, 46 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 50 },
+        TestCommand { CommandType::WaitForAgent, 3, 47 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 51 },
+        TestCommand { CommandType::WaitForAgent, 3, 48 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 52 },
+        TestCommand { CommandType::WaitForAgent, 3, 49 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 53 },
+        TestCommand { CommandType::WaitForAgent, 3, 50 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 54 },
+        TestCommand { CommandType::WaitForAgent, 3, 51 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 55 },
+        TestCommand { CommandType::WaitForAgent, 3, 52 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 56 },
+        TestCommand { CommandType::WaitForAgent, 3, 53 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 57 },
+        TestCommand { CommandType::WaitForAgent, 3, 54 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 58 },
+        TestCommand { CommandType::WaitForAgent, 3, 55 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 59 },
+        TestCommand { CommandType::WaitForAgent, 3, 56 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 60 },
+        TestCommand { CommandType::WaitForAgent, 3, 57 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 61 },
+        TestCommand { CommandType::WaitForAgent, 3, 58 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 62 },
+        TestCommand { CommandType::WaitForAgent, 3, 59 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 63 },
+        TestCommand { CommandType::WaitForAgent, 3, 60 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 64 },
+        TestCommand { CommandType::WaitForAgent, 3, 61 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 65 },
+        TestCommand { CommandType::WaitForAgent, 3, 62 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 66 },
+        TestCommand { CommandType::WaitForAgent, 3, 63 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 67 },
+        TestCommand { CommandType::WaitForAgent, 3, 64 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 68 },
+        TestCommand { CommandType::WaitForAgent, 3, 65 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 69 },
+        TestCommand { CommandType::WaitForAgent, 3, 66 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 70 },
+        TestCommand { CommandType::WaitForAgent, 3, 67 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 71 }
         // clang-format on
     };
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 4, 0, 0 }, Command{ CommandType::StoreOfmStripe, 5, 0, 0 },
-        Command{ CommandType::WaitForAgent, 4, 1, 0 }, Command{ CommandType::StoreOfmStripe, 5, 1, 0 },
-        Command{ CommandType::WaitForAgent, 4, 2, 0 }, Command{ CommandType::StoreOfmStripe, 5, 2, 0 },
-        Command{ CommandType::WaitForAgent, 4, 3, 0 }, Command{ CommandType::StoreOfmStripe, 5, 3, 0 },
-        Command{ CommandType::WaitForAgent, 4, 4, 0 }, Command{ CommandType::StoreOfmStripe, 5, 4, 0 },
-        Command{ CommandType::WaitForAgent, 4, 5, 0 }, Command{ CommandType::StoreOfmStripe, 5, 5, 0 },
-        Command{ CommandType::WaitForAgent, 4, 6, 0 }, Command{ CommandType::StoreOfmStripe, 5, 6, 0 },
-        Command{ CommandType::WaitForAgent, 4, 7, 0 }, Command{ CommandType::StoreOfmStripe, 5, 7, 0 },
-        Command{ CommandType::WaitForAgent, 4, 8, 0 }, Command{ CommandType::StoreOfmStripe, 5, 8, 0 },
+        TestCommand{ CommandType::WaitForAgent, 4, 0 }, TestCommand{ CommandType::StoreOfmStripe, 5, 0 },
+        TestCommand{ CommandType::WaitForAgent, 4, 1 }, TestCommand{ CommandType::StoreOfmStripe, 5, 1 },
+        TestCommand{ CommandType::WaitForAgent, 4, 2 }, TestCommand{ CommandType::StoreOfmStripe, 5, 2 },
+        TestCommand{ CommandType::WaitForAgent, 4, 3 }, TestCommand{ CommandType::StoreOfmStripe, 5, 3 },
+        TestCommand{ CommandType::WaitForAgent, 4, 4 }, TestCommand{ CommandType::StoreOfmStripe, 5, 4 },
+        TestCommand{ CommandType::WaitForAgent, 4, 5 }, TestCommand{ CommandType::StoreOfmStripe, 5, 5 },
+        TestCommand{ CommandType::WaitForAgent, 4, 6 }, TestCommand{ CommandType::StoreOfmStripe, 5, 6 },
+        TestCommand{ CommandType::WaitForAgent, 4, 7 }, TestCommand{ CommandType::StoreOfmStripe, 5, 7 },
+        TestCommand{ CommandType::WaitForAgent, 4, 8 }, TestCommand{ CommandType::StoreOfmStripe, 5, 8 },
         //clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 3, 0, 0 },
-        Command { CommandType::WaitForAgent, 0, 0, 0 },
-        Command { CommandType::WaitForAgent, 1, 0, 0 },
-        Command { CommandType::StartMceStripe, 3, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 1, 0 },
-        Command { CommandType::WaitForAgent, 0, 1, 0 },
-        Command { CommandType::WaitForAgent, 1, 1, 0 },
-        Command { CommandType::StartMceStripe, 3, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 2, 0 },
-        Command { CommandType::WaitForAgent, 0, 2, 0 },
-        Command { CommandType::StartMceStripe, 3, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 3, 0 },
-        Command { CommandType::WaitForAgent, 0, 3, 0 },
-        Command { CommandType::StartMceStripe, 3, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 4, 0 },
-        Command { CommandType::WaitForAgent, 0, 4, 0 },
-        Command { CommandType::StartMceStripe, 3, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 5, 0 },
-        Command { CommandType::WaitForAgent, 0, 5, 0 },
-        Command { CommandType::StartMceStripe, 3, 5, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 6, 0 },
-        Command { CommandType::WaitForAgent, 0, 6, 0 },
-        Command { CommandType::StartMceStripe, 3, 6, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 7, 0 },
-        Command { CommandType::WaitForAgent, 0, 7, 0 },
-        Command { CommandType::StartMceStripe, 3, 7, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 8, 0 },
-        Command { CommandType::WaitForAgent, 0, 8, 0 },
-        Command { CommandType::StartMceStripe, 3, 8, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 9, 0 },
-        Command { CommandType::WaitForAgent, 0, 9, 0 },
-        Command { CommandType::StartMceStripe, 3, 9, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 10, 0 },
-        Command { CommandType::WaitForAgent, 0, 10, 0 },
-        Command { CommandType::StartMceStripe, 3, 10, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 11, 0 },
-        Command { CommandType::WaitForAgent, 0, 11, 0 },
-        Command { CommandType::StartMceStripe, 3, 11, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 12, 0 },
-        Command { CommandType::WaitForAgent, 0, 12, 0 },
-        Command { CommandType::StartMceStripe, 3, 12, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 13, 0 },
-        Command { CommandType::WaitForAgent, 0, 13, 0 },
-        Command { CommandType::StartMceStripe, 3, 13, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 14, 0 },
-        Command { CommandType::WaitForAgent, 0, 14, 0 },
-        Command { CommandType::StartMceStripe, 3, 14, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 15, 0 },
-        Command { CommandType::WaitForAgent, 0, 15, 0 },
-        Command { CommandType::StartMceStripe, 3, 15, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 16, 0 },
-        Command { CommandType::WaitForAgent, 0, 16, 0 },
-        Command { CommandType::StartMceStripe, 3, 16, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 17, 0 },
-        Command { CommandType::WaitForAgent, 0, 17, 0 },
-        Command { CommandType::StartMceStripe, 3, 17, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 18, 0 },
-        Command { CommandType::WaitForAgent, 0, 18, 0 },
-        Command { CommandType::StartMceStripe, 3, 18, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 19, 0 },
-        Command { CommandType::WaitForAgent, 0, 19, 0 },
-        Command { CommandType::StartMceStripe, 3, 19, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 20, 0 },
-        Command { CommandType::WaitForAgent, 0, 20, 0 },
-        Command { CommandType::StartMceStripe, 3, 20, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 21, 0 },
-        Command { CommandType::WaitForAgent, 0, 21, 0 },
-        Command { CommandType::StartMceStripe, 3, 21, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 22, 0 },
-        Command { CommandType::WaitForAgent, 0, 22, 0 },
-        Command { CommandType::StartMceStripe, 3, 22, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 23, 0 },
-        Command { CommandType::WaitForAgent, 0, 23, 0 },
-        Command { CommandType::StartMceStripe, 3, 23, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 24, 0 },
-        Command { CommandType::WaitForAgent, 0, 24, 0 },
-        Command { CommandType::WaitForAgent, 1, 2, 0 },
-        Command { CommandType::StartMceStripe, 3, 24, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 25, 0 },
-        Command { CommandType::WaitForAgent, 0, 25, 0 },
-        Command { CommandType::WaitForAgent, 1, 3, 0 },
-        Command { CommandType::StartMceStripe, 3, 25, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 26, 0 },
-        Command { CommandType::WaitForAgent, 0, 26, 0 },
-        Command { CommandType::StartMceStripe, 3, 26, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 27, 0 },
-        Command { CommandType::WaitForAgent, 0, 27, 0 },
-        Command { CommandType::StartMceStripe, 3, 27, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 28, 0 },
-        Command { CommandType::WaitForAgent, 0, 28, 0 },
-        Command { CommandType::StartMceStripe, 3, 28, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 29, 0 },
-        Command { CommandType::WaitForAgent, 0, 29, 0 },
-        Command { CommandType::StartMceStripe, 3, 29, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 30, 0 },
-        Command { CommandType::WaitForAgent, 0, 30, 0 },
-        Command { CommandType::StartMceStripe, 3, 30, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 31, 0 },
-        Command { CommandType::WaitForAgent, 0, 31, 0 },
-        Command { CommandType::StartMceStripe, 3, 31, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 32, 0 },
-        Command { CommandType::WaitForAgent, 0, 32, 0 },
-        Command { CommandType::StartMceStripe, 3, 32, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 33, 0 },
-        Command { CommandType::WaitForAgent, 0, 33, 0 },
-        Command { CommandType::StartMceStripe, 3, 33, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 34, 0 },
-        Command { CommandType::WaitForAgent, 0, 34, 0 },
-        Command { CommandType::StartMceStripe, 3, 34, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 35, 0 },
-        Command { CommandType::WaitForAgent, 0, 35, 0 },
-        Command { CommandType::StartMceStripe, 3, 35, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 36, 0 },
-        Command { CommandType::WaitForAgent, 0, 36, 0 },
-        Command { CommandType::StartMceStripe, 3, 36, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 37, 0 },
-        Command { CommandType::WaitForAgent, 0, 37, 0 },
-        Command { CommandType::StartMceStripe, 3, 37, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 38, 0 },
-        Command { CommandType::WaitForAgent, 0, 38, 0 },
-        Command { CommandType::StartMceStripe, 3, 38, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 39, 0 },
-        Command { CommandType::WaitForAgent, 0, 39, 0 },
-        Command { CommandType::StartMceStripe, 3, 39, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 40, 0 },
-        Command { CommandType::WaitForAgent, 0, 40, 0 },
-        Command { CommandType::StartMceStripe, 3, 40, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 41, 0 },
-        Command { CommandType::WaitForAgent, 0, 41, 0 },
-        Command { CommandType::StartMceStripe, 3, 41, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 42, 0 },
-        Command { CommandType::WaitForAgent, 0, 42, 0 },
-        Command { CommandType::StartMceStripe, 3, 42, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 43, 0 },
-        Command { CommandType::WaitForAgent, 0, 43, 0 },
-        Command { CommandType::StartMceStripe, 3, 43, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 44, 0 },
-        Command { CommandType::WaitForAgent, 0, 44, 0 },
-        Command { CommandType::StartMceStripe, 3, 44, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 45, 0 },
-        Command { CommandType::WaitForAgent, 0, 45, 0 },
-        Command { CommandType::StartMceStripe, 3, 45, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 46, 0 },
-        Command { CommandType::WaitForAgent, 0, 46, 0 },
-        Command { CommandType::StartMceStripe, 3, 46, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 47, 0 },
-        Command { CommandType::WaitForAgent, 0, 47, 0 },
-        Command { CommandType::StartMceStripe, 3, 47, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 48, 0 },
-        Command { CommandType::WaitForAgent, 0, 48, 0 },
-        Command { CommandType::WaitForAgent, 1, 4, 0 },
-        Command { CommandType::StartMceStripe, 3, 48, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 49, 0 },
-        Command { CommandType::WaitForAgent, 0, 49, 0 },
-        Command { CommandType::WaitForAgent, 1, 5, 0 },
-        Command { CommandType::StartMceStripe, 3, 49, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 50, 0 },
-        Command { CommandType::WaitForAgent, 0, 50, 0 },
-        Command { CommandType::StartMceStripe, 3, 50, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 51, 0 },
-        Command { CommandType::WaitForAgent, 0, 51, 0 },
-        Command { CommandType::StartMceStripe, 3, 51, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 52, 0 },
-        Command { CommandType::WaitForAgent, 0, 52, 0 },
-        Command { CommandType::StartMceStripe, 3, 52, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 53, 0 },
-        Command { CommandType::WaitForAgent, 0, 53, 0 },
-        Command { CommandType::StartMceStripe, 3, 53, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 54, 0 },
-        Command { CommandType::WaitForAgent, 0, 54, 0 },
-        Command { CommandType::StartMceStripe, 3, 54, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 55, 0 },
-        Command { CommandType::WaitForAgent, 0, 55, 0 },
-        Command { CommandType::StartMceStripe, 3, 55, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 56, 0 },
-        Command { CommandType::WaitForAgent, 0, 56, 0 },
-        Command { CommandType::StartMceStripe, 3, 56, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 57, 0 },
-        Command { CommandType::WaitForAgent, 0, 57, 0 },
-        Command { CommandType::StartMceStripe, 3, 57, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 58, 0 },
-        Command { CommandType::WaitForAgent, 0, 58, 0 },
-        Command { CommandType::StartMceStripe, 3, 58, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 59, 0 },
-        Command { CommandType::WaitForAgent, 0, 59, 0 },
-        Command { CommandType::StartMceStripe, 3, 59, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 60, 0 },
-        Command { CommandType::WaitForAgent, 0, 60, 0 },
-        Command { CommandType::StartMceStripe, 3, 60, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 61, 0 },
-        Command { CommandType::WaitForAgent, 0, 61, 0 },
-        Command { CommandType::StartMceStripe, 3, 61, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 62, 0 },
-        Command { CommandType::WaitForAgent, 0, 62, 0 },
-        Command { CommandType::StartMceStripe, 3, 62, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 63, 0 },
-        Command { CommandType::WaitForAgent, 0, 63, 0 },
-        Command { CommandType::StartMceStripe, 3, 63, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 64, 0 },
-        Command { CommandType::WaitForAgent, 0, 64, 0 },
-        Command { CommandType::StartMceStripe, 3, 64, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 65, 0 },
-        Command { CommandType::WaitForAgent, 0, 65, 0 },
-        Command { CommandType::StartMceStripe, 3, 65, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 66, 0 },
-        Command { CommandType::WaitForAgent, 0, 66, 0 },
-        Command { CommandType::StartMceStripe, 3, 66, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 67, 0 },
-        Command { CommandType::WaitForAgent, 0, 67, 0 },
-        Command { CommandType::StartMceStripe, 3, 67, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 68, 0 },
-        Command { CommandType::WaitForAgent, 0, 68, 0 },
-        Command { CommandType::StartMceStripe, 3, 68, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 69, 0 },
-        Command { CommandType::WaitForAgent, 0, 69, 0 },
-        Command { CommandType::StartMceStripe, 3, 69, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 70, 0 },
-        Command { CommandType::WaitForAgent, 0, 70, 0 },
-        Command { CommandType::StartMceStripe, 3, 70, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 71, 0 },
-        Command { CommandType::WaitForAgent, 0, 71, 0 },
-        Command { CommandType::StartMceStripe, 3, 71,  0}
+        TestCommand { CommandType::ProgramMceStripe, 3, 0 },
+        TestCommand { CommandType::WaitForAgent, 0, 0 },
+        TestCommand { CommandType::WaitForAgent, 1, 0 },
+        TestCommand { CommandType::StartMceStripe, 3, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 1 },
+        TestCommand { CommandType::WaitForAgent, 0, 1 },
+        TestCommand { CommandType::WaitForAgent, 1, 1 },
+        TestCommand { CommandType::StartMceStripe, 3, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 2 },
+        TestCommand { CommandType::WaitForAgent, 0, 2 },
+        TestCommand { CommandType::StartMceStripe, 3, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 3 },
+        TestCommand { CommandType::WaitForAgent, 0, 3 },
+        TestCommand { CommandType::StartMceStripe, 3, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 4 },
+        TestCommand { CommandType::WaitForAgent, 0, 4 },
+        TestCommand { CommandType::StartMceStripe, 3, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 5 },
+        TestCommand { CommandType::WaitForAgent, 0, 5 },
+        TestCommand { CommandType::StartMceStripe, 3, 5 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 6 },
+        TestCommand { CommandType::WaitForAgent, 0, 6 },
+        TestCommand { CommandType::StartMceStripe, 3, 6 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 7 },
+        TestCommand { CommandType::WaitForAgent, 0, 7 },
+        TestCommand { CommandType::StartMceStripe, 3, 7 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 8 },
+        TestCommand { CommandType::WaitForAgent, 0, 8 },
+        TestCommand { CommandType::StartMceStripe, 3, 8 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 9 },
+        TestCommand { CommandType::WaitForAgent, 0, 9 },
+        TestCommand { CommandType::StartMceStripe, 3, 9 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 10 },
+        TestCommand { CommandType::WaitForAgent, 0, 10 },
+        TestCommand { CommandType::StartMceStripe, 3, 10 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 11 },
+        TestCommand { CommandType::WaitForAgent, 0, 11 },
+        TestCommand { CommandType::StartMceStripe, 3, 11 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 12 },
+        TestCommand { CommandType::WaitForAgent, 0, 12 },
+        TestCommand { CommandType::StartMceStripe, 3, 12 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 13 },
+        TestCommand { CommandType::WaitForAgent, 0, 13 },
+        TestCommand { CommandType::StartMceStripe, 3, 13 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 14 },
+        TestCommand { CommandType::WaitForAgent, 0, 14 },
+        TestCommand { CommandType::StartMceStripe, 3, 14 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 15 },
+        TestCommand { CommandType::WaitForAgent, 0, 15 },
+        TestCommand { CommandType::StartMceStripe, 3, 15 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 16 },
+        TestCommand { CommandType::WaitForAgent, 0, 16 },
+        TestCommand { CommandType::StartMceStripe, 3, 16 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 17 },
+        TestCommand { CommandType::WaitForAgent, 0, 17 },
+        TestCommand { CommandType::StartMceStripe, 3, 17 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 18 },
+        TestCommand { CommandType::WaitForAgent, 0, 18 },
+        TestCommand { CommandType::StartMceStripe, 3, 18 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 19 },
+        TestCommand { CommandType::WaitForAgent, 0, 19 },
+        TestCommand { CommandType::StartMceStripe, 3, 19 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 20 },
+        TestCommand { CommandType::WaitForAgent, 0, 20 },
+        TestCommand { CommandType::StartMceStripe, 3, 20 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 21 },
+        TestCommand { CommandType::WaitForAgent, 0, 21 },
+        TestCommand { CommandType::StartMceStripe, 3, 21 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 22 },
+        TestCommand { CommandType::WaitForAgent, 0, 22 },
+        TestCommand { CommandType::StartMceStripe, 3, 22 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 23 },
+        TestCommand { CommandType::WaitForAgent, 0, 23 },
+        TestCommand { CommandType::StartMceStripe, 3, 23 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 24 },
+        TestCommand { CommandType::WaitForAgent, 0, 24 },
+        TestCommand { CommandType::WaitForAgent, 1, 2 },
+        TestCommand { CommandType::StartMceStripe, 3, 24 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 25 },
+        TestCommand { CommandType::WaitForAgent, 0, 25 },
+        TestCommand { CommandType::WaitForAgent, 1, 3 },
+        TestCommand { CommandType::StartMceStripe, 3, 25 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 26 },
+        TestCommand { CommandType::WaitForAgent, 0, 26 },
+        TestCommand { CommandType::StartMceStripe, 3, 26 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 27 },
+        TestCommand { CommandType::WaitForAgent, 0, 27 },
+        TestCommand { CommandType::StartMceStripe, 3, 27 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 28 },
+        TestCommand { CommandType::WaitForAgent, 0, 28 },
+        TestCommand { CommandType::StartMceStripe, 3, 28 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 29 },
+        TestCommand { CommandType::WaitForAgent, 0, 29 },
+        TestCommand { CommandType::StartMceStripe, 3, 29 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 30 },
+        TestCommand { CommandType::WaitForAgent, 0, 30 },
+        TestCommand { CommandType::StartMceStripe, 3, 30 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 31 },
+        TestCommand { CommandType::WaitForAgent, 0, 31 },
+        TestCommand { CommandType::StartMceStripe, 3, 31 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 32 },
+        TestCommand { CommandType::WaitForAgent, 0, 32 },
+        TestCommand { CommandType::StartMceStripe, 3, 32 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 33 },
+        TestCommand { CommandType::WaitForAgent, 0, 33 },
+        TestCommand { CommandType::StartMceStripe, 3, 33 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 34 },
+        TestCommand { CommandType::WaitForAgent, 0, 34 },
+        TestCommand { CommandType::StartMceStripe, 3, 34 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 35 },
+        TestCommand { CommandType::WaitForAgent, 0, 35 },
+        TestCommand { CommandType::StartMceStripe, 3, 35 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 36 },
+        TestCommand { CommandType::WaitForAgent, 0, 36 },
+        TestCommand { CommandType::StartMceStripe, 3, 36 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 37 },
+        TestCommand { CommandType::WaitForAgent, 0, 37 },
+        TestCommand { CommandType::StartMceStripe, 3, 37 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 38 },
+        TestCommand { CommandType::WaitForAgent, 0, 38 },
+        TestCommand { CommandType::StartMceStripe, 3, 38 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 39 },
+        TestCommand { CommandType::WaitForAgent, 0, 39 },
+        TestCommand { CommandType::StartMceStripe, 3, 39 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 40 },
+        TestCommand { CommandType::WaitForAgent, 0, 40 },
+        TestCommand { CommandType::StartMceStripe, 3, 40 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 41 },
+        TestCommand { CommandType::WaitForAgent, 0, 41 },
+        TestCommand { CommandType::StartMceStripe, 3, 41 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 42 },
+        TestCommand { CommandType::WaitForAgent, 0, 42 },
+        TestCommand { CommandType::StartMceStripe, 3, 42 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 43 },
+        TestCommand { CommandType::WaitForAgent, 0, 43 },
+        TestCommand { CommandType::StartMceStripe, 3, 43 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 44 },
+        TestCommand { CommandType::WaitForAgent, 0, 44 },
+        TestCommand { CommandType::StartMceStripe, 3, 44 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 45 },
+        TestCommand { CommandType::WaitForAgent, 0, 45 },
+        TestCommand { CommandType::StartMceStripe, 3, 45 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 46 },
+        TestCommand { CommandType::WaitForAgent, 0, 46 },
+        TestCommand { CommandType::StartMceStripe, 3, 46 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 47 },
+        TestCommand { CommandType::WaitForAgent, 0, 47 },
+        TestCommand { CommandType::StartMceStripe, 3, 47 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 48 },
+        TestCommand { CommandType::WaitForAgent, 0, 48 },
+        TestCommand { CommandType::WaitForAgent, 1, 4 },
+        TestCommand { CommandType::StartMceStripe, 3, 48 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 49 },
+        TestCommand { CommandType::WaitForAgent, 0, 49 },
+        TestCommand { CommandType::WaitForAgent, 1, 5 },
+        TestCommand { CommandType::StartMceStripe, 3, 49 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 50 },
+        TestCommand { CommandType::WaitForAgent, 0, 50 },
+        TestCommand { CommandType::StartMceStripe, 3, 50 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 51 },
+        TestCommand { CommandType::WaitForAgent, 0, 51 },
+        TestCommand { CommandType::StartMceStripe, 3, 51 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 52 },
+        TestCommand { CommandType::WaitForAgent, 0, 52 },
+        TestCommand { CommandType::StartMceStripe, 3, 52 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 53 },
+        TestCommand { CommandType::WaitForAgent, 0, 53 },
+        TestCommand { CommandType::StartMceStripe, 3, 53 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 54 },
+        TestCommand { CommandType::WaitForAgent, 0, 54 },
+        TestCommand { CommandType::StartMceStripe, 3, 54 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 55 },
+        TestCommand { CommandType::WaitForAgent, 0, 55 },
+        TestCommand { CommandType::StartMceStripe, 3, 55 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 56 },
+        TestCommand { CommandType::WaitForAgent, 0, 56 },
+        TestCommand { CommandType::StartMceStripe, 3, 56 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 57 },
+        TestCommand { CommandType::WaitForAgent, 0, 57 },
+        TestCommand { CommandType::StartMceStripe, 3, 57 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 58 },
+        TestCommand { CommandType::WaitForAgent, 0, 58 },
+        TestCommand { CommandType::StartMceStripe, 3, 58 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 59 },
+        TestCommand { CommandType::WaitForAgent, 0, 59 },
+        TestCommand { CommandType::StartMceStripe, 3, 59 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 60 },
+        TestCommand { CommandType::WaitForAgent, 0, 60 },
+        TestCommand { CommandType::StartMceStripe, 3, 60 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 61 },
+        TestCommand { CommandType::WaitForAgent, 0, 61 },
+        TestCommand { CommandType::StartMceStripe, 3, 61 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 62 },
+        TestCommand { CommandType::WaitForAgent, 0, 62 },
+        TestCommand { CommandType::StartMceStripe, 3, 62 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 63 },
+        TestCommand { CommandType::WaitForAgent, 0, 63 },
+        TestCommand { CommandType::StartMceStripe, 3, 63 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 64 },
+        TestCommand { CommandType::WaitForAgent, 0, 64 },
+        TestCommand { CommandType::StartMceStripe, 3, 64 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 65 },
+        TestCommand { CommandType::WaitForAgent, 0, 65 },
+        TestCommand { CommandType::StartMceStripe, 3, 65 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 66 },
+        TestCommand { CommandType::WaitForAgent, 0, 66 },
+        TestCommand { CommandType::StartMceStripe, 3, 66 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 67 },
+        TestCommand { CommandType::WaitForAgent, 0, 67 },
+        TestCommand { CommandType::StartMceStripe, 3, 67 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 68 },
+        TestCommand { CommandType::WaitForAgent, 0, 68 },
+        TestCommand { CommandType::StartMceStripe, 3, 68 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 69 },
+        TestCommand { CommandType::WaitForAgent, 0, 69 },
+        TestCommand { CommandType::StartMceStripe, 3, 69 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 70 },
+        TestCommand { CommandType::WaitForAgent, 0, 70 },
+        TestCommand { CommandType::StartMceStripe, 3, 70 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 71 },
+        TestCommand { CommandType::WaitForAgent, 0, 71 },
+        TestCommand { CommandType::StartMceStripe, 3, 71 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
-        Command { CommandType::StartPleStripe, 4, 0, 0 },
-        Command { CommandType::StartPleStripe, 4, 1, 0 },
-        Command { CommandType::StartPleStripe, 4, 2, 0 },
-        Command { CommandType::StartPleStripe, 4, 3, 0 },
-        Command { CommandType::StartPleStripe, 4, 4, 0 },
-        Command { CommandType::StartPleStripe, 4, 5, 0 },
-        Command { CommandType::StartPleStripe, 4, 6, 0 },
-        Command { CommandType::StartPleStripe, 4, 7, 0 },
-        Command { CommandType::StartPleStripe, 4, 8,  0}
+        TestCommand { CommandType::StartPleStripe, 4, 0 },
+        TestCommand { CommandType::StartPleStripe, 4, 1 },
+        TestCommand { CommandType::StartPleStripe, 4, 2 },
+        TestCommand { CommandType::StartPleStripe, 4, 3 },
+        TestCommand { CommandType::StartPleStripe, 4, 4 },
+        TestCommand { CommandType::StartPleStripe, 4, 5 },
+        TestCommand { CommandType::StartPleStripe, 4, 6 },
+        TestCommand { CommandType::StartPleStripe, 4, 7 },
+        TestCommand { CommandType::StartPleStripe, 4, 8 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(strategy7CmdStream, debuggingContext);
+    Scheduler scheduler(strategy7CmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/Scheduler/MultipleNonCascadedLayers")
 {
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
     //       IfmS             WgtS         PleL/MceS/PleS/OfmS        IfmS             WgtS         PleL/MceS/PleS/OfmS
     //
     //       +----------+                      +----------+           +----------+                      +----------+
@@ -777,16 +877,16 @@ TEST_CASE("Cascading/Scheduler/MultipleNonCascadedLayers")
     //   |          |/                     |          |/          |          |/                     |          |/
     //   +----------+                      +----------+           +----------+                      +----------+
     //
-    IfmSDesc ifms{};
+    IfmSDesc ifms             = MakeIfmSDesc();
     ifms.fmData.tile.numSlots = 4;
 
-    WgtSDesc wgts{};
+    WgtSDesc wgts      = MakeWgtSDesc();
     wgts.tile.numSlots = 2;
 
-    PleSDesc ples{};
+    PleSDesc ples         = MakePleSDesc();
     ples.ofmTile.numSlots = 2;
 
-    OfmSDesc ofms{};
+    OfmSDesc ofms             = MakeOfmSDesc();
     ofms.fmData.tile.numSlots = 2;
 
     std::vector<AgentDescAndDeps> multipleNonCascadedLayersCmdStream{
@@ -812,7 +912,7 @@ TEST_CASE("Cascading/Scheduler/MultipleNonCascadedLayers")
             },
         },
         AgentDescAndDeps{
-            AgentDesc(3, MceSDesc{}),
+            AgentDesc(3, MakeMceSDesc()),
             {
                 /*.readDependencies =*/
                 { {
@@ -866,7 +966,7 @@ TEST_CASE("Cascading/Scheduler/MultipleNonCascadedLayers")
             },
         },
         AgentDescAndDeps{
-            AgentDesc(3, MceSDesc{}),
+            AgentDesc(3, MakeMceSDesc()),
             {
                 /*.readDependencies =*/
                 { {
@@ -896,104 +996,106 @@ TEST_CASE("Cascading/Scheduler/MultipleNonCascadedLayers")
         },
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadIfmStripe, 0, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 2, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 0, 0 },
-        Command { CommandType::LoadPleCode, 2, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 3, 0 },
-        Command { CommandType::WaitForAgent, 3, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 4, 0 },
-        Command { CommandType::WaitForAgent, 3, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 5, 0 },
-        Command { CommandType::WaitForAgent, 3, 2, 0 },
-        Command { CommandType::WaitForAgent, 5, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 6, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 6, 1, 0 },
-        Command { CommandType::WaitForAgent, 5, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 6, 2, 0 },
-        Command { CommandType::LoadWgtStripe, 7, 0, 0 },
-        Command { CommandType::LoadPleCode, 8, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 6, 3, 0 },
-        Command { CommandType::WaitForAgent, 9, 0, 0 },
-        Command { CommandType::WaitForAgent, 5, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 6, 4, 0 },
-        Command { CommandType::WaitForAgent, 9, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 6, 5, 0 }
+        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 2 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 0 },
+        TestCommand { CommandType::LoadPleCode, 2, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 3 },
+        TestCommand { CommandType::WaitForAgent, 3, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 4 },
+        TestCommand { CommandType::WaitForAgent, 3, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 5 },
+        TestCommand { CommandType::WaitForAgent, 3, 2 },
+        TestCommand { CommandType::WaitForAgent, 5, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 6, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 6, 1 },
+        TestCommand { CommandType::WaitForAgent, 5, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 6, 2 },
+        TestCommand { CommandType::LoadWgtStripe, 7, 0 },
+        TestCommand { CommandType::LoadPleCode, 8, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 6, 3 },
+        TestCommand { CommandType::WaitForAgent, 9, 0 },
+        TestCommand { CommandType::WaitForAgent, 5, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 6, 4 },
+        TestCommand { CommandType::WaitForAgent, 9, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 6, 5 }
         // clang-format on
     };
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         // clang-format off
-        Command { CommandType::WaitForAgent, 4, 0, 0 },
-        Command { CommandType::StoreOfmStripe, 5, 0, 0 },
-        Command { CommandType::WaitForAgent, 4, 1, 0 },
-        Command { CommandType::StoreOfmStripe, 5, 1, 0 },
-        Command { CommandType::WaitForAgent, 4, 2, 0 },
-        Command { CommandType::StoreOfmStripe, 5, 2, 0 },
-        Command { CommandType::WaitForAgent, 10, 0, 0 },
-        Command { CommandType::StoreOfmStripe, 11, 0, 0 },
-        Command { CommandType::WaitForAgent, 10, 1, 0 },
-        Command { CommandType::StoreOfmStripe, 11, 1, 0 },
-        Command { CommandType::WaitForAgent, 10, 2, 0 },
-        Command { CommandType::StoreOfmStripe, 11, 2,  0}
-        // clang-format on
-    };
-
-    const std::vector<Command> expectedMceCommands{
-        // clang-format off
-        Command { CommandType::ProgramMceStripe, 3, 0, 0 },
-        Command { CommandType::WaitForAgent, 0, 2, 0 },
-        Command { CommandType::WaitForAgent, 1, 0, 0 },
-        Command { CommandType::StartMceStripe, 3, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 1, 0 },
-        Command { CommandType::WaitForAgent, 0, 4, 0 },
-        Command { CommandType::StartMceStripe, 3, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 2, 0 },
-        Command { CommandType::WaitForAgent, 0, 5, 0 },
-        Command { CommandType::StartMceStripe, 3, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 9, 0, 0 },
-        Command { CommandType::WaitForAgent, 6, 2, 0 },
-        Command { CommandType::WaitForAgent, 7, 0, 0 },
-        Command { CommandType::StartMceStripe, 9, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 9, 1, 0 },
-        Command { CommandType::WaitForAgent, 6, 4, 0 },
-        Command { CommandType::StartMceStripe, 9, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 9, 2, 0 },
-        Command { CommandType::WaitForAgent, 6, 5, 0 },
-        Command { CommandType::StartMceStripe, 9, 2, 0 },
+        TestCommand { CommandType::WaitForAgent, 4, 0 },
+        TestCommand { CommandType::StoreOfmStripe, 5, 0 },
+        TestCommand { CommandType::WaitForAgent, 4, 1 },
+        TestCommand { CommandType::StoreOfmStripe, 5, 1 },
+        TestCommand { CommandType::WaitForAgent, 4, 2 },
+        TestCommand { CommandType::StoreOfmStripe, 5, 2 },
+        TestCommand { CommandType::WaitForAgent, 10, 0 },
+        TestCommand { CommandType::StoreOfmStripe, 11, 0 },
+        TestCommand { CommandType::WaitForAgent, 10, 1 },
+        TestCommand { CommandType::StoreOfmStripe, 11, 1 },
+        TestCommand { CommandType::WaitForAgent, 10, 2 },
+        TestCommand { CommandType::StoreOfmStripe, 11, 2 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::WaitForAgent, 2, 0, 0 },
-        Command { CommandType::StartPleStripe, 4, 0, 0 },
-        Command { CommandType::StartPleStripe, 4, 1, 0 },
-        Command { CommandType::WaitForAgent, 5, 0, 0 },
-        Command { CommandType::StartPleStripe, 4, 2, 0 },
-        Command { CommandType::WaitForAgent, 8, 0, 0 },
-        Command { CommandType::StartPleStripe, 10, 0, 0 },
-        Command { CommandType::StartPleStripe, 10, 1, 0 },
-        Command { CommandType::WaitForAgent, 11, 0, 0 },
-        Command { CommandType::StartPleStripe, 10, 2, 0 }
+        TestCommand { CommandType::ProgramMceStripe, 3, 0 },
+        TestCommand { CommandType::WaitForAgent, 0, 2 },
+        TestCommand { CommandType::WaitForAgent, 1, 0 },
+        TestCommand { CommandType::StartMceStripe, 3, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 1 },
+        TestCommand { CommandType::WaitForAgent, 0, 4 },
+        TestCommand { CommandType::StartMceStripe, 3, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 2 },
+        TestCommand { CommandType::WaitForAgent, 0, 5 },
+        TestCommand { CommandType::StartMceStripe, 3, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 9, 0 },
+        TestCommand { CommandType::WaitForAgent, 6, 2 },
+        TestCommand { CommandType::WaitForAgent, 7, 0 },
+        TestCommand { CommandType::StartMceStripe, 9, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 9, 1 },
+        TestCommand { CommandType::WaitForAgent, 6, 4 },
+        TestCommand { CommandType::StartMceStripe, 9, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 9, 2 },
+        TestCommand { CommandType::WaitForAgent, 6, 5 },
+        TestCommand { CommandType::StartMceStripe, 9, 2 },
+        // clang-format on
+    };
+
+    const std::vector<TestCommand> expectedPleCommands{
+        // clang-format off
+        TestCommand { CommandType::WaitForAgent, 2, 0 },
+        TestCommand { CommandType::StartPleStripe, 4, 0 },
+        TestCommand { CommandType::StartPleStripe, 4, 1 },
+        TestCommand { CommandType::WaitForAgent, 5, 0 },
+        TestCommand { CommandType::StartPleStripe, 4, 2 },
+        TestCommand { CommandType::WaitForAgent, 8, 0 },
+        TestCommand { CommandType::StartPleStripe, 10, 0 },
+        TestCommand { CommandType::StartPleStripe, 10, 1 },
+        TestCommand { CommandType::WaitForAgent, 11, 0 },
+        TestCommand { CommandType::StartPleStripe, 10, 2 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(multipleNonCascadedLayersCmdStream, debuggingContext);
+    Scheduler scheduler(multipleNonCascadedLayersCmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/Scheduler/Strategy1Cascade")
 {
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
     //        IfmS             WgtS             MceS                PleL/PleS          WgtS         PleL/MceS/PleS/OfmS
     //      (load x3)        (load x1)       (xyz order)         (all mce stripes)   (load x1)        (xyz order)
     //                                          +----------+          +----------+                       +----------+
@@ -1016,16 +1118,16 @@ TEST_CASE("Cascading/Scheduler/Strategy1Cascade")
     //   |          |/                    |          |/         |          |/                      |          |/
     //   +----------+                     +----------+          +----------+                       +----------+
     //
-    IfmSDesc ifms{};
+    IfmSDesc ifms             = MakeIfmSDesc();
     ifms.fmData.tile.numSlots = 4;
 
-    WgtSDesc wgts{};
+    WgtSDesc wgts      = MakeWgtSDesc();
     wgts.tile.numSlots = 2;
 
-    PleSDesc ples{};
+    PleSDesc ples         = MakePleSDesc();
     ples.ofmTile.numSlots = 2;
 
-    OfmSDesc ofms{};
+    OfmSDesc ofms             = MakeOfmSDesc();
     ofms.fmData.tile.numSlots = 2;
 
     std::vector<AgentDescAndDeps> strategy1CascadeCmdStream{
@@ -1051,7 +1153,7 @@ TEST_CASE("Cascading/Scheduler/Strategy1Cascade")
             },
         },
         AgentDescAndDeps{
-            AgentDesc(9, MceSDesc{}),
+            AgentDesc(9, MakeMceSDesc()),
             {
                 /*.readDependencies =*/
                 { {
@@ -1087,7 +1189,7 @@ TEST_CASE("Cascading/Scheduler/Strategy1Cascade")
             },
         },
         AgentDescAndDeps{
-            AgentDesc(12, MceSDesc{}),
+            AgentDesc(12, MakeMceSDesc()),
             {
                 /*.readDependencies =*/
                 { {
@@ -1117,180 +1219,182 @@ TEST_CASE("Cascading/Scheduler/Strategy1Cascade")
         },
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadIfmStripe, 0, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 2, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 3, 0 },
-        Command { CommandType::WaitForAgent, 3, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 4, 0 },
-        Command { CommandType::WaitForAgent, 3, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 6, 0 },
-        Command { CommandType::WaitForAgent, 3, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 8, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 9, 0 },
-        Command { CommandType::WaitForAgent, 3, 3, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 10, 0 },
-        Command { CommandType::WaitForAgent, 3, 4, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 11, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 12, 0 },
-        Command { CommandType::WaitForAgent, 3, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 13, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 14, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 15, 0 },
-        Command { CommandType::WaitForAgent, 3, 6, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 16, 0 },
-        Command { CommandType::WaitForAgent, 3, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 17, 0 },
-        Command { CommandType::LoadPleCode, 2, 0, 0 },
-        Command { CommandType::LoadWgtStripe, 5, 0, 0 },
-        Command { CommandType::LoadPleCode, 6, 0, 0 },
-        Command { CommandType::LoadWgtStripe, 5, 1, 0 },
-        Command { CommandType::WaitForAgent, 7, 3, 0 },
-        Command { CommandType::LoadWgtStripe, 5, 2, 0 }
+        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 2 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 3 },
+        TestCommand { CommandType::WaitForAgent, 3, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 4 },
+        TestCommand { CommandType::WaitForAgent, 3, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 6 },
+        TestCommand { CommandType::WaitForAgent, 3, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 8 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 9 },
+        TestCommand { CommandType::WaitForAgent, 3, 3 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 10 },
+        TestCommand { CommandType::WaitForAgent, 3, 4 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 11 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 12 },
+        TestCommand { CommandType::WaitForAgent, 3, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 13 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 14 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 15 },
+        TestCommand { CommandType::WaitForAgent, 3, 6 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 16 },
+        TestCommand { CommandType::WaitForAgent, 3, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 17 },
+        TestCommand { CommandType::LoadPleCode, 2, 0 },
+        TestCommand { CommandType::LoadWgtStripe, 5, 0 },
+        TestCommand { CommandType::LoadPleCode, 6, 0 },
+        TestCommand { CommandType::LoadWgtStripe, 5, 1 },
+        TestCommand { CommandType::WaitForAgent, 7, 3 },
+        TestCommand { CommandType::LoadWgtStripe, 5, 2 }
         // clang-format on
     };
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         // clang-format off
-        Command { CommandType::WaitForAgent, 8, 0, 0 },
-        Command { CommandType::StoreOfmStripe, 9, 0, 0 },
-        Command { CommandType::WaitForAgent, 8, 1, 0 },
-        Command { CommandType::StoreOfmStripe, 9, 1, 0 },
-        Command { CommandType::WaitForAgent, 8, 2, 0 },
-        Command { CommandType::StoreOfmStripe, 9, 2, 0 },
-        Command { CommandType::WaitForAgent, 8, 3, 0 },
-        Command { CommandType::StoreOfmStripe, 9, 3, 0 },
-        Command { CommandType::WaitForAgent, 8, 4, 0 },
-        Command { CommandType::StoreOfmStripe, 9, 4, 0 },
-        Command { CommandType::WaitForAgent, 8, 5, 0 },
-        Command { CommandType::StoreOfmStripe, 9, 5, 0 },
-        Command { CommandType::WaitForAgent, 8, 6, 0 },
-        Command { CommandType::StoreOfmStripe, 9, 6, 0 },
-        Command { CommandType::WaitForAgent, 8, 7, 0 },
-        Command { CommandType::StoreOfmStripe, 9, 7, 0 },
-        Command { CommandType::WaitForAgent, 8, 8, 0 },
-        Command { CommandType::StoreOfmStripe, 9, 8, 0 },
-        Command { CommandType::WaitForAgent, 8, 9, 0 },
-        Command { CommandType::StoreOfmStripe, 9, 9, 0 },
-        Command { CommandType::WaitForAgent, 8, 10, 0 },
-        Command { CommandType::StoreOfmStripe, 9, 10, 0 },
-        Command { CommandType::WaitForAgent, 8, 11, 0 },
-        Command { CommandType::StoreOfmStripe, 9, 11,  0}
-        // clang-format on
-    };
-
-    const std::vector<Command> expectedMceCommands{
-        // clang-format off
-        Command { CommandType::ProgramMceStripe, 3, 0, 0 },
-        Command { CommandType::WaitForAgent, 0, 2, 0 },
-        Command { CommandType::WaitForAgent, 1, 0, 0 },
-        Command { CommandType::StartMceStripe, 3, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 1, 0 },
-        Command { CommandType::WaitForAgent, 0, 4, 0 },
-        Command { CommandType::StartMceStripe, 3, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 2, 0 },
-        Command { CommandType::WaitForAgent, 0, 5, 0 },
-        Command { CommandType::StartMceStripe, 3, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 3, 0 },
-        Command { CommandType::WaitForAgent, 0, 8, 0 },
-        Command { CommandType::WaitForAgent, 1, 1, 0 },
-        Command { CommandType::StartMceStripe, 3, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 4, 0 },
-        Command { CommandType::WaitForAgent, 0, 10, 0 },
-        Command { CommandType::StartMceStripe, 3, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 5, 0 },
-        Command { CommandType::WaitForAgent, 0, 11, 0 },
-        Command { CommandType::StartMceStripe, 3, 5, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 6, 0 },
-        Command { CommandType::WaitForAgent, 0, 14, 0 },
-        Command { CommandType::WaitForAgent, 1, 2, 0 },
-        Command { CommandType::StartMceStripe, 3, 6, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 7, 0 },
-        Command { CommandType::WaitForAgent, 0, 16, 0 },
-        Command { CommandType::StartMceStripe, 3, 7, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 8, 0 },
-        Command { CommandType::WaitForAgent, 0, 17, 0 },
-        Command { CommandType::StartMceStripe, 3, 8, 0 },
-        Command { CommandType::ProgramMceStripe, 7, 0, 0 },
-        Command { CommandType::WaitForAgent, 4, 0, 0 },
-        Command { CommandType::WaitForAgent, 5, 0, 0 },
-        Command { CommandType::StartMceStripe, 7, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 7, 1, 0 },
-        Command { CommandType::StartMceStripe, 7, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 7, 2, 0 },
-        Command { CommandType::StartMceStripe, 7, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 7, 3, 0 },
-        Command { CommandType::StartMceStripe, 7, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 7, 4, 0 },
-        Command { CommandType::WaitForAgent, 5, 1, 0 },
-        Command { CommandType::StartMceStripe, 7, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 7, 5, 0 },
-        Command { CommandType::StartMceStripe, 7, 5, 0 },
-        Command { CommandType::ProgramMceStripe, 7, 6, 0 },
-        Command { CommandType::StartMceStripe, 7, 6, 0 },
-        Command { CommandType::ProgramMceStripe, 7, 7, 0 },
-        Command { CommandType::StartMceStripe, 7, 7, 0 },
-        Command { CommandType::ProgramMceStripe, 7, 8, 0 },
-        Command { CommandType::WaitForAgent, 5, 2, 0 },
-        Command { CommandType::StartMceStripe, 7, 8, 0 },
-        Command { CommandType::ProgramMceStripe, 7, 9, 0 },
-        Command { CommandType::StartMceStripe, 7, 9, 0 },
-        Command { CommandType::ProgramMceStripe, 7, 10, 0 },
-        Command { CommandType::StartMceStripe, 7, 10, 0 },
-        Command { CommandType::ProgramMceStripe, 7, 11, 0 },
-        Command { CommandType::StartMceStripe, 7, 11,  0}
+        TestCommand { CommandType::WaitForAgent, 8, 0 },
+        TestCommand { CommandType::StoreOfmStripe, 9, 0 },
+        TestCommand { CommandType::WaitForAgent, 8, 1 },
+        TestCommand { CommandType::StoreOfmStripe, 9, 1 },
+        TestCommand { CommandType::WaitForAgent, 8, 2 },
+        TestCommand { CommandType::StoreOfmStripe, 9, 2 },
+        TestCommand { CommandType::WaitForAgent, 8, 3 },
+        TestCommand { CommandType::StoreOfmStripe, 9, 3 },
+        TestCommand { CommandType::WaitForAgent, 8, 4 },
+        TestCommand { CommandType::StoreOfmStripe, 9, 4 },
+        TestCommand { CommandType::WaitForAgent, 8, 5 },
+        TestCommand { CommandType::StoreOfmStripe, 9, 5 },
+        TestCommand { CommandType::WaitForAgent, 8, 6 },
+        TestCommand { CommandType::StoreOfmStripe, 9, 6 },
+        TestCommand { CommandType::WaitForAgent, 8, 7 },
+        TestCommand { CommandType::StoreOfmStripe, 9, 7 },
+        TestCommand { CommandType::WaitForAgent, 8, 8 },
+        TestCommand { CommandType::StoreOfmStripe, 9, 8 },
+        TestCommand { CommandType::WaitForAgent, 8, 9 },
+        TestCommand { CommandType::StoreOfmStripe, 9, 9 },
+        TestCommand { CommandType::WaitForAgent, 8, 10 },
+        TestCommand { CommandType::StoreOfmStripe, 9, 10 },
+        TestCommand { CommandType::WaitForAgent, 8, 11 },
+        TestCommand { CommandType::StoreOfmStripe, 9, 11 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::WaitForAgent, 2, 0, 0 },
-        Command { CommandType::StartPleStripe, 4, 0, 0 },
-        Command { CommandType::WaitForAgent, 6, 0, 0 },
-        Command { CommandType::StartPleStripe, 8, 0, 0 },
-        Command { CommandType::StartPleStripe, 8, 1, 0 },
-        Command { CommandType::WaitForAgent, 9, 0, 0 },
-        Command { CommandType::StartPleStripe, 8, 2, 0 },
-        Command { CommandType::WaitForAgent, 9, 1, 0 },
-        Command { CommandType::StartPleStripe, 8, 3, 0 },
-        Command { CommandType::WaitForAgent, 9, 2, 0 },
-        Command { CommandType::StartPleStripe, 8, 4, 0 },
-        Command { CommandType::WaitForAgent, 9, 3, 0 },
-        Command { CommandType::StartPleStripe, 8, 5, 0 },
-        Command { CommandType::WaitForAgent, 9, 4, 0 },
-        Command { CommandType::StartPleStripe, 8, 6, 0 },
-        Command { CommandType::WaitForAgent, 9, 5, 0 },
-        Command { CommandType::StartPleStripe, 8, 7, 0 },
-        Command { CommandType::WaitForAgent, 9, 6, 0 },
-        Command { CommandType::StartPleStripe, 8, 8, 0 },
-        Command { CommandType::WaitForAgent, 9, 7, 0 },
-        Command { CommandType::StartPleStripe, 8, 9, 0 },
-        Command { CommandType::WaitForAgent, 9, 8, 0 },
-        Command { CommandType::StartPleStripe, 8, 10, 0 },
-        Command { CommandType::WaitForAgent, 9, 9, 0 },
-        Command { CommandType::StartPleStripe, 8, 11, 0 }
+        TestCommand { CommandType::ProgramMceStripe, 3, 0 },
+        TestCommand { CommandType::WaitForAgent, 0, 2 },
+        TestCommand { CommandType::WaitForAgent, 1, 0 },
+        TestCommand { CommandType::StartMceStripe, 3, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 1 },
+        TestCommand { CommandType::WaitForAgent, 0, 4 },
+        TestCommand { CommandType::StartMceStripe, 3, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 2 },
+        TestCommand { CommandType::WaitForAgent, 0, 5 },
+        TestCommand { CommandType::StartMceStripe, 3, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 3 },
+        TestCommand { CommandType::WaitForAgent, 0, 8 },
+        TestCommand { CommandType::WaitForAgent, 1, 1 },
+        TestCommand { CommandType::StartMceStripe, 3, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 4 },
+        TestCommand { CommandType::WaitForAgent, 0, 10 },
+        TestCommand { CommandType::StartMceStripe, 3, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 5 },
+        TestCommand { CommandType::WaitForAgent, 0, 11 },
+        TestCommand { CommandType::StartMceStripe, 3, 5 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 6 },
+        TestCommand { CommandType::WaitForAgent, 0, 14 },
+        TestCommand { CommandType::WaitForAgent, 1, 2 },
+        TestCommand { CommandType::StartMceStripe, 3, 6 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 7 },
+        TestCommand { CommandType::WaitForAgent, 0, 16 },
+        TestCommand { CommandType::StartMceStripe, 3, 7 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 8 },
+        TestCommand { CommandType::WaitForAgent, 0, 17 },
+        TestCommand { CommandType::StartMceStripe, 3, 8 },
+        TestCommand { CommandType::ProgramMceStripe, 7, 0 },
+        TestCommand { CommandType::WaitForAgent, 4, 0 },
+        TestCommand { CommandType::WaitForAgent, 5, 0 },
+        TestCommand { CommandType::StartMceStripe, 7, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 7, 1 },
+        TestCommand { CommandType::StartMceStripe, 7, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 7, 2 },
+        TestCommand { CommandType::StartMceStripe, 7, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 7, 3 },
+        TestCommand { CommandType::StartMceStripe, 7, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 7, 4 },
+        TestCommand { CommandType::WaitForAgent, 5, 1 },
+        TestCommand { CommandType::StartMceStripe, 7, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 7, 5 },
+        TestCommand { CommandType::StartMceStripe, 7, 5 },
+        TestCommand { CommandType::ProgramMceStripe, 7, 6 },
+        TestCommand { CommandType::StartMceStripe, 7, 6 },
+        TestCommand { CommandType::ProgramMceStripe, 7, 7 },
+        TestCommand { CommandType::StartMceStripe, 7, 7 },
+        TestCommand { CommandType::ProgramMceStripe, 7, 8 },
+        TestCommand { CommandType::WaitForAgent, 5, 2 },
+        TestCommand { CommandType::StartMceStripe, 7, 8 },
+        TestCommand { CommandType::ProgramMceStripe, 7, 9 },
+        TestCommand { CommandType::StartMceStripe, 7, 9 },
+        TestCommand { CommandType::ProgramMceStripe, 7, 10 },
+        TestCommand { CommandType::StartMceStripe, 7, 10 },
+        TestCommand { CommandType::ProgramMceStripe, 7, 11 },
+        TestCommand { CommandType::StartMceStripe, 7, 11 }
+        // clang-format on
+    };
+
+    const std::vector<TestCommand> expectedPleCommands{
+        // clang-format off
+        TestCommand { CommandType::WaitForAgent, 2, 0 },
+        TestCommand { CommandType::StartPleStripe, 4, 0 },
+        TestCommand { CommandType::WaitForAgent, 6, 0 },
+        TestCommand { CommandType::StartPleStripe, 8, 0 },
+        TestCommand { CommandType::StartPleStripe, 8, 1 },
+        TestCommand { CommandType::WaitForAgent, 9, 0 },
+        TestCommand { CommandType::StartPleStripe, 8, 2 },
+        TestCommand { CommandType::WaitForAgent, 9, 1 },
+        TestCommand { CommandType::StartPleStripe, 8, 3 },
+        TestCommand { CommandType::WaitForAgent, 9, 2 },
+        TestCommand { CommandType::StartPleStripe, 8, 4 },
+        TestCommand { CommandType::WaitForAgent, 9, 3 },
+        TestCommand { CommandType::StartPleStripe, 8, 5 },
+        TestCommand { CommandType::WaitForAgent, 9, 4 },
+        TestCommand { CommandType::StartPleStripe, 8, 6 },
+        TestCommand { CommandType::WaitForAgent, 9, 5 },
+        TestCommand { CommandType::StartPleStripe, 8, 7 },
+        TestCommand { CommandType::WaitForAgent, 9, 6 },
+        TestCommand { CommandType::StartPleStripe, 8, 8 },
+        TestCommand { CommandType::WaitForAgent, 9, 7 },
+        TestCommand { CommandType::StartPleStripe, 8, 9 },
+        TestCommand { CommandType::WaitForAgent, 9, 8 },
+        TestCommand { CommandType::StartPleStripe, 8, 10 },
+        TestCommand { CommandType::WaitForAgent, 9, 9 },
+        TestCommand { CommandType::StartPleStripe, 8, 11 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(strategy1CascadeCmdStream, debuggingContext);
+    Scheduler scheduler(strategy1CascadeCmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/Scheduler/Strategy0Cascade")
 {
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
     //        IfmS               WgtS                PleL                     MceS/PleS              WgtS           PleL/MceS/PleS/OfmS
     //      (load x1)          (load x1)                                     (xyz order)           (load x1)          (xyz order)
     //                                             +----------+              +----------+                            +----------+
@@ -1319,16 +1423,16 @@ TEST_CASE("Cascading/Scheduler/Strategy0Cascade")
     //   |          |/                       |          |/             |          |/
     //   +----------+                        +----------+              +----------+
     //
-    IfmSDesc ifms{};
+    IfmSDesc ifms             = MakeIfmSDesc();
     ifms.fmData.tile.numSlots = 4;
 
-    WgtSDesc wgts{};
+    WgtSDesc wgts      = MakeWgtSDesc();
     wgts.tile.numSlots = 2;
 
-    PleSDesc ples{};
+    PleSDesc ples         = MakePleSDesc();
     ples.ofmTile.numSlots = 2;
 
-    OfmSDesc ofms{};
+    OfmSDesc ofms             = MakeOfmSDesc();
     ofms.fmData.tile.numSlots = 2;
 
     std::vector<AgentDescAndDeps> strategy0CascadeCmdStream{
@@ -1356,7 +1460,7 @@ TEST_CASE("Cascading/Scheduler/Strategy0Cascade")
             },
         },
         AgentDescAndDeps{
-            AgentDesc(5, MceSDesc{}),
+            AgentDesc(5, MakeMceSDesc()),
             {
                 /*.readDependencies =*/
                 { {
@@ -1394,7 +1498,7 @@ TEST_CASE("Cascading/Scheduler/Strategy0Cascade")
             },
         },
         AgentDescAndDeps{
-            AgentDesc(4, MceSDesc{}),
+            AgentDesc(4, MakeMceSDesc()),
             {
                 /*.readDependencies =*/
                 { {
@@ -1424,127 +1528,129 @@ TEST_CASE("Cascading/Scheduler/Strategy0Cascade")
         },
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadIfmStripe, 0, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 2, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 0, 0 },
-        Command { CommandType::LoadPleCode, 2, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 3, 0 },
-        Command { CommandType::WaitForAgent, 3, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 4, 0 },
-        Command { CommandType::LoadWgtStripe, 5, 0, 0 },
-        Command { CommandType::WaitForAgent, 4, 1, 0 },
-        Command { CommandType::LoadPleCode, 6, 0, 0 },
-        Command { CommandType::WaitForAgent, 3, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 6, 0 },
-        Command { CommandType::WaitForAgent, 8, 0, 0 },
-        Command { CommandType::LoadPleCode, 2, 1, 0 },
-        Command { CommandType::WaitForAgent, 4, 2, 0 },
-        Command { CommandType::LoadPleCode, 6, 1, 0 },
-        Command { CommandType::WaitForAgent, 3, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 8, 0 },
-        Command { CommandType::WaitForAgent, 8, 1, 0 },
-        Command { CommandType::LoadPleCode, 2, 2, 0 },
-        Command { CommandType::WaitForAgent, 4, 3, 0 },
-        Command { CommandType::LoadPleCode, 6, 2, 0 },
-        Command { CommandType::WaitForAgent, 8, 2, 0 },
-        Command { CommandType::LoadPleCode, 2, 3, 0 },
-        Command { CommandType::WaitForAgent, 4, 4, 0 },
-        Command { CommandType::LoadPleCode, 6, 3, 0 }
+        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 2 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 0 },
+        TestCommand { CommandType::LoadPleCode, 2, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 3 },
+        TestCommand { CommandType::WaitForAgent, 3, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 4 },
+        TestCommand { CommandType::LoadWgtStripe, 5, 0 },
+        TestCommand { CommandType::WaitForAgent, 4, 1 },
+        TestCommand { CommandType::LoadPleCode, 6, 0 },
+        TestCommand { CommandType::WaitForAgent, 3, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 6 },
+        TestCommand { CommandType::WaitForAgent, 8, 0 },
+        TestCommand { CommandType::LoadPleCode, 2, 1 },
+        TestCommand { CommandType::WaitForAgent, 4, 2 },
+        TestCommand { CommandType::LoadPleCode, 6, 1 },
+        TestCommand { CommandType::WaitForAgent, 3, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 8 },
+        TestCommand { CommandType::WaitForAgent, 8, 1 },
+        TestCommand { CommandType::LoadPleCode, 2, 2 },
+        TestCommand { CommandType::WaitForAgent, 4, 3 },
+        TestCommand { CommandType::LoadPleCode, 6, 2 },
+        TestCommand { CommandType::WaitForAgent, 8, 2 },
+        TestCommand { CommandType::LoadPleCode, 2, 3 },
+        TestCommand { CommandType::WaitForAgent, 4, 4 },
+        TestCommand { CommandType::LoadPleCode, 6, 3 }
         // clang-format on
     };
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         // clang-format off
-        Command { CommandType::WaitForAgent, 8, 0, 0 },
-        Command { CommandType::StoreOfmStripe, 9, 0, 0 },
-        Command { CommandType::WaitForAgent, 8, 1, 0 },
-        Command { CommandType::StoreOfmStripe, 9, 1, 0 },
-        Command { CommandType::WaitForAgent, 8, 2, 0 },
-        Command { CommandType::StoreOfmStripe, 9, 2, 0 },
-        Command { CommandType::WaitForAgent, 8, 3, 0 },
-        Command { CommandType::StoreOfmStripe, 9, 3,  0}
-        // clang-format on
-    };
-
-    const std::vector<Command> expectedMceCommands{
-        // clang-format off
-        Command { CommandType::ProgramMceStripe, 3, 0, 0 },
-        Command { CommandType::WaitForAgent, 0, 2, 0 },
-        Command { CommandType::WaitForAgent, 1, 0, 0 },
-        Command { CommandType::StartMceStripe, 3, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 1, 0 },
-        Command { CommandType::WaitForAgent, 0, 4, 0 },
-        Command { CommandType::StartMceStripe, 3, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 7, 0, 0 },
-        Command { CommandType::WaitForAgent, 4, 1, 0 },
-        Command { CommandType::WaitForAgent, 5, 0, 0 },
-        Command { CommandType::StartMceStripe, 7, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 2, 0 },
-        Command { CommandType::WaitForAgent, 0, 6, 0 },
-        Command { CommandType::StartMceStripe, 3, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 7, 1, 0 },
-        Command { CommandType::WaitForAgent, 4, 2, 0 },
-        Command { CommandType::StartMceStripe, 7, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 3, 0 },
-        Command { CommandType::WaitForAgent, 0, 8, 0 },
-        Command { CommandType::StartMceStripe, 3, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 7, 2, 0 },
-        Command { CommandType::WaitForAgent, 4, 3, 0 },
-        Command { CommandType::StartMceStripe, 7, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 4, 0 },
-        Command { CommandType::StartMceStripe, 3, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 7, 3, 0 },
-        Command { CommandType::WaitForAgent, 4, 4, 0 },
-        Command { CommandType::StartMceStripe, 7, 3,  0}
+        TestCommand { CommandType::WaitForAgent, 8, 0 },
+        TestCommand { CommandType::StoreOfmStripe, 9, 0 },
+        TestCommand { CommandType::WaitForAgent, 8, 1 },
+        TestCommand { CommandType::StoreOfmStripe, 9, 1 },
+        TestCommand { CommandType::WaitForAgent, 8, 2 },
+        TestCommand { CommandType::StoreOfmStripe, 9, 2 },
+        TestCommand { CommandType::WaitForAgent, 8, 3 },
+        TestCommand { CommandType::StoreOfmStripe, 9, 3 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::WaitForAgent, 2, 0, 0 },
-        Command { CommandType::StartPleStripe, 4, 0, 0 },
-        Command { CommandType::StartPleStripe, 4, 1, 0 },
-        Command { CommandType::WaitForAgent, 6, 0, 0 },
-        Command { CommandType::StartPleStripe, 8, 0, 0 },
-        Command { CommandType::WaitForAgent, 2, 1, 0 },
-        Command { CommandType::StartPleStripe, 4, 2, 0 },
-        Command { CommandType::WaitForAgent, 6, 1, 0 },
-        Command { CommandType::StartPleStripe, 8, 1, 0 },
-        Command { CommandType::WaitForAgent, 2, 2, 0 },
-        Command { CommandType::StartPleStripe, 4, 3, 0 },
-        Command { CommandType::WaitForAgent, 9, 0, 0 },
-        Command { CommandType::WaitForAgent, 6, 2, 0 },
-        Command { CommandType::StartPleStripe, 8, 2, 0 },
-        Command { CommandType::WaitForAgent, 2, 3, 0 },
-        Command { CommandType::StartPleStripe, 4, 4, 0 },
-        Command { CommandType::WaitForAgent, 9, 1, 0 },
-        Command { CommandType::WaitForAgent, 6, 3, 0 },
-        Command { CommandType::StartPleStripe, 8, 3, 0 }
+        TestCommand { CommandType::ProgramMceStripe, 3, 0 },
+        TestCommand { CommandType::WaitForAgent, 0, 2 },
+        TestCommand { CommandType::WaitForAgent, 1, 0 },
+        TestCommand { CommandType::StartMceStripe, 3, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 1 },
+        TestCommand { CommandType::WaitForAgent, 0, 4 },
+        TestCommand { CommandType::StartMceStripe, 3, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 7, 0 },
+        TestCommand { CommandType::WaitForAgent, 4, 1 },
+        TestCommand { CommandType::WaitForAgent, 5, 0 },
+        TestCommand { CommandType::StartMceStripe, 7, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 2 },
+        TestCommand { CommandType::WaitForAgent, 0, 6 },
+        TestCommand { CommandType::StartMceStripe, 3, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 7, 1 },
+        TestCommand { CommandType::WaitForAgent, 4, 2 },
+        TestCommand { CommandType::StartMceStripe, 7, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 3 },
+        TestCommand { CommandType::WaitForAgent, 0, 8 },
+        TestCommand { CommandType::StartMceStripe, 3, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 7, 2 },
+        TestCommand { CommandType::WaitForAgent, 4, 3 },
+        TestCommand { CommandType::StartMceStripe, 7, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 4 },
+        TestCommand { CommandType::StartMceStripe, 3, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 7, 3 },
+        TestCommand { CommandType::WaitForAgent, 4, 4 },
+        TestCommand { CommandType::StartMceStripe, 7, 3 }
+        // clang-format on
+    };
+
+    const std::vector<TestCommand> expectedPleCommands{
+        // clang-format off
+        TestCommand { CommandType::WaitForAgent, 2, 0 },
+        TestCommand { CommandType::StartPleStripe, 4, 0 },
+        TestCommand { CommandType::StartPleStripe, 4, 1 },
+        TestCommand { CommandType::WaitForAgent, 6, 0 },
+        TestCommand { CommandType::StartPleStripe, 8, 0 },
+        TestCommand { CommandType::WaitForAgent, 2, 1 },
+        TestCommand { CommandType::StartPleStripe, 4, 2 },
+        TestCommand { CommandType::WaitForAgent, 6, 1 },
+        TestCommand { CommandType::StartPleStripe, 8, 1 },
+        TestCommand { CommandType::WaitForAgent, 2, 2 },
+        TestCommand { CommandType::StartPleStripe, 4, 3 },
+        TestCommand { CommandType::WaitForAgent, 9, 0 },
+        TestCommand { CommandType::WaitForAgent, 6, 2 },
+        TestCommand { CommandType::StartPleStripe, 8, 2 },
+        TestCommand { CommandType::WaitForAgent, 2, 3 },
+        TestCommand { CommandType::StartPleStripe, 4, 4 },
+        TestCommand { CommandType::WaitForAgent, 9, 1 },
+        TestCommand { CommandType::WaitForAgent, 6, 3 },
+        TestCommand { CommandType::StartPleStripe, 8, 3 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(strategy0CascadeCmdStream, debuggingContext);
+    Scheduler scheduler(strategy0CascadeCmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WriteDependencies/FirstTile")
 {
-    const uint32_t tileSize = 4;
-    IfmSDesc ifms{};
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
+    const uint32_t tileSize   = 4;
+    IfmSDesc ifms             = MakeIfmSDesc();
     ifms.fmData.tile.numSlots = tileSize;
 
-    WgtSDesc wgts{};
+    WgtSDesc wgts      = MakeWgtSDesc();
     wgts.tile.numSlots = 2;
 
     std::vector<AgentDescAndDeps> cmdStream{
@@ -1552,7 +1658,7 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WriteDependencies/FirstTile")
         // to make sure that we don't use agent ID 0. This help to validate
         // that the relative agent id field is properly used by the
         // scheduler function
-        AgentDescAndDeps{ AgentDesc(0, IfmSDesc{}), {} },
+        AgentDescAndDeps{ AgentDesc(0, MakeIfmSDesc()), {} },
         AgentDescAndDeps{
             AgentDesc(18, ifms),
             {
@@ -1562,7 +1668,6 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WriteDependencies/FirstTile")
         },
         AgentDescAndDeps{
             AgentDesc(3, wgts),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{ { { 2, { 9, 3 }, { 3, 1 }, 0 } } },
@@ -1570,15 +1675,13 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WriteDependencies/FirstTile")
         },
         AgentDescAndDeps{
             AgentDesc(1, PleLDesc{}),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{},
             },
         },
         AgentDescAndDeps{
-            AgentDesc(9, MceSDesc{}),
-
+            AgentDesc(9, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 { {
@@ -1589,7 +1692,7 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WriteDependencies/FirstTile")
             },
         },
         AgentDescAndDeps{
-            AgentDesc(1, OfmSDesc{}),
+            AgentDesc(1, MakeOfmSDesc()),
             {
                 /* .readDependencies =*/{ { { 1, { 9, 1 }, { 9, 1 }, 0 } } },
                 /* .writeDependencies =*/{},
@@ -1597,106 +1700,108 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WriteDependencies/FirstTile")
         },
     };
 
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 4, 8, 0 }, Command{ CommandType::StoreOfmStripe, 5, 0, 0 }
+        TestCommand{ CommandType::WaitForAgent, 4, 8 }, TestCommand{ CommandType::StoreOfmStripe, 5, 0 }
         //clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
         // clang-format on
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadIfmStripe, 1, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 2, 0 },
-        Command { CommandType::LoadWgtStripe, 2, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 3, 0 },
-        Command { CommandType::WaitForAgent, 4, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 4, 0 },
-        Command { CommandType::WaitForAgent, 4, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 6, 0 },
-        Command { CommandType::WaitForAgent, 4, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 8, 0 },
-        Command { CommandType::LoadWgtStripe, 2, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 9, 0 },
-        Command { CommandType::WaitForAgent, 4, 3, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 10, 0 },
-        Command { CommandType::WaitForAgent, 4, 4, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 11, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 12, 0 },
-        Command { CommandType::WaitForAgent, 4, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 13, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 14, 0 },
-        Command { CommandType::LoadWgtStripe, 2, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 15, 0 },
-        Command { CommandType::WaitForAgent, 4, 6, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 16, 0 },
-        Command { CommandType::WaitForAgent, 4, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 17, 0 }
+        TestCommand { CommandType::LoadIfmStripe, 1, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 2 },
+        TestCommand { CommandType::LoadWgtStripe, 2, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 3 },
+        TestCommand { CommandType::WaitForAgent, 4, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 4 },
+        TestCommand { CommandType::WaitForAgent, 4, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 6 },
+        TestCommand { CommandType::WaitForAgent, 4, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 8 },
+        TestCommand { CommandType::LoadWgtStripe, 2, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 9 },
+        TestCommand { CommandType::WaitForAgent, 4, 3 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 10 },
+        TestCommand { CommandType::WaitForAgent, 4, 4 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 11 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 12 },
+        TestCommand { CommandType::WaitForAgent, 4, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 13 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 14 },
+        TestCommand { CommandType::LoadWgtStripe, 2, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 15 },
+        TestCommand { CommandType::WaitForAgent, 4, 6 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 16 },
+        TestCommand { CommandType::WaitForAgent, 4, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 17 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 4, 0, 0 },
-        Command { CommandType::WaitForAgent, 1, 2, 0 },
-        Command { CommandType::WaitForAgent, 2, 0, 0 },
-        Command { CommandType::StartMceStripe, 4, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 1, 0 },
-        Command { CommandType::WaitForAgent, 1, 4, 0 },
-        Command { CommandType::StartMceStripe, 4, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 2, 0 },
-        Command { CommandType::WaitForAgent, 1, 5, 0 },
-        Command { CommandType::StartMceStripe, 4, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 3, 0 },
-        Command { CommandType::WaitForAgent, 1, 8, 0 },
-        Command { CommandType::WaitForAgent, 2, 1, 0 },
-        Command { CommandType::StartMceStripe, 4, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 4, 0 },
-        Command { CommandType::WaitForAgent, 1, 10, 0 },
-        Command { CommandType::StartMceStripe, 4, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 5, 0 },
-        Command { CommandType::WaitForAgent, 1, 11, 0 },
-        Command { CommandType::StartMceStripe, 4, 5, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 6, 0 },
-        Command { CommandType::WaitForAgent, 1, 14, 0 },
-        Command { CommandType::WaitForAgent, 2, 2, 0 },
-        Command { CommandType::StartMceStripe, 4, 6, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 7, 0 },
-        Command { CommandType::WaitForAgent, 1, 16, 0 },
-        Command { CommandType::StartMceStripe, 4, 7, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 8, 0 },
-        Command { CommandType::WaitForAgent, 1, 17, 0 },
-        Command { CommandType::StartMceStripe, 4, 8,  0}
+        TestCommand { CommandType::ProgramMceStripe, 4, 0 },
+        TestCommand { CommandType::WaitForAgent, 1, 2 },
+        TestCommand { CommandType::WaitForAgent, 2, 0 },
+        TestCommand { CommandType::StartMceStripe, 4, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 1 },
+        TestCommand { CommandType::WaitForAgent, 1, 4 },
+        TestCommand { CommandType::StartMceStripe, 4, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 2 },
+        TestCommand { CommandType::WaitForAgent, 1, 5 },
+        TestCommand { CommandType::StartMceStripe, 4, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 3 },
+        TestCommand { CommandType::WaitForAgent, 1, 8 },
+        TestCommand { CommandType::WaitForAgent, 2, 1 },
+        TestCommand { CommandType::StartMceStripe, 4, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 4 },
+        TestCommand { CommandType::WaitForAgent, 1, 10 },
+        TestCommand { CommandType::StartMceStripe, 4, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 5 },
+        TestCommand { CommandType::WaitForAgent, 1, 11 },
+        TestCommand { CommandType::StartMceStripe, 4, 5 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 6 },
+        TestCommand { CommandType::WaitForAgent, 1, 14 },
+        TestCommand { CommandType::WaitForAgent, 2, 2 },
+        TestCommand { CommandType::StartMceStripe, 4, 6 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 7 },
+        TestCommand { CommandType::WaitForAgent, 1, 16 },
+        TestCommand { CommandType::StartMceStripe, 4, 7 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 8 },
+        TestCommand { CommandType::WaitForAgent, 1, 17 },
+        TestCommand { CommandType::StartMceStripe, 4, 8 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WriteDependencies/AfterFirstTile")
 {
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
     const uint32_t tileSize                  = 18;
     const uint32_t relativeAgentIdDependency = 3;
     const uint32_t numStripesTotal           = 18;
-    IfmSDesc ifms{};
-    ifms.fmData.tile.numSlots = tileSize;
+    IfmSDesc ifms                            = MakeIfmSDesc();
+    ifms.fmData.tile.numSlots                = tileSize;
 
-    WgtSDesc wgts{};
+    WgtSDesc wgts      = MakeWgtSDesc();
     wgts.tile.numSlots = 2;
 
     std::vector<AgentDescAndDeps> cmdStream{
@@ -1704,10 +1809,9 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WriteDependencies/AfterFirstTil
         // to make sure that we don't use agent ID 0. This help to validate
         // that the relative agent id field is properly used by the
         // scheduler function
-        AgentDescAndDeps{ AgentDesc(0, IfmSDesc{}), {} },
+        AgentDescAndDeps{ AgentDesc(0, MakeIfmSDesc()), {} },
         AgentDescAndDeps{
             AgentDesc(numStripesTotal, ifms),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{ { { relativeAgentIdDependency, { 3, 6 }, { 1, 2 }, 1 } } },
@@ -1715,7 +1819,6 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WriteDependencies/AfterFirstTil
         },
         AgentDescAndDeps{
             AgentDesc(3, wgts),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{ { { 2, { 9, 3 }, { 3, 1 }, 0 } } },
@@ -1723,15 +1826,13 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WriteDependencies/AfterFirstTil
         },
         AgentDescAndDeps{
             AgentDesc(1, PleLDesc{}),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{},
             },
         },
         AgentDescAndDeps{
-            AgentDesc(9, MceSDesc{}),
-
+            AgentDesc(9, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 { {
@@ -1742,7 +1843,7 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WriteDependencies/AfterFirstTil
             },
         },
         AgentDescAndDeps{
-            AgentDesc(1, OfmSDesc{}),
+            AgentDesc(1, MakeOfmSDesc()),
             {
                 /* .readDependencies =*/{ { { 1, { 9, 1 }, { 9, 1 }, 0 } } },
                 /* .writeDependencies =*/{},
@@ -1750,109 +1851,110 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WriteDependencies/AfterFirstTil
         },
     };
 
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 4, 8, 0 }, Command{ CommandType::StoreOfmStripe, 5, 0, 0 }
+        TestCommand{ CommandType::WaitForAgent, 4, 8 }, TestCommand{ CommandType::StoreOfmStripe, 5, 0 }
         //clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
         // clang-format on
     };
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadIfmStripe, 1, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 2, 0 },
-        Command { CommandType::LoadWgtStripe, 2, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 3, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 4, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 6, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 8, 0 },
-        Command { CommandType::LoadWgtStripe, 2, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 9, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 10, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 11, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 12, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 13, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 14, 0 },
-        Command { CommandType::WaitForAgent, 4, 2, 0 },
-        Command { CommandType::LoadWgtStripe, 2, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 15, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 16, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 17, 0 }
+        TestCommand { CommandType::LoadIfmStripe, 1, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 2 },
+        TestCommand { CommandType::LoadWgtStripe, 2, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 3 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 4 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 6 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 8 },
+        TestCommand { CommandType::LoadWgtStripe, 2, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 9 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 10 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 11 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 12 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 13 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 14 },
+        TestCommand { CommandType::WaitForAgent, 4, 2 },
+        TestCommand { CommandType::LoadWgtStripe, 2, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 15 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 16 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 17 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 4, 0, 0 },
-        Command { CommandType::WaitForAgent, 1, 2, 0 },
-        Command { CommandType::WaitForAgent, 2, 0, 0 },
-        Command { CommandType::StartMceStripe, 4, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 1, 0 },
-        Command { CommandType::WaitForAgent, 1, 4, 0 },
-        Command { CommandType::StartMceStripe, 4, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 2, 0 },
-        Command { CommandType::WaitForAgent, 1, 5, 0 },
-        Command { CommandType::StartMceStripe, 4, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 3, 0 },
-        Command { CommandType::WaitForAgent, 1, 8, 0 },
-        Command { CommandType::WaitForAgent, 2, 1, 0 },
-        Command { CommandType::StartMceStripe, 4, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 4, 0 },
-        Command { CommandType::WaitForAgent, 1, 10, 0 },
-        Command { CommandType::StartMceStripe, 4, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 5, 0 },
-        Command { CommandType::WaitForAgent, 1, 11, 0 },
-        Command { CommandType::StartMceStripe, 4, 5, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 6, 0 },
-        Command { CommandType::WaitForAgent, 1, 14, 0 },
-        Command { CommandType::WaitForAgent, 2, 2, 0 },
-        Command { CommandType::StartMceStripe, 4, 6, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 7, 0 },
-        Command { CommandType::WaitForAgent, 1, 16, 0 },
-        Command { CommandType::StartMceStripe, 4, 7, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 8, 0 },
-        Command { CommandType::WaitForAgent, 1, 17, 0 },
-        Command { CommandType::StartMceStripe, 4, 8,  0}
+        TestCommand { CommandType::ProgramMceStripe, 4, 0 },
+        TestCommand { CommandType::WaitForAgent, 1, 2 },
+        TestCommand { CommandType::WaitForAgent, 2, 0 },
+        TestCommand { CommandType::StartMceStripe, 4, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 1 },
+        TestCommand { CommandType::WaitForAgent, 1, 4 },
+        TestCommand { CommandType::StartMceStripe, 4, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 2 },
+        TestCommand { CommandType::WaitForAgent, 1, 5 },
+        TestCommand { CommandType::StartMceStripe, 4, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 3 },
+        TestCommand { CommandType::WaitForAgent, 1, 8 },
+        TestCommand { CommandType::WaitForAgent, 2, 1 },
+        TestCommand { CommandType::StartMceStripe, 4, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 4 },
+        TestCommand { CommandType::WaitForAgent, 1, 10 },
+        TestCommand { CommandType::StartMceStripe, 4, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 5 },
+        TestCommand { CommandType::WaitForAgent, 1, 11 },
+        TestCommand { CommandType::StartMceStripe, 4, 5 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 6 },
+        TestCommand { CommandType::WaitForAgent, 1, 14 },
+        TestCommand { CommandType::WaitForAgent, 2, 2 },
+        TestCommand { CommandType::StartMceStripe, 4, 6 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 7 },
+        TestCommand { CommandType::WaitForAgent, 1, 16 },
+        TestCommand { CommandType::StartMceStripe, 4, 7 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 8 },
+        TestCommand { CommandType::WaitForAgent, 1, 17 },
+        TestCommand { CommandType::StartMceStripe, 4, 8 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WithReadAndWriteDependency/FirstTile")
 {
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
     const uint32_t numStripesTotal = 6;
     const uint32_t tileSize        = 4;
-    IfmSDesc ifms{};
-    ifms.fmData.tile.numSlots = tileSize;
+    IfmSDesc ifms                  = MakeIfmSDesc();
+    ifms.fmData.tile.numSlots      = tileSize;
 
-    WgtSDesc wgts{};
+    WgtSDesc wgts      = MakeWgtSDesc();
     wgts.tile.numSlots = 2;
 
-    PleSDesc ples{};
+    PleSDesc ples         = MakePleSDesc();
     ples.ofmTile.numSlots = 2;
 
-    OfmSDesc ofms{};
+    OfmSDesc ofms             = MakeOfmSDesc();
     ofms.fmData.tile.numSlots = 2;
 
     std::vector<AgentDescAndDeps> cmdStream{
         AgentDescAndDeps{
-            AgentDesc(3, MceSDesc{}),
-
+            AgentDesc(3, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 {},
@@ -1861,7 +1963,6 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WithReadAndWriteDependency/Firs
         },
         AgentDescAndDeps{
             AgentDesc(3, ples),
-
             {
                 /* .readDependencies =*/
                 { {
@@ -1872,7 +1973,6 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WithReadAndWriteDependency/Firs
         },
         AgentDescAndDeps{
             AgentDesc(3, ofms),
-
             {
                 /* .readDependencies =*/{ { { 1, { 3, 3 }, { 1, 1 }, 0 } } },
                 /* .writeDependencies =*/{},
@@ -1880,7 +1980,6 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WithReadAndWriteDependency/Firs
         },
         AgentDescAndDeps{
             AgentDesc(numStripesTotal, ifms),
-
             {
                 /* .readDependencies =*/
                 { {
@@ -1892,7 +1991,6 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WithReadAndWriteDependency/Firs
         },
         AgentDescAndDeps{
             AgentDesc(1, wgts),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{ { { 2, { 3, 1 }, { 3, 1 }, 0 } } },
@@ -1900,15 +1998,13 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WithReadAndWriteDependency/Firs
         },
         AgentDescAndDeps{
             AgentDesc(1, PleLDesc{}),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{},
             },
         },
         AgentDescAndDeps{
-            AgentDesc(3, MceSDesc{}),
-
+            AgentDesc(3, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 { {
@@ -1919,104 +2015,105 @@ TEST_CASE("Cascading/StripeScheduler/IfmStreamer/WithReadAndWriteDependency/Firs
             },
         },
         AgentDescAndDeps{
-            AgentDesc(1, OfmSDesc{}),
+            AgentDesc(1, MakeOfmSDesc()),
             {
                 /* .readDependencies =*/{ { { 1, { 3, 1 }, { 3, 1 }, 0 } } },
                 /* .writeDependencies =*/{},
             },
         },
     };
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::WaitForAgent, 0, 2, 0 },
-        Command { CommandType::WaitForAgent, 2, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 3, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 3, 1, 0 },
-        Command { CommandType::WaitForAgent, 2, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 3, 2, 0 },
-        Command { CommandType::LoadWgtStripe, 4, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 3, 3, 0 },
-        Command { CommandType::WaitForAgent, 6, 0, 0 },
-        Command { CommandType::WaitForAgent, 2, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 3, 4, 0 },
-        Command { CommandType::WaitForAgent, 6, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 3, 5, 0 }
+        TestCommand { CommandType::WaitForAgent, 0, 2 },
+        TestCommand { CommandType::WaitForAgent, 2, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 3, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 3, 1 },
+        TestCommand { CommandType::WaitForAgent, 2, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 3, 2 },
+        TestCommand { CommandType::LoadWgtStripe, 4, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 3, 3 },
+        TestCommand { CommandType::WaitForAgent, 6, 0 },
+        TestCommand { CommandType::WaitForAgent, 2, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 3, 4 },
+        TestCommand { CommandType::WaitForAgent, 6, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 3, 5 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 1, 0, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 0, 0 },
-        Command{ CommandType::WaitForAgent, 1, 1, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 1, 0 },
-        Command{ CommandType::WaitForAgent, 1, 2, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 2, 0 },
-        Command{ CommandType::WaitForAgent, 6, 2, 0 },
-        Command{ CommandType::StoreOfmStripe, 7, 0, 0 }
+        TestCommand{ CommandType::WaitForAgent, 1, 0 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 0 },
+        TestCommand{ CommandType::WaitForAgent, 1, 1 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 1 },
+        TestCommand{ CommandType::WaitForAgent, 1, 2 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 2 },
+        TestCommand{ CommandType::WaitForAgent, 6, 2 },
+        TestCommand{ CommandType::StoreOfmStripe, 7, 0 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 0, 0, 0 },
-        Command { CommandType::StartMceStripe, 0, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 1, 0 },
-        Command { CommandType::StartMceStripe, 0, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 2, 0 },
-        Command { CommandType::StartMceStripe, 0, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 6, 0, 0 },
-        Command { CommandType::WaitForAgent, 3, 2, 0 },
-        Command { CommandType::WaitForAgent, 4, 0, 0 },
-        Command { CommandType::StartMceStripe, 6, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 6, 1, 0 },
-        Command { CommandType::WaitForAgent, 3, 4, 0 },
-        Command { CommandType::StartMceStripe, 6, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 6, 2, 0 },
-        Command { CommandType::WaitForAgent, 3, 5, 0 },
-        Command { CommandType::StartMceStripe, 6, 2,  0}
+        TestCommand { CommandType::ProgramMceStripe, 0, 0 },
+        TestCommand { CommandType::StartMceStripe, 0, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 1 },
+        TestCommand { CommandType::StartMceStripe, 0, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 2 },
+        TestCommand { CommandType::StartMceStripe, 0, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 6, 0 },
+        TestCommand { CommandType::WaitForAgent, 3, 2 },
+        TestCommand { CommandType::WaitForAgent, 4, 0 },
+        TestCommand { CommandType::StartMceStripe, 6, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 6, 1 },
+        TestCommand { CommandType::WaitForAgent, 3, 4 },
+        TestCommand { CommandType::StartMceStripe, 6, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 6, 2 },
+        TestCommand { CommandType::WaitForAgent, 3, 5 },
+        TestCommand { CommandType::StartMceStripe, 6, 2 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
-        Command { CommandType::StartPleStripe, 1, 0, 0 },
-        Command { CommandType::StartPleStripe, 1, 1, 0 },
-        Command { CommandType::StartPleStripe, 1, 2,  0}
+        TestCommand { CommandType::StartPleStripe, 1, 0 },
+        TestCommand { CommandType::StartPleStripe, 1, 1 },
+        TestCommand { CommandType::StartPleStripe, 1, 2 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/WithReadAndWriteDependency/AfterFirstTile")
 {
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
     const uint32_t tileSize        = 4;
     const uint32_t numStripesTotal = 6;
-    IfmSDesc ifms{};
-    ifms.fmData.tile.numSlots = tileSize;
+    IfmSDesc ifms                  = MakeIfmSDesc();
+    ifms.fmData.tile.numSlots      = tileSize;
 
-    WgtSDesc wgts{};
+    WgtSDesc wgts      = MakeWgtSDesc();
     wgts.tile.numSlots = 2;
 
-    PleSDesc ples{};
+    PleSDesc ples         = MakePleSDesc();
     ples.ofmTile.numSlots = 2;
 
-    OfmSDesc ofms{};
+    OfmSDesc ofms             = MakeOfmSDesc();
     ofms.fmData.tile.numSlots = 2;
 
     std::vector<AgentDescAndDeps> cmdStream{
         AgentDescAndDeps{
-            AgentDesc(3, MceSDesc{}),
-
+            AgentDesc(3, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 {},
@@ -2025,7 +2122,6 @@ TEST_CASE("Cascading/StripeScheduler/WithReadAndWriteDependency/AfterFirstTile")
         },
         AgentDescAndDeps{
             AgentDesc(3, ples),
-
             {
                 /* .readDependencies =*/
                 { {
@@ -2036,7 +2132,6 @@ TEST_CASE("Cascading/StripeScheduler/WithReadAndWriteDependency/AfterFirstTile")
         },
         AgentDescAndDeps{
             AgentDesc(3, ofms),
-
             {
                 /* .readDependencies =*/{ { { 1, { 3, 3 }, { 1, 1 }, 0 } } },
                 /* .writeDependencies =*/{},
@@ -2044,7 +2139,6 @@ TEST_CASE("Cascading/StripeScheduler/WithReadAndWriteDependency/AfterFirstTile")
         },
         AgentDescAndDeps{
             AgentDesc(numStripesTotal, ifms),
-
             {
                 /* .readDependencies =*/
                 { {
@@ -2056,7 +2150,6 @@ TEST_CASE("Cascading/StripeScheduler/WithReadAndWriteDependency/AfterFirstTile")
         },
         AgentDescAndDeps{
             AgentDesc(1, wgts),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{ { { 2, { 3, 1 }, { 3, 1 }, 0 } } },
@@ -2064,15 +2157,13 @@ TEST_CASE("Cascading/StripeScheduler/WithReadAndWriteDependency/AfterFirstTile")
         },
         AgentDescAndDeps{
             AgentDesc(1, PleLDesc{}),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{},
             },
         },
         AgentDescAndDeps{
-            AgentDesc(3, MceSDesc{}),
-
+            AgentDesc(3, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 { {
@@ -2083,7 +2174,7 @@ TEST_CASE("Cascading/StripeScheduler/WithReadAndWriteDependency/AfterFirstTile")
             },
         },
         AgentDescAndDeps{
-            AgentDesc(1, OfmSDesc{}),
+            AgentDesc(1, MakeOfmSDesc()),
             {
                 /* .readDependencies =*/{ { { 1, { 3, 1 }, { 3, 1 }, 0 } } },
                 /* .writeDependencies =*/{},
@@ -2091,92 +2182,93 @@ TEST_CASE("Cascading/StripeScheduler/WithReadAndWriteDependency/AfterFirstTile")
         },
 
     };
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::WaitForAgent, 0, 2, 0 },
-        Command { CommandType::WaitForAgent, 2, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 3, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 3, 1, 0 },
-        Command { CommandType::WaitForAgent, 2, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 3, 2, 0 },
-        Command { CommandType::LoadWgtStripe, 4, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 3, 3, 0 },
-        Command { CommandType::WaitForAgent, 6, 0, 0 },
-        Command { CommandType::WaitForAgent, 2, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 3, 4, 0 },
-        Command { CommandType::WaitForAgent, 6, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 3, 5, 0 }
+        TestCommand { CommandType::WaitForAgent, 0, 2 },
+        TestCommand { CommandType::WaitForAgent, 2, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 3, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 3, 1 },
+        TestCommand { CommandType::WaitForAgent, 2, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 3, 2 },
+        TestCommand { CommandType::LoadWgtStripe, 4, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 3, 3 },
+        TestCommand { CommandType::WaitForAgent, 6, 0 },
+        TestCommand { CommandType::WaitForAgent, 2, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 3, 4 },
+        TestCommand { CommandType::WaitForAgent, 6, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 3, 5 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 1, 0, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 0, 0 },
-        Command{ CommandType::WaitForAgent, 1, 1, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 1, 0 },
-        Command{ CommandType::WaitForAgent, 1, 2, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 2, 0 },
-        Command{ CommandType::WaitForAgent, 6, 2, 0 },
-        Command{ CommandType::StoreOfmStripe, 7, 0, 0 }
+        TestCommand{ CommandType::WaitForAgent, 1, 0 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 0 },
+        TestCommand{ CommandType::WaitForAgent, 1, 1 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 1 },
+        TestCommand{ CommandType::WaitForAgent, 1, 2 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 2 },
+        TestCommand{ CommandType::WaitForAgent, 6, 2 },
+        TestCommand{ CommandType::StoreOfmStripe, 7, 0 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 0, 0, 0 },
-        Command { CommandType::StartMceStripe, 0, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 1, 0 },
-        Command { CommandType::StartMceStripe, 0, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 2, 0 },
-        Command { CommandType::StartMceStripe, 0, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 6, 0, 0 },
-        Command { CommandType::WaitForAgent, 3, 2, 0 },
-        Command { CommandType::WaitForAgent, 4, 0, 0 },
-        Command { CommandType::StartMceStripe, 6, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 6, 1, 0 },
-        Command { CommandType::WaitForAgent, 3, 4, 0 },
-        Command { CommandType::StartMceStripe, 6, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 6, 2, 0 },
-        Command { CommandType::WaitForAgent, 3, 5, 0 },
-        Command { CommandType::StartMceStripe, 6, 2,  0}
+        TestCommand { CommandType::ProgramMceStripe, 0, 0 },
+        TestCommand { CommandType::StartMceStripe, 0, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 1 },
+        TestCommand { CommandType::StartMceStripe, 0, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 2 },
+        TestCommand { CommandType::StartMceStripe, 0, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 6, 0 },
+        TestCommand { CommandType::WaitForAgent, 3, 2 },
+        TestCommand { CommandType::WaitForAgent, 4, 0 },
+        TestCommand { CommandType::StartMceStripe, 6, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 6, 1 },
+        TestCommand { CommandType::WaitForAgent, 3, 4 },
+        TestCommand { CommandType::StartMceStripe, 6, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 6, 2 },
+        TestCommand { CommandType::WaitForAgent, 3, 5 },
+        TestCommand { CommandType::StartMceStripe, 6, 2 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
-        Command { CommandType::StartPleStripe, 1, 0, 0 },
-        Command { CommandType::StartPleStripe, 1, 1, 0 },
-        Command { CommandType::StartPleStripe, 1, 2,  0}
+        TestCommand { CommandType::StartPleStripe, 1, 0 },
+        TestCommand { CommandType::StartPleStripe, 1, 1 },
+        TestCommand { CommandType::StartPleStripe, 1, 2 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/WgtStreamer/AllFitInOneTile/WithWriteDependency")
 {
-    IfmSDesc ifms{};
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
+    IfmSDesc ifms             = MakeIfmSDesc();
     ifms.fmData.tile.numSlots = 4;
 
     const uint32_t numStripesTotal = 3;
     // When there is a write dependency, the tileSize needs to be set with the right value. i.e. 3
     const uint16_t tileSize = 3;
-    WgtSDesc wgtS{};
-    wgtS.tile.numSlots = tileSize;
+    WgtSDesc wgtS           = MakeWgtSDesc();
+    wgtS.tile.numSlots      = tileSize;
 
     std::vector<AgentDescAndDeps> cmdStream{
         AgentDescAndDeps{
             AgentDesc(18, ifms),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{ { { 3, { 3, 6 }, { 1, 2 }, 1 } } },
@@ -2184,7 +2276,6 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/AllFitInOneTile/WithWriteDepend
         },
         AgentDescAndDeps{
             AgentDesc(numStripesTotal, wgtS),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{ { { 2, { 9, 3 }, { 3, 1 }, 0 } } },
@@ -2192,15 +2283,13 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/AllFitInOneTile/WithWriteDepend
         },
         AgentDescAndDeps{
             AgentDesc(1, PleLDesc{}),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{},
             },
         },
         AgentDescAndDeps{
-            AgentDesc(9, MceSDesc{}),
-
+            AgentDesc(9, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 { {
@@ -2211,7 +2300,7 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/AllFitInOneTile/WithWriteDepend
             },
         },
         AgentDescAndDeps{
-            AgentDesc(1, OfmSDesc{}),
+            AgentDesc(1, MakeOfmSDesc()),
             {
                 /* .readDependencies =*/{ { { 1, { 9, 1 }, { 9, 1 }, 0 } } },
                 /* .writeDependencies =*/{},
@@ -2220,99 +2309,101 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/AllFitInOneTile/WithWriteDepend
 
     };
 
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 3, 8, 0 }, Command{ CommandType::StoreOfmStripe, 4, 0, 0 }
+        TestCommand{ CommandType::WaitForAgent, 3, 8 }, TestCommand{ CommandType::StoreOfmStripe, 4, 0 }
         //clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
         // clang-format on
     };
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadIfmStripe, 0, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 2, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 3, 0 },
-        Command { CommandType::WaitForAgent, 3, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 4, 0 },
-        Command { CommandType::WaitForAgent, 3, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 6, 0 },
-        Command { CommandType::WaitForAgent, 3, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 8, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 9, 0 },
-        Command { CommandType::WaitForAgent, 3, 3, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 10, 0 },
-        Command { CommandType::WaitForAgent, 3, 4, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 11, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 12, 0 },
-        Command { CommandType::WaitForAgent, 3, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 13, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 14, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 15, 0 },
-        Command { CommandType::WaitForAgent, 3, 6, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 16, 0 },
-        Command { CommandType::WaitForAgent, 3, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 17, 0 }
+        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 2 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 3 },
+        TestCommand { CommandType::WaitForAgent, 3, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 4 },
+        TestCommand { CommandType::WaitForAgent, 3, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 6 },
+        TestCommand { CommandType::WaitForAgent, 3, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 8 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 9 },
+        TestCommand { CommandType::WaitForAgent, 3, 3 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 10 },
+        TestCommand { CommandType::WaitForAgent, 3, 4 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 11 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 12 },
+        TestCommand { CommandType::WaitForAgent, 3, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 13 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 14 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 15 },
+        TestCommand { CommandType::WaitForAgent, 3, 6 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 16 },
+        TestCommand { CommandType::WaitForAgent, 3, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 17 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 3, 0, 0 },
-        Command { CommandType::WaitForAgent, 0, 2, 0 },
-        Command { CommandType::WaitForAgent, 1, 0, 0 },
-        Command { CommandType::StartMceStripe, 3, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 1, 0 },
-        Command { CommandType::WaitForAgent, 0, 4, 0 },
-        Command { CommandType::StartMceStripe, 3, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 2, 0 },
-        Command { CommandType::WaitForAgent, 0, 5, 0 },
-        Command { CommandType::StartMceStripe, 3, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 3, 0 },
-        Command { CommandType::WaitForAgent, 0, 8, 0 },
-        Command { CommandType::WaitForAgent, 1, 1, 0 },
-        Command { CommandType::StartMceStripe, 3, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 4, 0 },
-        Command { CommandType::WaitForAgent, 0, 10, 0 },
-        Command { CommandType::StartMceStripe, 3, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 5, 0 },
-        Command { CommandType::WaitForAgent, 0, 11, 0 },
-        Command { CommandType::StartMceStripe, 3, 5, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 6, 0 },
-        Command { CommandType::WaitForAgent, 0, 14, 0 },
-        Command { CommandType::WaitForAgent, 1, 2, 0 },
-        Command { CommandType::StartMceStripe, 3, 6, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 7, 0 },
-        Command { CommandType::WaitForAgent, 0, 16, 0 },
-        Command { CommandType::StartMceStripe, 3, 7, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 8, 0 },
-        Command { CommandType::WaitForAgent, 0, 17, 0 },
-        Command { CommandType::StartMceStripe, 3, 8,  0}
+        TestCommand { CommandType::ProgramMceStripe, 3, 0 },
+        TestCommand { CommandType::WaitForAgent, 0, 2 },
+        TestCommand { CommandType::WaitForAgent, 1, 0 },
+        TestCommand { CommandType::StartMceStripe, 3, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 1 },
+        TestCommand { CommandType::WaitForAgent, 0, 4 },
+        TestCommand { CommandType::StartMceStripe, 3, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 2 },
+        TestCommand { CommandType::WaitForAgent, 0, 5 },
+        TestCommand { CommandType::StartMceStripe, 3, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 3 },
+        TestCommand { CommandType::WaitForAgent, 0, 8 },
+        TestCommand { CommandType::WaitForAgent, 1, 1 },
+        TestCommand { CommandType::StartMceStripe, 3, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 4 },
+        TestCommand { CommandType::WaitForAgent, 0, 10 },
+        TestCommand { CommandType::StartMceStripe, 3, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 5 },
+        TestCommand { CommandType::WaitForAgent, 0, 11 },
+        TestCommand { CommandType::StartMceStripe, 3, 5 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 6 },
+        TestCommand { CommandType::WaitForAgent, 0, 14 },
+        TestCommand { CommandType::WaitForAgent, 1, 2 },
+        TestCommand { CommandType::StartMceStripe, 3, 6 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 7 },
+        TestCommand { CommandType::WaitForAgent, 0, 16 },
+        TestCommand { CommandType::StartMceStripe, 3, 7 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 8 },
+        TestCommand { CommandType::WaitForAgent, 0, 17 },
+        TestCommand { CommandType::StartMceStripe, 3, 8 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/WgtStreamer/AllFitInOneTile/NoWriteDependency")
 {
-    IfmSDesc ifms{};
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
+    IfmSDesc ifms             = MakeIfmSDesc();
     ifms.fmData.tile.numSlots = 4;
 
     const uint32_t numStripesTotal = 3;
@@ -2320,15 +2411,13 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/AllFitInOneTile/NoWriteDependen
     std::vector<AgentDescAndDeps> cmdStream{
         AgentDescAndDeps{
             AgentDesc(18, ifms),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{ { { 3, { 3, 6 }, { 1, 2 }, 1 } } },
             },
         },
         AgentDescAndDeps{
-            AgentDesc(numStripesTotal, WgtSDesc{}),
-
+            AgentDesc(numStripesTotal, MakeWgtSDesc()),
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{},
@@ -2336,15 +2425,13 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/AllFitInOneTile/NoWriteDependen
         },
         AgentDescAndDeps{
             AgentDesc(1, PleLDesc{}),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{},
             },
         },
         AgentDescAndDeps{
-            AgentDesc(9, MceSDesc{}),
-
+            AgentDesc(9, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 { {
@@ -2355,7 +2442,7 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/AllFitInOneTile/NoWriteDependen
             },
         },
         AgentDescAndDeps{
-            AgentDesc(1, OfmSDesc{}),
+            AgentDesc(1, MakeOfmSDesc()),
             {
                 /* .readDependencies =*/{ { { 1, { 9, 1 }, { 9, 1 }, 0 } } },
                 /* .writeDependencies =*/{},
@@ -2364,110 +2451,111 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/AllFitInOneTile/NoWriteDependen
 
     };
 
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 3, 8, 0 }, Command{ CommandType::StoreOfmStripe, 4, 0, 0 }
+        TestCommand{ CommandType::WaitForAgent, 3, 8 }, TestCommand{ CommandType::StoreOfmStripe, 4, 0 }
         //clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
         // clang-format on
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadIfmStripe, 0, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 2, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 3, 0 },
-        Command { CommandType::WaitForAgent, 3, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 4, 0 },
-        Command { CommandType::WaitForAgent, 3, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 6, 0 },
-        Command { CommandType::WaitForAgent, 3, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 8, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 9, 0 },
-        Command { CommandType::WaitForAgent, 3, 3, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 10, 0 },
-        Command { CommandType::WaitForAgent, 3, 4, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 11, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 12, 0 },
-        Command { CommandType::WaitForAgent, 3, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 13, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 14, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 15, 0 },
-        Command { CommandType::WaitForAgent, 3, 6, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 16, 0 },
-        Command { CommandType::WaitForAgent, 3, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 17, 0 }
+        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 2 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 3 },
+        TestCommand { CommandType::WaitForAgent, 3, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 4 },
+        TestCommand { CommandType::WaitForAgent, 3, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 6 },
+        TestCommand { CommandType::WaitForAgent, 3, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 8 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 9 },
+        TestCommand { CommandType::WaitForAgent, 3, 3 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 10 },
+        TestCommand { CommandType::WaitForAgent, 3, 4 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 11 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 12 },
+        TestCommand { CommandType::WaitForAgent, 3, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 13 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 14 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 15 },
+        TestCommand { CommandType::WaitForAgent, 3, 6 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 16 },
+        TestCommand { CommandType::WaitForAgent, 3, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 17 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 3, 0, 0 },
-        Command { CommandType::WaitForAgent, 0, 2, 0 },
-        Command { CommandType::WaitForAgent, 1, 0, 0 },
-        Command { CommandType::StartMceStripe, 3, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 1, 0 },
-        Command { CommandType::WaitForAgent, 0, 4, 0 },
-        Command { CommandType::StartMceStripe, 3, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 2, 0 },
-        Command { CommandType::WaitForAgent, 0, 5, 0 },
-        Command { CommandType::StartMceStripe, 3, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 3, 0 },
-        Command { CommandType::WaitForAgent, 0, 8, 0 },
-        Command { CommandType::WaitForAgent, 1, 1, 0 },
-        Command { CommandType::StartMceStripe, 3, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 4, 0 },
-        Command { CommandType::WaitForAgent, 0, 10, 0 },
-        Command { CommandType::StartMceStripe, 3, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 5, 0 },
-        Command { CommandType::WaitForAgent, 0, 11, 0 },
-        Command { CommandType::StartMceStripe, 3, 5, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 6, 0 },
-        Command { CommandType::WaitForAgent, 0, 14, 0 },
-        Command { CommandType::WaitForAgent, 1, 2, 0 },
-        Command { CommandType::StartMceStripe, 3, 6, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 7, 0 },
-        Command { CommandType::WaitForAgent, 0, 16, 0 },
-        Command { CommandType::StartMceStripe, 3, 7, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 8, 0 },
-        Command { CommandType::WaitForAgent, 0, 17, 0 },
-        Command { CommandType::StartMceStripe, 3, 8,  0}
+        TestCommand { CommandType::ProgramMceStripe, 3, 0 },
+        TestCommand { CommandType::WaitForAgent, 0, 2 },
+        TestCommand { CommandType::WaitForAgent, 1, 0 },
+        TestCommand { CommandType::StartMceStripe, 3, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 1 },
+        TestCommand { CommandType::WaitForAgent, 0, 4 },
+        TestCommand { CommandType::StartMceStripe, 3, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 2 },
+        TestCommand { CommandType::WaitForAgent, 0, 5 },
+        TestCommand { CommandType::StartMceStripe, 3, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 3 },
+        TestCommand { CommandType::WaitForAgent, 0, 8 },
+        TestCommand { CommandType::WaitForAgent, 1, 1 },
+        TestCommand { CommandType::StartMceStripe, 3, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 4 },
+        TestCommand { CommandType::WaitForAgent, 0, 10 },
+        TestCommand { CommandType::StartMceStripe, 3, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 5 },
+        TestCommand { CommandType::WaitForAgent, 0, 11 },
+        TestCommand { CommandType::StartMceStripe, 3, 5 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 6 },
+        TestCommand { CommandType::WaitForAgent, 0, 14 },
+        TestCommand { CommandType::WaitForAgent, 1, 2 },
+        TestCommand { CommandType::StartMceStripe, 3, 6 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 7 },
+        TestCommand { CommandType::WaitForAgent, 0, 16 },
+        TestCommand { CommandType::StartMceStripe, 3, 7 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 8 },
+        TestCommand { CommandType::WaitForAgent, 0, 17 },
+        TestCommand { CommandType::StartMceStripe, 3, 8 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/WgtStreamer/WithWriteDependency/TileSize=1")
 {
-    IfmSDesc ifms{};
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
+    IfmSDesc ifms             = MakeIfmSDesc();
     ifms.fmData.tile.numSlots = 4;
 
     const uint32_t numStripesTotal = 3;
     const uint32_t tileSize        = 1;
-    WgtSDesc wgtS{};
-    wgtS.tile.numSlots = tileSize;
+    WgtSDesc wgtS                  = MakeWgtSDesc();
+    wgtS.tile.numSlots             = tileSize;
     std::vector<AgentDescAndDeps> cmdStream{
         AgentDescAndDeps{
             AgentDesc(18, ifms),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{ { { 3, { 3, 6 }, { 1, 2 }, 1 } } },
@@ -2475,7 +2563,6 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/WithWriteDependency/TileSize=1"
         },
         AgentDescAndDeps{
             AgentDesc(numStripesTotal, wgtS),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{ { { 2, { 9, 3 }, { 3, 1 }, 0 } } },
@@ -2483,15 +2570,13 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/WithWriteDependency/TileSize=1"
         },
         AgentDescAndDeps{
             AgentDesc(1, PleLDesc{}),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{},
             },
         },
         AgentDescAndDeps{
-            AgentDesc(9, MceSDesc{}),
-
+            AgentDesc(9, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 { {
@@ -2502,7 +2587,7 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/WithWriteDependency/TileSize=1"
             },
         },
         AgentDescAndDeps{
-            AgentDesc(1, OfmSDesc{}),
+            AgentDesc(1, MakeOfmSDesc()),
             {
                 /* .readDependencies =*/{ { { 1, { 9, 1 }, { 9, 1 }, 0 } } },
                 /* .writeDependencies =*/{},
@@ -2511,111 +2596,112 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/WithWriteDependency/TileSize=1"
 
     };
 
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 3, 8, 0 }, Command{ CommandType::StoreOfmStripe, 4, 0, 0 }
+        TestCommand{ CommandType::WaitForAgent, 3, 8 }, TestCommand{ CommandType::StoreOfmStripe, 4, 0 }
         //clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
         // clang-format on
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadIfmStripe, 0, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 2, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 3, 0 },
-        Command { CommandType::WaitForAgent, 3, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 4, 0 },
-        Command { CommandType::WaitForAgent, 3, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 6, 0 },
-        Command { CommandType::WaitForAgent, 3, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 8, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 9, 0 },
-        Command { CommandType::WaitForAgent, 3, 3, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 10, 0 },
-        Command { CommandType::WaitForAgent, 3, 4, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 11, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 12, 0 },
-        Command { CommandType::WaitForAgent, 3, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 13, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 14, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 15, 0 },
-        Command { CommandType::WaitForAgent, 3, 6, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 16, 0 },
-        Command { CommandType::WaitForAgent, 3, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 17, 0 }
+        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 2 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 3 },
+        TestCommand { CommandType::WaitForAgent, 3, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 4 },
+        TestCommand { CommandType::WaitForAgent, 3, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 6 },
+        TestCommand { CommandType::WaitForAgent, 3, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 8 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 9 },
+        TestCommand { CommandType::WaitForAgent, 3, 3 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 10 },
+        TestCommand { CommandType::WaitForAgent, 3, 4 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 11 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 12 },
+        TestCommand { CommandType::WaitForAgent, 3, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 13 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 14 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 15 },
+        TestCommand { CommandType::WaitForAgent, 3, 6 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 16 },
+        TestCommand { CommandType::WaitForAgent, 3, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 17 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 3, 0, 0 },
-        Command { CommandType::WaitForAgent, 0, 2, 0 },
-        Command { CommandType::WaitForAgent, 1, 0, 0 },
-        Command { CommandType::StartMceStripe, 3, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 1, 0 },
-        Command { CommandType::WaitForAgent, 0, 4, 0 },
-        Command { CommandType::StartMceStripe, 3, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 2, 0 },
-        Command { CommandType::WaitForAgent, 0, 5, 0 },
-        Command { CommandType::StartMceStripe, 3, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 3, 0 },
-        Command { CommandType::WaitForAgent, 0, 8, 0 },
-        Command { CommandType::WaitForAgent, 1, 1, 0 },
-        Command { CommandType::StartMceStripe, 3, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 4, 0 },
-        Command { CommandType::WaitForAgent, 0, 10, 0 },
-        Command { CommandType::StartMceStripe, 3, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 5, 0 },
-        Command { CommandType::WaitForAgent, 0, 11, 0 },
-        Command { CommandType::StartMceStripe, 3, 5, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 6, 0 },
-        Command { CommandType::WaitForAgent, 0, 14, 0 },
-        Command { CommandType::WaitForAgent, 1, 2, 0 },
-        Command { CommandType::StartMceStripe, 3, 6, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 7, 0 },
-        Command { CommandType::WaitForAgent, 0, 16, 0 },
-        Command { CommandType::StartMceStripe, 3, 7, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 8, 0 },
-        Command { CommandType::WaitForAgent, 0, 17, 0 },
-        Command { CommandType::StartMceStripe, 3, 8,  0}
+        TestCommand { CommandType::ProgramMceStripe, 3, 0 },
+        TestCommand { CommandType::WaitForAgent, 0, 2 },
+        TestCommand { CommandType::WaitForAgent, 1, 0 },
+        TestCommand { CommandType::StartMceStripe, 3, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 1 },
+        TestCommand { CommandType::WaitForAgent, 0, 4 },
+        TestCommand { CommandType::StartMceStripe, 3, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 2 },
+        TestCommand { CommandType::WaitForAgent, 0, 5 },
+        TestCommand { CommandType::StartMceStripe, 3, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 3 },
+        TestCommand { CommandType::WaitForAgent, 0, 8 },
+        TestCommand { CommandType::WaitForAgent, 1, 1 },
+        TestCommand { CommandType::StartMceStripe, 3, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 4 },
+        TestCommand { CommandType::WaitForAgent, 0, 10 },
+        TestCommand { CommandType::StartMceStripe, 3, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 5 },
+        TestCommand { CommandType::WaitForAgent, 0, 11 },
+        TestCommand { CommandType::StartMceStripe, 3, 5 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 6 },
+        TestCommand { CommandType::WaitForAgent, 0, 14 },
+        TestCommand { CommandType::WaitForAgent, 1, 2 },
+        TestCommand { CommandType::StartMceStripe, 3, 6 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 7 },
+        TestCommand { CommandType::WaitForAgent, 0, 16 },
+        TestCommand { CommandType::StartMceStripe, 3, 7 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 8 },
+        TestCommand { CommandType::WaitForAgent, 0, 17 },
+        TestCommand { CommandType::StartMceStripe, 3, 8 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/WgtStreamer/WithReadAndWriteDependencies/TileSize=2")
 {
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
     const uint32_t numStripesTotal = 3;
     const uint32_t tileSize        = 2;
-    WgtSDesc wgtS{};
-    wgtS.tile.numSlots = tileSize;
+    WgtSDesc wgtS                  = MakeWgtSDesc();
+    wgtS.tile.numSlots             = tileSize;
 
-    PleSDesc ples{};
+    PleSDesc ples         = MakePleSDesc();
     ples.ofmTile.numSlots = 2;
 
     std::vector<AgentDescAndDeps> cmdStream{
         AgentDescAndDeps{
-            AgentDesc(9, MceSDesc{}),
-
+            AgentDesc(9, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 {},
@@ -2624,7 +2710,6 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/WithReadAndWriteDependencies/Ti
         },
         AgentDescAndDeps{
             AgentDesc(1, ples),
-
             {
                 /* .readDependencies =*/
                 { {
@@ -2635,7 +2720,6 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/WithReadAndWriteDependencies/Ti
         },
         AgentDescAndDeps{
             AgentDesc(numStripesTotal, wgtS),
-
             {
                 /* .readDependencies =*/{ { { 2, { 9, 3 }, { 9, 3 }, 0 } } },
                 /* .writeDependencies =*/{ { { 2, { 12, 3 }, { 4, 1 }, 0 } } },
@@ -2643,15 +2727,13 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/WithReadAndWriteDependencies/Ti
         },
         AgentDescAndDeps{
             AgentDesc(1, PleLDesc{}),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{},
             },
         },
         AgentDescAndDeps{
-            AgentDesc(12, MceSDesc{}),
-
+            AgentDesc(12, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 { {
@@ -2662,7 +2744,7 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/WithReadAndWriteDependencies/Ti
             },
         },
         AgentDescAndDeps{
-            AgentDesc(1, OfmSDesc{}),
+            AgentDesc(1, MakeOfmSDesc()),
             {
                 /* .readDependencies =*/{ { { 1, { 12, 1 }, { 12, 1 }, 0 } } },
                 /* .writeDependencies =*/{},
@@ -2671,103 +2753,104 @@ TEST_CASE("Cascading/StripeScheduler/WgtStreamer/WithReadAndWriteDependencies/Ti
 
     };
 
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 4, 11, 0 }, Command{ CommandType::StoreOfmStripe, 5, 0, 0 }
+        TestCommand{ CommandType::WaitForAgent, 4, 11 }, TestCommand{ CommandType::StoreOfmStripe, 5, 0 }
         //clang-format on
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::WaitForAgent, 0, 8, 0 },
-        Command { CommandType::LoadWgtStripe, 2, 0, 0 },
-        Command { CommandType::LoadWgtStripe, 2, 1, 0 },
-        Command { CommandType::WaitForAgent, 4, 3, 0 },
-        Command { CommandType::LoadWgtStripe, 2, 2, 0 }
+        TestCommand { CommandType::WaitForAgent, 0, 8 },
+        TestCommand { CommandType::LoadWgtStripe, 2, 0 },
+        TestCommand { CommandType::LoadWgtStripe, 2, 1 },
+        TestCommand { CommandType::WaitForAgent, 4, 3 },
+        TestCommand { CommandType::LoadWgtStripe, 2, 2 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 0, 0, 0 },
-        Command { CommandType::StartMceStripe, 0, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 1, 0 },
-        Command { CommandType::StartMceStripe, 0, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 2, 0 },
-        Command { CommandType::StartMceStripe, 0, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 3, 0 },
-        Command { CommandType::StartMceStripe, 0, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 4, 0 },
-        Command { CommandType::StartMceStripe, 0, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 5, 0 },
-        Command { CommandType::StartMceStripe, 0, 5, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 6, 0 },
-        Command { CommandType::StartMceStripe, 0, 6, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 7, 0 },
-        Command { CommandType::StartMceStripe, 0, 7, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 8, 0 },
-        Command { CommandType::StartMceStripe, 0, 8, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 0, 0 },
-        Command { CommandType::WaitForAgent, 1, 0, 0 },
-        Command { CommandType::WaitForAgent, 2, 0, 0 },
-        Command { CommandType::StartMceStripe, 4, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 1, 0 },
-        Command { CommandType::StartMceStripe, 4, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 2, 0 },
-        Command { CommandType::StartMceStripe, 4, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 3, 0 },
-        Command { CommandType::StartMceStripe, 4, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 4, 0 },
-        Command { CommandType::WaitForAgent, 2, 1, 0 },
-        Command { CommandType::StartMceStripe, 4, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 5, 0 },
-        Command { CommandType::StartMceStripe, 4, 5, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 6, 0 },
-        Command { CommandType::StartMceStripe, 4, 6, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 7, 0 },
-        Command { CommandType::StartMceStripe, 4, 7, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 8, 0 },
-        Command { CommandType::WaitForAgent, 2, 2, 0 },
-        Command { CommandType::StartMceStripe, 4, 8, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 9, 0 },
-        Command { CommandType::StartMceStripe, 4, 9, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 10, 0 },
-        Command { CommandType::StartMceStripe, 4, 10, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 11, 0 },
-        Command { CommandType::StartMceStripe, 4, 11,  0}
+        TestCommand { CommandType::ProgramMceStripe, 0, 0 },
+        TestCommand { CommandType::StartMceStripe, 0, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 1 },
+        TestCommand { CommandType::StartMceStripe, 0, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 2 },
+        TestCommand { CommandType::StartMceStripe, 0, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 3 },
+        TestCommand { CommandType::StartMceStripe, 0, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 4 },
+        TestCommand { CommandType::StartMceStripe, 0, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 5 },
+        TestCommand { CommandType::StartMceStripe, 0, 5 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 6 },
+        TestCommand { CommandType::StartMceStripe, 0, 6 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 7 },
+        TestCommand { CommandType::StartMceStripe, 0, 7 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 8 },
+        TestCommand { CommandType::StartMceStripe, 0, 8 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 0 },
+        TestCommand { CommandType::WaitForAgent, 1, 0 },
+        TestCommand { CommandType::WaitForAgent, 2, 0 },
+        TestCommand { CommandType::StartMceStripe, 4, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 1 },
+        TestCommand { CommandType::StartMceStripe, 4, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 2 },
+        TestCommand { CommandType::StartMceStripe, 4, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 3 },
+        TestCommand { CommandType::StartMceStripe, 4, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 4 },
+        TestCommand { CommandType::WaitForAgent, 2, 1 },
+        TestCommand { CommandType::StartMceStripe, 4, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 5 },
+        TestCommand { CommandType::StartMceStripe, 4, 5 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 6 },
+        TestCommand { CommandType::StartMceStripe, 4, 6 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 7 },
+        TestCommand { CommandType::StartMceStripe, 4, 7 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 8 },
+        TestCommand { CommandType::WaitForAgent, 2, 2 },
+        TestCommand { CommandType::StartMceStripe, 4, 8 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 9 },
+        TestCommand { CommandType::StartMceStripe, 4, 9 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 10 },
+        TestCommand { CommandType::StartMceStripe, 4, 10 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 11 },
+        TestCommand { CommandType::StartMceStripe, 4, 11 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
-        Command { CommandType::StartPleStripe, 1, 0,  0}
+        TestCommand { CommandType::StartPleStripe, 1, 0 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/MceSchedulerStripe")
 {
-    IfmSDesc ifms{};
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
+    IfmSDesc ifms             = MakeIfmSDesc();
     ifms.fmData.tile.numSlots = 4;
 
-    WgtSDesc wgts{};
+    WgtSDesc wgts      = MakeWgtSDesc();
     wgts.tile.numSlots = 2;
 
     const uint32_t numStripesTotal = 9;
     std::vector<AgentDescAndDeps> cmdStream{
         AgentDescAndDeps{
             AgentDesc(18, ifms),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{ { { 3, { 3, 6 }, { 1, 2 }, 1 } } },
@@ -2775,7 +2858,6 @@ TEST_CASE("Cascading/StripeScheduler/MceSchedulerStripe")
         },
         AgentDescAndDeps{
             AgentDesc(3, wgts),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{ { { 2, { 9, 3 }, { 3, 1 }, 0 } } },
@@ -2783,15 +2865,13 @@ TEST_CASE("Cascading/StripeScheduler/MceSchedulerStripe")
         },
         AgentDescAndDeps{
             AgentDesc(1, PleLDesc{}),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{},
             },
         },
         AgentDescAndDeps{
-            AgentDesc(numStripesTotal, MceSDesc{}),
-
+            AgentDesc(numStripesTotal, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 { {
@@ -2802,7 +2882,7 @@ TEST_CASE("Cascading/StripeScheduler/MceSchedulerStripe")
             },
         },
         AgentDescAndDeps{
-            AgentDesc(1, OfmSDesc{}),
+            AgentDesc(1, MakeOfmSDesc()),
             {
                 /* .readDependencies =*/{ { { 1, { numStripesTotal, 1 }, { numStripesTotal, 1 }, 0 } } },
                 /* .writeDependencies =*/{},
@@ -2811,102 +2891,104 @@ TEST_CASE("Cascading/StripeScheduler/MceSchedulerStripe")
 
     };
 
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 3, 8, 0 }, Command{ CommandType::StoreOfmStripe, 4, 0, 0 }
+        TestCommand{ CommandType::WaitForAgent, 3, 8 }, TestCommand{ CommandType::StoreOfmStripe, 4, 0 }
         //clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
         // clang-format on
     };
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadIfmStripe, 0, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 2, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 3, 0 },
-        Command { CommandType::WaitForAgent, 3, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 4, 0 },
-        Command { CommandType::WaitForAgent, 3, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 6, 0 },
-        Command { CommandType::WaitForAgent, 3, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 8, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 9, 0 },
-        Command { CommandType::WaitForAgent, 3, 3, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 10, 0 },
-        Command { CommandType::WaitForAgent, 3, 4, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 11, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 12, 0 },
-        Command { CommandType::WaitForAgent, 3, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 13, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 14, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 15, 0 },
-        Command { CommandType::WaitForAgent, 3, 6, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 16, 0 },
-        Command { CommandType::WaitForAgent, 3, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 17, 0 }
+        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 2 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 3 },
+        TestCommand { CommandType::WaitForAgent, 3, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 4 },
+        TestCommand { CommandType::WaitForAgent, 3, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 6 },
+        TestCommand { CommandType::WaitForAgent, 3, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 8 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 9 },
+        TestCommand { CommandType::WaitForAgent, 3, 3 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 10 },
+        TestCommand { CommandType::WaitForAgent, 3, 4 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 11 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 12 },
+        TestCommand { CommandType::WaitForAgent, 3, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 13 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 14 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 15 },
+        TestCommand { CommandType::WaitForAgent, 3, 6 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 16 },
+        TestCommand { CommandType::WaitForAgent, 3, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 17 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 3, 0, 0 },
-        Command { CommandType::WaitForAgent, 0, 2, 0 },
-        Command { CommandType::WaitForAgent, 1, 0, 0 },
-        Command { CommandType::StartMceStripe, 3, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 1, 0 },
-        Command { CommandType::WaitForAgent, 0, 4, 0 },
-        Command { CommandType::StartMceStripe, 3, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 2, 0 },
-        Command { CommandType::WaitForAgent, 0, 5, 0 },
-        Command { CommandType::StartMceStripe, 3, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 3, 0 },
-        Command { CommandType::WaitForAgent, 0, 8, 0 },
-        Command { CommandType::WaitForAgent, 1, 1, 0 },
-        Command { CommandType::StartMceStripe, 3, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 4, 0 },
-        Command { CommandType::WaitForAgent, 0, 10, 0 },
-        Command { CommandType::StartMceStripe, 3, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 5, 0 },
-        Command { CommandType::WaitForAgent, 0, 11, 0 },
-        Command { CommandType::StartMceStripe, 3, 5, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 6, 0 },
-        Command { CommandType::WaitForAgent, 0, 14, 0 },
-        Command { CommandType::WaitForAgent, 1, 2, 0 },
-        Command { CommandType::StartMceStripe, 3, 6, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 7, 0 },
-        Command { CommandType::WaitForAgent, 0, 16, 0 },
-        Command { CommandType::StartMceStripe, 3, 7, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 8, 0 },
-        Command { CommandType::WaitForAgent, 0, 17, 0 },
-        Command { CommandType::StartMceStripe, 3, 8,  0}
+        TestCommand { CommandType::ProgramMceStripe, 3, 0 },
+        TestCommand { CommandType::WaitForAgent, 0, 2 },
+        TestCommand { CommandType::WaitForAgent, 1, 0 },
+        TestCommand { CommandType::StartMceStripe, 3, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 1 },
+        TestCommand { CommandType::WaitForAgent, 0, 4 },
+        TestCommand { CommandType::StartMceStripe, 3, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 2 },
+        TestCommand { CommandType::WaitForAgent, 0, 5 },
+        TestCommand { CommandType::StartMceStripe, 3, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 3 },
+        TestCommand { CommandType::WaitForAgent, 0, 8 },
+        TestCommand { CommandType::WaitForAgent, 1, 1 },
+        TestCommand { CommandType::StartMceStripe, 3, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 4 },
+        TestCommand { CommandType::WaitForAgent, 0, 10 },
+        TestCommand { CommandType::StartMceStripe, 3, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 5 },
+        TestCommand { CommandType::WaitForAgent, 0, 11 },
+        TestCommand { CommandType::StartMceStripe, 3, 5 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 6 },
+        TestCommand { CommandType::WaitForAgent, 0, 14 },
+        TestCommand { CommandType::WaitForAgent, 1, 2 },
+        TestCommand { CommandType::StartMceStripe, 3, 6 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 7 },
+        TestCommand { CommandType::WaitForAgent, 0, 16 },
+        TestCommand { CommandType::StartMceStripe, 3, 7 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 8 },
+        TestCommand { CommandType::WaitForAgent, 0, 17 },
+        TestCommand { CommandType::StartMceStripe, 3, 8 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/PleLoaderStripe/NoDependencies")
 {
-    IfmSDesc ifms{};
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
+    IfmSDesc ifms             = MakeIfmSDesc();
     ifms.fmData.tile.numSlots = 4;
 
-    WgtSDesc wgts{};
+    WgtSDesc wgts      = MakeWgtSDesc();
     wgts.tile.numSlots = 2;
 
     std::vector<AgentDescAndDeps> cmdStream{ AgentDescAndDeps{
@@ -2934,7 +3016,7 @@ TEST_CASE("Cascading/StripeScheduler/PleLoaderStripe/NoDependencies")
                                                  },
                                              },
                                              AgentDescAndDeps{
-                                                 AgentDesc(9, MceSDesc{}),
+                                                 AgentDesc(9, MakeMceSDesc()),
 
                                                  {
                                                      /* .readDependencies =*/
@@ -2946,115 +3028,116 @@ TEST_CASE("Cascading/StripeScheduler/PleLoaderStripe/NoDependencies")
                                                  },
                                              },
                                              AgentDescAndDeps{
-                                                 AgentDesc(1, OfmSDesc{}),
+                                                 AgentDesc(1, MakeOfmSDesc()),
                                                  {
                                                      /* .readDependencies =*/{ { { 1, { 9, 1 }, { 9, 1 }, 0 } } },
                                                      /* .writeDependencies =*/{},
                                                  },
                                              } };
 
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 3, 8, 0 }, Command{ CommandType::StoreOfmStripe, 4, 0, 0 }
+        TestCommand{ CommandType::WaitForAgent, 3, 8 }, TestCommand{ CommandType::StoreOfmStripe, 4, 0 }
         //clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
         // clang-format on
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadIfmStripe, 0, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 2, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 3, 0 },
-        Command { CommandType::WaitForAgent, 3, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 4, 0 },
-        Command { CommandType::WaitForAgent, 3, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 6, 0 },
-        Command { CommandType::WaitForAgent, 3, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 8, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 9, 0 },
-        Command { CommandType::WaitForAgent, 3, 3, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 10, 0 },
-        Command { CommandType::WaitForAgent, 3, 4, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 11, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 12, 0 },
-        Command { CommandType::WaitForAgent, 3, 5, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 13, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 14, 0 },
-        Command { CommandType::LoadWgtStripe, 1, 2, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 15, 0 },
-        Command { CommandType::WaitForAgent, 3, 6, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 16, 0 },
-        Command { CommandType::WaitForAgent, 3, 7, 0 },
-        Command { CommandType::LoadIfmStripe, 0, 17, 0 }
+        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 2 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 3 },
+        TestCommand { CommandType::WaitForAgent, 3, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 4 },
+        TestCommand { CommandType::WaitForAgent, 3, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 6 },
+        TestCommand { CommandType::WaitForAgent, 3, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 8 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 9 },
+        TestCommand { CommandType::WaitForAgent, 3, 3 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 10 },
+        TestCommand { CommandType::WaitForAgent, 3, 4 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 11 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 12 },
+        TestCommand { CommandType::WaitForAgent, 3, 5 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 13 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 14 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 2 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 15 },
+        TestCommand { CommandType::WaitForAgent, 3, 6 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 16 },
+        TestCommand { CommandType::WaitForAgent, 3, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 17 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 3, 0, 0 },
-        Command { CommandType::WaitForAgent, 0, 2, 0 },
-        Command { CommandType::WaitForAgent, 1, 0, 0 },
-        Command { CommandType::StartMceStripe, 3, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 1, 0 },
-        Command { CommandType::WaitForAgent, 0, 4, 0 },
-        Command { CommandType::StartMceStripe, 3, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 2, 0 },
-        Command { CommandType::WaitForAgent, 0, 5, 0 },
-        Command { CommandType::StartMceStripe, 3, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 3, 0 },
-        Command { CommandType::WaitForAgent, 0, 8, 0 },
-        Command { CommandType::WaitForAgent, 1, 1, 0 },
-        Command { CommandType::StartMceStripe, 3, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 4, 0 },
-        Command { CommandType::WaitForAgent, 0, 10, 0 },
-        Command { CommandType::StartMceStripe, 3, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 5, 0 },
-        Command { CommandType::WaitForAgent, 0, 11, 0 },
-        Command { CommandType::StartMceStripe, 3, 5, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 6, 0 },
-        Command { CommandType::WaitForAgent, 0, 14, 0 },
-        Command { CommandType::WaitForAgent, 1, 2, 0 },
-        Command { CommandType::StartMceStripe, 3, 6, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 7, 0 },
-        Command { CommandType::WaitForAgent, 0, 16, 0 },
-        Command { CommandType::StartMceStripe, 3, 7, 0 },
-        Command { CommandType::ProgramMceStripe, 3, 8, 0 },
-        Command { CommandType::WaitForAgent, 0, 17, 0 },
-        Command { CommandType::StartMceStripe, 3, 8,  0}
+        TestCommand { CommandType::ProgramMceStripe, 3, 0 },
+        TestCommand { CommandType::WaitForAgent, 0, 2 },
+        TestCommand { CommandType::WaitForAgent, 1, 0 },
+        TestCommand { CommandType::StartMceStripe, 3, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 1 },
+        TestCommand { CommandType::WaitForAgent, 0, 4 },
+        TestCommand { CommandType::StartMceStripe, 3, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 2 },
+        TestCommand { CommandType::WaitForAgent, 0, 5 },
+        TestCommand { CommandType::StartMceStripe, 3, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 3 },
+        TestCommand { CommandType::WaitForAgent, 0, 8 },
+        TestCommand { CommandType::WaitForAgent, 1, 1 },
+        TestCommand { CommandType::StartMceStripe, 3, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 4 },
+        TestCommand { CommandType::WaitForAgent, 0, 10 },
+        TestCommand { CommandType::StartMceStripe, 3, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 5 },
+        TestCommand { CommandType::WaitForAgent, 0, 11 },
+        TestCommand { CommandType::StartMceStripe, 3, 5 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 6 },
+        TestCommand { CommandType::WaitForAgent, 0, 14 },
+        TestCommand { CommandType::WaitForAgent, 1, 2 },
+        TestCommand { CommandType::StartMceStripe, 3, 6 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 7 },
+        TestCommand { CommandType::WaitForAgent, 0, 16 },
+        TestCommand { CommandType::StartMceStripe, 3, 7 },
+        TestCommand { CommandType::ProgramMceStripe, 3, 8 },
+        TestCommand { CommandType::WaitForAgent, 0, 17 },
+        TestCommand { CommandType::StartMceStripe, 3, 8 }
         // clang-format on
     };
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/PleLoaderStripe/WithReadDependency")
 {
-    WgtSDesc wgts{};
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
+    WgtSDesc wgts      = MakeWgtSDesc();
     wgts.tile.numSlots = 2;
 
-    PleSDesc ples{};
+    PleSDesc ples         = MakePleSDesc();
     ples.ofmTile.numSlots = 2;
 
     std::vector<AgentDescAndDeps> cmdStream{
         AgentDescAndDeps{
-            AgentDesc(9, MceSDesc{}),
-
+            AgentDesc(9, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 {},
@@ -3063,7 +3146,6 @@ TEST_CASE("Cascading/StripeScheduler/PleLoaderStripe/WithReadDependency")
         },
         AgentDescAndDeps{
             AgentDesc(1, ples),
-
             {
                 /* .readDependencies =*/
                 { {
@@ -3074,7 +3156,6 @@ TEST_CASE("Cascading/StripeScheduler/PleLoaderStripe/WithReadDependency")
         },
         AgentDescAndDeps{
             AgentDesc(3, wgts),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{ { { 2, { 12, 3 }, { 4, 1 }, 0 } } },
@@ -3082,15 +3163,13 @@ TEST_CASE("Cascading/StripeScheduler/PleLoaderStripe/WithReadDependency")
         },
         AgentDescAndDeps{
             AgentDesc(1, PleLDesc{}),
-
             {
                 /* .readDependencies =*/{ { { 3, { 9, 1 }, { 9, 1 }, 0 } } },
                 /* .writeDependencies =*/{},
             },
         },
         AgentDescAndDeps{
-            AgentDesc(12, MceSDesc{}),
-
+            AgentDesc(12, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 { {
@@ -3100,7 +3179,7 @@ TEST_CASE("Cascading/StripeScheduler/PleLoaderStripe/WithReadDependency")
                 /* .writeDependencies =*/{},
             },
         },
-        AgentDescAndDeps{ AgentDesc(1, OfmSDesc{}),
+        AgentDescAndDeps{ AgentDesc(1, MakeOfmSDesc()),
                           {
                               /* .readDependencies =*/{ { { 1, { 12, 1 }, { 12, 1 }, 0 } } },
                               /* .writeDependencies =*/{},
@@ -3108,92 +3187,94 @@ TEST_CASE("Cascading/StripeScheduler/PleLoaderStripe/WithReadDependency")
 
     };
 
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 4, 11, 0 }, Command{ CommandType::StoreOfmStripe, 5, 0, 0 }
+        TestCommand{ CommandType::WaitForAgent, 4, 11 }, TestCommand{ CommandType::StoreOfmStripe, 5, 0 }
         //clang-format on
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadWgtStripe, 2, 0, 0 },
-        Command { CommandType::LoadWgtStripe, 2, 1, 0 },
-        Command { CommandType::WaitForAgent, 4, 3, 0 },
-        Command { CommandType::LoadWgtStripe, 2, 2, 0 }
+        TestCommand { CommandType::LoadWgtStripe, 2, 0 },
+        TestCommand { CommandType::LoadWgtStripe, 2, 1 },
+        TestCommand { CommandType::WaitForAgent, 4, 3 },
+        TestCommand { CommandType::LoadWgtStripe, 2, 2 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 0, 0, 0 },
-        Command { CommandType::StartMceStripe, 0, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 1, 0 },
-        Command { CommandType::StartMceStripe, 0, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 2, 0 },
-        Command { CommandType::StartMceStripe, 0, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 3, 0 },
-        Command { CommandType::StartMceStripe, 0, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 4, 0 },
-        Command { CommandType::StartMceStripe, 0, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 5, 0 },
-        Command { CommandType::StartMceStripe, 0, 5, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 6, 0 },
-        Command { CommandType::StartMceStripe, 0, 6, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 7, 0 },
-        Command { CommandType::StartMceStripe, 0, 7, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 8, 0 },
-        Command { CommandType::StartMceStripe, 0, 8, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 0, 0 },
-        Command { CommandType::WaitForAgent, 1, 0, 0 },
-        Command { CommandType::WaitForAgent, 2, 0, 0 },
-        Command { CommandType::StartMceStripe, 4, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 1, 0 },
-        Command { CommandType::StartMceStripe, 4, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 2, 0 },
-        Command { CommandType::StartMceStripe, 4, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 3, 0 },
-        Command { CommandType::StartMceStripe, 4, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 4, 0 },
-        Command { CommandType::WaitForAgent, 2, 1, 0 },
-        Command { CommandType::StartMceStripe, 4, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 5, 0 },
-        Command { CommandType::StartMceStripe, 4, 5, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 6, 0 },
-        Command { CommandType::StartMceStripe, 4, 6, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 7, 0 },
-        Command { CommandType::StartMceStripe, 4, 7, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 8, 0 },
-        Command { CommandType::WaitForAgent, 2, 2, 0 },
-        Command { CommandType::StartMceStripe, 4, 8, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 9, 0 },
-        Command { CommandType::StartMceStripe, 4, 9, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 10, 0 },
-        Command { CommandType::StartMceStripe, 4, 10, 0 },
-        Command { CommandType::ProgramMceStripe, 4, 11, 0 },
-        Command { CommandType::StartMceStripe, 4, 11,  0}
+        TestCommand { CommandType::ProgramMceStripe, 0, 0 },
+        TestCommand { CommandType::StartMceStripe, 0, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 1 },
+        TestCommand { CommandType::StartMceStripe, 0, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 2 },
+        TestCommand { CommandType::StartMceStripe, 0, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 3 },
+        TestCommand { CommandType::StartMceStripe, 0, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 4 },
+        TestCommand { CommandType::StartMceStripe, 0, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 5 },
+        TestCommand { CommandType::StartMceStripe, 0, 5 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 6 },
+        TestCommand { CommandType::StartMceStripe, 0, 6 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 7 },
+        TestCommand { CommandType::StartMceStripe, 0, 7 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 8 },
+        TestCommand { CommandType::StartMceStripe, 0, 8 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 0 },
+        TestCommand { CommandType::WaitForAgent, 1, 0 },
+        TestCommand { CommandType::WaitForAgent, 2, 0 },
+        TestCommand { CommandType::StartMceStripe, 4, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 1 },
+        TestCommand { CommandType::StartMceStripe, 4, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 2 },
+        TestCommand { CommandType::StartMceStripe, 4, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 3 },
+        TestCommand { CommandType::StartMceStripe, 4, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 4 },
+        TestCommand { CommandType::WaitForAgent, 2, 1 },
+        TestCommand { CommandType::StartMceStripe, 4, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 5 },
+        TestCommand { CommandType::StartMceStripe, 4, 5 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 6 },
+        TestCommand { CommandType::StartMceStripe, 4, 6 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 7 },
+        TestCommand { CommandType::StartMceStripe, 4, 7 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 8 },
+        TestCommand { CommandType::WaitForAgent, 2, 2 },
+        TestCommand { CommandType::StartMceStripe, 4, 8 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 9 },
+        TestCommand { CommandType::StartMceStripe, 4, 9 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 10 },
+        TestCommand { CommandType::StartMceStripe, 4, 10 },
+        TestCommand { CommandType::ProgramMceStripe, 4, 11 },
+        TestCommand { CommandType::StartMceStripe, 4, 11 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
-        Command { CommandType::StartPleStripe, 1, 0,  0}
+        TestCommand { CommandType::StartPleStripe, 1, 0 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/PleLoaderStripe/WithWriteDependency")
 {
-    PleSDesc ples{};
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
+    PleSDesc ples         = MakePleSDesc();
     ples.ofmTile.numSlots = 2;
 
     // Create a small command stream that contains a PleL agent with a write dependency.
@@ -3202,7 +3283,6 @@ TEST_CASE("Cascading/StripeScheduler/PleLoaderStripe/WithWriteDependency")
     std::vector<AgentDescAndDeps> cmdStream{
         AgentDescAndDeps{
             AgentDesc(2, PleLDesc{}),
-
             {
                 /* .readDependencies =*/{},
                 // This is the dependency we are testing
@@ -3211,13 +3291,12 @@ TEST_CASE("Cascading/StripeScheduler/PleLoaderStripe/WithWriteDependency")
         },
         AgentDescAndDeps{
             AgentDesc(1, ples),
-
             {
                 /* .readDependencies =*/{ { 1, { 1, 1 }, { 1, 1 }, 0 } },
                 /* .writeDependencies =*/{},
             },
         },
-        AgentDescAndDeps{ AgentDesc(1, OfmSDesc{}),
+        AgentDescAndDeps{ AgentDesc(1, MakeOfmSDesc()),
                           {
                               /* .readDependencies =*/{ { { 2, { 2, 1 }, { 2, 1 }, 0 } } },
                               /* .writeDependencies =*/{},
@@ -3225,60 +3304,60 @@ TEST_CASE("Cascading/StripeScheduler/PleLoaderStripe/WithWriteDependency")
 
     };
 
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 0, 1, 0 }, Command{ CommandType::StoreOfmStripe, 2, 0, 0 }
+        TestCommand{ CommandType::WaitForAgent, 0, 1 }, TestCommand{ CommandType::StoreOfmStripe, 2, 0 }
         //clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
         // clang-format on
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadPleCode, 0, 0, 0 },
-        Command { CommandType::WaitForAgent, 1, 0, 0 },
-        Command { CommandType::LoadPleCode, 0, 1,  0}
+        TestCommand { CommandType::LoadPleCode, 0, 0 },
+        TestCommand { CommandType::WaitForAgent, 1, 0 },
+        TestCommand { CommandType::LoadPleCode, 0, 1 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
-        Command { CommandType::WaitForAgent, 0, 0, 0 },
-        Command { CommandType::StartPleStripe, 1, 0,  0}
+        TestCommand { CommandType::WaitForAgent, 0, 0 },
+        TestCommand { CommandType::StartPleStripe, 1, 0 }
         // clang-format on
     };
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/NoWriteDependencies")
 {
-    PleSDesc ples{};
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
+    PleSDesc ples         = MakePleSDesc();
     ples.ofmTile.numSlots = 2;
 
     const uint32_t numStripesTotal = 3;
     std::vector<AgentDescAndDeps> cmdStream{
         AgentDescAndDeps{
             AgentDesc(1, PleLDesc{}),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{},
             },
         },
         AgentDescAndDeps{
-            AgentDesc(3, MceSDesc{}),
-
+            AgentDesc(3, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 {},
@@ -3287,7 +3366,6 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/NoWriteDependencies")
         },
         AgentDescAndDeps{
             AgentDesc(numStripesTotal, ples),
-
             {
                 /* .readDependencies =*/
                 { {
@@ -3297,7 +3375,7 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/NoWriteDependencies")
                 /* .writeDependencies =*/{},
             },
         },
-        AgentDescAndDeps{ AgentDesc(1, OfmSDesc{}),
+        AgentDescAndDeps{ AgentDesc(1, MakeOfmSDesc()),
                           {
                               /* .readDependencies =*/{ { { 1, { numStripesTotal, 1 }, { numStripesTotal, 1 }, 0 } } },
                               /* .writeDependencies =*/{},
@@ -3305,61 +3383,63 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/NoWriteDependencies")
 
     };
 
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 2, 2, 0 }, Command{ CommandType::StoreOfmStripe, 3, 0, 0 }
+        TestCommand{ CommandType::WaitForAgent, 2, 2 }, TestCommand{ CommandType::StoreOfmStripe, 3, 0 }
         //clang-format on
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadPleCode, 0, 0,  0}
+        TestCommand { CommandType::LoadPleCode, 0, 0 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 1, 0, 0 },
-        Command { CommandType::StartMceStripe, 1, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 1, 1, 0 },
-        Command { CommandType::StartMceStripe, 1, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 1, 2, 0 },
-        Command { CommandType::StartMceStripe, 1, 2,  0}
+        TestCommand { CommandType::ProgramMceStripe, 1, 0 },
+        TestCommand { CommandType::StartMceStripe, 1, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 1, 1 },
+        TestCommand { CommandType::StartMceStripe, 1, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 1, 2 },
+        TestCommand { CommandType::StartMceStripe, 1, 2 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
-        Command { CommandType::WaitForAgent, 0, 0, 0 },
-        Command { CommandType::StartPleStripe, 2, 0, 0 },
-        Command { CommandType::StartPleStripe, 2, 1, 0 },
-        Command { CommandType::StartPleStripe, 2, 2,  0}
+        TestCommand { CommandType::WaitForAgent, 0, 0 },
+        TestCommand { CommandType::StartPleStripe, 2, 0 },
+        TestCommand { CommandType::StartPleStripe, 2, 1 },
+        TestCommand { CommandType::StartPleStripe, 2, 2 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/WithWriteDependency/TileSize 1..4")
 {
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
     const uint32_t numStripesTotal = 12;
 
     auto tileSize = GENERATE_COPY(Catch::Generators::range<uint16_t>(1, 4));
 
-    OfmSDesc ofms{};
+    OfmSDesc ofms             = MakeOfmSDesc();
     ofms.fmData.tile.numSlots = 2;
 
     DYNAMIC_SECTION("For tileSize " << tileSize)
     {
-        PleSDesc pleS{};
+        PleSDesc pleS         = MakePleSDesc();
         pleS.ofmTile.numSlots = tileSize;
         std::vector<AgentDescAndDeps> cmdStream{
             AgentDescAndDeps{
@@ -3371,7 +3451,7 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/WithWriteDependency/Tile
                 },
             },
             AgentDescAndDeps{
-                AgentDesc(12, MceSDesc{}),
+                AgentDesc(12, MakeMceSDesc()),
 
                 {
                     /* .readDependencies =*/
@@ -3401,291 +3481,291 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/WithWriteDependency/Tile
             },
         };
 
-        std::vector<Command> expectedDmaRdCommands;
-        std::vector<Command> expectedDmaWrCommands;
-        std::vector<Command> expectedMceCommands;
-        std::vector<Command> expectedPleCommands;
+        std::vector<TestCommand> expectedDmaRdCommands;
+        std::vector<TestCommand> expectedDmaWrCommands;
+        std::vector<TestCommand> expectedMceCommands;
+        std::vector<TestCommand> expectedPleCommands;
 
         switch (tileSize)
         {
             case 1:
-                expectedDmaRdCommands = std::vector<Command>{
+                expectedDmaRdCommands = std::vector<TestCommand>{
                     // clang-format off
-            Command { CommandType::LoadPleCode, 0, 0,  0}
+                    TestCommand { CommandType::LoadPleCode, 0, 0 }
                     // clang-format on
                 };
 
-                expectedDmaWrCommands = std::vector<Command>{
+                expectedDmaWrCommands = std::vector<TestCommand>{
                     //clang-format off
-                    Command{ CommandType::WaitForAgent, 2, 0, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 0, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 1, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 1, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 2, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 2, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 3, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 3, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 4, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 4, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 5, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 5, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 6, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 6, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 7, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 7, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 8, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 8, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 9, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 9, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 10, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 10, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 11, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 11, 0 }
+                    TestCommand{ CommandType::WaitForAgent, 2, 0 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 0 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 1 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 1 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 2 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 2 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 3 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 3 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 4 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 4 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 5 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 5 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 6 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 6 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 7 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 7 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 8 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 8 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 9 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 9 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 10 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 10 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 11 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 11 }
                     // clang-format on
                 };
 
-                expectedMceCommands = std::vector<Command>{
+                expectedMceCommands = std::vector<TestCommand>{
                     // clang-format off
-            Command { CommandType::ProgramMceStripe, 1, 0, 0 },
-            Command { CommandType::StartMceStripe, 1, 0, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 1, 0 },
-            Command { CommandType::StartMceStripe, 1, 1, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 2, 0 },
-            Command { CommandType::StartMceStripe, 1, 2, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 3, 0 },
-            Command { CommandType::StartMceStripe, 1, 3, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 4, 0 },
-            Command { CommandType::StartMceStripe, 1, 4, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 5, 0 },
-            Command { CommandType::StartMceStripe, 1, 5, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 6, 0 },
-            Command { CommandType::StartMceStripe, 1, 6, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 7, 0 },
-            Command { CommandType::StartMceStripe, 1, 7, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 8, 0 },
-            Command { CommandType::StartMceStripe, 1, 8, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 9, 0 },
-            Command { CommandType::StartMceStripe, 1, 9, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 10, 0 },
-            Command { CommandType::StartMceStripe, 1, 10, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 11, 0 },
-            Command { CommandType::StartMceStripe, 1, 11,  0}
+                    TestCommand { CommandType::ProgramMceStripe, 1, 0 },
+                    TestCommand { CommandType::StartMceStripe, 1, 0 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 1 },
+                    TestCommand { CommandType::StartMceStripe, 1, 1 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 2 },
+                    TestCommand { CommandType::StartMceStripe, 1, 2 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 3 },
+                    TestCommand { CommandType::StartMceStripe, 1, 3 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 4 },
+                    TestCommand { CommandType::StartMceStripe, 1, 4 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 5 },
+                    TestCommand { CommandType::StartMceStripe, 1, 5 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 6 },
+                    TestCommand { CommandType::StartMceStripe, 1, 6 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 7 },
+                    TestCommand { CommandType::StartMceStripe, 1, 7 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 8 },
+                    TestCommand { CommandType::StartMceStripe, 1, 8 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 9 },
+                    TestCommand { CommandType::StartMceStripe, 1, 9 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 10 },
+                    TestCommand { CommandType::StartMceStripe, 1, 10 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 11 },
+                    TestCommand { CommandType::StartMceStripe, 1, 11 }
                     // clang-format on
                 };
 
-                expectedPleCommands = std::vector<Command>{
+                expectedPleCommands = std::vector<TestCommand>{
                     // clang-format off
-            Command { CommandType::WaitForAgent, 0, 0, 0 },
-            Command { CommandType::StartPleStripe, 2, 0, 0 },
-            Command { CommandType::WaitForAgent, 3, 0, 0 },
-            Command { CommandType::StartPleStripe, 2, 1, 0 },
-            Command { CommandType::WaitForAgent, 3, 1, 0 },
-            Command { CommandType::StartPleStripe, 2, 2, 0 },
-            Command { CommandType::WaitForAgent, 3, 2, 0 },
-            Command { CommandType::StartPleStripe, 2, 3, 0 },
-            Command { CommandType::WaitForAgent, 3, 3, 0 },
-            Command { CommandType::StartPleStripe, 2, 4, 0 },
-            Command { CommandType::WaitForAgent, 3, 4, 0 },
-            Command { CommandType::StartPleStripe, 2, 5, 0 },
-            Command { CommandType::WaitForAgent, 3, 5, 0 },
-            Command { CommandType::StartPleStripe, 2, 6, 0 },
-            Command { CommandType::WaitForAgent, 3, 6, 0 },
-            Command { CommandType::StartPleStripe, 2, 7, 0 },
-            Command { CommandType::WaitForAgent, 3, 7, 0 },
-            Command { CommandType::StartPleStripe, 2, 8, 0 },
-            Command { CommandType::WaitForAgent, 3, 8, 0 },
-            Command { CommandType::StartPleStripe, 2, 9, 0 },
-            Command { CommandType::WaitForAgent, 3, 9, 0 },
-            Command { CommandType::StartPleStripe, 2, 10, 0 },
-            Command { CommandType::WaitForAgent, 3, 10, 0 },
-            Command { CommandType::StartPleStripe, 2, 11,  0}
+                    TestCommand { CommandType::WaitForAgent, 0, 0 },
+                    TestCommand { CommandType::StartPleStripe, 2, 0 },
+                    TestCommand { CommandType::WaitForAgent, 3, 0 },
+                    TestCommand { CommandType::StartPleStripe, 2, 1 },
+                    TestCommand { CommandType::WaitForAgent, 3, 1 },
+                    TestCommand { CommandType::StartPleStripe, 2, 2 },
+                    TestCommand { CommandType::WaitForAgent, 3, 2 },
+                    TestCommand { CommandType::StartPleStripe, 2, 3 },
+                    TestCommand { CommandType::WaitForAgent, 3, 3 },
+                    TestCommand { CommandType::StartPleStripe, 2, 4 },
+                    TestCommand { CommandType::WaitForAgent, 3, 4 },
+                    TestCommand { CommandType::StartPleStripe, 2, 5 },
+                    TestCommand { CommandType::WaitForAgent, 3, 5 },
+                    TestCommand { CommandType::StartPleStripe, 2, 6 },
+                    TestCommand { CommandType::WaitForAgent, 3, 6 },
+                    TestCommand { CommandType::StartPleStripe, 2, 7 },
+                    TestCommand { CommandType::WaitForAgent, 3, 7 },
+                    TestCommand { CommandType::StartPleStripe, 2, 8 },
+                    TestCommand { CommandType::WaitForAgent, 3, 8 },
+                    TestCommand { CommandType::StartPleStripe, 2, 9 },
+                    TestCommand { CommandType::WaitForAgent, 3, 9 },
+                    TestCommand { CommandType::StartPleStripe, 2, 10 },
+                    TestCommand { CommandType::WaitForAgent, 3, 10 },
+                    TestCommand { CommandType::StartPleStripe, 2, 11 }
                     // clang-format on
                 };
                 break;
             case 2:
 
-                expectedDmaRdCommands = std::vector<Command>{
+                expectedDmaRdCommands = std::vector<TestCommand>{
                     // clang-format off
-            Command { CommandType::LoadPleCode, 0, 0,  0}
+                    TestCommand { CommandType::LoadPleCode, 0, 0 }
                     // clang-format on
                 };
 
-                expectedDmaWrCommands = std::vector<Command>{
+                expectedDmaWrCommands = std::vector<TestCommand>{
                     //clang-format off
-                    Command{ CommandType::WaitForAgent, 2, 0, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 0, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 1, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 1, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 2, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 2, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 3, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 3, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 4, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 4, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 5, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 5, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 6, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 6, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 7, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 7, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 8, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 8, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 9, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 9, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 10, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 10, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 11, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 11, 0 }
+                    TestCommand{ CommandType::WaitForAgent, 2, 0 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 0 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 1 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 1 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 2 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 2 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 3 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 3 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 4 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 4 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 5 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 5 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 6 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 6 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 7 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 7 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 8 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 8 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 9 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 9 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 10 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 10 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 11 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 11 }
                     // clang-format on
                 };
 
-                expectedMceCommands = std::vector<Command>{
+                expectedMceCommands = std::vector<TestCommand>{
                     // clang-format off
-            Command { CommandType::ProgramMceStripe, 1, 0, 0 },
-            Command { CommandType::StartMceStripe, 1, 0, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 1, 0 },
-            Command { CommandType::StartMceStripe, 1, 1, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 2, 0 },
-            Command { CommandType::StartMceStripe, 1, 2, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 3, 0 },
-            Command { CommandType::StartMceStripe, 1, 3, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 4, 0 },
-            Command { CommandType::StartMceStripe, 1, 4, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 5, 0 },
-            Command { CommandType::StartMceStripe, 1, 5, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 6, 0 },
-            Command { CommandType::StartMceStripe, 1, 6, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 7, 0 },
-            Command { CommandType::StartMceStripe, 1, 7, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 8, 0 },
-            Command { CommandType::StartMceStripe, 1, 8, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 9, 0 },
-            Command { CommandType::StartMceStripe, 1, 9, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 10, 0 },
-            Command { CommandType::StartMceStripe, 1, 10, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 11, 0 },
-            Command { CommandType::StartMceStripe, 1, 11,  0}
+                    TestCommand { CommandType::ProgramMceStripe, 1, 0 },
+                    TestCommand { CommandType::StartMceStripe, 1, 0 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 1 },
+                    TestCommand { CommandType::StartMceStripe, 1, 1 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 2 },
+                    TestCommand { CommandType::StartMceStripe, 1, 2 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 3 },
+                    TestCommand { CommandType::StartMceStripe, 1, 3 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 4 },
+                    TestCommand { CommandType::StartMceStripe, 1, 4 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 5 },
+                    TestCommand { CommandType::StartMceStripe, 1, 5 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 6 },
+                    TestCommand { CommandType::StartMceStripe, 1, 6 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 7 },
+                    TestCommand { CommandType::StartMceStripe, 1, 7 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 8 },
+                    TestCommand { CommandType::StartMceStripe, 1, 8 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 9 },
+                    TestCommand { CommandType::StartMceStripe, 1, 9 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 10 },
+                    TestCommand { CommandType::StartMceStripe, 1, 10 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 11 },
+                    TestCommand { CommandType::StartMceStripe, 1, 11 }
                     // clang-format on
                 };
 
-                expectedPleCommands = std::vector<Command>{
+                expectedPleCommands = std::vector<TestCommand>{
                     // clang-format off
-            Command { CommandType::WaitForAgent, 0, 0, 0 },
-            Command { CommandType::StartPleStripe, 2, 0, 0 },
-            Command { CommandType::StartPleStripe, 2, 1, 0 },
-            Command { CommandType::WaitForAgent, 3, 0, 0 },
-            Command { CommandType::StartPleStripe, 2, 2, 0 },
-            Command { CommandType::WaitForAgent, 3, 1, 0 },
-            Command { CommandType::StartPleStripe, 2, 3, 0 },
-            Command { CommandType::WaitForAgent, 3, 2, 0 },
-            Command { CommandType::StartPleStripe, 2, 4, 0 },
-            Command { CommandType::WaitForAgent, 3, 3, 0 },
-            Command { CommandType::StartPleStripe, 2, 5, 0 },
-            Command { CommandType::WaitForAgent, 3, 4, 0 },
-            Command { CommandType::StartPleStripe, 2, 6, 0 },
-            Command { CommandType::WaitForAgent, 3, 5, 0 },
-            Command { CommandType::StartPleStripe, 2, 7, 0 },
-            Command { CommandType::WaitForAgent, 3, 6, 0 },
-            Command { CommandType::StartPleStripe, 2, 8, 0 },
-            Command { CommandType::WaitForAgent, 3, 7, 0 },
-            Command { CommandType::StartPleStripe, 2, 9, 0 },
-            Command { CommandType::WaitForAgent, 3, 8, 0 },
-            Command { CommandType::StartPleStripe, 2, 10, 0 },
-            Command { CommandType::WaitForAgent, 3, 9, 0 },
-            Command { CommandType::StartPleStripe, 2, 11,  0}
+                    TestCommand { CommandType::WaitForAgent, 0, 0 },
+                    TestCommand { CommandType::StartPleStripe, 2, 0 },
+                    TestCommand { CommandType::StartPleStripe, 2, 1 },
+                    TestCommand { CommandType::WaitForAgent, 3, 0 },
+                    TestCommand { CommandType::StartPleStripe, 2, 2 },
+                    TestCommand { CommandType::WaitForAgent, 3, 1 },
+                    TestCommand { CommandType::StartPleStripe, 2, 3 },
+                    TestCommand { CommandType::WaitForAgent, 3, 2 },
+                    TestCommand { CommandType::StartPleStripe, 2, 4 },
+                    TestCommand { CommandType::WaitForAgent, 3, 3 },
+                    TestCommand { CommandType::StartPleStripe, 2, 5 },
+                    TestCommand { CommandType::WaitForAgent, 3, 4 },
+                    TestCommand { CommandType::StartPleStripe, 2, 6 },
+                    TestCommand { CommandType::WaitForAgent, 3, 5 },
+                    TestCommand { CommandType::StartPleStripe, 2, 7 },
+                    TestCommand { CommandType::WaitForAgent, 3, 6 },
+                    TestCommand { CommandType::StartPleStripe, 2, 8 },
+                    TestCommand { CommandType::WaitForAgent, 3, 7 },
+                    TestCommand { CommandType::StartPleStripe, 2, 9 },
+                    TestCommand { CommandType::WaitForAgent, 3, 8 },
+                    TestCommand { CommandType::StartPleStripe, 2, 10 },
+                    TestCommand { CommandType::WaitForAgent, 3, 9 },
+                    TestCommand { CommandType::StartPleStripe, 2, 11 }
                     // clang-format on
                 };
                 break;
             case 3:
 
-                expectedDmaRdCommands = std::vector<Command>{
+                expectedDmaRdCommands = std::vector<TestCommand>{
                     // clang-format off
-            Command { CommandType::LoadPleCode, 0, 0,  0}
+                    TestCommand { CommandType::LoadPleCode, 0, 0 }
                     // clang-format on
                 };
 
-                expectedDmaWrCommands = std::vector<Command>{
+                expectedDmaWrCommands = std::vector<TestCommand>{
                     //clang-format off
-                    Command{ CommandType::WaitForAgent, 2, 0, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 0, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 1, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 1, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 2, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 2, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 3, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 3, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 4, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 4, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 5, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 5, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 6, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 6, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 7, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 7, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 8, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 8, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 9, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 9, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 10, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 10, 0 },
-                    Command{ CommandType::WaitForAgent, 2, 11, 0 },
-                    Command{ CommandType::StoreOfmStripe, 3, 11, 0 }
+                    TestCommand{ CommandType::WaitForAgent, 2, 0 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 0 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 1 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 1 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 2 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 2 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 3 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 3 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 4 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 4 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 5 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 5 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 6 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 6 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 7 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 7 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 8 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 8 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 9 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 9 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 10 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 10 },
+                    TestCommand{ CommandType::WaitForAgent, 2, 11 },
+                    TestCommand{ CommandType::StoreOfmStripe, 3, 11 }
                     // clang-format on
                 };
 
-                expectedMceCommands = std::vector<Command>{
+                expectedMceCommands = std::vector<TestCommand>{
                     // clang-format off
-            Command { CommandType::ProgramMceStripe, 1, 0, 0 },
-            Command { CommandType::StartMceStripe, 1, 0, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 1, 0 },
-            Command { CommandType::StartMceStripe, 1, 1, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 2, 0 },
-            Command { CommandType::StartMceStripe, 1, 2, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 3, 0 },
-            Command { CommandType::StartMceStripe, 1, 3, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 4, 0 },
-            Command { CommandType::StartMceStripe, 1, 4, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 5, 0 },
-            Command { CommandType::StartMceStripe, 1, 5, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 6, 0 },
-            Command { CommandType::StartMceStripe, 1, 6, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 7, 0 },
-            Command { CommandType::StartMceStripe, 1, 7, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 8, 0 },
-            Command { CommandType::StartMceStripe, 1, 8, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 9, 0 },
-            Command { CommandType::StartMceStripe, 1, 9, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 10, 0 },
-            Command { CommandType::StartMceStripe, 1, 10, 0 },
-            Command { CommandType::ProgramMceStripe, 1, 11, 0 },
-            Command { CommandType::StartMceStripe, 1, 11,  0}
+                    TestCommand { CommandType::ProgramMceStripe, 1, 0 },
+                    TestCommand { CommandType::StartMceStripe, 1, 0 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 1 },
+                    TestCommand { CommandType::StartMceStripe, 1, 1 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 2 },
+                    TestCommand { CommandType::StartMceStripe, 1, 2 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 3 },
+                    TestCommand { CommandType::StartMceStripe, 1, 3 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 4 },
+                    TestCommand { CommandType::StartMceStripe, 1, 4 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 5 },
+                    TestCommand { CommandType::StartMceStripe, 1, 5 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 6 },
+                    TestCommand { CommandType::StartMceStripe, 1, 6 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 7 },
+                    TestCommand { CommandType::StartMceStripe, 1, 7 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 8 },
+                    TestCommand { CommandType::StartMceStripe, 1, 8 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 9 },
+                    TestCommand { CommandType::StartMceStripe, 1, 9 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 10 },
+                    TestCommand { CommandType::StartMceStripe, 1, 10 },
+                    TestCommand { CommandType::ProgramMceStripe, 1, 11 },
+                    TestCommand { CommandType::StartMceStripe, 1, 11 }
                     // clang-format on
                 };
 
-                expectedPleCommands = std::vector<Command>{
+                expectedPleCommands = std::vector<TestCommand>{
                     // clang-format off
-            Command { CommandType::WaitForAgent, 0, 0, 0 },
-            Command { CommandType::StartPleStripe, 2, 0, 0 },
-            Command { CommandType::StartPleStripe, 2, 1, 0 },
-            Command { CommandType::StartPleStripe, 2, 2, 0 },
-            Command { CommandType::WaitForAgent, 3, 0, 0 },
-            Command { CommandType::StartPleStripe, 2, 3, 0 },
-            Command { CommandType::WaitForAgent, 3, 1, 0 },
-            Command { CommandType::StartPleStripe, 2, 4, 0 },
-            Command { CommandType::WaitForAgent, 3, 2, 0 },
-            Command { CommandType::StartPleStripe, 2, 5, 0 },
-            Command { CommandType::WaitForAgent, 3, 3, 0 },
-            Command { CommandType::StartPleStripe, 2, 6, 0 },
-            Command { CommandType::WaitForAgent, 3, 4, 0 },
-            Command { CommandType::StartPleStripe, 2, 7, 0 },
-            Command { CommandType::WaitForAgent, 3, 5, 0 },
-            Command { CommandType::StartPleStripe, 2, 8, 0 },
-            Command { CommandType::WaitForAgent, 3, 6, 0 },
-            Command { CommandType::StartPleStripe, 2, 9, 0 },
-            Command { CommandType::WaitForAgent, 3, 7, 0 },
-            Command { CommandType::StartPleStripe, 2, 10, 0 },
-            Command { CommandType::WaitForAgent, 3, 8, 0 },
-            Command { CommandType::StartPleStripe, 2, 11,  0}
+                    TestCommand { CommandType::WaitForAgent, 0, 0 },
+                    TestCommand { CommandType::StartPleStripe, 2, 0 },
+                    TestCommand { CommandType::StartPleStripe, 2, 1 },
+                    TestCommand { CommandType::StartPleStripe, 2, 2 },
+                    TestCommand { CommandType::WaitForAgent, 3, 0 },
+                    TestCommand { CommandType::StartPleStripe, 2, 3 },
+                    TestCommand { CommandType::WaitForAgent, 3, 1 },
+                    TestCommand { CommandType::StartPleStripe, 2, 4 },
+                    TestCommand { CommandType::WaitForAgent, 3, 2 },
+                    TestCommand { CommandType::StartPleStripe, 2, 5 },
+                    TestCommand { CommandType::WaitForAgent, 3, 3 },
+                    TestCommand { CommandType::StartPleStripe, 2, 6 },
+                    TestCommand { CommandType::WaitForAgent, 3, 4 },
+                    TestCommand { CommandType::StartPleStripe, 2, 7 },
+                    TestCommand { CommandType::WaitForAgent, 3, 5 },
+                    TestCommand { CommandType::StartPleStripe, 2, 8 },
+                    TestCommand { CommandType::WaitForAgent, 3, 6 },
+                    TestCommand { CommandType::StartPleStripe, 2, 9 },
+                    TestCommand { CommandType::WaitForAgent, 3, 7 },
+                    TestCommand { CommandType::StartPleStripe, 2, 10 },
+                    TestCommand { CommandType::WaitForAgent, 3, 8 },
+                    TestCommand { CommandType::StartPleStripe, 2, 11 }
                     // clang-format on
                 };
 
@@ -3696,34 +3776,34 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/WithWriteDependency/Tile
 
         ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-        Scheduler scheduler(cmdStream, debuggingContext);
+        Scheduler scheduler(cmdStream, caps, debuggingContext);
         scheduler.Schedule();
 
-        CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-        CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-        CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-        CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+        CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+        CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+        CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+        CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
     }
 }
 
 TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/ReadDependencyToMceSIsFirst")
 {
-    PleSDesc ples{};
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
+    PleSDesc ples         = MakePleSDesc();
     ples.ofmTile.numSlots = 2;
 
     const uint32_t numStripesTotal = 3;
     std::vector<AgentDescAndDeps> cmdStream{
         AgentDescAndDeps{
             AgentDesc(1, PleLDesc{}),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{},
             },
         },
         AgentDescAndDeps{
-            AgentDesc(3, MceSDesc{}),
-
+            AgentDesc(3, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 {},
@@ -3732,7 +3812,6 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/ReadDependencyToMceSIsFi
         },
         AgentDescAndDeps{
             AgentDesc(numStripesTotal, ples),
-
             {
                 /* .readDependencies =*/
                 { {
@@ -3744,73 +3823,73 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/ReadDependencyToMceSIsFi
                 /* .writeDependencies =*/{},
             },
         },
-        AgentDescAndDeps{ AgentDesc(1, OfmSDesc{}),
+        AgentDescAndDeps{ AgentDesc(1, MakeOfmSDesc()),
                           {
                               /* .readDependencies =*/{ { { 1, { numStripesTotal, 1 }, { numStripesTotal, 1 }, 0 } } },
                               /* .writeDependencies =*/{},
                           } },
     };
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 2, 2, 0 }, Command{ CommandType::StoreOfmStripe, 3, 0, 0 }
+        TestCommand{ CommandType::WaitForAgent, 2, 2 }, TestCommand{ CommandType::StoreOfmStripe, 3, 0 }
         //clang-format on
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadPleCode, 0, 0,  0}
+        TestCommand { CommandType::LoadPleCode, 0, 0 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 1, 0, 0 },
-        Command { CommandType::StartMceStripe, 1, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 1, 1, 0 },
-        Command { CommandType::StartMceStripe, 1, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 1, 2, 0 },
-        Command { CommandType::StartMceStripe, 1, 2,  0}
+        TestCommand { CommandType::ProgramMceStripe, 1, 0 },
+        TestCommand { CommandType::StartMceStripe, 1, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 1, 1 },
+        TestCommand { CommandType::StartMceStripe, 1, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 1, 2 },
+        TestCommand { CommandType::StartMceStripe, 1, 2 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
-        Command { CommandType::WaitForAgent, 0, 0, 0 },
-        Command { CommandType::StartPleStripe, 2, 0, 0 },
-        Command { CommandType::StartPleStripe, 2, 1, 0 },
-        Command { CommandType::StartPleStripe, 2, 2,  0}
+        TestCommand { CommandType::WaitForAgent, 0, 0 },
+        TestCommand { CommandType::StartPleStripe, 2, 0 },
+        TestCommand { CommandType::StartPleStripe, 2, 1 },
+        TestCommand { CommandType::StartPleStripe, 2, 2 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/ReadDependencyTowardsIfmS")
 {
-    PleSDesc ples{};
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
+    PleSDesc ples         = MakePleSDesc();
     ples.ofmTile.numSlots = 2;
 
     const uint32_t numStripesTotal = 3;
     std::vector<AgentDescAndDeps> cmdStream{
         AgentDescAndDeps{
             AgentDesc(1, PleLDesc{}),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{},
             },
         },
         AgentDescAndDeps{
-            AgentDesc(3, IfmSDesc{}),
-
+            AgentDesc(3, MakeIfmSDesc()),
             {
                 /* .readDependencies =*/
                 {},
@@ -3819,7 +3898,6 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/ReadDependencyTowardsIfm
         },
         AgentDescAndDeps{
             AgentDesc(numStripesTotal, ples),
-
             {
                 /* .readDependencies =*/
                 { {
@@ -3829,73 +3907,73 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/ReadDependencyTowardsIfm
                 /* .writeDependencies =*/{},
             },
         },
-        AgentDescAndDeps{ AgentDesc(1, OfmSDesc{}),
+        AgentDescAndDeps{ AgentDesc(1, MakeOfmSDesc()),
                           {
                               /* .readDependencies =*/{ { { 1, { numStripesTotal, 1 }, { numStripesTotal, 1 }, 0 } } },
                               /* .writeDependencies =*/{},
                           } },
     };
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 2, 2, 0 }, Command{ CommandType::StoreOfmStripe, 3, 0, 0 }
+        TestCommand{ CommandType::WaitForAgent, 2, 2 }, TestCommand{ CommandType::StoreOfmStripe, 3, 0 }
         //clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
         // clang-format on
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadPleCode, 0, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 0, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 1, 0 },
-        Command { CommandType::LoadIfmStripe, 1, 2,  0}
+        TestCommand { CommandType::LoadPleCode, 0, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 1 },
+        TestCommand { CommandType::LoadIfmStripe, 1, 2 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
-        Command { CommandType::WaitForAgent, 0, 0, 0 },
-        Command { CommandType::WaitForAgent, 1, 0, 0 },
-        Command { CommandType::StartPleStripe, 2, 0, 0 },
-        Command { CommandType::WaitForAgent, 1, 1, 0 },
-        Command { CommandType::StartPleStripe, 2, 1, 0 },
-        Command { CommandType::WaitForAgent, 1, 2, 0 },
-        Command { CommandType::StartPleStripe, 2, 2,  0}
+        TestCommand { CommandType::WaitForAgent, 0, 0 },
+        TestCommand { CommandType::WaitForAgent, 1, 0 },
+        TestCommand { CommandType::StartPleStripe, 2, 0 },
+        TestCommand { CommandType::WaitForAgent, 1, 1 },
+        TestCommand { CommandType::StartPleStripe, 2, 1 },
+        TestCommand { CommandType::WaitForAgent, 1, 2 },
+        TestCommand { CommandType::StartPleStripe, 2, 2 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/Strategy0Cascading/FirstPle")
 {
-    PleSDesc ples{};
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
+    PleSDesc ples         = MakePleSDesc();
     ples.ofmTile.numSlots = 2;
 
     const uint32_t numStripesTotal = 5;
     std::vector<AgentDescAndDeps> cmdStream{
         AgentDescAndDeps{
             AgentDesc(4, PleLDesc{}),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{},
             },
         },
         AgentDescAndDeps{
-            AgentDesc(5, MceSDesc{}),
-
+            AgentDesc(5, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 {},
@@ -3904,7 +3982,6 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/Strategy0Cascading/First
         },
         AgentDescAndDeps{
             AgentDesc(numStripesTotal, ples),
-
             {
                 /* .readDependencies =*/
                 { {
@@ -3914,89 +3991,89 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/Strategy0Cascading/First
                 /* .writeDependencies =*/{},
             },
         },
-        AgentDescAndDeps{ AgentDesc(1, OfmSDesc{}),
+        AgentDescAndDeps{ AgentDesc(1, MakeOfmSDesc()),
                           {
                               /* .readDependencies =*/{ { { 1, { numStripesTotal, 1 }, { numStripesTotal, 1 }, 0 } } },
                               /* .writeDependencies =*/{},
                           } },
     };
 
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 2, 4, 0 }, Command{ CommandType::StoreOfmStripe, 3, 0, 0 }
+        TestCommand{ CommandType::WaitForAgent, 2, 4 }, TestCommand{ CommandType::StoreOfmStripe, 3, 0 }
         //clang-format on
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadPleCode, 0, 0, 0 },
-        Command { CommandType::LoadPleCode, 0, 1, 0 },
-        Command { CommandType::LoadPleCode, 0, 2, 0 },
-        Command { CommandType::LoadPleCode, 0, 3,  0}
+        TestCommand { CommandType::LoadPleCode, 0, 0 },
+        TestCommand { CommandType::LoadPleCode, 0, 1 },
+        TestCommand { CommandType::LoadPleCode, 0, 2 },
+        TestCommand { CommandType::LoadPleCode, 0, 3 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 1, 0, 0 },
-        Command { CommandType::StartMceStripe, 1, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 1, 1, 0 },
-        Command { CommandType::StartMceStripe, 1, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 1, 2, 0 },
-        Command { CommandType::StartMceStripe, 1, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 1, 3, 0 },
-        Command { CommandType::StartMceStripe, 1, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 1, 4, 0 },
-        Command { CommandType::StartMceStripe, 1, 4,  0}
+        TestCommand { CommandType::ProgramMceStripe, 1, 0 },
+        TestCommand { CommandType::StartMceStripe, 1, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 1, 1 },
+        TestCommand { CommandType::StartMceStripe, 1, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 1, 2 },
+        TestCommand { CommandType::StartMceStripe, 1, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 1, 3 },
+        TestCommand { CommandType::StartMceStripe, 1, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 1, 4 },
+        TestCommand { CommandType::StartMceStripe, 1, 4 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
-        Command { CommandType::WaitForAgent, 0, 0, 0 },
-        Command { CommandType::StartPleStripe, 2, 0, 0 },
-        Command { CommandType::StartPleStripe, 2, 1, 0 },
-        Command { CommandType::WaitForAgent, 0, 1, 0 },
-        Command { CommandType::StartPleStripe, 2, 2, 0 },
-        Command { CommandType::WaitForAgent, 0, 2, 0 },
-        Command { CommandType::StartPleStripe, 2, 3, 0 },
-        Command { CommandType::WaitForAgent, 0, 3, 0 },
-        Command { CommandType::StartPleStripe, 2, 4,  0}
+        TestCommand { CommandType::WaitForAgent, 0, 0 },
+        TestCommand { CommandType::StartPleStripe, 2, 0 },
+        TestCommand { CommandType::StartPleStripe, 2, 1 },
+        TestCommand { CommandType::WaitForAgent, 0, 1 },
+        TestCommand { CommandType::StartPleStripe, 2, 2 },
+        TestCommand { CommandType::WaitForAgent, 0, 2 },
+        TestCommand { CommandType::StartPleStripe, 2, 3 },
+        TestCommand { CommandType::WaitForAgent, 0, 3 },
+        TestCommand { CommandType::StartPleStripe, 2, 4 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/Strategy0Cascading/SecondPle")
 {
-    const uint32_t numStripesTotal = 4;
-    PleSDesc ples{};
-    ples.ofmTile.numSlots = 4;
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
 
-    OfmSDesc ofms{};
+    const uint32_t numStripesTotal = 4;
+    PleSDesc ples                  = MakePleSDesc();
+    ples.ofmTile.numSlots          = 4;
+
+    OfmSDesc ofms             = MakeOfmSDesc();
     ofms.fmData.tile.numSlots = 2;
 
     std::vector<AgentDescAndDeps> cmdStream{
         AgentDescAndDeps{
             AgentDesc(4, PleLDesc{}),
-
             {
                 /* .readDependencies =*/{},
                 /* .writeDependencies =*/{},
             },
         },
         AgentDescAndDeps{
-            AgentDesc(4, MceSDesc{}),
-
+            AgentDesc(4, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 {},
@@ -4005,7 +4082,6 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/Strategy0Cascading/Secon
         },
         AgentDescAndDeps{
             AgentDesc(numStripesTotal, ples),
-
             {
                 /* .readDependencies =*/
                 { {
@@ -4017,7 +4093,6 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/Strategy0Cascading/Secon
         },
         AgentDescAndDeps{
             AgentDesc(4, ofms),
-
             {
                 /* .readDependencies =*/{ { { 1, { 4, 4 }, { 1, 1 }, 0 } } },
                 /* .writeDependencies =*/{},
@@ -4025,77 +4100,78 @@ TEST_CASE("Cascading/StripeScheduler/PleSchedulerStripe/Strategy0Cascading/Secon
         },
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
-        Command { CommandType::LoadPleCode, 0, 0, 0 },
-        Command { CommandType::LoadPleCode, 0, 1, 0 },
-        Command { CommandType::LoadPleCode, 0, 2, 0 },
-        Command { CommandType::LoadPleCode, 0, 3,  0}
+        TestCommand { CommandType::LoadPleCode, 0, 0 },
+        TestCommand { CommandType::LoadPleCode, 0, 1 },
+        TestCommand { CommandType::LoadPleCode, 0, 2 },
+        TestCommand { CommandType::LoadPleCode, 0, 3 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 2, 0, 0 },
-        Command{ CommandType::StoreOfmStripe, 3, 0, 0 },
-        Command{ CommandType::WaitForAgent, 2, 1, 0 },
-        Command{ CommandType::StoreOfmStripe, 3, 1, 0 },
-        Command{ CommandType::WaitForAgent, 2, 2, 0 },
-        Command{ CommandType::StoreOfmStripe, 3, 2, 0 },
-        Command{ CommandType::WaitForAgent, 2, 3, 0 },
-        Command{ CommandType::StoreOfmStripe, 3, 3, 0 }
+        TestCommand{ CommandType::WaitForAgent, 2, 0 },
+        TestCommand{ CommandType::StoreOfmStripe, 3, 0 },
+        TestCommand{ CommandType::WaitForAgent, 2, 1 },
+        TestCommand{ CommandType::StoreOfmStripe, 3, 1 },
+        TestCommand{ CommandType::WaitForAgent, 2, 2 },
+        TestCommand{ CommandType::StoreOfmStripe, 3, 2 },
+        TestCommand{ CommandType::WaitForAgent, 2, 3 },
+        TestCommand{ CommandType::StoreOfmStripe, 3, 3 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 1, 0, 0 },
-        Command { CommandType::StartMceStripe, 1, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 1, 1, 0 },
-        Command { CommandType::StartMceStripe, 1, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 1, 2, 0 },
-        Command { CommandType::StartMceStripe, 1, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 1, 3, 0 },
-        Command { CommandType::StartMceStripe, 1, 3,  0}
+        TestCommand { CommandType::ProgramMceStripe, 1, 0 },
+        TestCommand { CommandType::StartMceStripe, 1, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 1, 1 },
+        TestCommand { CommandType::StartMceStripe, 1, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 1, 2 },
+        TestCommand { CommandType::StartMceStripe, 1, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 1, 3 },
+        TestCommand { CommandType::StartMceStripe, 1, 3 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
-        Command { CommandType::WaitForAgent, 0, 0, 0 },
-        Command { CommandType::StartPleStripe, 2, 0, 0 },
-        Command { CommandType::WaitForAgent, 0, 1, 0 },
-        Command { CommandType::StartPleStripe, 2, 1, 0 },
-        Command { CommandType::WaitForAgent, 0, 2, 0 },
-        Command { CommandType::StartPleStripe, 2, 2, 0 },
-        Command { CommandType::WaitForAgent, 0, 3, 0 },
-        Command { CommandType::StartPleStripe, 2, 3,  0}
+        TestCommand { CommandType::WaitForAgent, 0, 0 },
+        TestCommand { CommandType::StartPleStripe, 2, 0 },
+        TestCommand { CommandType::WaitForAgent, 0, 1 },
+        TestCommand { CommandType::StartPleStripe, 2, 1 },
+        TestCommand { CommandType::WaitForAgent, 0, 2 },
+        TestCommand { CommandType::StartPleStripe, 2, 2 },
+        TestCommand { CommandType::WaitForAgent, 0, 3 },
+        TestCommand { CommandType::StartPleStripe, 2, 3 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }
 
 TEST_CASE("Cascading/StripeScheduler/OfmStreamerStripe")
 {
-    PleSDesc ples{};
+    HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
+    PleSDesc ples         = MakePleSDesc();
     ples.ofmTile.numSlots = 2;
 
-    OfmSDesc ofms{};
+    OfmSDesc ofms             = MakeOfmSDesc();
     ofms.fmData.tile.numSlots = 2;
 
     std::vector<AgentDescAndDeps> cmdStream{
         AgentDescAndDeps{
-            AgentDesc(12, MceSDesc{}),
-
+            AgentDesc(12, MakeMceSDesc()),
             {
                 /* .readDependencies =*/
                 {},
@@ -4104,7 +4180,6 @@ TEST_CASE("Cascading/StripeScheduler/OfmStreamerStripe")
         },
         AgentDescAndDeps{
             AgentDesc(12, ples),
-
             {
                 /* .readDependencies =*/
                 { { { 1, { 1, 1 }, { 1, 1 }, 0 } } },
@@ -4113,7 +4188,6 @@ TEST_CASE("Cascading/StripeScheduler/OfmStreamerStripe")
         },
         AgentDescAndDeps{
             AgentDesc(12, ofms),
-
             {
                 /* .readDependencies =*/{ { { 1, { 12, 12 }, { 1, 1 }, 0 } } },
                 /* .writeDependencies =*/{},
@@ -4121,103 +4195,103 @@ TEST_CASE("Cascading/StripeScheduler/OfmStreamerStripe")
         },
     };
 
-    const std::vector<Command> expectedDmaRdCommands{
+    const std::vector<TestCommand> expectedDmaRdCommands{
         // clang-format off
         // clang-format on
     };
 
-    const std::vector<Command> expectedDmaWrCommands{
+    const std::vector<TestCommand> expectedDmaWrCommands{
         //clang-format off
-        Command{ CommandType::WaitForAgent, 1, 0, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 0, 0 },
-        Command{ CommandType::WaitForAgent, 1, 1, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 1, 0 },
-        Command{ CommandType::WaitForAgent, 1, 2, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 2, 0 },
-        Command{ CommandType::WaitForAgent, 1, 3, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 3, 0 },
-        Command{ CommandType::WaitForAgent, 1, 4, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 4, 0 },
-        Command{ CommandType::WaitForAgent, 1, 5, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 5, 0 },
-        Command{ CommandType::WaitForAgent, 1, 6, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 6, 0 },
-        Command{ CommandType::WaitForAgent, 1, 7, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 7, 0 },
-        Command{ CommandType::WaitForAgent, 1, 8, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 8, 0 },
-        Command{ CommandType::WaitForAgent, 1, 9, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 9, 0 },
-        Command{ CommandType::WaitForAgent, 1, 10, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 10, 0 },
-        Command{ CommandType::WaitForAgent, 1, 11, 0 },
-        Command{ CommandType::StoreOfmStripe, 2, 11, 0 }
+        TestCommand{ CommandType::WaitForAgent, 1, 0 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 0 },
+        TestCommand{ CommandType::WaitForAgent, 1, 1 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 1 },
+        TestCommand{ CommandType::WaitForAgent, 1, 2 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 2 },
+        TestCommand{ CommandType::WaitForAgent, 1, 3 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 3 },
+        TestCommand{ CommandType::WaitForAgent, 1, 4 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 4 },
+        TestCommand{ CommandType::WaitForAgent, 1, 5 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 5 },
+        TestCommand{ CommandType::WaitForAgent, 1, 6 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 6 },
+        TestCommand{ CommandType::WaitForAgent, 1, 7 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 7 },
+        TestCommand{ CommandType::WaitForAgent, 1, 8 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 8 },
+        TestCommand{ CommandType::WaitForAgent, 1, 9 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 9 },
+        TestCommand{ CommandType::WaitForAgent, 1, 10 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 10 },
+        TestCommand{ CommandType::WaitForAgent, 1, 11 },
+        TestCommand{ CommandType::StoreOfmStripe, 2, 11 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedMceCommands{
+    const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
-        Command { CommandType::ProgramMceStripe, 0, 0, 0 },
-        Command { CommandType::StartMceStripe, 0, 0, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 1, 0 },
-        Command { CommandType::StartMceStripe, 0, 1, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 2, 0 },
-        Command { CommandType::StartMceStripe, 0, 2, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 3, 0 },
-        Command { CommandType::StartMceStripe, 0, 3, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 4, 0 },
-        Command { CommandType::StartMceStripe, 0, 4, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 5, 0 },
-        Command { CommandType::StartMceStripe, 0, 5, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 6, 0 },
-        Command { CommandType::StartMceStripe, 0, 6, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 7, 0 },
-        Command { CommandType::StartMceStripe, 0, 7, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 8, 0 },
-        Command { CommandType::StartMceStripe, 0, 8, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 9, 0 },
-        Command { CommandType::StartMceStripe, 0, 9, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 10, 0 },
-        Command { CommandType::StartMceStripe, 0, 10, 0 },
-        Command { CommandType::ProgramMceStripe, 0, 11, 0 },
-        Command { CommandType::StartMceStripe, 0, 11,  0}
+        TestCommand { CommandType::ProgramMceStripe, 0, 0 },
+        TestCommand { CommandType::StartMceStripe, 0, 0 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 1 },
+        TestCommand { CommandType::StartMceStripe, 0, 1 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 2 },
+        TestCommand { CommandType::StartMceStripe, 0, 2 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 3 },
+        TestCommand { CommandType::StartMceStripe, 0, 3 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 4 },
+        TestCommand { CommandType::StartMceStripe, 0, 4 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 5 },
+        TestCommand { CommandType::StartMceStripe, 0, 5 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 6 },
+        TestCommand { CommandType::StartMceStripe, 0, 6 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 7 },
+        TestCommand { CommandType::StartMceStripe, 0, 7 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 8 },
+        TestCommand { CommandType::StartMceStripe, 0, 8 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 9 },
+        TestCommand { CommandType::StartMceStripe, 0, 9 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 10 },
+        TestCommand { CommandType::StartMceStripe, 0, 10 },
+        TestCommand { CommandType::ProgramMceStripe, 0, 11 },
+        TestCommand { CommandType::StartMceStripe, 0, 11 }
         // clang-format on
     };
 
-    const std::vector<Command> expectedPleCommands{
+    const std::vector<TestCommand> expectedPleCommands{
         // clang-format off
-        Command { CommandType::StartPleStripe, 1, 0, 0 },
-        Command { CommandType::StartPleStripe, 1, 1, 0 },
-        Command { CommandType::WaitForAgent, 2, 0, 0 },
-        Command { CommandType::StartPleStripe, 1, 2, 0 },
-        Command { CommandType::WaitForAgent, 2, 1, 0 },
-        Command { CommandType::StartPleStripe, 1, 3, 0 },
-        Command { CommandType::WaitForAgent, 2, 2, 0 },
-        Command { CommandType::StartPleStripe, 1, 4, 0 },
-        Command { CommandType::WaitForAgent, 2, 3, 0 },
-        Command { CommandType::StartPleStripe, 1, 5, 0 },
-        Command { CommandType::WaitForAgent, 2, 4, 0 },
-        Command { CommandType::StartPleStripe, 1, 6, 0 },
-        Command { CommandType::WaitForAgent, 2, 5, 0 },
-        Command { CommandType::StartPleStripe, 1, 7, 0 },
-        Command { CommandType::WaitForAgent, 2, 6, 0 },
-        Command { CommandType::StartPleStripe, 1, 8, 0 },
-        Command { CommandType::WaitForAgent, 2, 7, 0 },
-        Command { CommandType::StartPleStripe, 1, 9, 0 },
-        Command { CommandType::WaitForAgent, 2, 8, 0 },
-        Command { CommandType::StartPleStripe, 1, 10, 0 },
-        Command { CommandType::WaitForAgent, 2, 9, 0 },
-        Command { CommandType::StartPleStripe, 1, 11, 0 }
+        TestCommand { CommandType::StartPleStripe, 1, 0 },
+        TestCommand { CommandType::StartPleStripe, 1, 1 },
+        TestCommand { CommandType::WaitForAgent, 2, 0 },
+        TestCommand { CommandType::StartPleStripe, 1, 2 },
+        TestCommand { CommandType::WaitForAgent, 2, 1 },
+        TestCommand { CommandType::StartPleStripe, 1, 3 },
+        TestCommand { CommandType::WaitForAgent, 2, 2 },
+        TestCommand { CommandType::StartPleStripe, 1, 4 },
+        TestCommand { CommandType::WaitForAgent, 2, 3 },
+        TestCommand { CommandType::StartPleStripe, 1, 5 },
+        TestCommand { CommandType::WaitForAgent, 2, 4 },
+        TestCommand { CommandType::StartPleStripe, 1, 6 },
+        TestCommand { CommandType::WaitForAgent, 2, 5 },
+        TestCommand { CommandType::StartPleStripe, 1, 7 },
+        TestCommand { CommandType::WaitForAgent, 2, 6 },
+        TestCommand { CommandType::StartPleStripe, 1, 8 },
+        TestCommand { CommandType::WaitForAgent, 2, 7 },
+        TestCommand { CommandType::StartPleStripe, 1, 9 },
+        TestCommand { CommandType::WaitForAgent, 2, 8 },
+        TestCommand { CommandType::StartPleStripe, 1, 10 },
+        TestCommand { CommandType::WaitForAgent, 2, 9 },
+        TestCommand { CommandType::StartPleStripe, 1, 11 }
         // clang-format on
     };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 
-    Scheduler scheduler(cmdStream, debuggingContext);
+    Scheduler scheduler(cmdStream, caps, debuggingContext);
     scheduler.Schedule();
 
-    CHECK(scheduler.GetDmaRdCommands() == expectedDmaRdCommands);
-    CHECK(scheduler.GetDmaWrCommands() == expectedDmaWrCommands);
-    CHECK(scheduler.GetMceCommands() == expectedMceCommands);
-    CHECK(scheduler.GetPleCommands() == expectedPleCommands);
+    CompareCommandArrays(scheduler.GetDmaRdCommands(), expectedDmaRdCommands);
+    CompareCommandArrays(scheduler.GetDmaWrCommands(), expectedDmaWrCommands);
+    CompareCommandArrays(scheduler.GetMceCommands(), expectedMceCommands);
+    CompareCommandArrays(scheduler.GetPleCommands(), expectedPleCommands);
 }

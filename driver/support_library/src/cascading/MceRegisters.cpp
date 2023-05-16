@@ -105,10 +105,15 @@ bool IsStriding(const StrideXy& stride)
 
 }    // namespace
 
-command_stream::cascading::ProgramMceExtraData
-    GenerateProgramMceExtraData(const MceSDesc& mceS, uint32_t stripeId, const HardwareCapabilities& caps)
+command_stream::cascading::ProgramMceStripeCommand GenerateProgramMceStripeCommand(const MceSDesc& mceS,
+                                                                                   uint32_t agentId,
+                                                                                   uint32_t stripeId,
+                                                                                   const HardwareCapabilities& caps)
 {
-    ProgramMceExtraData result = {};
+    ProgramMceStripeCommand result = {};
+    result.type                    = CommandType::ProgramMceStripe;
+    result.agentId                 = agentId;
+    result.stripeId                = stripeId;
 
     assert((((mceS.convStrideXy.x == 2) && (mceS.convStrideXy.y == 2)) ||
             ((mceS.convStrideXy.x == 1) && (mceS.convStrideXy.y == 1))));
@@ -627,10 +632,15 @@ command_stream::cascading::ProgramMceExtraData
     return result;
 }
 
-command_stream::cascading::StartMceExtraData
-    GenerateStartMceExtraData(const MceSDesc& mceS, uint32_t stripeId, const HardwareCapabilities& caps)
+command_stream::cascading::StartMceStripeCommand GenerateStartMceStripeCommand(const MceSDesc& mceS,
+                                                                               uint32_t agentId,
+                                                                               uint32_t stripeId,
+                                                                               const HardwareCapabilities& caps)
 {
-    StartMceExtraData result = {};
+    StartMceStripeCommand result = {};
+    result.type                  = CommandType::StartMceStripe;
+    result.agentId               = agentId;
+    result.stripeId              = stripeId;
 
     const bool isFullyConnected = mceS.mceOpMode == command_stream::cascading::MceOperation::FULLY_CONNECTED;
 

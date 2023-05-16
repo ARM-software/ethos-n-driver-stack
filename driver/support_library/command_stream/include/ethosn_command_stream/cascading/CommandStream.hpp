@@ -12,6 +12,7 @@
 #include <ethosn_utils/Span.hpp>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace ethosn
@@ -195,14 +196,46 @@ struct Agent
     AgentData data;
 };
 
-// "Extra data" can be associated with Commands.
-// This can be different for each stripe in an agent, as opposed to data in the Agent types (e.g. IfmS)
-// which is the same across all stripes.
-
-/// Extra data associated with LoadIfmStripe, LoadWgtStripe, LoadPleCode and StoreOfmStripe Commands,
-/// which is different for every stripe
-struct DmaExtraData
+enum class CommandType : uint32_t
 {
+    WaitForAgent,
+    LoadIfmStripe,
+    LoadWgtStripe,
+    ProgramMceStripe,
+    StartMceStripe,
+    LoadPleCode,
+    StartPleStripe,
+    StoreOfmStripe,
+};
+
+/// Base command type. The four lists of commands for the firmware to execute are
+/// contiguously stored lists of structs which are derived from this type.
+/// The first field (`type`) identifies which kind of Command it is.
+/// Note that this means the size of each Command in a list could be different.
+struct Command
+{
+    CommandType type;
+
+    /// Commands will always be a sub-type of this one.
+    /// This gets the size of the actual command struct, based on the `type` field.
+    size_t GetSize() const;
+};
+
+/// Data for CommandType::WaitForAgent, which describes waiting for an agent to
+/// have completed a certain stripe.
+struct WaitForAgentCommand : public Command
+{
+    uint32_t agentId;
+    uint32_t stripeId;
+};
+
+/// Data for CommandType::LoadIfmStripe, LoadWgtStripe, LoadPleCode and StoreOfmStripe,
+/// which describes transferring some data between Dram and Sram.
+struct DmaCommand : public Command
+{
+    uint32_t agentId;
+    uint32_t stripeId;
+
     /// Offset in bytes into the DRAM buffer to start the DMA.
     uint32_t m_DramOffset;
 
@@ -225,10 +258,13 @@ struct DmaExtraData
     uint8_t m_IsLastChunk;
 };
 
-/// Extra data associated with ProgramMceStripe Commands,
-/// which is different for every stripe
-struct ProgramMceExtraData
+/// Data for CommandType::ProgramMceStripe,
+/// which describes setting up MCE registers.
+struct ProgramMceStripeCommand : public Command
 {
+    uint32_t agentId;
+    uint32_t stripeId;
+
     /// Register values for the MCE, which are set differently for each stripe of the agent.
     /// @{
     uint32_t CE_CONTROL;
@@ -251,67 +287,50 @@ struct ProgramMceExtraData
     uint32_t m_NumBlocksProgrammedForMce;
 };
 
-/// Extra data associated with StartMceStripe Commands,
-/// which is different for every stripe
-struct StartMceExtraData
+/// Data for CommandType::StartMceStripe,
+/// which describes kicking off an MCE stripe.
+struct StartMceStripeCommand : public Command
 {
+    uint32_t agentId;
+    uint32_t stripeId;
     /// Register value.
     uint32_t CE_ENABLES;
 };
 
-/// Extra data associated with StartPleStripe Commands,
-/// which is different for every stripe
-struct StartPleExtraData
+/// Data for CommandType::StartPleStripe,
+/// which describes kicking off a PLE stripe.
+struct StartPleStripeCommand : public Command
 {
+    uint32_t agentId;
+    uint32_t stripeId;
     /// Register values.
     std::array<uint32_t, 8> SCRATCH;
 };
 
-enum class CommandType : uint32_t
+inline size_t Command::GetSize() const
 {
-    WaitForAgent,
-    LoadIfmStripe,
-    LoadWgtStripe,
-    ProgramMceStripe,
-    StartMceStripe,
-    LoadPleCode,
-    StartPleStripe,
-    StoreOfmStripe,
-};
-
-/// Generic command stored which is stored in four lists for the firmware to execute.
-struct Command
-{
-    CommandType type;
-    uint32_t agentId;
-    uint32_t stripeId;
-    /// Some types of command have extra associated data, which is stored in a different array
-    /// in the command stream.
-    /// This offset (in bytes) is from the start of this Command struct to the start of that struct.
-    /// The type of the extra data depends on the type of this Command.
-    /// Some Commands don't have any extra data, in which case this would be set to zero.
-    uint32_t extraDataOffset;
-
-    /// Helpers to get access to any extra data. No type checking is performed (see above)!
-    /// @{
-    const DmaExtraData& GetDmaExtraData() const
+    switch (type)
     {
-        return *reinterpret_cast<const DmaExtraData*>(reinterpret_cast<const char*>(this) + extraDataOffset);
+        case CommandType::WaitForAgent:
+            return sizeof(WaitForAgentCommand);
+        case CommandType::LoadIfmStripe:
+            return sizeof(DmaCommand);
+        case CommandType::LoadWgtStripe:
+            return sizeof(DmaCommand);
+        case CommandType::ProgramMceStripe:
+            return sizeof(ProgramMceStripeCommand);
+        case CommandType::StartMceStripe:
+            return sizeof(StartMceStripeCommand);
+        case CommandType::LoadPleCode:
+            return sizeof(DmaCommand);
+        case CommandType::StartPleStripe:
+            return sizeof(StartPleStripeCommand);
+        case CommandType::StoreOfmStripe:
+            return sizeof(DmaCommand);
+        default:
+            return 0;
     }
-    const ProgramMceExtraData& GetProgramMceExtraData() const
-    {
-        return *reinterpret_cast<const ProgramMceExtraData*>(reinterpret_cast<const char*>(this) + extraDataOffset);
-    }
-    const StartMceExtraData& GetStartMceExtraData() const
-    {
-        return *reinterpret_cast<const StartMceExtraData*>(reinterpret_cast<const char*>(this) + extraDataOffset);
-    }
-    const StartPleExtraData& GetStartPleExtraData() const
-    {
-        return *reinterpret_cast<const StartPleExtraData*>(reinterpret_cast<const char*>(this) + extraDataOffset);
-    }
-    /// @}
-};
+}
 
 }    // namespace cascading
 }    // namespace command_stream

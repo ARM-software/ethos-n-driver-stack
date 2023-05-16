@@ -156,12 +156,16 @@ struct MceSDesc
 
 MceUpsampleType ConvertResizeAlgorithmToCascadingCommand(const ResizeAlgorithm algorithm);
 
-/// Generates the ProgramMceExtraData needed for the given stripe of the given MCE scheduler agent.
-command_stream::cascading::ProgramMceExtraData
-    GenerateProgramMceExtraData(const MceSDesc& mceS, uint32_t stripeId, const HardwareCapabilities& caps);
-/// Generates the StartMceExtraData needed for the given stripe of the given MCE scheduler agent.
-command_stream::cascading::StartMceExtraData
-    GenerateStartMceExtraData(const MceSDesc& mceS, uint32_t stripeId, const HardwareCapabilities& caps);
+/// Generates the ProgramMceStripeCommand needed for the given stripe of the given MCE scheduler agent.
+command_stream::cascading::ProgramMceStripeCommand GenerateProgramMceStripeCommand(const MceSDesc& mceS,
+                                                                                   uint32_t agentId,
+                                                                                   uint32_t stripeId,
+                                                                                   const HardwareCapabilities& caps);
+/// Generates the StartMceStripeCommand needed for the given stripe of the given MCE scheduler agent.
+command_stream::cascading::StartMceStripeCommand GenerateStartMceStripeCommand(const MceSDesc& mceS,
+                                                                               uint32_t agentId,
+                                                                               uint32_t stripeId,
+                                                                               const HardwareCapabilities& caps);
 
 /// Creates an MceS agent for the command stream, by copying the relevant parts of the given MceSDesc
 /// which do not vary between stripes of the agent.

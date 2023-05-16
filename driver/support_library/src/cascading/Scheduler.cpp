@@ -16,6 +16,7 @@
 #include <stack>
 
 using namespace ethosn::command_stream::cascading;
+using CommandVariant = ethosn::command_stream::CommandVariant;
 
 namespace ethosn
 {
@@ -133,23 +134,25 @@ void DumpDependencies(std::ofstream& f, const std::vector<AgentDescAndDeps>& age
 
 }    // namespace
 
-void Scheduler::CommandQueue::Push(const command_stream::cascading::Command& c)
+void Scheduler::CommandQueue::Push(const CommandVariant& c)
 {
     if (c.type == CommandType::WaitForAgent)
     {
+        const WaitForAgentCommand& waitCommand = c.waitForAgent;
         // Skip adding this command if we've already waited for this stripe (or a later one)
-        auto lastStripeWaitedForIt = m_LastStripeWaitedForAgent.find(c.agentId);
-        if (lastStripeWaitedForIt != m_LastStripeWaitedForAgent.end() && lastStripeWaitedForIt->second >= c.stripeId)
+        auto lastStripeWaitedForIt = m_LastStripeWaitedForAgent.find(waitCommand.agentId);
+        if (lastStripeWaitedForIt != m_LastStripeWaitedForAgent.end() &&
+            lastStripeWaitedForIt->second >= waitCommand.stripeId)
         {
             return;
         }
         // Remember that we've now waited for this stripe, so that future waits might be skippable.
-        m_LastStripeWaitedForAgent[c.agentId] = c.stripeId;
+        m_LastStripeWaitedForAgent[waitCommand.agentId] = waitCommand.stripeId;
     }
     m_Commands.push_back(c);
 }
 
-const std::vector<command_stream::cascading::Command>& Scheduler::CommandQueue::GetCommands() const
+const std::vector<CommandVariant>& Scheduler::CommandQueue::GetCommands() const
 {
     return m_Commands;
 }
@@ -204,8 +207,11 @@ void Scheduler::InsertWriteDependencies(const AgentDependencyInfo& agent,
             // Don't add dependencies on earlier stripes in the same queue as the order enforces this anyway.
             if (!sameQueue)
             {
-                commands.Push(
-                    Command{ CommandType::WaitForAgent, otherAgentId, static_cast<uint32_t>(stripeToWaitFor), 0 });
+                WaitForAgentCommand waitCommand;
+                waitCommand.type     = CommandType::WaitForAgent;
+                waitCommand.agentId  = otherAgentId;
+                waitCommand.stripeId = stripeToWaitFor;
+                commands.Push(CommandVariant(waitCommand));
             }
             else if (sameQueue && m_AgentProgress[otherAgentId] < static_cast<uint32_t>(stripeToWaitFor))
             {
@@ -249,8 +255,11 @@ void Scheduler::InsertReadDependencies(const AgentDependencyInfo& agent,
                 // Don't add dependencies on earlier stripes in the same queue as the order enforces this anyway.
                 if (!sameQueue)
                 {
-                    commands.Push(
-                        Command{ CommandType::WaitForAgent, otherAgentId, static_cast<uint32_t>(stripeToWaitFor), 0 });
+                    WaitForAgentCommand waitCommand;
+                    waitCommand.type     = CommandType::WaitForAgent;
+                    waitCommand.agentId  = otherAgentId;
+                    waitCommand.stripeId = stripeToWaitFor;
+                    commands.Push(CommandVariant(waitCommand));
                 }
                 else if (sameQueue && m_AgentProgress[otherAgentId] < static_cast<uint32_t>(stripeToWaitFor))
                 {
@@ -279,9 +288,12 @@ void Scheduler::ScheduleIfmStreamerStripe(const uint32_t agentId, uint32_t strip
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_DmaRdCommands);
 
     const uint32_t numChunks = CalculateNumChunks(agentAndDeps.agent.ifm, stripeId);
-    for (uint32_t i = 0; i < numChunks; ++i)
+    for (uint32_t chunkId = 0; chunkId < numChunks; ++chunkId)
     {
-        m_DmaRdCommands.Push(Command{ CommandType::LoadIfmStripe, agentId, stripeId, 0 });
+        DmaCommand cmd = GenerateDmaCommandForLoadIfmStripe(m_Agents[agentId].agent.ifm, agentId, stripeId, chunkId,
+                                                            m_Capabilities, m_NextRdDmaCmdId);
+        m_DmaRdCommands.Push(CommandVariant(cmd));
+        m_NextRdDmaCmdId = (m_NextRdDmaCmdId + 1) % 4;
     }
 }
 
@@ -296,7 +308,10 @@ void Scheduler::ScheduleWgtStreamerStripe(const uint32_t agentId, uint32_t strip
     InsertWriteDependencies(agentAndDeps.deps, agentId, stripeId, tileSize, m_DmaRdCommands);
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_DmaRdCommands);
 
-    m_DmaRdCommands.Push(Command{ CommandType::LoadWgtStripe, agentId, stripeId, 0 });
+    DmaCommand cmd = GenerateDmaCommandForLoadWgtStripe(m_Agents[agentId].agent.wgt, agentId, stripeId, m_Capabilities,
+                                                        m_NextRdDmaCmdId);
+    m_DmaRdCommands.Push(CommandVariant(cmd));
+    m_NextRdDmaCmdId = (m_NextRdDmaCmdId + 1) % 4;
 }
 
 void Scheduler::ScheduleMceSchedulerStripe(const uint32_t agentId, uint32_t stripeId)
@@ -307,11 +322,13 @@ void Scheduler::ScheduleMceSchedulerStripe(const uint32_t agentId, uint32_t stri
 
     g_Logger.Verbose("Schedule MceSchedulerStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
-    m_MceCommands.Push(Command{ CommandType::ProgramMceStripe, agentId, stripeId, 0 });
+    auto cmd = GenerateProgramMceStripeCommand(agentAndDeps.agent.mce, agentId, stripeId, m_Capabilities);
+    m_MceCommands.Push(CommandVariant(cmd));
 
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_MceCommands);
 
-    m_MceCommands.Push(Command{ CommandType::StartMceStripe, agentId, stripeId, 0 });
+    auto cmd2 = GenerateStartMceStripeCommand(agentAndDeps.agent.mce, agentId, stripeId, m_Capabilities);
+    m_MceCommands.Push(CommandVariant(cmd2));
 }
 
 void Scheduler::SchedulePleLoaderStripe(const uint32_t agentId, uint32_t stripeId)
@@ -326,7 +343,10 @@ void Scheduler::SchedulePleLoaderStripe(const uint32_t agentId, uint32_t stripeI
 
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_DmaRdCommands);
 
-    m_DmaRdCommands.Push(Command{ CommandType::LoadPleCode, agentId, stripeId, 0 });
+    auto cmd = GenerateDmaCommandForLoadPleCode(m_Agents[agentId].agent.pleL, agentId, stripeId, m_Capabilities,
+                                                m_NextRdDmaCmdId);
+    m_DmaRdCommands.Push(CommandVariant(cmd));
+    m_NextRdDmaCmdId = (m_NextRdDmaCmdId + 1) % 4;
 }
 
 void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stripeId)
@@ -349,7 +369,8 @@ void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stri
     const auto agentTypeToIgnore = AgentType::MCE_SCHEDULER;
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, agentTypeToIgnore, m_PleCommands);
 
-    m_PleCommands.Push(Command{ CommandType::StartPleStripe, agentId, stripeId, 0 });
+    auto cmd = GenerateStartPleStripeCommand(m_Agents[agentId].agent.pleS, agentId, stripeId);
+    m_PleCommands.Push(CommandVariant(cmd));
 }
 
 void Scheduler::ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t stripeId)
@@ -363,34 +384,40 @@ void Scheduler::ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t strip
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_DmaWrCommands);
 
     const uint32_t numChunks = CalculateNumChunks(agentAndDeps.agent.ofm, stripeId);
-    for (uint32_t i = 0; i < numChunks; ++i)
+    for (uint32_t chunkId = 0; chunkId < numChunks; ++chunkId)
     {
-        m_DmaWrCommands.Push(Command{ CommandType::StoreOfmStripe, agentId, stripeId, 0 });
+        auto cmd = (GenerateDmaCommandForStoreOfmStripe(m_Agents[agentId].agent.ofm, agentId, stripeId, chunkId,
+                                                        m_Capabilities, m_NextWrDmaCmdId));
+        m_DmaWrCommands.Push(CommandVariant(cmd));
+        m_NextWrDmaCmdId = 4 + ((m_NextWrDmaCmdId + 1) % 4);
     }
 }
 
-Scheduler::Scheduler(const std::vector<AgentDescAndDeps>& agents, const DebuggingContext& debuggingContext)
+Scheduler::Scheduler(const std::vector<AgentDescAndDeps>& agents,
+                     const HardwareCapabilities& capabilities,
+                     const DebuggingContext& debuggingContext)
     : m_DebuggingContext(debuggingContext)
     , m_Agents{ agents }
     , m_AgentProgress(agents.size(), 0)
+    , m_Capabilities(capabilities)
 {}
 
-const std::vector<Command>& Scheduler::GetDmaRdCommands() const
+const std::vector<CommandVariant>& Scheduler::GetDmaRdCommands() const
 {
     return m_DmaRdCommands.GetCommands();
 }
 
-const std::vector<Command>& Scheduler::GetDmaWrCommands() const
+const std::vector<CommandVariant>& Scheduler::GetDmaWrCommands() const
 {
     return m_DmaWrCommands.GetCommands();
 }
 
-const std::vector<Command>& Scheduler::GetMceCommands() const
+const std::vector<CommandVariant>& Scheduler::GetMceCommands() const
 {
     return m_MceCommands.GetCommands();
 }
 
-const std::vector<Command>& Scheduler::GetPleCommands() const
+const std::vector<CommandVariant>& Scheduler::GetPleCommands() const
 {
     return m_PleCommands.GetCommands();
 }

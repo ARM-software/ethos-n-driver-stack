@@ -10,9 +10,10 @@
 
 ### Public API changes
 
-- Command stream major version 4 -> 5
-- Support library major version 3 -> 4
-- Driver library major version 5 -> 6
+- Command stream version bumped to 5
+- Support library version bumped to 4
+- Firmware version bumped to 6
+- Driver library version bumped to 6
 
 ### Other changes
 

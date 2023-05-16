@@ -23,12 +23,7 @@ TEST_CASE("Cascading/CommandStream")
                    cascading::Agent{ 0, cascading::PleS{} },
                    cascading::Agent{ 0, cascading::OfmS{} },
                },
-               { { cascading::Command{ cascading::CommandType::LoadIfmStripe, 0, 0, 0 } } },
-               { { cascading::Command{ cascading::CommandType::StoreOfmStripe, 2, 3, 0 } } },
-               { { cascading::Command{ cascading::CommandType::StartMceStripe, 0, 0, 0 } } },
-               { { cascading::Command{ cascading::CommandType::WaitForAgent, 0, 0, 0 } } },
-               { { cascading::DmaExtraData{} } }, { { cascading::ProgramMceExtraData{} } },
-               { { cascading::StartMceExtraData{} } }, { { cascading::StartPleExtraData{} } });
+               {}, {}, {}, {});
 
     csbuffer.EmplaceBack(Fence{});
     csbuffer.EmplaceBack(McePle{});

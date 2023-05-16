@@ -55,8 +55,9 @@ struct PleSDesc
     PleIfmInfo ifmInfo1;
 };
 
-/// Generates the StartPleExtraData needed for the given stripe of the given PLE scheduler agent.
-command_stream::cascading::StartPleExtraData GenerateStartPleExtraData(const PleSDesc& pleS, uint32_t stripeId);
+/// Generates the StartPleStripeCommand needed for the given stripe of the given PLE scheduler agent.
+command_stream::cascading::StartPleStripeCommand
+    GenerateStartPleStripeCommand(const PleSDesc& pleS, uint32_t agentId, uint32_t stripeId);
 
 }    // namespace support_library
 }    // namespace ethosn

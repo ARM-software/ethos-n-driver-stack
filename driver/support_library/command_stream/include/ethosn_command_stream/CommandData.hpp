@@ -191,7 +191,7 @@ NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::DELAY>, CommandData,
 template<> struct CommandData<Opcode::CASCADE> : public BinaryTuple<>
 {
     /// Total size (in bytes) of all the data in this Cascade. This includes the size of this struct,
-    /// plus the data which follows it (arrays of Agents, Commands and extra data).
+    /// plus the data which follows it (array of Agents and lists of mixed-type Commands).
     uint32_t TotalSize;
 
     /// Offset (in bytes) from the start of this struct to the array of agents.
@@ -214,24 +214,8 @@ template<> struct CommandData<Opcode::CASCADE> : public BinaryTuple<>
     uint32_t PleCommandsOffset;
     uint32_t NumPleCommands;
 
-    /// Offset (in bytes) from the start of this struct to the DMA extra data.
-    uint32_t DmaExtraDataOffset;
-    uint32_t NumDmaExtraData;
-
-    /// Offset (in bytes) from the start of this struct to the Program MCE extra data.
-    uint32_t ProgramMceExtraDataOffset;
-    uint32_t NumProgramMceExtraData;
-
-    /// Offset (in bytes) from the start of this struct to the Start MCE extra data.
-    uint32_t StartMceExtraDataOffset;
-    uint32_t NumStartMceExtraData;
-
-    /// Offset (in bytes) from the start of this struct to the Start PLE extra data.
-    uint32_t StartPleExtraDataOffset;
-    uint32_t NumStartPleExtraData;
-
     // Following this struct there will be an array of cascading::Agent then four
-    // arrays of cascading::Commands and then arrays of extra data.
+    // lists of mixed-type cascading::Commands.
     // The above fields describe this layout, and the below methods provide easy access to them.
 
     const cascading::Agent* GetAgentsArray() const
@@ -239,45 +223,25 @@ template<> struct CommandData<Opcode::CASCADE> : public BinaryTuple<>
         const char* basePtr = reinterpret_cast<const char*>(this);
         return reinterpret_cast<const cascading::Agent*>(basePtr + AgentsOffset);
     }
-    const cascading::Command* GetDmaRdCommandsArray() const
+    const cascading::Command* GetDmaRdCommandsBegin() const
     {
         const char* basePtr = reinterpret_cast<const char*>(this);
         return reinterpret_cast<const cascading::Command*>(basePtr + DmaRdCommandsOffset);
     }
-    const cascading::Command* GetDmaWrCommandsArray() const
+    const cascading::Command* GetDmaWrCommandsBegin() const
     {
         const char* basePtr = reinterpret_cast<const char*>(this);
         return reinterpret_cast<const cascading::Command*>(basePtr + DmaWrCommandsOffset);
     }
-    const cascading::Command* GetMceCommandsArray() const
+    const cascading::Command* GetMceCommandsBegin() const
     {
         const char* basePtr = reinterpret_cast<const char*>(this);
         return reinterpret_cast<const cascading::Command*>(basePtr + MceCommandsOffset);
     }
-    const cascading::Command* GetPleCommandsArray() const
+    const cascading::Command* GetPleCommandsBegin() const
     {
         const char* basePtr = reinterpret_cast<const char*>(this);
         return reinterpret_cast<const cascading::Command*>(basePtr + PleCommandsOffset);
-    }
-    const cascading::DmaExtraData* GetDmaExtraDataArray() const
-    {
-        const char* basePtr = reinterpret_cast<const char*>(this);
-        return reinterpret_cast<const cascading::DmaExtraData*>(basePtr + DmaExtraDataOffset);
-    }
-    const cascading::ProgramMceExtraData* GetProgramMceExtraDataArray() const
-    {
-        const char* basePtr = reinterpret_cast<const char*>(this);
-        return reinterpret_cast<const cascading::ProgramMceExtraData*>(basePtr + ProgramMceExtraDataOffset);
-    }
-    const cascading::StartMceExtraData* GetStartMceExtraDataArray() const
-    {
-        const char* basePtr = reinterpret_cast<const char*>(this);
-        return reinterpret_cast<const cascading::StartMceExtraData*>(basePtr + StartMceExtraDataOffset);
-    }
-    const cascading::StartPleExtraData* GetStartPleExtraDataArray() const
-    {
-        const char* basePtr = reinterpret_cast<const char*>(this);
-        return reinterpret_cast<const cascading::StartPleExtraData*>(basePtr + StartPleExtraDataOffset);
     }
 };
 
