@@ -16,7 +16,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#define FW_AND_HW_CAPABILITIES_VERSION 6
+#define FW_AND_HW_CAPABILITIES_VERSION 7
 
 namespace ethosn
 {
@@ -78,9 +78,6 @@ struct FirmwareAndHardwareCapabilities
     uint32_t m_WeightCompressionVersion;
     uint32_t m_ActivationCompressionVersion;
     uint32_t m_IsNchwSupported;
-
-    // Firmware capabilities
-    uint32_t m_AgentWindowSize;
 };
 
 // The FirmwareAndHardwareCapabilities struct is copied through the driver stack as a simple block of memory

@@ -761,73 +761,6 @@ void Combiner::DeallocateUnusedBuffers(const Buffer& prevPlanBuffer, SectionCont
     }
 }
 
-bool Combiner::IsSectionSizeSupported(bool startOrSinglePartSection,
-                                      bool endOrSinglePartSection,
-                                      const Plan& plan,
-                                      uint32_t& totalAgents)
-{
-    bool result = true;
-
-    // Account for any Dma Ops in the glue logic at the input edge of the plan
-    if (startOrSinglePartSection)
-    {
-        for (auto const& inputMapping : plan.m_InputMappings)
-        {
-            // A corresponding Dma Op in glue logic is not needed if the buffer is in Dram
-            if (inputMapping.first->m_Location != Location::Dram)
-            {
-                // If any of the input buffer's consumers is Cascade, the buffer's producer Dma Op
-                // must also be cascade. Assume that the Dma Op would result in a single agent.
-                // Therefore, increment the agent count by one.
-                if (!inputMapping.first->IsFullTensor())
-                {
-                    totalAgents += 1;
-                }
-            }
-        }
-    }
-
-    // Count Agents for each Op in the graph. The Ops should be in execution order.
-    for (Op* op : plan.m_OpGraph.GetOps())
-    {
-        totalAgents += op->GetNumberOfAgents();
-        result &= totalAgents <= m_Caps.GetAgentWindowSize();
-
-        // The total is to be reset when all preceding Agents have finished execution.
-        // All preceding Agents must finish execution when an Atomic Op finishes
-        // execution. This Atomic Op must be in the path from IFM to OFM. We can
-        // identify whether an Op is in the path from IFM to OFM by checking its
-        // output buffer's format. If the buffer's format is WEIGHT, it means that the
-        // buffer's producer loads weights and hence it is not in the IFM to OFM path.
-        if (plan.m_OpGraph.GetOutput(op)->m_Format != CascadingBufferFormat::WEIGHT)
-        {
-            totalAgents = plan.m_OpGraph.GetOutput(op)->IsFullTensor() ? 0 : totalAgents;
-        }
-    }
-
-    // Account for any Dma Ops in the glue logic at the output edge of the plan
-    if (endOrSinglePartSection)
-    {
-        for (auto const& outputMapping : plan.m_OutputMappings)
-        {
-            // A corresponding Dma Op in glue logic is not needed if the buffer is in Dram
-            if (outputMapping.first->m_Location != Location::Dram)
-            {
-                // If the output buffer's producer is cascade, the buffer's consumer Dma Op must also
-                // be cascade. Assume that the Dma Op would result in a single agent. Therefore,
-                // increment the agent count by one.
-                if (!outputMapping.first->IsFullTensor())
-                {
-                    totalAgents += 1;
-                }
-            }
-        }
-    }
-
-    result &= totalAgents <= m_Caps.GetAgentWindowSize();
-    return result;
-}
-
 // This is a single part not merged with any other part.
 // It does not need to check if the plan is compatible
 // with the available SRAM since only valid plans are generated.
@@ -870,15 +803,9 @@ Combination Combiner::ChooseBestLonelyPlan(const BasePart& part)
         {
             SramAllocator alloc(m_Caps.GetTotalSramSize() / m_Caps.GetNumberOfSrams());
             PleOperations pleOps = {};
-            SectionContext context{ {}, alloc, pleOps, {}, 0, false, 0 };
+            SectionContext context{ {}, alloc, pleOps, {}, 0, false };
 
             if (!IsPlanAllocated(context, plan, nullptr, true))
-            {
-                continue;
-            }
-            // Start counting total agents from 0 because this is a single part section
-            uint32_t totalAgents = 0;
-            if (!IsSectionSizeSupported(true, true, plan, totalAgents))
             {
                 continue;
             }
@@ -972,7 +899,7 @@ std::vector<SectionContext> Combiner::StartSection(const BasePart& part)
             // in the SRAM as kernel reload is deemed to be costly.
             // The list is updated whenever a new kernel is encountered.
             PleOperations pleOps = {};
-            SectionContext context{ {}, alloc, pleOps, {}, currNumWeightStripes, hasSectionDoubleBuffered, 0 };
+            SectionContext context{ {}, alloc, pleOps, {}, currNumWeightStripes, hasSectionDoubleBuffered };
 
             // Allocation requirement are different for start of section
             if (!IsPlanAllocated(context, plan, nullptr, true))
@@ -980,14 +907,7 @@ std::vector<SectionContext> Combiner::StartSection(const BasePart& part)
                 continue;
             }
 
-            // Start counting total agents at 0 becasue this is the start of a section
-            uint32_t totalAgents = 0;
-            if (!IsSectionSizeSupported(true, false, plan, totalAgents))
-            {
-                continue;
-            }
-            context.totalAgents = totalAgents;
-            context.comb        = Combination(part.GetPartId(), std::move(plan));
+            context.comb = Combination(part.GetPartId(), std::move(plan));
 
             result.push_back(context);
         }
@@ -1087,11 +1007,6 @@ std::vector<SectionContext> Combiner::ContinueSection(const BasePart& part, cons
                 continue;
             }
 
-            if (!IsSectionSizeSupported(false, false, plan, tempContext.totalAgents))
-            {
-                continue;
-            }
-
             // Add current part and plan to the combination,
             // no glue is required. Current part is SISO and
             // has a single input/output
@@ -1169,11 +1084,6 @@ std::vector<SectionContext> Combiner::EndSection(const BasePart& part, const Sec
             SectionContext tempContext = contextCopy;
 
             if (!IsPlanAllocated(tempContext, plan, sramBuffer, false))
-            {
-                continue;
-            }
-
-            if (!IsSectionSizeSupported(false, true, plan, tempContext.totalAgents))
             {
                 continue;
             }

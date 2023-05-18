@@ -591,11 +591,6 @@ PleOp::PleOp(PleOperation op,
                                                         utils::GetCommandDataType(dataType), op);
 }
 
-uint32_t PleOp::GetNumberOfAgents() const
-{
-    return m_LoadKernel ? 2 : 1;
-}
-
 DotAttributes PleOp::GetDotAttributes(DetailLevel detail) const
 {
     DotAttributes result;

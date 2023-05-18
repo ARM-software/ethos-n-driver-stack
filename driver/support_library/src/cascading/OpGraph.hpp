@@ -176,10 +176,6 @@ public:
     {
         return utils::Optional<command_stream::BlockConfig>{};
     }
-    virtual uint32_t GetNumberOfAgents() const
-    {
-        return 1;
-    }
 
     virtual DotAttributes GetDotAttributes(DetailLevel) const override;
 
@@ -258,7 +254,6 @@ public:
         return m_BlockConfig;
     }
 
-    virtual uint32_t GetNumberOfAgents() const override final;
     virtual DotAttributes GetDotAttributes(DetailLevel) const override;
 
     command_stream::PleOperation m_Op;

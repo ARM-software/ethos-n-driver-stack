@@ -142,7 +142,6 @@ struct SectionContext
     std::vector<SramBuffer*> allocatedBuffers;
     uint32_t currNumWeightStripes;
     bool hasSectionDoubleBuffered;
-    uint32_t totalAgents;
 };
 
 using Combinations = std::vector<Combination>;
@@ -171,11 +170,6 @@ protected:
                          const Buffer* const outBufOfPrevPlanInSection,
                          bool inputBufferNeedAllocation) const;
     void DeallocateUnusedBuffers(const Buffer& prevPlanBuffer, SectionContext& context);
-
-    bool IsSectionSizeSupported(bool startOrSinglePartSection,
-                                bool endOrSinglePartSection,
-                                const Plan& plan,
-                                uint32_t& totalAgents);
 
     Combination GluePartToCombinationSrcToDests(const BasePart& sPart, const Combination& comb, uint32_t outputSlotIdx);
 

@@ -74,34 +74,6 @@ HardwareCapabilities GetEthosN78HwCapabilities()
     return HardwareCapabilities(fwHwCapabilities);
 }
 
-namespace
-{
-
-FirmwareAndHardwareCapabilities
-    GetFwHwCapabilitiesWithFwOverrides(EthosNVariant variant,
-                                       utils::Optional<uint32_t> sramSizeOverride,
-                                       utils::Optional<uint32_t> ctrlAgentWindowSizeOverride)
-{
-    FirmwareAndHardwareCapabilities fwHwCapabilities =
-        GetEthosN78FwHwCapabilities(variant, sramSizeOverride.has_value() ? sramSizeOverride.value() : 0);
-    if (ctrlAgentWindowSizeOverride.has_value())
-    {
-        fwHwCapabilities.m_AgentWindowSize = ctrlAgentWindowSizeOverride.value();
-    }
-    return fwHwCapabilities;
-}
-
-}    // namespace
-
-HardwareCapabilities GetHwCapabilitiesWithFwOverrides(EthosNVariant variant,
-                                                      utils::Optional<uint32_t> sramSizeOverride,
-                                                      utils::Optional<uint32_t> ctrlAgentWindowSizeOverride)
-{
-    FirmwareAndHardwareCapabilities fwHwCapabilities =
-        GetFwHwCapabilitiesWithFwOverrides(variant, sramSizeOverride, ctrlAgentWindowSizeOverride);
-    return HardwareCapabilities(fwHwCapabilities);
-}
-
 HardwareCapabilities GetEthosN78HwCapabilities(EthosNVariant variant, uint32_t sramSizeOverride)
 {
     FirmwareAndHardwareCapabilities fwHwCapabilities = GetEthosN78FwHwCapabilities(variant, sramSizeOverride);
@@ -136,15 +108,6 @@ std::vector<char> GetRawDefaultEthosN78Capabilities()
 std::vector<char> GetRawEthosN78Capabilities(EthosNVariant variant, uint32_t sramSizeOverride)
 {
     FirmwareAndHardwareCapabilities fwHwCapabilities = GetEthosN78FwHwCapabilities(variant, sramSizeOverride);
-    return GetRawCapabilities(fwHwCapabilities);
-}
-
-std::vector<char> GetRawCapabilitiesWithFwOverrides(EthosNVariant variant,
-                                                    utils::Optional<uint32_t> sramSizeOverride,
-                                                    utils::Optional<uint32_t> ctrlAgentWindowSizeOverride)
-{
-    FirmwareAndHardwareCapabilities fwHwCapabilities =
-        GetFwHwCapabilitiesWithFwOverrides(variant, sramSizeOverride, ctrlAgentWindowSizeOverride);
     return GetRawCapabilities(fwHwCapabilities);
 }
 

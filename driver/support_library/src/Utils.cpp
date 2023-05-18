@@ -98,11 +98,6 @@ uint32_t HardwareCapabilities::GetNumberOfPleLanes() const
     return m_FirmwareAndHardwareCapabilities.m_NumPleLanes;
 }
 
-uint32_t HardwareCapabilities::GetAgentWindowSize() const
-{
-    return m_FirmwareAndHardwareCapabilities.m_AgentWindowSize;
-}
-
 namespace utils
 {
 

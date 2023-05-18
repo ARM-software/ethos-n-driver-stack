@@ -768,9 +768,8 @@ TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
     FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
     CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
-    SectionContext context = {
-        {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {}, 0, false, 0
-    };
+    SectionContext context = { {},   SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {}, 0,
+                               false };
 
     // Check that no buffers are allocated before calling IsPlanAllocated().
     REQUIRE(context.alloc.GetAllocationSize() == 0);
@@ -875,9 +874,8 @@ TEST_CASE("BufferDeallocationTest_CascadeOps", "[CombinerDFS]")
     FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
     CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
-    SectionContext context = {
-        {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {}, 0, false, 0
-    };
+    SectionContext context = { {},   SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {}, 0,
+                               false };
 
     // Check that no buffers are allocated before calling IsPlanAllocated().
     REQUIRE(context.alloc.GetAllocationSize() == 0);
@@ -3443,9 +3441,8 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
     FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
     CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
-    SectionContext context = {
-        {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {}, 0, false, 0
-    };
+    SectionContext context = { {},   SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {}, 0,
+                               false };
 
     // SRAM has enough space for ofm and the plan does not have a PLE kernel
     SectionContext context1 = context;
@@ -3531,9 +3528,9 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
 
         FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
         CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
-        SectionContext context = {
-            {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {}, 0, false, 0
-        };
+        SectionContext context     = { {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()),
+                                   {}, {},
+                                   0,  false };
         uint32_t currentSramOffset = 0;
 
         Plan planA;
@@ -3645,9 +3642,9 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
 
         FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
         CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
-        SectionContext context = {
-            {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {}, 0, false, 0
-        };
+        SectionContext context     = { {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()),
+                                   {}, {},
+                                   0,  false };
         uint32_t currentSramOffset = 0;
 
         Plan planA;
@@ -3946,276 +3943,6 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
             }
 
             ETHOSN_UNUSED(outBufferAndPleOp);
-        }
-    }
-}
-
-TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
-{
-    uint32_t totalAgentsRef = 0;
-
-    GraphOfParts graph;
-
-    size_t mceOpIndex;
-    size_t pleOpIndex;
-    size_t dmaOpIndex;
-
-    // Create 3 identical plans, each of the topology:
-    //     Input - Mce - PleInputSram - Ple - Output
-    //             /
-    //     Dma - Weights
-    PartInputSlot partsInputSlot0[3];
-    PartOutputSlot partsOutputSlot0[3];
-    Plan plans[3];
-    int i = 0;
-    for (Plan& plan : plans)
-    {
-        auto part     = std::make_unique<MockPart>(graph.GeneratePartId());
-        PartId partId = part->GetPartId();
-        graph.AddPart(std::move(part));
-
-        partsInputSlot0[i]  = { partId, 0 };
-        partsOutputSlot0[i] = { partId, 0 };
-
-        SramBuffer* buffer1     = plan.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
-        buffer1->m_Format       = CascadingBufferFormat::NHWCB;
-        buffer1->m_TensorShape  = TensorShape{ 1, 32, 16, 16 };
-        buffer1->m_StripeShape  = TensorShape{ 1, 16, 16, 16 };
-        buffer1->m_Order        = TraversalOrder::Xyz;
-        buffer1->m_SizeInBytes  = 4;
-        buffer1->m_DebugTag     = "InputSram";
-        size_t inputBufferIndex = plan.m_OpGraph.GetBuffers().size() - 1;
-
-        PleInputSramBuffer* buffer2 = plan.m_OpGraph.AddBuffer(std::make_unique<PleInputSramBuffer>());
-        buffer2->m_Format           = CascadingBufferFormat::NHWCB;
-        buffer2->m_TensorShape      = TensorShape{ 1, 32, 16, 16 };
-        buffer2->m_StripeShape      = TensorShape{ 1, 16, 16, 16 };
-        buffer2->m_SizeInBytes      = 4;
-        buffer2->m_DebugTag         = "PleInputSram";
-        size_t pleInputSramIndex    = plan.m_OpGraph.GetBuffers().size() - 1;
-
-        SramBuffer* buffer3          = plan.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
-        buffer3->m_Format            = CascadingBufferFormat::WEIGHT;
-        buffer3->m_TensorShape       = TensorShape{ 1, 32, 16, 16 };
-        buffer3->m_StripeShape       = TensorShape{ 1, 16, 16, 16 };
-        buffer3->m_Order             = TraversalOrder::Xyz;
-        buffer3->m_SizeInBytes       = 4;
-        buffer3->m_DebugTag          = "MceWeightsSram";
-        size_t mceWeightsBufferIndex = plan.m_OpGraph.GetBuffers().size() - 1;
-
-        SramBuffer* buffer4      = plan.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
-        buffer4->m_Format        = CascadingBufferFormat::NHWCB;
-        buffer4->m_TensorShape   = TensorShape{ 1, 32, 16, 16 };
-        buffer4->m_StripeShape   = TensorShape{ 1, 16, 16, 16 };
-        buffer4->m_Order         = TraversalOrder::Xyz;
-        buffer4->m_SizeInBytes   = 4;
-        buffer4->m_DebugTag      = "OutputSram";
-        size_t outputBufferIndex = plan.m_OpGraph.GetBuffers().size() - 1;
-
-        plan.m_OpGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
-        dmaOpIndex                                      = plan.m_OpGraph.GetOps().size() - 1;
-        plan.m_OpGraph.GetOps()[dmaOpIndex]->m_DebugTag = "DmaOp";
-        // GetNumberOfAgents() returns the number of agents needed execute the Op.
-        // According to current implementation of the function, it returns 2 if a
-        // Ple Op's Kernel needs to be loaded from Dram. In every other case, it
-        // returns 1. The test below assumes this implementation of the function.
-        totalAgentsRef += plan.m_OpGraph.GetOps()[dmaOpIndex]->GetNumberOfAgents();
-
-        // All Ops with have Lifetime::Cascade
-        plan.m_OpGraph.AddOp(std::make_unique<MceOp>());
-        mceOpIndex                                      = plan.m_OpGraph.GetOps().size() - 1;
-        plan.m_OpGraph.GetOps()[mceOpIndex]->m_DebugTag = "MceOp";
-        totalAgentsRef += plan.m_OpGraph.GetOps()[mceOpIndex]->GetNumberOfAgents();
-
-        plan.m_OpGraph.AddOp(std::make_unique<PleOp>());
-        pleOpIndex                                      = plan.m_OpGraph.GetOps().size() - 1;
-        plan.m_OpGraph.GetOps()[pleOpIndex]->m_DebugTag = "PleOp";
-        totalAgentsRef += plan.m_OpGraph.GetOps()[pleOpIndex]->GetNumberOfAgents();
-
-        plan.m_OpGraph.AddConsumer(plan.m_OpGraph.GetBuffers()[inputBufferIndex], plan.m_OpGraph.GetOps()[mceOpIndex],
-                                   0);
-        plan.m_OpGraph.SetProducer(plan.m_OpGraph.GetBuffers()[pleInputSramIndex], plan.m_OpGraph.GetOps()[mceOpIndex]);
-        plan.m_OpGraph.AddConsumer(plan.m_OpGraph.GetBuffers()[pleInputSramIndex], plan.m_OpGraph.GetOps()[pleOpIndex],
-                                   0);
-        plan.m_OpGraph.AddConsumer(plan.m_OpGraph.GetBuffers()[mceWeightsBufferIndex],
-                                   plan.m_OpGraph.GetOps()[mceOpIndex], 1);
-        plan.m_OpGraph.SetProducer(plan.m_OpGraph.GetBuffers()[outputBufferIndex], plan.m_OpGraph.GetOps()[pleOpIndex]);
-        plan.m_OpGraph.SetProducer(plan.m_OpGraph.GetBuffers()[mceWeightsBufferIndex],
-                                   plan.m_OpGraph.GetOps()[dmaOpIndex]);
-        plan.m_InputMappings  = { { plan.m_OpGraph.GetBuffers()[inputBufferIndex], partsInputSlot0[i] } };
-        plan.m_OutputMappings = { { plan.m_OpGraph.GetBuffers()[outputBufferIndex], partsOutputSlot0[i] } };
-
-        ++i;
-    }
-
-    // Account for Dma Ops in glue logic
-    totalAgentsRef += 2;
-
-    uint32_t totalAgents = 0;
-
-    const CompilationOptions compOpt;
-    const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
-
-    GIVEN("Three plans that can be combined into a single section")
-    {
-        WHEN("Window size is greater than the total number of agents")
-        {
-            const HardwareCapabilities hwCaps =
-                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef + 1);
-            CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
-
-            REQUIRE(combiner.IsSectionSizeSupported(true, false, plans[0], totalAgents) == true);
-            REQUIRE(combiner.IsSectionSizeSupported(false, false, plans[1], totalAgents) == true);
-            REQUIRE(combiner.IsSectionSizeSupported(false, true, plans[2], totalAgents) == true);
-        }
-        WHEN("Window size is equal to the total number of agents")
-        {
-            const HardwareCapabilities hwCaps =
-                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef);
-            CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
-
-            REQUIRE(combiner.IsSectionSizeSupported(true, false, plans[0], totalAgents) == true);
-            REQUIRE(combiner.IsSectionSizeSupported(false, false, plans[1], totalAgents) == true);
-            REQUIRE(combiner.IsSectionSizeSupported(false, true, plans[2], totalAgents) == true);
-            REQUIRE(totalAgents == totalAgentsRef);
-        }
-        WHEN("Window size is smaller than the total number of agents if all Ops were Cascade")
-        {
-            const HardwareCapabilities hwCaps =
-                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef - 1);
-            CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
-
-            REQUIRE(combiner.IsSectionSizeSupported(true, false, plans[0], totalAgents) == true);
-            WHEN("All Ops are Cascade")
-            {
-                uint32_t totalAgentsComb1 = totalAgents;
-                REQUIRE(combiner.IsSectionSizeSupported(false, false, plans[1], totalAgentsComb1) == true);
-                REQUIRE(combiner.IsSectionSizeSupported(false, true, plans[2], totalAgentsComb1) == false);
-                REQUIRE(totalAgentsComb1 == 14);
-
-                uint32_t totalAgentsComb2 = totalAgents;
-                REQUIRE(combiner.IsSectionSizeSupported(false, true, plans[1], totalAgentsComb2) == true);
-                REQUIRE(totalAgentsComb2 == 10);
-            }
-            WHEN("The Output of the Ple Op the full tensor")
-            {
-                plans[1].m_OpGraph.GetBuffers()[3]->Sram()->m_StripeShape =
-                    plans[1].m_OpGraph.GetBuffers()[3]->m_TensorShape;
-                REQUIRE(combiner.IsSectionSizeSupported(false, false, plans[1], totalAgents) == true);
-                REQUIRE(combiner.IsSectionSizeSupported(false, true, plans[2], totalAgents) == true);
-            }
-            WHEN("The Mce Op in the third plan is Atomic")
-            {
-                plans[2].m_OpGraph.GetBuffers()[3]->Sram()->m_StripeShape =
-                    plans[2].m_OpGraph.GetBuffers()[3]->m_TensorShape;
-                REQUIRE(combiner.IsSectionSizeSupported(false, false, plans[1], totalAgents) == true);
-                REQUIRE(combiner.IsSectionSizeSupported(false, true, plans[2], totalAgents) == true);
-            }
-            WHEN("The weight loader Dma Op in the second plan is Atomic")
-            {
-                plans[1].m_OpGraph.GetBuffers()[2]->Sram()->m_StripeShape =
-                    plans[1].m_OpGraph.GetBuffers()[2]->m_TensorShape;
-                REQUIRE(combiner.IsSectionSizeSupported(false, false, plans[1], totalAgents) == true);
-                REQUIRE(combiner.IsSectionSizeSupported(false, true, plans[2], totalAgents) == false);
-            }
-        }
-        WHEN("Window size is smaller than the total number of agents so that no plan fits")
-        {
-            const HardwareCapabilities hwCaps =
-                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 3);
-            CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
-
-            REQUIRE(combiner.IsSectionSizeSupported(true, false, plans[0], totalAgents) == false);
-            REQUIRE(combiner.IsSectionSizeSupported(false, false, plans[1], totalAgents) == false);
-            REQUIRE(combiner.IsSectionSizeSupported(false, true, plans[2], totalAgents) == false);
-        }
-    }
-    GIVEN("A single part section")
-    {
-        WHEN("Window size can accomodate the plan")
-        {
-            const HardwareCapabilities hwCaps =
-                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 16);
-            CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
-
-            REQUIRE(combiner.IsSectionSizeSupported(true, true, plans[0], totalAgents) == true);
-        }
-        WHEN("Window size is smaller than the plan")
-        {
-            const HardwareCapabilities hwCaps =
-                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 2);
-            CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
-
-            REQUIRE(combiner.IsSectionSizeSupported(true, true, plans[0], totalAgents) == false);
-        }
-        WHEN("Window size is only 4 but all Ops are Atomic")
-        {
-            const HardwareCapabilities hwCaps =
-                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 4);
-            CombinerTest combiner(FrozenGraphOfParts(std::move(graph)), hwCaps, compOpt, estOpt, debuggingContext);
-            for (Buffer* b : plans[0].m_OpGraph.GetBuffers())
-            {
-                if (b->m_Location == Location::PleInputSram)
-                {
-                    b->PleInputSram()->m_StripeShape = b->m_TensorShape;
-                }
-                else
-                {
-                    b->Sram()->m_StripeShape = b->m_TensorShape;
-                }
-            }
-            REQUIRE(combiner.IsSectionSizeSupported(true, true, plans[0], totalAgents) == true);
-        }
-        WHEN("The plan contains a Concat Part")
-        {
-            const PartId partId = 1;
-
-            std::vector<ethosn::support_library::TensorInfo> inputTensorsInfo;
-            ethosn::support_library::TensorInfo inputTensorInfo1;
-            ethosn::support_library::TensorInfo inputTensorInfo2;
-
-            inputTensorInfo1.m_Dimensions = { 1, 16, 16, 16 };
-            inputTensorInfo1.m_DataType   = ethosn::support_library::DataType::INT8_QUANTIZED;
-            inputTensorInfo1.m_DataFormat = ethosn::support_library::DataFormat::NHWC;
-
-            inputTensorInfo2.m_Dimensions = { 1, 16, 16, 16 };
-            inputTensorInfo2.m_DataType   = ethosn::support_library::DataType::INT8_QUANTIZED;
-            inputTensorInfo2.m_DataFormat = ethosn::support_library::DataFormat::NHWC;
-
-            inputTensorsInfo.push_back(inputTensorInfo1);
-            inputTensorsInfo.push_back(inputTensorInfo2);
-
-            ethosn::support_library::TensorInfo outputTensorInfo;
-            outputTensorInfo.m_Dimensions = { 1, 32, 16, 16 };
-            outputTensorInfo.m_DataType   = ethosn::support_library::DataType::INT8_QUANTIZED;
-            outputTensorInfo.m_DataFormat = ethosn::support_library::DataFormat::NHWC;
-
-            QuantizationInfo quantizationInfo(0, 1.0f);
-            ConcatenationInfo concatInfo(1, quantizationInfo);
-
-            const std::set<uint32_t> operationIds = { 1 };
-            const EstimationOptions estOpt;
-            const CompilationOptions compOpt;
-
-            const HardwareCapabilities hwCaps =
-                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 64);
-
-            ConcatPart concatPart(partId, inputTensorsInfo, outputTensorInfo, concatInfo.m_Axis, { 0, 16 }, false,
-                                  operationIds, estOpt, compOpt, hwCaps);
-
-            Plans concatPlans =
-                concatPart.GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 0);
-
-            FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
-            CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
-
-            REQUIRE(combiner.IsSectionSizeSupported(true, true, concatPlans[0], totalAgents) == true);
-
-            // The number of agents in a Concat Part must be equal to twice the number of its inputs. As the number of
-            // inputs in this case is two, the number of agents must be 4. However by the end of the plan,
-            // the data is back in DRAM so the final tally is zero.
-            REQUIRE(totalAgents == 0);
         }
     }
 }

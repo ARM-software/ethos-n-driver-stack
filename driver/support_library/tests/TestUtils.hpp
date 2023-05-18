@@ -19,17 +19,11 @@ namespace support_library
 {
 
 HardwareCapabilities GetEthosN78HwCapabilities();
-HardwareCapabilities GetHwCapabilitiesWithFwOverrides(EthosNVariant variant,
-                                                      utils::Optional<uint32_t> sramSizeOverride,
-                                                      utils::Optional<uint32_t> ctrlAgentWindowSizeOverride);
 HardwareCapabilities GetEthosN78HwCapabilities(EthosNVariant variant, uint32_t sramSizeOverride = 0);
 
 std::vector<char> GetRawDefaultCapabilities();
 std::vector<char> GetRawDefaultEthosN78Capabilities();
 std::vector<char> GetRawEthosN78Capabilities(EthosNVariant variant, uint32_t sramSizeOverride = 0);
-std::vector<char> GetRawCapabilitiesWithFwOverrides(EthosNVariant variant,
-                                                    utils::Optional<uint32_t> sramSizeOverride,
-                                                    utils::Optional<uint32_t> ctrlAgentWindowSizeOverride);
 
 bool Contains(const char* string, const char* substring);
 
@@ -160,14 +154,6 @@ public:
     void DeallocateUnusedBuffers(const Buffer& prevPlanBuffer, SectionContext& context)
     {
         return Combiner::DeallocateUnusedBuffers(prevPlanBuffer, context);
-    }
-
-    bool IsSectionSizeSupported(bool startOrSinglePartSection,
-                                bool endOrSinglePartSection,
-                                const Plan& plan,
-                                uint32_t& totalAgents)
-    {
-        return Combiner::IsSectionSizeSupported(startOrSinglePartSection, endOrSinglePartSection, plan, totalAgents);
     }
 
     Combination GluePartToCombinationSrcToDests(const BasePart& sPart, const Combination& comb, uint32_t outputSlotIdx)
