@@ -86,41 +86,6 @@ private:
     const CompilationOptions compOpt = CompilationOptions();
 };
 
-/// Simple Node type for tests.
-/// Includes a friendly name and ignores shape, quantisation info etc. so that tests
-/// can focus on graph topology.
-class NameOnlyNode : public Node
-{
-public:
-    // cppcheck-suppress passedByValue
-    NameOnlyNode(NodeId id, std::string name)
-        : Node(id,
-               TensorShape(),
-               DataType::UINT8_QUANTIZED,
-               QuantizationInfo(),
-               CompilerDataFormat::NONE,
-               std::set<uint32_t>{ 0 })
-        , m_Name(std::move(name))
-    {}
-
-    DotAttributes GetDotAttributes() override
-    {
-        return DotAttributes(std::to_string(m_Id), m_Name, "");
-    }
-
-    bool IsPrepared() override
-    {
-        return false;
-    }
-
-    NodeType GetNodeType() override
-    {
-        return NodeType::NameOnlyNode;
-    }
-
-    std::string m_Name;
-};
-
 bool IsEstimateOnlyOp(const Op* const op);
 bool IsMceOp(const Op* const op);
 bool IsPleOp(const Op* const op);

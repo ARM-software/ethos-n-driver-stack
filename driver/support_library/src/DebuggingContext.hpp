@@ -22,17 +22,11 @@ namespace cascading_compiler
 struct CompiledOpGraph;
 }
 
-class Graph;
 class GraphOfParts;
 class Node;
 struct DebuggingContext
 {
 public:
-    struct NodeToCreateSourceTuple
-    {
-        const Node* node;
-        std::string creationSource;
-    };
     DebuggingContext(const CompilationOptions::DebugInfo& debugInfo);
 
     void Save(CompilationOptions::DebugLevel level,
@@ -42,9 +36,6 @@ public:
     CompilationOptions::DebugInfo m_DebugInfo;
 
     std::string GetAbsolutePathOutputFileName(const std::string& fileName) const;
-
-    const std::string& GetStringFromNode(const Node* m) const;
-    void AddNodeCreationSource(NodeToCreateSourceTuple tuple);
 
     uint32_t GetMaxNumDumps() const
     {

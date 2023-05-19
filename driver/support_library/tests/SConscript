@@ -43,7 +43,6 @@ srcs = [
     "SupportQueriesTests.cpp",
     "SubmapFilterTests.cpp",
     "CapabilitiesTests.cpp",
-    "GraphTests.cpp",
     "CombinerDFSTests.cpp",
     "PlanTests.cpp",
     "OpGraphTests.cpp",

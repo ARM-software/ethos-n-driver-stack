@@ -12,15 +12,8 @@ namespace command_stream
 
 enum class Opcode : uint8_t
 {
-    OPERATION_MCE_PLE,
-    OPERATION_PLE_ONLY,
-    OPERATION_CONVERT,
-    OPERATION_SPACE_TO_DEPTH,
     DUMP_DRAM,
     DUMP_SRAM,
-    FENCE,
-    SECTION,
-    DELAY,
     CASCADE
 };
 

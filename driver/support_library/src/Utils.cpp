@@ -6,7 +6,6 @@
 #include "Utils.hpp"
 
 #include "Compiler.hpp"
-#include "GraphNodes.hpp"
 #include "cascading/Part.hpp"
 
 #include <iomanip>
@@ -383,24 +382,6 @@ command_stream::DataType GetCommandDataType(const DataType supportLibraryDataTyp
     }
 }
 
-bool IsDataTypeSigned(const DataType type)
-{
-    switch (type)
-    {
-        case DataType::UINT8_QUANTIZED:
-            return false;
-        case DataType::INT8_QUANTIZED:
-        case DataType::INT32_QUANTIZED:
-            return true;
-        default:
-        {
-            std::string errorMessage = "Error in " + std::string(__func__) + ": DataType " +
-                                       std::to_string(static_cast<uint32_t>(type)) + " not supported";
-            throw std::invalid_argument(errorMessage);
-        }
-    }
-}
-
 DataTypeRange GetRangeOfDataType(const DataType type)
 {
     switch (type)
@@ -417,43 +398,6 @@ DataTypeRange GetRangeOfDataType(const DataType type)
                                        std::to_string(static_cast<uint32_t>(type)) + " not supported";
             throw std::invalid_argument(errorMessage);
         }
-    }
-}
-
-command_stream::UpsampleType ConvertResizeAlgorithmToCommand(const ResizeAlgorithm algorithm)
-{
-    if (algorithm == ResizeAlgorithm::BILINEAR)
-    {
-        return command_stream::UpsampleType::BILINEAR;
-    }
-    else if (algorithm == ResizeAlgorithm::NEAREST_NEIGHBOUR)
-    {
-        return command_stream::UpsampleType::NEAREST_NEIGHBOUR;
-    }
-    else
-    {
-        assert(false);
-        return command_stream::UpsampleType::OFF;
-    }
-}
-
-bool IsCompressionFormatCompatibleWithStripeShapeLegacy(CompilerDataCompressedFormat compressionFormat,
-                                                        const TensorShape& stripeShape)
-{
-    switch (compressionFormat)
-    {
-        case CompilerDataCompressedFormat::FCAF_DEEP:
-            // The stripe shape must be a multiple of the cells height (8), width (8) and depth (32)
-            return ((GetHeight(stripeShape) % GetHeight(g_FcafDeepCellShape)) == 0) &&
-                   ((GetWidth(stripeShape) % GetWidth(g_FcafDeepCellShape)) == 0) &&
-                   ((GetChannels(stripeShape) % GetChannels(g_FcafDeepCellShape)) == 0);
-        case CompilerDataCompressedFormat::FCAF_WIDE:
-            // The stripe shape must be a multiple of the cells height (8), width (16) and depth (16)
-            return ((GetHeight(stripeShape) % GetHeight(g_FcafWideCellShape)) == 0) &&
-                   ((GetWidth(stripeShape) % GetWidth(g_FcafWideCellShape)) == 0) &&
-                   ((GetChannels(stripeShape) % GetChannels(g_FcafWideCellShape)) == 0);
-        default:
-            return false;
     }
 }
 
@@ -543,33 +487,6 @@ CompilerMceAlgorithm FindBestConvAlgorithm(const HardwareCapabilities& caps, uin
     }
 }
 
-TensorShape GetRoundedWeights(const TensorShape& originalShape, const CompilerMceAlgorithm algorithm)
-{
-    TensorShape newShape = originalShape;
-    if (algorithm == CompilerMceAlgorithm::Winograd ||
-        (algorithm == CompilerMceAlgorithm::Direct && ((originalShape[0] > 7) || (originalShape[1] > 7))))
-    {
-        // WINOGRAD: width and height are rounded up to multiple of 3
-        // if it is not equal to 1
-        // This needs to be taken into consideration in selecting
-        // memory strategy.
-        // DIRECT: wide kernel mode (H or W, both > 7)
-        // then both H,W are rounded up to multiple of 3
-        // unless H, W = 1
-        if (originalShape[0] != 1)
-        {
-            newShape[0] = utils::RoundUpToNearestMultiple(originalShape[0], 3U);
-        }
-
-        if (originalShape[1] != 1)
-        {
-            newShape[1] = utils::RoundUpToNearestMultiple(originalShape[1], 3U);
-        }
-    }
-
-    return newShape;
-}
-
 constexpr bool FilterToSize(const command_stream::BlockConfig& blockConfig, uint32_t width, uint32_t height)
 {
     return blockConfig == command_stream::BlockConfig{ width, height };
@@ -579,28 +496,6 @@ bool FilterToSizes(const command_stream::BlockConfig& blockConfig,
                    const std::initializer_list<command_stream::BlockConfig>& allowedConfigs)
 {
     return std::find(allowedConfigs.begin(), allowedConfigs.end(), blockConfig) != allowedConfigs.end();
-}
-
-std::vector<command_stream::BlockConfig>
-    FilterMceBlockConfigs(const MceOperationNode* mceOperation,
-                          const std::vector<command_stream::BlockConfig>& allowedBlockConfigs)
-{
-    std::vector<command_stream::BlockConfig> res = allowedBlockConfigs;
-
-    if (mceOperation != nullptr)
-    {
-        const command_stream::MceOperation mceOp = mceOperation->GetOperation();
-
-        if (mceOp == command_stream::MceOperation::FULLY_CONNECTED)
-        {
-            auto FilterTo8x8 = [](const command_stream::BlockConfig& blockConfig) {
-                return FilterToSize(blockConfig, 8, 8);
-            };
-            // Fully Connected wants to force a 8x8 block size. We'll do this here by limiting the block configs.
-            res = Filter(res, FilterTo8x8);
-        }
-    }
-    return res;
 }
 
 std::vector<command_stream::BlockConfig>
@@ -650,20 +545,6 @@ std::vector<command_stream::BlockConfig>
         res = Filter(res, filter);
     }
 
-    return res;
-}
-
-std::vector<command_stream::BlockConfig>
-    FilterPleBlockConfigs(const FuseOnlyPleOperationNode* pleOperation,
-                          const std::vector<command_stream::BlockConfig>& allowedBlockConfigs)
-{
-    std::vector<command_stream::BlockConfig> res = allowedBlockConfigs;
-
-    if (pleOperation != nullptr)
-    {
-        const command_stream::PleOperation pleOp = pleOperation->GetKernelOperation();
-        res                                      = FilterPleBlockConfigs(pleOp, allowedBlockConfigs);
-    }
     return res;
 }
 

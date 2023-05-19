@@ -4,10 +4,7 @@
 //
 
 #include "../src/CapabilitiesInternal.hpp"
-#include "../src/Graph.hpp"
-#include "../src/GraphNodes.hpp"
 #include "../src/Network.hpp"
-#include "../src/NetworkToGraphConverter.hpp"
 #include "TestUtils.hpp"
 
 #include <catch.hpp>
@@ -213,42 +210,6 @@ SCENARIO("Add ReinterpretQuantization Operation")
                     break;
                 }
                 ++operationIdx;
-            }
-        }
-    }
-}
-
-SCENARIO("Visit ReinterpretQuantization Operation")
-{
-    GIVEN("There is a network with an input node and a ReinterpretQuantization node")
-    {
-        std::shared_ptr<Network> networkToTest = GetNetworkToTest();
-        WHEN("The network is transformed into a graph")
-        {
-            uint32_t autoDetectSram = 0;
-            FirmwareAndHardwareCapabilities hardwareCapabilities =
-                GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, autoDetectSram);
-            bool strictPrecision = false;
-
-            Graph graph(*networkToTest, hardwareCapabilities, EstimationOptions{}, strictPrecision);
-
-            THEN("The second node has the correct quantization info")
-            {
-                // When the network is converted to graph, the following nodes are generated
-                // Input --> FormatConversion --> ReinterpretQuantization
-                // i.e. nodeIdxToCheck = 2;
-                constexpr unsigned int nodeIdxToCheck                = 2;
-                const std::vector<std::unique_ptr<Node>>& graphNodes = graph.GetNodes();
-                const std::unique_ptr<Node>& outputNode              = graphNodes[nodeIdxToCheck];
-
-                //Check that the ReinterpretNode is correctly created
-                auto reinterpretNode = outputNode.get();
-                REQUIRE(reinterpretNode->GetNodeType() == NodeType::ReinterpretNode);
-
-                const QuantizationInfo actualQuantizationInfo = reinterpretNode->GetQuantizationInfo();
-                CAPTURE(actualQuantizationInfo.GetZeroPoint(), actualQuantizationInfo.GetScale(),
-                        expectedQuantizationInfo.GetZeroPoint(), actualQuantizationInfo.GetScale());
-                REQUIRE(actualQuantizationInfo == expectedQuantizationInfo);
             }
         }
     }

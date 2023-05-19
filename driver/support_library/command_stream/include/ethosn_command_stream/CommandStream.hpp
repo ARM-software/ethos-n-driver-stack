@@ -11,7 +11,7 @@
 
 #include <cstddef>
 
-#define ETHOSN_COMMAND_STREAM_VERSION_MAJOR 5
+#define ETHOSN_COMMAND_STREAM_VERSION_MAJOR 6
 #define ETHOSN_COMMAND_STREAM_VERSION_MINOR 0
 #define ETHOSN_COMMAND_STREAM_VERSION_PATCH 0
 
@@ -84,24 +84,10 @@ inline const CommandHeader* CommandStreamConstIterator::NextHeader() const
 {
     switch (m_Head->m_Opcode())
     {
-        case Opcode::FENCE:
-            return NextHeaderImpl<Opcode::FENCE>();
-        case Opcode::OPERATION_MCE_PLE:
-            return NextHeaderImpl<Opcode::OPERATION_MCE_PLE>();
-        case Opcode::OPERATION_PLE_ONLY:
-            return NextHeaderImpl<Opcode::OPERATION_PLE_ONLY>();
-        case Opcode::OPERATION_CONVERT:
-            return NextHeaderImpl<Opcode::OPERATION_CONVERT>();
-        case Opcode::OPERATION_SPACE_TO_DEPTH:
-            return NextHeaderImpl<Opcode::OPERATION_SPACE_TO_DEPTH>();
         case Opcode::DUMP_DRAM:
             return NextHeaderImpl<Opcode::DUMP_DRAM>();
         case Opcode::DUMP_SRAM:
             return NextHeaderImpl<Opcode::DUMP_SRAM>();
-        case Opcode::SECTION:
-            return NextHeaderImpl<Opcode::SECTION>();
-        case Opcode::DELAY:
-            return NextHeaderImpl<Opcode::DELAY>();
         case Opcode::CASCADE:
             return NextHeaderImpl<Opcode::CASCADE>();
         default:
@@ -213,24 +199,10 @@ constexpr bool AreCommandsEqual(const CommandHeader& lhs, const CommandHeader& r
     }
     switch (lhs.m_Opcode())
     {
-        case Opcode::OPERATION_MCE_PLE:
-            return AreCommandsEqual<Opcode::OPERATION_MCE_PLE>(lhs, rhs);
-        case Opcode::OPERATION_PLE_ONLY:
-            return AreCommandsEqual<Opcode::OPERATION_PLE_ONLY>(lhs, rhs);
-        case Opcode::OPERATION_CONVERT:
-            return AreCommandsEqual<Opcode::OPERATION_CONVERT>(lhs, rhs);
-        case Opcode::DELAY:
-            return AreCommandsEqual<Opcode::DELAY>(lhs, rhs);
         case Opcode::DUMP_DRAM:
             return AreCommandsEqual<Opcode::DUMP_DRAM>(lhs, rhs);
         case Opcode::DUMP_SRAM:
             return AreCommandsEqual<Opcode::DUMP_SRAM>(lhs, rhs);
-        case Opcode::FENCE:
-            return AreCommandsEqual<Opcode::FENCE>(lhs, rhs);
-        case Opcode::OPERATION_SPACE_TO_DEPTH:
-            return AreCommandsEqual<Opcode::OPERATION_SPACE_TO_DEPTH>(lhs, rhs);
-        case Opcode::SECTION:
-            return AreCommandsEqual<Opcode::SECTION>(lhs, rhs);
         case Opcode::CASCADE:
             return AreCommandsEqual<Opcode::CASCADE>(lhs, rhs);
         default:

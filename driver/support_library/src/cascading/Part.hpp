@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include "../Graph.hpp"
 #include "../Utils.hpp"
 #include "DebuggableObject.hpp"
 
@@ -71,7 +70,6 @@ using StripeSizeType = TensorShape::value_type;
 using Plans          = std::vector<Plan>;
 using InPart         = std::pair<bool, PartId>;
 using OutPart        = std::pair<bool, PartId>;
-using Nodes          = std::vector<Node*>;
 
 // Object which represents the input to a part
 // This consists of the PartId of the part connected

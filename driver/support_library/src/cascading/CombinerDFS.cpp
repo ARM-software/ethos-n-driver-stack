@@ -199,9 +199,6 @@ bool Combiner::IsPlanAllocated(SectionContext& context,
     Allocated bufferAllocated, pleKernelAllocated;
     SramAllocator localAlloc = context.alloc;
 
-    // We are not yet sure what could be a good userId here so we are using zero
-    SramAllocator::UserId userId = 0;
-
     if (pleKernelInfo.m_PleOp != nullptr)
     {
         // If PLE kernel of the current plan is already used by previous part of the same
@@ -223,8 +220,8 @@ bool Combiner::IsPlanAllocated(SectionContext& context,
             assert(pleKernelSize <= m_Caps.GetMaxPleSize());
 
             // Allocate the PleKernel
-            pleKernelAllocated = localAlloc.Allocate(userId, (pleKernelSize), AllocationPreference::Start,
-                                                     pleKernelInfo.m_PleOp->m_DebugTag);
+            pleKernelAllocated =
+                localAlloc.Allocate((pleKernelSize), AllocationPreference::Start, pleKernelInfo.m_PleOp->m_DebugTag);
 
             isSramAllocated = pleKernelAllocated.first;
 
@@ -264,7 +261,7 @@ bool Combiner::IsPlanAllocated(SectionContext& context,
                 {
                     assert(bufferSize != 0);
 
-                    bufferAllocated = localAlloc.Allocate(userId, (bufferSize / m_Caps.GetNumberOfSrams()),
+                    bufferAllocated = localAlloc.Allocate((bufferSize / m_Caps.GetNumberOfSrams()),
                                                           AllocationPreference::Start, buf->m_DebugTag);
 
                     isSramAllocated = bufferAllocated.first;
@@ -754,7 +751,7 @@ void Combiner::DeallocateUnusedBuffers(const Buffer& prevPlanBuffer, SectionCont
             SramBuffer* b = context.allocatedBuffers[i];
             if (b != &prevPlanBuffer)
             {
-                context.alloc.Free(0, b->Sram()->m_Offset.value());
+                context.alloc.Free(b->Sram()->m_Offset.value());
                 context.allocatedBuffers.erase(context.allocatedBuffers.begin() + i);
             }
         }

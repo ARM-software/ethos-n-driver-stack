@@ -5,9 +5,9 @@
 
 #include "ConcatPart.hpp"
 
+#include "../BufferManager.hpp"
 #include "../Utils.hpp"
 #include "ConcreteOperations.hpp"
-#include "GraphNodes.hpp"
 #include "PartUtils.hpp"
 #include "Plan.hpp"
 

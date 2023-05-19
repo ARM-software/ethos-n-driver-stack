@@ -35,11 +35,46 @@ constexpr ethosn::utils::log::Severity g_LogCompileTimeMaxSeverity = ethosn::uti
 using LoggerType = ethosn::utils::log::Logger<g_LogCompileTimeMaxSeverity>;
 extern LoggerType g_Logger;
 
-enum class CompilerDataCompressedFormat;
 class Node;
 class FuseOnlyPleOperationNode;
 class MceOperationNode;
 enum class CascadingBufferFormat;
+
+enum class CompilerDataFormat
+{
+    NONE,
+    NHWC,
+    NCHW,
+    NHWCB,
+    WEIGHT
+};
+
+enum class CompilerDataCompressedFormat
+{
+    NONE,
+    FCAF_DEEP,
+    FCAF_WIDE
+};
+
+bool IsCompressed(CompilerDataCompressedFormat compressedFormat);
+
+inline CompilerDataFormat ConvertExternalToCompilerDataFormat(DataFormat dataFormat)
+{
+    assert(dataFormat == DataFormat::NHWC || dataFormat == DataFormat::NHWCB || dataFormat == DataFormat::HWIO ||
+           dataFormat == DataFormat::HWIM);
+    if (dataFormat == DataFormat::NHWC)
+    {
+        return CompilerDataFormat::NHWC;
+    }
+    else if (dataFormat == DataFormat::NHWCB)
+    {
+        return CompilerDataFormat::NHWCB;
+    }
+    else
+    {
+        return CompilerDataFormat::WEIGHT;
+    }
+}
 
 /// The types of algorithm an MceOperation can use or None if it hasn't been decided yet
 /// The decision of what algorithm to use is based on several factors including the AlgorithmHint.
@@ -573,15 +608,6 @@ bool GraphTopologicalSort(const TTargetNodes& targetNodes,
     return true;
 }
 
-template <typename TElement>
-std::vector<TElement*> GetRawPointers(const std::vector<std::unique_ptr<TElement>>& container)
-{
-    std::vector<TElement*> result;
-    std::transform(container.begin(), container.end(), std::back_inserter(result),
-                   [](const std::unique_ptr<TElement>& x) -> TElement* { return x.get(); });
-    return result;
-}
-
 /// e.g. Map({1, 2, 3}, [](int x) { return 2*x; }) == {2, 4, 6}
 template <typename Out, typename In, typename Func>
 constexpr std::vector<Out> Map(const std::vector<In>& container, Func func)
@@ -650,8 +676,6 @@ constexpr ShapeMultiplier g_IdentityShapeMultiplier = { Fraction{ 1, 1 }, Fracti
 
 command_stream::DataType GetCommandDataType(const DataType supportLibraryDataType);
 
-bool IsDataTypeSigned(const DataType type);
-
 struct DataTypeRange
 {
     int32_t min;
@@ -666,10 +690,6 @@ constexpr DataTypeRange GetTypeLimits()
     return { std::numeric_limits<T>::lowest(), std::numeric_limits<T>::max() };
 }
 
-command_stream::UpsampleType ConvertResizeAlgorithmToCommand(const ResizeAlgorithm algorithm);
-
-bool IsCompressionFormatCompatibleWithStripeShapeLegacy(CompilerDataCompressedFormat compressionFormat,
-                                                        const TensorShape& stripeShape);
 bool IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat compressionFormat,
                                                   const TensorShape& stripeShape,
                                                   const TensorShape& dramTensorShape);
@@ -694,15 +714,8 @@ inline NeedBoundary GetBoundaryRequirements(const uint32_t padBefore,
 }
 
 CompilerMceAlgorithm FindBestConvAlgorithm(const HardwareCapabilities& caps, uint32_t w, uint32_t h);
-TensorShape GetRoundedWeights(const TensorShape& originalShape, const CompilerMceAlgorithm algorithm);
-std::vector<command_stream::BlockConfig>
-    FilterMceBlockConfigs(const MceOperationNode* mceOperation,
-                          const std::vector<command_stream::BlockConfig>& allowedBlockConfigs);
 std::vector<command_stream::BlockConfig>
     FilterPleBlockConfigs(const command_stream::PleOperation pleOp,
-                          const std::vector<command_stream::BlockConfig>& allowedBlockConfigs);
-std::vector<command_stream::BlockConfig>
-    FilterPleBlockConfigs(const FuseOnlyPleOperationNode* pleOperation,
                           const std::vector<command_stream::BlockConfig>& allowedBlockConfigs);
 std::vector<command_stream::BlockConfig>
     FilterAlgoBlockConfigs(const CompilerMceAlgorithm algorithm,

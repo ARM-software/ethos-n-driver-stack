@@ -3,7 +3,6 @@
 //
 
 #include "../src/DebuggingContext.hpp"
-#include "../src/GraphNodes.hpp"
 #include "../src/SramAllocator.hpp"
 #include "../src/cascading/Cascading.hpp"
 #include "../src/cascading/CombinerDFS.hpp"
@@ -780,8 +779,8 @@ TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
     combiner.DeallocateUnusedBuffers(*outputSram, context);
     REQUIRE(context.alloc.GetAllocationSize() == 2);
     // Check that it is only the Input and Mce Weights buffers that have been deallocated.
-    REQUIRE(context.alloc.TryFree(0, inputSram->m_Offset.value()) == false);
-    REQUIRE(context.alloc.TryFree(0, mceWeightsSram->m_Offset.value()) == false);
+    REQUIRE(context.alloc.TryFree(inputSram->m_Offset.value()) == false);
+    REQUIRE(context.alloc.TryFree(mceWeightsSram->m_Offset.value()) == false);
 }
 
 // Manually creates a plan using Ops with Atomic Lifetimes to test the SramAllocator logic.
@@ -3494,7 +3493,7 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
     // Allocate memory where the plan and the allocated memory exceeds the SRAM Size
     uint32_t planSize          = ofmSize + planA.m_OpGraph.GetBuffers()[2]->m_SizeInBytes + hwCaps.GetMaxPleSize();
     uint32_t remainingSramSize = hwCaps.GetTotalSramSize() - planSize;
-    context5.alloc.Allocate(0, ((remainingSramSize + hwCaps.GetNumberOfSrams()) / hwCaps.GetNumberOfSrams()),
+    context5.alloc.Allocate(((remainingSramSize + hwCaps.GetNumberOfSrams()) / hwCaps.GetNumberOfSrams()),
                             AllocationPreference::Start);
     REQUIRE(combiner.IsPlanAllocated(context5, planA, mockBuffer.get(), false) == false);
     REQUIRE(context5.pleOps.size() == 0);

@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include "../Graph.hpp"
 #include "../Utils.hpp"
 #include "DebuggableObject.hpp"
 #include "Part.hpp"
@@ -13,6 +12,7 @@
 #include <functional>
 #include <map>
 #include <typeinfo>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 

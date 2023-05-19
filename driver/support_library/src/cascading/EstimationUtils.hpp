@@ -4,7 +4,6 @@
 //
 #pragma once
 
-#include "../GraphNodes.hpp"
 #include "../WeightEncoder.hpp"
 #include "Plan.hpp"
 

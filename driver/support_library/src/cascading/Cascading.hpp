@@ -15,7 +15,6 @@ namespace ethosn
 namespace support_library
 {
 
-class Graph;
 class HardwareCapabilities;
 struct EstimationOptions;
 struct DebuggingContext;

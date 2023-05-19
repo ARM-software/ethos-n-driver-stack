@@ -5,7 +5,6 @@
 
 #include "../include/ethosn_support_library/Support.hpp"
 #include "../include/ethosn_support_library/SupportQueries.hpp"
-#include "../src/GraphNodes.hpp"
 #include "../src/cascading/InputPart.hpp"
 #include "../src/cascading/McePart.hpp"
 #include "../src/cascading/NetworkToGraphOfPartsConverter.hpp"
@@ -263,65 +262,5 @@ TEST_CASE("Compile a network with Requantize layer with different input/output t
     {
         REQUIRE(bufferInputPart2->m_TensorShape == TensorShape{ 1, 16, 16, 16 });
         REQUIRE(bufferInputPart2->m_DataType == outputType);
-    }
-}
-
-TEST_CASE("RequantizeNode::Apply UINT8")
-{
-    GIVEN("A RequantizeNode designed to requantize from [-1, 1] to [-0.5, 3.5]")
-    {
-        QuantizationInfo inputQuantInfo(128, 2 / 255.0f);
-        QuantizationInfo outputQuantInfo(32, 4 / 255.0f);
-        RequantizeNode r(0, TensorShape{ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, outputQuantInfo,
-                         CompilerDataFormat::NHWC, {});
-
-        AND_GIVEN("MceData with relu bounds of [-0.75, 0.5] in the original quant space")
-        {
-            command_stream::MceData mceData;
-            mceData.m_ActivationMin() = 32;
-            mceData.m_ActivationMax() = 192;
-
-            WHEN("Telling the RequantizeNode to modify the MceData")
-            {
-                r.Apply(mceData, inputQuantInfo);
-
-                THEN("The MceData's relu bounds is modified to represent the same bounds in the new quant space")
-                {
-                    // Note we can't represent the lower bound of -0.75 in the new space, so it is clamped
-                    REQUIRE(mceData.m_ActivationMin() == 0);
-                    REQUIRE(mceData.m_ActivationMax() == 64);
-                }
-            }
-        }
-    }
-}
-
-TEST_CASE("RequantizeNode::Apply INT8")
-{
-    GIVEN("A RequantizeNode designed to requantize from [-1, 1] to [-0.5, 3.5]")
-    {
-        QuantizationInfo inputQuantInfo(0, 2 / 255.0f);
-        QuantizationInfo outputQuantInfo(-96, 4 / 255.0f);
-        RequantizeNode r(0, TensorShape{ 1, 1, 1, 1 }, DataType::INT8_QUANTIZED, outputQuantInfo,
-                         CompilerDataFormat::NHWC, {});
-
-        AND_GIVEN("MceData with relu bounds of [-0.75, 0.5] in the original quant space")
-        {
-            command_stream::MceData mceData;
-            mceData.m_ActivationMin() = -96;
-            mceData.m_ActivationMax() = 64;
-
-            WHEN("Telling the RequantizeNode to modify the MceData")
-            {
-                r.Apply(mceData, inputQuantInfo);
-
-                THEN("The MceData's relu bounds is modified to represent the same bounds in the new quant space")
-                {
-                    // Note we can't represent the lower bound of -0.75 in the new space, so it is clamped
-                    REQUIRE(mceData.m_ActivationMin() == -128);
-                    REQUIRE(mceData.m_ActivationMax() == -64);
-                }
-            }
-        }
     }
 }

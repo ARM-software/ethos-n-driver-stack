@@ -4,7 +4,6 @@
 //
 
 #include "DebuggingContext.hpp"
-#include "Graph.hpp"
 
 #include <cassert>
 #include <fstream>
@@ -40,24 +39,6 @@ std::string DebuggingContext::GetAbsolutePathOutputFileName(const std::string& f
     debugOutputFile.append(fileName);
 
     return debugOutputFile;
-}
-
-void DebuggingContext::AddNodeCreationSource(DebuggingContext::NodeToCreateSourceTuple tuple)
-{
-    this->m_NodeToCreationSource[tuple.node] = tuple.creationSource;
-}
-
-const std::string& DebuggingContext::GetStringFromNode(const Node* node) const
-{
-    const void* ptrToFind = static_cast<const void*>(node);
-    static const std::string unknown("unknown");
-    const NodeToCreationSourceContainer::const_iterator it = m_NodeToCreationSource.find(ptrToFind);
-    if (it == m_NodeToCreationSource.end())
-    {
-        return unknown;
-    }
-    const std::string& value = it->second;
-    return value;
 }
 
 }    // namespace support_library

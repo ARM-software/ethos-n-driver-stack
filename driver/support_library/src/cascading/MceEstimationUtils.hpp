@@ -1,10 +1,9 @@
 //
-// Copyright © 2020,2021 Arm Limited.
+// Copyright © 2020-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
 
-#include "../GraphNodes.hpp"
 #include "../WeightEncoder.hpp"
 #include "Plan.hpp"
 

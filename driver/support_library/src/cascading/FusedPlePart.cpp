@@ -8,6 +8,8 @@
 #include "Plan.hpp"
 #include "StripeHelper.hpp"
 
+#include "../BufferManager.hpp"
+
 #include <ethosn_utils/Macros.hpp>
 
 #include <memory>

@@ -1,14 +1,13 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
 
+#include "BufferManager.hpp"
 #include "DebuggingContext.hpp"
-#include "Graph.hpp"
 #include "Utils.hpp"
-#include "nonCascading/BufferManager.hpp"
 
 #include <ethosn_command_stream/CommandStreamBuffer.hpp>
 
@@ -22,9 +21,6 @@ namespace support_library
 {
 
 class CompiledNetwork;
-class IStrategy;
-class Pass;
-class Section;
 class IEstimationStrategy;
 
 /// Compiles a user-constructed Network into a CompiledNetwork.
@@ -47,37 +43,11 @@ public:
     ~Compiler();
 
 private:
-    /// Conversion
-    /// @{
-    void Convert();
-    /// @}
-
-    /// Preparation
-    /// @{
-    void Prepare(bool isPerfEstimate);
-    void Optimize();
-    void CreatePasses(bool isPerfEstimate);
-    bool IsPrepared();
-    void CreateSections();
-    ///@}
-
-    /// Generation
-    /// @{
-    void Generate();
-    /// @}
-
-    /// Debugging
-    /// @{
-    void DumpGraph(const std::string& filename);
-    /// @}
-
     /// The input Network constructed by the user, set at creation time.
     const Network& m_Network;
 
     /// Compilation parameters, set at creation time.
     /// @{
-    std::vector<std::unique_ptr<IStrategy>> m_AllowedStrategies;
-    std::vector<command_stream::BlockConfig> m_AllowedBlockConfigs;
     const HardwareCapabilities m_Capabilities;
     const CompilationOptions& m_CompilationOptions;
     DebuggingContext m_DebuggingContext;
@@ -86,17 +56,6 @@ private:
     /// Performance estimation
     /// @{
     const EstimationOptions& m_EstimationOptions;
-    /// @}
-
-    /// Intermediate data/results
-    /// @{
-    /// The internal graph of nodes. Modified as we progress through compilation.
-    Graph m_Graph;
-    /// The list of Passes we have built up so far.
-    std::vector<std::unique_ptr<Pass>> m_Passes;
-    /// The list of Sections we have built up so far.
-    std::vector<std::unique_ptr<Section>> m_Sections;
-    BufferManager m_BufferManager;
     /// @}
 
     /// Outputs
@@ -246,11 +205,6 @@ private:
     std::vector<BufferInfoInternal> m_IntermediateDataBufferInfos;
     /// @}
 };
-
-std::vector<std::unique_ptr<IStrategy>> GenerateAllowedStrategies(const CompilationOptions& m_Options);
-std::vector<command_stream::BlockConfig> GenerateAllowedBlockConfigs(const CompilationOptions& m_Options);
-
-uint32_t CalculateBufferSize(const TensorShape& shape, command_stream::DataFormat dataFormat);
 
 template <class IOBufferInfo>
 bool SortByOperationId(const IOBufferInfo& buf1, const IOBufferInfo& buf2)

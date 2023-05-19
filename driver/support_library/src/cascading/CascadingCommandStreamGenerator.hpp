@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "../BufferManager.hpp"
 #include "Estimation.hpp"
 #include "Plan.hpp"
 #include "Scheduler.hpp"

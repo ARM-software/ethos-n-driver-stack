@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "../BufferManager.hpp"
 #include "SplitPart.hpp"
 
 #include "PartUtils.hpp"

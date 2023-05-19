@@ -5,8 +5,8 @@
 
 #include "EstimateOnlyPart.hpp"
 
+#include "../BufferManager.hpp"
 #include "../Utils.hpp"
-#include "GraphNodes.hpp"
 #include "PartUtils.hpp"
 #include "Plan.hpp"
 

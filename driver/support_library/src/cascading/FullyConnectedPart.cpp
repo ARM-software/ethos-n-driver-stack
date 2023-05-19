@@ -6,6 +6,8 @@
 #include "FullyConnectedPart.hpp"
 #include "PartUtils.hpp"
 
+#include "../BufferManager.hpp"
+
 using namespace ethosn::command_stream;
 
 namespace ethosn

@@ -6,7 +6,6 @@
 #include "WeightEncoder.hpp"
 
 #include "Compiler.hpp"
-#include "GraphNodes.hpp"
 #include "SubmapFilter.hpp"
 #include "Utils.hpp"
 
@@ -1268,53 +1267,6 @@ void WeightEncoder::WritePayloadHeader(BitstreamWriter& writer,
             }
         }
     }
-}
-
-EncodedWeights WeightEncoder::Encode(const MceOperationNode& mceOperation,
-                                     uint32_t stripeDepth,
-                                     uint32_t stripeSize,
-                                     const QuantizationInfo& outputQuantizationInfo)
-{
-    // clang-format off
-    return Encode(mceOperation.GetWeightsInfo(),
-                  static_cast<const uint8_t*>(mceOperation.GetWeightsData()->data()),
-                  mceOperation.GetBiasInfo(),
-                  mceOperation.GetBiasData().data(),
-                  mceOperation.GetInputQuantizationInfo(0),
-                  outputQuantizationInfo,
-                  stripeDepth,
-                  mceOperation.GetStride().m_Y,
-                  mceOperation.GetStride().m_X,
-                  mceOperation.GetMceData().m_PadTop(),
-                  mceOperation.GetMceData().m_PadLeft(),
-                  stripeSize,
-                  mceOperation.GetMceData().m_Operation(),
-                  mceOperation.GetAlgorithm());
-    // clang-format on
-}
-
-EncodedWeights WeightEncoder::Encode(const MceOperationNode& mceOperation,
-                                     const std::vector<uint8_t>& weightData,
-                                     uint32_t stripeDepth,
-                                     uint32_t stripeSize,
-                                     const QuantizationInfo& outputQuantizationInfo)
-{
-    // clang-format off
-    return Encode(mceOperation.GetWeightsInfo(),
-                  static_cast<const uint8_t*>(weightData.data()),
-                  mceOperation.GetBiasInfo(),
-                  mceOperation.GetBiasData().data(),
-                  mceOperation.GetInputQuantizationInfo(0),
-                  outputQuantizationInfo,
-                  stripeDepth,
-                  mceOperation.GetStride().m_Y,
-                  mceOperation.GetStride().m_X,
-                  mceOperation.GetMceData().m_PadTop(),
-                  mceOperation.GetMceData().m_PadLeft(),
-                  stripeSize,
-                  mceOperation.GetMceData().m_Operation(),
-                  mceOperation.GetAlgorithm());
-    // clang-format on
 }
 
 EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,

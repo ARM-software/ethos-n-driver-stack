@@ -26,7 +26,6 @@ namespace cascading_compiler
 struct CompiledOpGraph;
 }
 
-class Graph;
 class OpGraph;
 class Op;
 class Buffer;

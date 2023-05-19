@@ -13,8 +13,6 @@ TEST_CASE("Cascading/CommandStream")
 {
     CommandStreamBuffer csbuffer;
 
-    csbuffer.EmplaceBack(McePle{});
-
     AddCascade(csbuffer,
                {
                    cascading::Agent{ cascading::IfmS{} },
@@ -25,20 +23,10 @@ TEST_CASE("Cascading/CommandStream")
                },
                {}, {}, {}, {});
 
-    csbuffer.EmplaceBack(Fence{});
-    csbuffer.EmplaceBack(McePle{});
-    csbuffer.EmplaceBack(Convert{});
-    csbuffer.EmplaceBack(SpaceToDepth{});
-
     CommandStream cstream(&*csbuffer.begin(), &*csbuffer.end());
     REQUIRE(cstream.IsValid());
 
     auto it = cstream.begin();
-
-    REQUIRE(it->GetCommand<Opcode::OPERATION_MCE_PLE>() != nullptr);
-
-    ++it;
-
     {
         const auto command = it->GetCommand<Opcode::CASCADE>();
 
@@ -54,20 +42,4 @@ TEST_CASE("Cascading/CommandStream")
         CHECK(agents[3].type == cascading::AgentType::PLE_SCHEDULER);
         CHECK(agents[4].type == cascading::AgentType::OFM_STREAMER);
     }
-
-    ++it;
-
-    REQUIRE(it->GetCommand<Opcode::FENCE>() != nullptr);
-
-    ++it;
-
-    REQUIRE(it->GetCommand<Opcode::OPERATION_MCE_PLE>() != nullptr);
-
-    ++it;
-
-    REQUIRE(it->GetCommand<Opcode::OPERATION_CONVERT>() != nullptr);
-
-    ++it;
-
-    REQUIRE(it->GetCommand<Opcode::OPERATION_SPACE_TO_DEPTH>() != nullptr);
 }

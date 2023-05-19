@@ -5,9 +5,7 @@
 
 #include "Part.hpp"
 
-#include "../Graph.hpp"
 #include "../Utils.hpp"
-#include "GraphNodes.hpp"
 #include "GraphOfParts.hpp"
 #include "Plan.hpp"
 #include "WeightEncoder.hpp"

@@ -5,9 +5,10 @@
 
 #pragma once
 
-#include "GraphNodes.hpp"
+#include "DebuggingContext.hpp"
 #include "Network.hpp"
 #include "SubmapFilter.hpp"
+#include "Utils.hpp"
 
 #include <cstdint>
 #include <memory>

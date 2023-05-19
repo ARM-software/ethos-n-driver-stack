@@ -4,7 +4,6 @@
 //
 
 #include "Compiler.hpp"
-#include "GraphNodes.hpp"
 #include "TestUtils.hpp"
 #include "cascading/CascadingCommandStreamGenerator.hpp"
 #include "cascading/CombinerDFS.hpp"
@@ -820,87 +819,6 @@ OutputPart_6[label = "OutputPart 6\nCorrespondingOperationIds = [13, 14, 15]\nCo
 ReshapePart_8[label = "ReshapePart 8\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nDataType = UINT8_QUANTIZED\n"]
 StandalonePlePart_9[label = "StandalonePlePart 9\nCorrespondingOperationIds = [1]\nInputTensorShape = [[1, 2, 3, 4], [1, 2, 3, 4]]\nOutputTensorShape = [1, 2, 3, 4]\nInputQuantizationInfo = [ZeroPoint = 9, Scale = 10.000000, ZeroPoint = 9, Scale = 10.000000]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\n"]
 ConstantPart_10[label = "ConstantPart 10\nCorrespondingOperationIds = [7]\nCompilerDataFormat = NHWCB\nOutputTensorShape = [1, 2, 3, 4]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputDataType = UINT8_QUANTIZED\nConstantData = [ 3 bytes ]\n"]
-}
-)";
-
-    REQUIRE(stream.str() == expected);
-}
-
-/// Checks SavePlansToDot produces the expected output, focusing on the overall graph topology (connections
-/// between nodes and parts) rather than on the details given for each individual node.
-/// Details of each node are covered by the "SaveOpGraphToDot Node Details" test
-TEST_CASE("SavePlansToDot Graph Topology", "[Visualisation]")
-{
-    DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
-
-    // Create simple graph
-    Graph graph;
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    graph.Connect(nodeA, nodeB);
-
-    // Generate two plans for the node. These plans are not realistic at all.
-    PartOutputSlot planAOutputSlot = PartOutputSlot{ 0, 0 };
-    OwnedOpGraph planAOpGraph;
-    planAOpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    Plan planA(PartInputMapping{}, PartOutputMapping{ { planAOpGraph.GetBuffers()[0], planAOutputSlot } });
-    planA.m_OpGraph = std::move(planAOpGraph);
-
-    OwnedOpGraph planBOpGraph;
-    PartInputSlot planBInputSlot   = PartInputSlot{ 1, 0 };
-    PartOutputSlot planBOutputSlot = PartOutputSlot{ 1, 0 };
-    planBOpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    planBOpGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
-    planBOpGraph.AddBuffer(std::make_unique<DramBuffer>());
-    planBOpGraph.AddConsumer(planBOpGraph.GetBuffers()[0], planBOpGraph.GetOps()[0], 0);
-    planBOpGraph.SetProducer(planBOpGraph.GetBuffers()[1], planBOpGraph.GetOps()[0]);
-    Plan planB(PartInputMapping{ { planBOpGraph.GetBuffers()[0], planBInputSlot } },
-               PartOutputMapping{ { planBOpGraph.GetBuffers()[1], planBOutputSlot } });
-    planB.m_OpGraph = std::move(planBOpGraph);
-
-    const CompilationOptions compOpt;
-
-    Plans plans;
-    plans.push_back(std::move(planA));
-    plans.push_back(std::move(planB));
-
-    // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
-    bool dumpToFile = false;
-    if (dumpToFile)
-    {
-        std::ofstream stream("SavePlansToDot Graph Topology.dot");
-        SavePlansToDot(plans, stream, DetailLevel::Low);
-    }
-
-    // Save to a string and check against expected result
-    std::stringstream stream;
-    SavePlansToDot(plans, stream, DetailLevel::Low);
-
-    std::string expected =
-        R"(digraph SupportLibraryGraph
-{
-subgraph clusterPlan_1
-{
-label="Plan 1"
-labeljust=l
-DramBuffer_0[label = "DramBuffer 0", shape = box, color = brown]
-OutputLabelDramBuffer_0[label = "Output Slot 0", shape = box]
-DramBuffer_0 -> OutputLabelDramBuffer_0[dir = back, arrowtail = box]
-}
-subgraph clusterPlan_5
-{
-label="Plan 5"
-labeljust=l
-DmaOp_3[label = "DmaOp 3", shape = oval, color = darkgoldenrod]
-DramBuffer_2[label = "DramBuffer 2", shape = box, color = brown]
-DramBuffer_4[label = "DramBuffer 4", shape = box, color = brown]
-DramBuffer_2 -> DmaOp_3
-DmaOp_3 -> DramBuffer_4
-InputLabelDramBuffer_2[label = "Input Slot 0", shape = box]
-InputLabelDramBuffer_2 -> DramBuffer_2[arrowhead = box]
-OutputLabelDramBuffer_4[label = "Output Slot 0", shape = box]
-DramBuffer_4 -> OutputLabelDramBuffer_4[dir = back, arrowtail = box]
-}
 }
 )";
 
