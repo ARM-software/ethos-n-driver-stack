@@ -714,6 +714,19 @@ void Scheduler::Schedule()
             }
         }
     }
+
+    // Verify that all stripes from all agents have been scheduled.
+    // If not, then some dependencies are probably wrong
+    for (size_t a = 0; a < m_Agents.size(); ++a)
+    {
+        if (m_AgentProgress[a] != m_Agents[a].agent.numStripesTotal)
+        {
+            throw InternalErrorException(
+                (std::string("Agent ") + std::to_string(a) + " has not had all its stripes scheduled: " +
+                 std::to_string(m_AgentProgress[a]) + " / " + ToString(m_Agents[a].agent.numStripesTotal))
+                    .c_str());
+        }
+    }
 }
 
 }    // namespace support_library
