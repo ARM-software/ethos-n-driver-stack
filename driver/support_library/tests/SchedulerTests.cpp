@@ -26,10 +26,14 @@ const char* CommandTypeToString(CommandType t)
             return "LoadWgtStripe";
         case CommandType::ProgramMceStripe:
             return "ProgramMceStripe";
+        case CommandType::ConfigMceif:
+            return "ConfigMceif";
         case CommandType::StartMceStripe:
             return "StartMceStripe";
-        case CommandType::LoadPleCode:
-            return "LoadPleCode";
+        case CommandType::LoadPleCodeIntoSram:
+            return "LoadPleCodeIntoSram";
+        case CommandType::LoadPleCodeIntoPleSram:
+            return "LoadPleCodeIntoPleSram";
         case CommandType::StartPleStripe:
             return "StartPleStripe";
         case CommandType::StoreOfmStripe:
@@ -89,11 +93,17 @@ void CompareCommandArrays(const std::vector<CommandVariant>& a, const std::vecto
             case CommandType::ProgramMceStripe:
                 c.paramA = cmd.programMceStripe.agentId;
                 break;
+            case CommandType::ConfigMceif:
+                c.paramA = cmd.configMceif.agentId;
+                break;
             case CommandType::StartMceStripe:
                 c.paramA = cmd.startMceStripe.agentId;
                 break;
-            case CommandType::LoadPleCode:
+            case CommandType::LoadPleCodeIntoSram:
                 c.paramA = cmd.dma.agentId;
+                break;
+            case CommandType::LoadPleCodeIntoPleSram:
+                c.paramA = cmd.loadPleCodeIntoPleSram.agentId;
                 break;
             case CommandType::StartPleStripe:
                 c.paramA = cmd.startPleStripe.agentId;
@@ -102,6 +112,7 @@ void CompareCommandArrays(const std::vector<CommandVariant>& a, const std::vecto
                 c.paramA = cmd.dma.agentId;
                 break;
             default:
+                REQUIRE(false);
                 break;
         }
         converted.push_back(c);
@@ -141,6 +152,7 @@ MceSDesc MakeMceSDesc()
     result.ifmTile.numSlots = 1;
     result.wgtTile.numSlots = 1;
     result.blockSize        = { 16, 16 };
+    result.pleKernelId      = PleKernelId::PASSTHROUGH_8X8_1;
     return result;
 }
 
@@ -148,6 +160,7 @@ PleSDesc MakePleSDesc()
 {
     PleSDesc result{};
     result.ofmTile.numSlots = 1;
+    result.pleKernelId      = PleKernelId::PASSTHROUGH_8X8_1;
     result.stripeIdStrides  = { 1, 1, 1 };
     result.numStripes       = { 1, 1, 1 };
     return result;
@@ -261,35 +274,35 @@ TEST_CASE("Cascading/Scheduler/ComplexSingleLayer")
         TestCommand { CommandType::LoadIfmStripe, 0, 0 },
         TestCommand { CommandType::LoadWgtStripe, 1, 0 },
         TestCommand { CommandType::LoadIfmStripe, 0, 0 },
-        TestCommand { CommandType::WaitForCounter, 2, 1 },
+        TestCommand { CommandType::WaitForCounter, 3, 1 },
         TestCommand { CommandType::LoadIfmStripe, 0, 0 },
-        TestCommand { CommandType::WaitForCounter, 2, 2 },
-        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
-        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
-        TestCommand { CommandType::WaitForCounter, 2, 3 },
+        TestCommand { CommandType::WaitForCounter, 3, 2 },
         TestCommand { CommandType::LoadIfmStripe, 0, 0 },
         TestCommand { CommandType::LoadIfmStripe, 0, 0 },
-        TestCommand { CommandType::LoadWgtStripe, 1, 0 },
-        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
-        TestCommand { CommandType::WaitForCounter, 2, 4 },
-        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
-        TestCommand { CommandType::WaitForCounter, 2, 5 },
-        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
-        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
-        TestCommand { CommandType::WaitForCounter, 2, 6 },
+        TestCommand { CommandType::WaitForCounter, 3, 3 },
         TestCommand { CommandType::LoadIfmStripe, 0, 0 },
         TestCommand { CommandType::LoadIfmStripe, 0, 0 },
         TestCommand { CommandType::LoadWgtStripe, 1, 0 },
         TestCommand { CommandType::LoadIfmStripe, 0, 0 },
-        TestCommand { CommandType::WaitForCounter, 2, 7 },
+        TestCommand { CommandType::WaitForCounter, 3, 4 },
         TestCommand { CommandType::LoadIfmStripe, 0, 0 },
-        TestCommand { CommandType::WaitForCounter, 2, 8 },
+        TestCommand { CommandType::WaitForCounter, 3, 5 },
         TestCommand { CommandType::LoadIfmStripe, 0, 0 },
-        TestCommand { CommandType::LoadPleCode, 2, 0 }
+        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
+        TestCommand { CommandType::WaitForCounter, 3, 6 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
+        TestCommand { CommandType::LoadWgtStripe, 1, 0 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
+        TestCommand { CommandType::WaitForCounter, 3, 7 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
+        TestCommand { CommandType::WaitForCounter, 3, 8 },
+        TestCommand { CommandType::LoadIfmStripe, 0, 0 },
+        TestCommand { CommandType::LoadPleCodeIntoSram, 2, 0 }
         // clang-format on
     };
 
-    const std::vector<TestCommand> expectedDmaWrCommands{ TestCommand{ CommandType::WaitForCounter, 3, 1 },
+    const std::vector<TestCommand> expectedDmaWrCommands{ TestCommand{ CommandType::WaitForCounter, 5, 1 },
                                                           TestCommand{ CommandType::StoreOfmStripe, 5, 0 } };
 
     const std::vector<TestCommand> expectedMceCommands{
@@ -297,6 +310,7 @@ TEST_CASE("Cascading/Scheduler/ComplexSingleLayer")
         TestCommand { CommandType::ProgramMceStripe, 3, 0 },
         TestCommand { CommandType::WaitForCounter, 0, 3 },
         TestCommand { CommandType::WaitForCounter, 0, 4 },
+        TestCommand { CommandType::ConfigMceif, 3, 0 },
         TestCommand { CommandType::StartMceStripe, 3, 0 },
         TestCommand { CommandType::ProgramMceStripe, 3, 0 },
         TestCommand { CommandType::WaitForCounter, 0, 6 },
@@ -327,8 +341,15 @@ TEST_CASE("Cascading/Scheduler/ComplexSingleLayer")
         // clang-format on
     };
 
-    const std::vector<TestCommand> expectedPleCommands{ TestCommand{ CommandType::WaitForCounter, 0, 22 },
-                                                        TestCommand{ CommandType::StartPleStripe, 4, 0 } };
+    const std::vector<TestCommand> expectedPleCommands{
+        // clang-format off
+        TestCommand { CommandType::WaitForCounter, 0, 22 },
+        TestCommand { CommandType::LoadPleCodeIntoPleSram, 4, 0 },
+        TestCommand { CommandType::WaitForCounter, 4, 1 },
+        TestCommand { CommandType::WaitForCounter, 2, 1 },
+        TestCommand { CommandType::StartPleStripe, 4, 0 },
+        // clang-format on
+    };
 
     ethosn::support_library::DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
 

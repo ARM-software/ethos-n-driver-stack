@@ -370,8 +370,8 @@ const std::string g_XmlStr =
     R"(
         <DMA_RD_COMMANDS>
             <!-- DmaRd Command 0 -->
+            <!-- Command type is LoadIfmStripe -->
             <DMA_COMMAND>
-                <!-- Agent type is WGT_STREAMER -->
                 <AGENT_ID>0</AGENT_ID>
                 <DRAM_OFFSET>0x123412</DRAM_OFFSET>
                 <SRAM_ADDR>0x6543</SRAM_ADDR>
@@ -386,8 +386,8 @@ const std::string g_XmlStr =
         </DMA_RD_COMMANDS>
         <DMA_WR_COMMANDS>
             <!-- DmaWr Command 0 -->
+            <!-- Command type is StoreOfmStripe -->
             <DMA_COMMAND>
-                <!-- Agent type is OFM_STREAMER -->
                 <AGENT_ID>2</AGENT_ID>
                 <DRAM_OFFSET>0xabe</DRAM_OFFSET>
                 <SRAM_ADDR>0x6ee</SRAM_ADDR>
@@ -541,6 +541,10 @@ const std::string g_XmlStr =
                 <NUM_BLOCKS_PROGRAMMED_FOR_MCE>0x80</NUM_BLOCKS_PROGRAMMED_FOR_MCE>
             </PROGRAM_MCE_STRIPE_COMMAND>
             <!-- Mce Command 1 -->
+            <CONFIG_MCEIF_COMMAND>
+                <AGENT_ID>0</AGENT_ID>
+            </CONFIG_MCEIF_COMMAND>
+            <!-- Mce Command 2 -->
             <START_MCE_STRIPE_COMMAND>
                 <AGENT_ID>0</AGENT_ID>
                 <CE_ENABLES>74666</CE_ENABLES>
@@ -553,6 +557,10 @@ const std::string g_XmlStr =
                 <COUNTER_VALUE>0</COUNTER_VALUE>
             </WAIT_FOR_COUNTER_COMMAND>
             <!-- Ple Command 1 -->
+            <LOAD_PLE_CODE_INTO_PLE_SRAM_COMMAND>
+                <AGENT_ID>0</AGENT_ID>
+            </LOAD_PLE_CODE_INTO_PLE_SRAM_COMMAND>
+            <!-- Ple Command 2 -->
             <START_PLE_STRIPE_COMMAND>
                 <AGENT_ID>0</AGENT_ID>
                 <SCRATCH0>0x125aa</SCRATCH0>
@@ -1116,6 +1124,11 @@ TEST_CASE("XmlToBinary-BinaryToXml")
     cascadingMceCommand1.m_NumBlocksProgrammedForMce = uint32_t{ 128 };
     mceCommands.push_back(ethosn::command_stream::CommandVariant(cascadingMceCommand1));
 
+    cascading::ConfigMceifCommand cascadingMceCommand3 = {};
+    cascadingMceCommand3.type                          = cascading::CommandType::ConfigMceif;
+    cascadingMceCommand3.agentId                       = 0;
+    mceCommands.push_back(ethosn::command_stream::CommandVariant(cascadingMceCommand3));
+
     cascading::StartMceStripeCommand cascadingMceCommand2 = {};
     cascadingMceCommand2.type                             = cascading::CommandType::StartMceStripe;
     cascadingMceCommand2.agentId                          = 0;
@@ -1127,6 +1140,11 @@ TEST_CASE("XmlToBinary-BinaryToXml")
     cascadingPleCommand1.counterName                      = cascading::CounterName::DmaRd;
     cascadingPleCommand1.counterValue                     = 0;
     pleCommands.push_back(ethosn::command_stream::CommandVariant(cascadingPleCommand1));
+
+    cascading::LoadPleCodeIntoPleSramCommand cascadingPleCommand3 = {};
+    cascadingPleCommand3.type                                     = cascading::CommandType::LoadPleCodeIntoPleSram;
+    cascadingPleCommand3.agentId                                  = 0;
+    pleCommands.push_back(ethosn::command_stream::CommandVariant(cascadingPleCommand3));
 
     cascading::StartPleStripeCommand cascadingPleCommand2 = {};
     cascadingPleCommand2.type                             = cascading::CommandType::StartPleStripe;

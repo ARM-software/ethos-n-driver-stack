@@ -111,7 +111,9 @@ struct CommandVariant
         cascading::WaitForCounterCommand waitForCounter;
         cascading::DmaCommand dma;
         cascading::ProgramMceStripeCommand programMceStripe;
+        cascading::ConfigMceifCommand configMceif;
         cascading::StartMceStripeCommand startMceStripe;
+        cascading::LoadPleCodeIntoPleSramCommand loadPleCodeIntoPleSram;
         cascading::StartPleStripeCommand startPleStripe;
     };
 
@@ -123,6 +125,10 @@ struct CommandVariant
         : type(c.type)
         , dma(c)
     {}
+    explicit CommandVariant(const cascading::ConfigMceifCommand& c)
+        : type(c.type)
+        , configMceif(c)
+    {}
     explicit CommandVariant(const cascading::ProgramMceStripeCommand& c)
         : type(c.type)
         , programMceStripe(c)
@@ -130,6 +136,10 @@ struct CommandVariant
     explicit CommandVariant(const cascading::StartMceStripeCommand& c)
         : type(c.type)
         , startMceStripe(c)
+    {}
+    explicit CommandVariant(const cascading::LoadPleCodeIntoPleSramCommand& c)
+        : type(c.type)
+        , loadPleCodeIntoPleSram(c)
     {}
     explicit CommandVariant(const cascading::StartPleStripeCommand& c)
         : type(c.type)
@@ -150,10 +160,14 @@ struct CommandVariant
                 return dma;
             case cascading::CommandType::ProgramMceStripe:
                 return programMceStripe;
+            case cascading::CommandType::ConfigMceif:
+                return configMceif;
             case cascading::CommandType::StartMceStripe:
                 return startMceStripe;
-            case cascading::CommandType::LoadPleCode:
+            case cascading::CommandType::LoadPleCodeIntoSram:
                 return dma;
+            case cascading::CommandType::LoadPleCodeIntoPleSram:
+                return loadPleCodeIntoPleSram;
             case cascading::CommandType::StartPleStripe:
                 return startPleStripe;
             case cascading::CommandType::StoreOfmStripe:
@@ -243,11 +257,17 @@ inline void AddCascade(ethosn::command_stream::CommandStreamBuffer& cmdStream,
                 case CommandType::ProgramMceStripe:
                     cmdStream.EmplaceBack(c.programMceStripe);
                     break;
+                case CommandType::ConfigMceif:
+                    cmdStream.EmplaceBack(c.configMceif);
+                    break;
                 case CommandType::StartMceStripe:
                     cmdStream.EmplaceBack(c.startMceStripe);
                     break;
-                case CommandType::LoadPleCode:
+                case CommandType::LoadPleCodeIntoSram:
                     cmdStream.EmplaceBack(c.dma);
+                    break;
+                case CommandType::LoadPleCodeIntoPleSram:
+                    cmdStream.EmplaceBack(c.loadPleCodeIntoPleSram);
                     break;
                 case CommandType::StartPleStripe:
                     cmdStream.EmplaceBack(c.startPleStripe);

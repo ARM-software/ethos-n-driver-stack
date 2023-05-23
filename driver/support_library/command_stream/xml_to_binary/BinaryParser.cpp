@@ -1023,27 +1023,6 @@ void Parse(std::stringstream& parent, const cascading::Agent& data)
     };
 }
 
-const char* AgentTypeToString(cascading::AgentType t)
-{
-    switch (t)
-    {
-        case cascading::AgentType::IFM_STREAMER:
-            return "IFM_STREAMER";
-        case cascading::AgentType::WGT_STREAMER:
-            return "WGT_STREAMER";
-        case cascading::AgentType::MCE_SCHEDULER:
-            return "MCE_SCHEDULER";
-        case cascading::AgentType::PLE_LOADER:
-            return "PLE_LOADER";
-        case cascading::AgentType::PLE_SCHEDULER:
-            return "PLE_SCHEDULER";
-        case cascading::AgentType::OFM_STREAMER:
-            return "OFM_STREAMER";
-        default:
-            throw ParseException("Invalid cascading agent type: " + std::to_string(static_cast<uint32_t>(t)));
-    }
-}
-
 const char* CounterNameToString(cascading::CounterName c)
 {
     switch (c)
@@ -1052,8 +1031,12 @@ const char* CounterNameToString(cascading::CounterName c)
             return "DmaRd";
         case cascading::CounterName::DmaWr:
             return "DmaWr";
+        case cascading::CounterName::Mceif:
+            return "Mceif";
         case cascading::CounterName::MceStripe:
             return "MceStripe";
+        case cascading::CounterName::PleCodeLoadedIntoPleSram:
+            return "PleCodeLoadedIntoPleSram";
         case cascading::CounterName::PleStripe:
             return "PleStripe";
         default:
@@ -1078,16 +1061,45 @@ void Parse(std::stringstream& parent, const cascading::WaitForCounterCommand& wa
     Parse(parent, "</WAIT_FOR_COUNTER_COMMAND>", 3, true);
 }
 
-void Parse(std::stringstream& parent, const cascading::DmaCommand& dmaCommand, const cascading::Agent* agents)
+const char* CommandTypeToString(cascading::CommandType t)
+{
+    using namespace ethosn::command_stream::cascading;
+    switch (t)
+    {
+        case CommandType::WaitForCounter:
+            return "WaitForCounter";
+        case CommandType::LoadIfmStripe:
+            return "LoadIfmStripe";
+        case CommandType::LoadWgtStripe:
+            return "LoadWgtStripe";
+        case CommandType::ProgramMceStripe:
+            return "ProgramMceStripe";
+        case CommandType::ConfigMceif:
+            return "ConfigMceif";
+        case CommandType::StartMceStripe:
+            return "StartMceStripe";
+        case CommandType::LoadPleCodeIntoSram:
+            return "LoadPleCodeIntoSram";
+        case CommandType::LoadPleCodeIntoPleSram:
+            return "LoadPleCodeIntoPleSram";
+        case CommandType::StartPleStripe:
+            return "StartPleStripe";
+        case CommandType::StoreOfmStripe:
+            return "StoreOfmStripe";
+        default:
+            throw std::runtime_error("Invalid cascading command type: " + std::to_string(static_cast<uint32_t>(t)));
+    }
+}
+
+void Parse(std::stringstream& parent, const cascading::DmaCommand& dmaCommand)
 {
     using namespace ethosn::command_stream::cascading;
 
+    // Add helpful comment to indicate the command type (DmaCommands are used as the storage for several different kinds of command)
+    Parse(parent, ("<!-- Command type is " + std::string(CommandTypeToString(dmaCommand.type)) + " -->").c_str(), 3,
+          true);
     Parse(parent, "<DMA_COMMAND>", 3, true);
 
-    // Add helpful comment to indicate the agent type (DmaCommands are used for several different kinds of agent)
-    Parse(parent,
-          ("<!-- Agent type is " + std::string(AgentTypeToString(agents[dmaCommand.agentId].type)) + " -->").c_str(), 4,
-          true);
     Parse(parent, "<AGENT_ID>", 4, false);
     ParseAsNum(parent, dmaCommand.agentId);
     Parse(parent, "</AGENT_ID>", 0, true);
@@ -1253,6 +1265,19 @@ void Parse(std::stringstream& parent, const cascading::ProgramMceStripeCommand& 
     Parse(parent, "</PROGRAM_MCE_STRIPE_COMMAND>", 3, true);
 }
 
+void Parse(std::stringstream& parent, const cascading::ConfigMceifCommand& configMceifCommand)
+{
+    using namespace ethosn::command_stream::cascading;
+
+    Parse(parent, "<CONFIG_MCEIF_COMMAND>", 3, true);
+
+    Parse(parent, "<AGENT_ID>", 4, false);
+    ParseAsNum(parent, configMceifCommand.agentId);
+    Parse(parent, "</AGENT_ID>", 0, true);
+
+    Parse(parent, "</CONFIG_MCEIF_COMMAND>", 3, true);
+}
+
 void Parse(std::stringstream& parent, const cascading::StartMceStripeCommand& startMceStripeCommand)
 {
     using namespace ethosn::command_stream::cascading;
@@ -1268,6 +1293,19 @@ void Parse(std::stringstream& parent, const cascading::StartMceStripeCommand& st
     Parse(parent, "</CE_ENABLES>", 0, true);
 
     Parse(parent, "</START_MCE_STRIPE_COMMAND>", 3, true);
+}
+
+void Parse(std::stringstream& parent, const cascading::LoadPleCodeIntoPleSramCommand& c)
+{
+    using namespace ethosn::command_stream::cascading;
+
+    Parse(parent, "<LOAD_PLE_CODE_INTO_PLE_SRAM_COMMAND>", 3, true);
+
+    Parse(parent, "<AGENT_ID>", 4, false);
+    ParseAsNum(parent, c.agentId);
+    Parse(parent, "</AGENT_ID>", 0, true);
+
+    Parse(parent, "</LOAD_PLE_CODE_INTO_PLE_SRAM_COMMAND>", 3, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::StartPleStripeCommand& startPleStripeCommand)
@@ -1292,7 +1330,7 @@ void Parse(std::stringstream& parent, const cascading::StartPleStripeCommand& st
     Parse(parent, "</START_PLE_STRIPE_COMMAND>", 3, true);
 }
 
-void Parse(std::stringstream& parent, const cascading::Command& cmd, const cascading::Agent* agents)
+void Parse(std::stringstream& parent, const cascading::Command& cmd)
 {
     using namespace ethosn::command_stream::cascading;
 
@@ -1302,25 +1340,31 @@ void Parse(std::stringstream& parent, const cascading::Command& cmd, const casca
             Parse(parent, static_cast<const WaitForCounterCommand&>(cmd));
             break;
         case CommandType::LoadIfmStripe:
-            Parse(parent, static_cast<const DmaCommand&>(cmd), agents);
+            Parse(parent, static_cast<const DmaCommand&>(cmd));
             break;
         case CommandType::LoadWgtStripe:
-            Parse(parent, static_cast<const DmaCommand&>(cmd), agents);
+            Parse(parent, static_cast<const DmaCommand&>(cmd));
             break;
         case CommandType::ProgramMceStripe:
             Parse(parent, static_cast<const ProgramMceStripeCommand&>(cmd));
             break;
+        case CommandType::ConfigMceif:
+            Parse(parent, static_cast<const ConfigMceifCommand&>(cmd));
+            break;
         case CommandType::StartMceStripe:
             Parse(parent, static_cast<const StartMceStripeCommand&>(cmd));
             break;
-        case CommandType::LoadPleCode:
-            Parse(parent, static_cast<const DmaCommand&>(cmd), agents);
+        case CommandType::LoadPleCodeIntoSram:
+            Parse(parent, static_cast<const DmaCommand&>(cmd));
+            break;
+        case CommandType::LoadPleCodeIntoPleSram:
+            Parse(parent, static_cast<const LoadPleCodeIntoPleSramCommand&>(cmd));
             break;
         case CommandType::StartPleStripe:
             Parse(parent, static_cast<const StartPleStripeCommand&>(cmd));
             break;
         case CommandType::StoreOfmStripe:
-            Parse(parent, static_cast<const DmaCommand&>(cmd), agents);
+            Parse(parent, static_cast<const DmaCommand&>(cmd));
             break;
         default:
             throw ParseException("Invalid cascading command type: " + std::to_string(static_cast<uint32_t>(cmd.type)));
@@ -1360,7 +1404,7 @@ void Parse(std::stringstream& parent, const Cascade& value)
     {
         // Add helpful comment to indicate the command idx (very useful for long command streams)
         Parse(parent, "<!-- DmaRd Command " + std::to_string(commandIdx) + " -->", 3, true);
-        Parse(parent, *dmaRdCommandsBegin, agentsArray);
+        Parse(parent, *dmaRdCommandsBegin);
         dmaRdCommandsBegin = getNextCommand(dmaRdCommandsBegin);
     }
     Parse(parent, "</DMA_RD_COMMANDS>", 2, true);
@@ -1370,7 +1414,7 @@ void Parse(std::stringstream& parent, const Cascade& value)
     {
         // Add helpful comment to indicate the command idx (very useful for long command streams)
         Parse(parent, "<!-- DmaWr Command " + std::to_string(commandIdx) + " -->", 3, true);
-        Parse(parent, *dmaWrCommandsBegin, agentsArray);
+        Parse(parent, *dmaWrCommandsBegin);
         dmaWrCommandsBegin = getNextCommand(dmaWrCommandsBegin);
     }
     Parse(parent, "</DMA_WR_COMMANDS>", 2, true);
@@ -1380,7 +1424,7 @@ void Parse(std::stringstream& parent, const Cascade& value)
     {
         // Add helpful comment to indicate the command idx (very useful for long command streams)
         Parse(parent, "<!-- Mce Command " + std::to_string(commandIdx) + " -->", 3, true);
-        Parse(parent, *mceCommandsBegin, agentsArray);
+        Parse(parent, *mceCommandsBegin);
         mceCommandsBegin = getNextCommand(mceCommandsBegin);
     }
     Parse(parent, "</MCE_COMMANDS>", 2, true);
@@ -1390,7 +1434,7 @@ void Parse(std::stringstream& parent, const Cascade& value)
     {
         // Add helpful comment to indicate the command idx (very useful for long command streams)
         Parse(parent, "<!-- Ple Command " + std::to_string(commandIdx) + " -->", 3, true);
-        Parse(parent, *pleCommandsBegin, agentsArray);
+        Parse(parent, *pleCommandsBegin);
         pleCommandsBegin = getNextCommand(pleCommandsBegin);
     }
     Parse(parent, "</PLE_COMMANDS>", 2, true);

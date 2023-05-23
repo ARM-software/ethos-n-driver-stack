@@ -212,10 +212,16 @@ private:
     std::map<std::pair<uint32_t, uint32_t>, uint32_t> m_DmaWrCounters;
     std::map<std::pair<uint32_t, uint32_t>, uint32_t> m_MceStripeCounters;
     std::map<std::pair<uint32_t, uint32_t>, uint32_t> m_PleStripeCounters;
-    uint32_t m_DmaRdCounter     = 0;
-    uint32_t m_DmaWrCounter     = 0;
-    uint32_t m_MceStripeCounter = 0;
-    uint32_t m_PleStripeCounter = 0;
+    uint32_t m_DmaRdCounter = 0;
+    uint32_t m_DmaWrCounter = 0;
+
+    uint32_t m_MceifCounter                                     = 0;
+    command_stream::cascading::PleKernelId m_MceifConfiguration = command_stream::cascading::PleKernelId::NOT_FOUND;
+    uint32_t m_MceStripeCounter                                 = 0;
+
+    uint32_t m_PleCodeLoadedIntoPleSramCounter                   = 0;
+    uint32_t m_PleStripeCounter                                  = 0;
+    command_stream::cascading::PleKernelId m_LastLoadedPleKernel = command_stream::cascading::PleKernelId::NOT_FOUND;
 
     const HardwareCapabilities& m_Capabilities;
 };

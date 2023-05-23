@@ -366,6 +366,40 @@ void Scheduler::ScheduleMceSchedulerStripe(const uint32_t agentId, uint32_t stri
 
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_MceCommands);
 
+    // Reconfigure the MCEIF if necessary. This will be if this is the first MCE stripe in the whole inference,
+    // or if the MCEIF configuration was changed due to a different PLE kernel being loaded.
+    bool pleKernelChanged =
+        m_PleStripeCounter > 0 &&
+        m_Agents[m_PleCommands.GetCommands().back().startPleStripe.agentId].agent.pleS.pleKernelId !=
+            m_Agents[agentId].agent.mce.pleKernelId &&
+        // Note this extra condition is needed because for strategy 1 cascading, we schedule all Mce
+        // stripes before the Ple, and we don't want to reconfigure MCEIF for every stripe.
+        m_MceifConfiguration != m_Agents[agentId].agent.mce.pleKernelId;
+
+    if (pleKernelChanged || m_MceifCounter == 0)
+    {
+        // If the PLE kernel has changed then the MCEIF will need reconfiguring, but we first need to wait
+        // for the PLE to "catch up".
+        // Otherwise the following PLE command could reset the MCEIF after we've set it
+        // (e.g. if it's a standalone PLE) but before we've finished using it.
+        if (pleKernelChanged)
+        {
+            WaitForCounterCommand waitCommand;
+            waitCommand.type         = CommandType::WaitForCounter;
+            waitCommand.counterName  = CounterName::PleStripe;
+            waitCommand.counterValue = m_PleStripeCounter;
+            m_MceCommands.Push(CommandVariant(waitCommand));
+        }
+
+        ConfigMceifCommand mceifCommand;
+        mceifCommand.type    = CommandType::ConfigMceif;
+        mceifCommand.agentId = agentId;
+        m_MceCommands.Push(CommandVariant(mceifCommand));
+
+        m_MceifCounter += 1;
+        m_MceifConfiguration = m_Agents[agentId].agent.mce.pleKernelId;
+    }
+
     auto cmd2 = GenerateStartMceStripeCommand(agentAndDeps.agent.mce, agentId, stripeId, m_Capabilities);
     m_MceCommands.Push(CommandVariant(cmd2));
 
@@ -413,6 +447,47 @@ void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stri
     // started yet).
     const auto agentTypeToIgnore = AgentType::MCE_SCHEDULER;
     InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, agentTypeToIgnore, m_PleCommands);
+
+    // Load new PLE code if necessary
+    if (m_LastLoadedPleKernel != agentAndDeps.agent.pleS.pleKernelId)
+    {
+        LoadPleCodeIntoPleSramCommand loadCommand;
+        loadCommand.type    = CommandType::LoadPleCodeIntoPleSram;
+        loadCommand.agentId = agentId;
+        m_PleCommands.Push(CommandVariant(loadCommand));
+
+        m_LastLoadedPleKernel = agentAndDeps.agent.pleS.pleKernelId;
+        m_PleCodeLoadedIntoPleSramCounter += 1;
+
+        WaitForCounterCommand waitCommand;
+        waitCommand.type         = CommandType::WaitForCounter;
+        waitCommand.counterName  = CounterName::PleCodeLoadedIntoPleSram;
+        waitCommand.counterValue = m_PleCodeLoadedIntoPleSramCounter;
+        m_PleCommands.Push(CommandVariant(waitCommand));
+
+        // Loading a new kernel invalidates the MCEIF configuration, as the PLE will be reset and therefore
+        // forget its position in the PLE input SRAM buffer ring buffer. Clearing this will force the
+        // MCE stripe to reconfigure it appropriately.
+        m_MceifConfiguration = PleKernelId::NOT_FOUND;
+    }
+
+    // Wait for MCEIF to have been configured if necessary
+    // If this PLE kernel takes input from the MCE, we need to wait until the MCEIF has been
+    // reconfigured for this kernel. This is handled by the Mce command queue and so we add a WaitForCounter
+    // on the MCEIF counter, based on the most recent value.
+    const bool isSram = agentAndDeps.agent.pleS.inputMode == PleInputMode::SRAM_ONE_INPUT ||
+                        agentAndDeps.agent.pleS.inputMode == PleInputMode::SRAM_TWO_INPUTS;
+    if (!isSram)
+    {
+        if (m_MceifConfiguration == PleKernelId::NOT_FOUND)
+        {
+            WaitForCounterCommand waitCommand;
+            waitCommand.type         = CommandType::WaitForCounter;
+            waitCommand.counterName  = CounterName::Mceif;
+            waitCommand.counterValue = m_MceifCounter;
+            m_PleCommands.Push(CommandVariant(waitCommand));
+        }
+    }
 
     auto cmd = GenerateStartPleStripeCommand(m_Agents[agentId].agent.pleS, agentId, stripeId);
     m_PleCommands.Push(CommandVariant(cmd));

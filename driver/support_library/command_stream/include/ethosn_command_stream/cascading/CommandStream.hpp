@@ -192,8 +192,10 @@ enum class CommandType : uint32_t
     LoadIfmStripe,
     LoadWgtStripe,
     ProgramMceStripe,
+    ConfigMceif,
     StartMceStripe,
-    LoadPleCode,
+    LoadPleCodeIntoSram,
+    LoadPleCodeIntoPleSram,
     StartPleStripe,
     StoreOfmStripe,
 };
@@ -215,7 +217,9 @@ enum class CounterName : uint32_t
 {
     DmaRd,
     DmaWr,
+    Mceif,
     MceStripe,
+    PleCodeLoadedIntoPleSram,
     PleStripe,
 };
 
@@ -227,7 +231,7 @@ struct WaitForCounterCommand : public Command
     uint32_t counterValue;
 };
 
-/// Data for CommandType::LoadIfmStripe, LoadWgtStripe, LoadPleCode and StoreOfmStripe,
+/// Data for CommandType::LoadIfmStripe, LoadWgtStripe, LoadPleCodeIntoSram and StoreOfmStripe,
 /// which describes transferring some data between Dram and Sram.
 struct DmaCommand : public Command
 {
@@ -278,6 +282,13 @@ struct ProgramMceStripeCommand : public Command
     uint32_t m_NumBlocksProgrammedForMce;
 };
 
+/// Data for CommandType::ConfigMceif,
+/// which describes configuring the MCEIF ready for an MCE stripe.
+struct ConfigMceifCommand : public Command
+{
+    uint32_t agentId;
+};
+
 /// Data for CommandType::StartMceStripe,
 /// which describes kicking off an MCE stripe.
 struct StartMceStripeCommand : public Command
@@ -285,6 +296,13 @@ struct StartMceStripeCommand : public Command
     uint32_t agentId;
     /// Register value.
     uint32_t CE_ENABLES;
+};
+
+/// Data for CommandType::LoadPleCodeIntoPleSram,
+/// which describes UDMA'ing the PLE code from SRAM into Ple SRAM.
+struct LoadPleCodeIntoPleSramCommand : public Command
+{
+    uint32_t agentId;
 };
 
 /// Data for CommandType::StartPleStripe,
@@ -308,10 +326,14 @@ inline size_t Command::GetSize() const
             return sizeof(DmaCommand);
         case CommandType::ProgramMceStripe:
             return sizeof(ProgramMceStripeCommand);
+        case CommandType::ConfigMceif:
+            return sizeof(ConfigMceifCommand);
         case CommandType::StartMceStripe:
             return sizeof(StartMceStripeCommand);
-        case CommandType::LoadPleCode:
+        case CommandType::LoadPleCodeIntoSram:
             return sizeof(DmaCommand);
+        case CommandType::LoadPleCodeIntoPleSram:
+            return sizeof(LoadPleCodeIntoPleSramCommand);
         case CommandType::StartPleStripe:
             return sizeof(StartPleStripeCommand);
         case CommandType::StoreOfmStripe:

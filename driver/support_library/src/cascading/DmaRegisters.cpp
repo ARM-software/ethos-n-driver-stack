@@ -1286,7 +1286,7 @@ command_stream::cascading::DmaCommand GenerateDmaCommandForLoadPleCode(const Ple
                                                                        uint32_t nextDmaCmdId)
 {
     DmaCommand result = {};
-    result.type       = CommandType::LoadPleCode;
+    result.type       = CommandType::LoadPleCodeIntoSram;
     result.agentId    = agentId;
 
     {
