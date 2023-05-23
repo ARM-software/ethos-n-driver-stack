@@ -595,10 +595,7 @@ static bool ethosn_core_has_protected_allocator(struct ethosn_core *core)
 {
 	struct ethosn_device *ethosn = core->parent;
 
-	if (core->set_alloc_id >= 0)
-		return ethosn->asset_allocator[core->set_alloc_id]->is_protected;
-
-	return false;
+	return ethosn->asset_allocator[core->set_alloc_id]->is_protected;
 }
 
 #endif
