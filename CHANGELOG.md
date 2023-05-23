@@ -1,5 +1,31 @@
 # Changelog for Arm® Ethos™-N Driver Stack
 
+## 23.05
+
+### New features
+
+- Compiler flag to disable winograd for 7x7 kernels and larger
+  - Set the following in the scons command line: disable_large_winograd=true
+- The cascading compiler is now the default and only compiler
+
+### Public API changes
+
+- Command stream version bumped to 5
+- Support library version bumped to 4
+- Firmware version bumped to 6
+- Driver library version bumped to 6
+
+### Other changes
+
+- No longer using deprecated Arm NN functions in the Arm NN backend
+- Network compilation time performance improvements in cascading
+- Inference performance improvements in cascading
+- Compiled network caching with multiple subgraphs in the Arm NN backend has been fixed
+
+### Known issues
+
+- Temporary performance regression on some networks with heavy branching. Performance improvements currently in progress
+
 ## 23.02
 
 ### New features
