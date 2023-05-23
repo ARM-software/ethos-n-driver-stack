@@ -180,7 +180,7 @@ inline void SetSuperTensorSizeInCells(FmSDesc& streamerData,
             cellDepth = 16;
             break;
         default:
-            assert(false);
+            throw InternalErrorException((std::string("Invalid buffer format").c_str()));
     }
 
     streamerData.supertensorSizeInCells.width =
