@@ -218,51 +218,41 @@ TEST_CASE("Cascading/Scheduler/ComplexSingleLayer")
         AgentDescAndDeps{
             AgentDesc(18, ifms),
             {
-                /* .readDependencies     = */ {},
-                /* .writeDependencies    =*/{ { { 3, { 3, 6 }, { 1, 2 }, 1 } } },
+                { { 3, { 3, 6 }, { 1, 2 }, 1, true, true, true } },
             },
         },
         AgentDescAndDeps{
             AgentDesc(3, wgts),
             {
-                /* .readDependencies     = */ {},
-                /* .writeDependencies    =*/{ { { 2, { 3, 1 }, { 3, 1 }, 0 } } },
+                { { 3, { 3, 1 }, { 3, 1 }, 0, true, true, true } },
             },
         },
         AgentDescAndDeps{
             AgentDesc(1, PleLDesc{}),
-            {
-                /* .readDependencies     = */ {},
-                /* .writeDependencies    =*/{},
-            },
+            {},
         },
         AgentDescAndDeps{
             AgentDesc(9, MakeMceSDesc()),
             {
-                /* .readDependencies     = */
-                { {
-                    { 3, { 6, 3 }, { 2, 1 }, 1 },
-                    { 2, { 1, 3 }, { 1, 3 }, 0 },
-                } },
-                /* .writeDependencies    =*/{},
+                {
+                    { 0, { 6, 3 }, { 2, 1 }, 1, false, true, true },
+                    { 1, { 1, 3 }, { 1, 3 }, 0, false, true, true },
+                },
             },
         },
         AgentDescAndDeps{
             AgentDesc(1, ples),
             {
-                /* .readDependencies     = */
-                { {
-                    { 1, { 9, 1 }, { 9, 1 }, 0 },
-                    { 2, { 1, 1 }, { 1, 1 }, 0 },
-                } },
-                /* .writeDependencies    =*/{},
+                {
+                    { 3, { 9, 1 }, { 9, 1 }, 0, false, true, false },
+                    { 2, { 1, 1 }, { 1, 1 }, 0, false, true, true },
+                },
             },
         },
         AgentDescAndDeps{
             AgentDesc(1, ofms),
             {
-                /* .readDependencies     = */ { { { 1, { 1, 1 }, { 1, 1 }, 0 } } },
-                /*.writeDependencies =*/{},
+                { { 4, { 1, 1 }, { 1, 1 }, 0, false, true, true } },
             },
         },
     };

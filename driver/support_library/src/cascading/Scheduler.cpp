@@ -58,19 +58,26 @@ constexpr int GetLastReaderStripeId(const Dependency& dep, const uint32_t x)
 /// stripe (x - tileSize) of the current agent.
 inline int GetLastReaderOfEvictedStripeId(const Dependency& dep, const uint32_t x, const uint32_t tileSize)
 {
-    assert(x >= tileSize);
+    if (x < tileSize)
+    {
+        return -1;
+    }
     return GetLastReaderStripeId(dep, x - tileSize);
 }
 
 void DumpDependency(std::ofstream& f, const Dependency& d, const char* type)
 {
     f << "    <" << type << ">\n";
-    f << "      <RELATIVE_AGENT_ID>" << static_cast<uint32_t>(d.relativeAgentId) << "</RELATIVE_AGENT_ID>\n";
+    f << "      <OTHER_AGENT_ID>" << d.otherAgentId << "</OTHER_AGENT_ID>\n";
     f << "      <OUTER_RATIO><OTHER>" << d.outerRatio.other << "</OTHER><SELF>" << d.outerRatio.self
       << "</SELF></OUTER_RATIO>\n";
     f << "      <INNER_RATIO><OTHER>" << d.innerRatio.other << "</OTHER><SELF>" << d.innerRatio.self
       << "</SELF></INNER_RATIO>\n";
     f << "      <BOUNDARY>" << static_cast<uint32_t>(d.boundary) << "</BOUNDARY>\n";
+    f << "      <WRITES_TO_TILE>" << static_cast<uint32_t>(d.writesToTile) << "</WRITES_TO_TILE>\n";
+    f << "      <USE_FOR_SCHEDULING>" << static_cast<uint32_t>(d.useForScheduling) << "</USE_FOR_SCHEDULING>\n";
+    f << "      <USE_FOR_COMMAND_STREAM>" << static_cast<uint32_t>(d.useForCommandStream)
+      << "</USE_FOR_COMMAND_STREAM>\n";
     f << "    </" << type << ">\n";
 }
 
@@ -119,13 +126,9 @@ void DumpDependencies(std::ofstream& f, const std::vector<AgentDescAndDeps>& age
         }
 
         f << "    <NUM_STRIPES_TOTAL>" << agents[a].agent.numStripesTotal << "</NUM_STRIPES_TOTAL>\n";
-        for (Dependency d : agents[a].deps.readDependencies)
+        for (Dependency d : agents[a].deps)
         {
-            DumpDependency(f, d, "READ_DEPENDENCY");
-        }
-        for (Dependency d : agents[a].deps.writeDependencies)
-        {
-            DumpDependency(f, d, "WRITE_DEPENDENCY");
+            DumpDependency(f, d, "DEPENDENCY");
         }
         f << "  </AGENT>\n";
     }
@@ -331,27 +334,30 @@ void Scheduler::PushWaitForCounterCommand(AgentType otherAgentType,
     commands.Push(CommandVariant(waitCommand));
 }
 
-void Scheduler::InsertWriteDependencies(const AgentDependencyInfo& agent,
-                                        const uint32_t agentId,
-                                        const uint32_t stripeId,
-                                        const uint16_t tileSize,
-                                        CommandQueue& commands)
+void Scheduler::AddWaitForCounterCommands(const std::vector<Dependency>& dependencies,
+                                          const uint32_t agentId,
+                                          const uint32_t stripeId,
+                                          const uint16_t tileSize,
+                                          CommandQueue& commands)
 {
-    if (stripeId < tileSize)
+    for (const auto& dep : dependencies)
     {
-        return;
-    }
-    for (const auto& writeDependency : agent.writeDependencies)
-    {
-        const uint32_t otherAgentId = agentId + writeDependency.relativeAgentId;
+        // Not all dependencies are to be used for the command stream (some are just for scheduling)
+        if (!dep.useForCommandStream)
+        {
+            continue;
+        }
 
-        const int stripeToWaitFor = GetLastReaderOfEvictedStripeId(writeDependency, stripeId, tileSize);
+        const uint32_t otherAgentId = dep.otherAgentId;
+
+        const int stripeToWaitFor = dep.writesToTile ? GetLastReaderOfEvictedStripeId(dep, stripeId, tileSize)
+                                                     : GetLargestNeededStripeId(dep, stripeId);
         if (stripeToWaitFor >= m_Agents[otherAgentId].agent.numStripesTotal)
         {
             throw InternalErrorException(
-                (std::string("Stripe ID out of range in InsertWriteDependencies: ") + std::to_string(stripeToWaitFor) +
-                 "/" + ToString(m_Agents[otherAgentId].agent.numStripesTotal) + " for agent " +
-                 std::to_string(agentId) + " depending on agent " + std::to_string(otherAgentId))
+                (std::string("Stripe ID out of range in AddWaitForCounterCommands: ") +
+                 std::to_string(stripeToWaitFor) + "/" + ToString(m_Agents[otherAgentId].agent.numStripesTotal) +
+                 " for agent " + std::to_string(agentId) + " depending on agent " + std::to_string(otherAgentId))
                     .c_str());
         }
         if (stripeToWaitFor >= 0)
@@ -369,54 +375,8 @@ void Scheduler::InsertWriteDependencies(const AgentDependencyInfo& agent,
                 throw InternalErrorException(
                     (std::string(
                          "Invalid scheduling detected due to dependencies on later stripes in the same queue: agent ") +
-                     std::to_string(agentId) + " has write dependency on agent " + std::to_string(otherAgentId))
+                     std::to_string(agentId) + " has dependency on agent " + std::to_string(otherAgentId))
                         .c_str());
-            }
-        }
-    }
-}
-
-void Scheduler::InsertReadDependencies(const AgentDependencyInfo& agent,
-                                       const uint32_t agentId,
-                                       const uint32_t stripeId,
-                                       const utils::Optional<AgentType> agentTypeToIgnore,
-                                       CommandQueue& commands)
-{
-    for (const auto& readDependency : agent.readDependencies)
-    {
-        const uint32_t otherAgentId    = agentId - readDependency.relativeAgentId;
-        const AgentType otherAgentType = m_Agents[otherAgentId].agent.type;
-
-        if (utils::Optional<AgentType>{ otherAgentType } != agentTypeToIgnore)
-        {
-            const int stripeToWaitFor = GetLargestNeededStripeId(readDependency, stripeId);
-            if (stripeToWaitFor >= m_Agents[otherAgentId].agent.numStripesTotal)
-            {
-                throw InternalErrorException(
-                    (std::string("Stripe ID out of range in InsertReadDependencies: ") +
-                     std::to_string(stripeToWaitFor) + "/" + ToString(m_Agents[otherAgentId].agent.numStripesTotal) +
-                     " for agent " + std::to_string(agentId) + " depending on agent " + std::to_string(otherAgentId))
-                        .c_str());
-            }
-            if (stripeToWaitFor >= 0)
-            {
-                bool sameQueue = &GetQueueForAgentType(m_Agents[otherAgentId].agent.type) == &commands;
-                // Don't add dependencies on earlier stripes in the same queue as the order enforces this anyway.
-                if (!sameQueue)
-                {
-                    PushWaitForCounterCommand(m_Agents[otherAgentId].agent.type, otherAgentId, stripeToWaitFor,
-                                              commands);
-                }
-                else if (sameQueue && m_AgentProgress[otherAgentId] < static_cast<uint32_t>(stripeToWaitFor))
-                {
-                    // Dependencies to later stripes in the same queue are always invalid
-                    // and indicate there is an issue in the dependencies.
-                    throw InternalErrorException((std::string("Invalid scheduling detected due to dependencies on "
-                                                              "later stripes in the same queue: agent ") +
-                                                  std::to_string(agentId) + " has read dependency on agent " +
-                                                  std::to_string(otherAgentId))
-                                                     .c_str());
-                }
             }
         }
     }
@@ -430,8 +390,7 @@ void Scheduler::ScheduleIfmStreamerStripe(const uint32_t agentId, uint32_t strip
     g_Logger.Verbose("Schedule IfmStreamerStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
     const uint16_t tileSize = agentAndDeps.agent.ifm.fmData.tile.numSlots;
-    InsertWriteDependencies(agentAndDeps.deps, agentId, stripeId, tileSize, m_DmaRdCommands);
-    InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_DmaRdCommands);
+    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, tileSize, m_DmaRdCommands);
 
     const uint32_t numChunks = CalculateNumChunks(agentAndDeps.agent.ifm, stripeId);
     for (uint32_t chunkId = 0; chunkId < numChunks; ++chunkId)
@@ -460,8 +419,7 @@ void Scheduler::ScheduleWgtStreamerStripe(const uint32_t agentId, uint32_t strip
     g_Logger.Verbose("Schedule WgtStreamerStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
     const uint16_t tileSize = agentAndDeps.agent.wgt.tile.numSlots;
-    InsertWriteDependencies(agentAndDeps.deps, agentId, stripeId, tileSize, m_DmaRdCommands);
-    InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_DmaRdCommands);
+    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, tileSize, m_DmaRdCommands);
 
     DmaCommand cmd = GenerateDmaCommandForLoadWgtStripe(m_Agents[agentId].agent.wgt, agentId, stripeId, m_Capabilities,
                                                         m_NextRdDmaCmdId);
@@ -482,14 +440,13 @@ void Scheduler::ScheduleMceSchedulerStripe(const uint32_t agentId, uint32_t stri
 {
     const AgentDescAndDeps& agentAndDeps = m_Agents[agentId];
     assert(agentAndDeps.agent.type == AgentType::MCE_SCHEDULER);
-    assert(agentAndDeps.deps.writeDependencies.size() == 0);
 
     g_Logger.Verbose("Schedule MceSchedulerStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
     auto cmd = GenerateProgramMceStripeCommand(agentAndDeps.agent.mce, agentId, stripeId, m_Capabilities);
     m_MceCommands.Push(CommandVariant(cmd));
 
-    InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_MceCommands);
+    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, 0, m_MceCommands);
 
     // Reconfigure the MCEIF if necessary. This will be if this is the first MCE stripe in the whole inference,
     // or if the MCEIF configuration was changed due to a different PLE kernel being loaded.
@@ -551,9 +508,7 @@ void Scheduler::SchedulePleLoaderStripe(const uint32_t agentId, uint32_t stripeI
     g_Logger.Verbose("Schedule PleLoaderStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
     constexpr uint16_t tileSize = 1;    // There isn't a tile for PleLoaderStripes
-    InsertWriteDependencies(agentAndDeps.deps, agentId, stripeId, tileSize, m_DmaRdCommands);
-
-    InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_DmaRdCommands);
+    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, tileSize, m_DmaRdCommands);
 
     auto cmd =
         GenerateDmaCommandForLoadPleCode(m_Agents[agentId].agent.pleL, agentId, m_Capabilities, m_NextRdDmaCmdId);
@@ -574,21 +529,11 @@ void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stri
 {
     const AgentDescAndDeps& agentAndDeps = m_Agents[agentId];
     assert(agentAndDeps.agent.type == AgentType::PLE_SCHEDULER);
-    assert(agentAndDeps.deps.readDependencies.size() > 0);
 
     g_Logger.Verbose("Schedule PleSchedulerStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
     const uint16_t tileSize = agentAndDeps.agent.pleS.ofmTile.numSlots;
-    InsertWriteDependencies(agentAndDeps.deps, agentId, stripeId, tileSize, m_PleCommands);
-
-    // Read dependencies on the MCE are ignored, as the hardware manages MCE-PLE dependencies
-    // automatically using the BUFFER_FREED signal and block counters. The read dependency
-    // is still needed for the IsStripeNeeded logic to work, but we don't need to insert
-    // the corresponding wait commands in the queue (and in fact, doing so would be wrong
-    // because it would cause the MCE to deadlock waiting for the PLE, which wouldn't have
-    // started yet).
-    const auto agentTypeToIgnore = AgentType::MCE_SCHEDULER;
-    InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, agentTypeToIgnore, m_PleCommands);
+    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, tileSize, m_PleCommands);
 
     // Load new PLE code if necessary
     if (m_LastLoadedPleKernel != agentAndDeps.agent.pleS.pleKernelId)
@@ -653,11 +598,10 @@ void Scheduler::ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t strip
 {
     const AgentDescAndDeps& agentAndDeps = m_Agents[agentId];
     assert(agentAndDeps.agent.type == AgentType::OFM_STREAMER);
-    assert(agentAndDeps.deps.writeDependencies.size() == 0);
 
     g_Logger.Verbose("Schedule OfmStreamerStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
-    InsertReadDependencies(agentAndDeps.deps, agentId, stripeId, {}, m_DmaWrCommands);
+    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, {}, m_DmaWrCommands);
 
     const uint32_t numChunks = CalculateNumChunks(agentAndDeps.agent.ofm, stripeId);
     for (uint32_t chunkId = 0; chunkId < numChunks; ++chunkId)
@@ -781,28 +725,17 @@ void Scheduler::Schedule()
 
     struct Context
     {
-        int agentId;
+        uint32_t agentId;
     };
 
-    auto EvaluateReadDependencies = [&](int agentId, std::stack<Context>& stack) {
-        for (const auto& dep : m_Agents[agentId].deps.readDependencies)
+    auto EvaluateDependencies = [&](uint32_t agentId, std::stack<Context>& stack) {
+        for (const auto& dep : m_Agents[agentId].deps)
         {
-            const int otherAgentId = agentId - dep.relativeAgentId;
-
-            const int largestNeededStripeId = GetLargestNeededStripeId(dep, m_AgentProgress[agentId]);
-            if (static_cast<int>(m_AgentProgress[otherAgentId]) <= largestNeededStripeId)
+            // Not all dependencies are used for scheduling (some are just for the command stream)
+            if (!dep.useForScheduling)
             {
-                stack.push(Context{ otherAgentId });
-                return true;
+                continue;
             }
-        }
-        return false;
-    };
-
-    auto EvaluateWriteDependencies = [&](int agentId, std::stack<Context>& stack) {
-        for (const auto& dep : m_Agents[agentId].deps.writeDependencies)
-        {
-            const int otherAgentId = agentId + dep.relativeAgentId;
 
             uint16_t tileSize;
             switch (m_Agents[agentId].agent.type)
@@ -821,28 +754,26 @@ void Scheduler::Schedule()
                     break;
             }
 
-            if (m_AgentProgress[agentId] < tileSize)
-            {
-                continue;
-            }
+            const int largestNeededStripeId =
+                dep.writesToTile ? GetLastReaderOfEvictedStripeId(dep, m_AgentProgress[agentId], tileSize)
+                                 : GetLargestNeededStripeId(dep, m_AgentProgress[agentId]);
 
-            const int stripeToWaitFor = GetLastReaderOfEvictedStripeId(dep, m_AgentProgress[agentId], tileSize);
-            if (static_cast<int>(m_AgentProgress[otherAgentId]) <= stripeToWaitFor)
+            if (static_cast<int>(m_AgentProgress[dep.otherAgentId]) <= largestNeededStripeId)
             {
-                stack.push(Context{ otherAgentId });
+                stack.push(Context{ dep.otherAgentId });
                 return true;
             }
         }
         return false;
     };
 
-    for (int a = 0; a < static_cast<int>(m_Agents.size()); ++a)
+    for (uint32_t a = 0; a < m_Agents.size(); ++a)
     {
         if (m_Agents[a].agent.type == AgentType::OFM_STREAMER)
         {
             // Note that we use a while loop and check m_AgentProgress, as we may end up scheduling
             // stripes further ahead too
-            while (static_cast<int>(m_AgentProgress[a]) < m_Agents[a].agent.numStripesTotal)
+            while (m_AgentProgress[a] < m_Agents[a].agent.numStripesTotal)
             {
                 // Store the stripes we want to schedule on a stack
                 std::stack<Context> stack;
@@ -859,18 +790,12 @@ void Scheduler::Schedule()
 
                     Context current = stack.top();
 
-                    bool hasReadDependencies = EvaluateReadDependencies(current.agentId, stack);
-                    if (hasReadDependencies)
+                    bool hasDependencies = EvaluateDependencies(current.agentId, stack);
+                    if (hasDependencies)
                     {
                         continue;
                     }
-                    // Also need to look at write dependencies, speficically for the case with two ofm streamers
-                    // at the end of a section, so that we schedule them interleaved ratehr than all of one then all of the other
-                    bool hasWriteDependencies = EvaluateWriteDependencies(current.agentId, stack);
-                    if (hasWriteDependencies)
-                    {
-                        continue;
-                    }
+
                     ScheduleOneStripe(current.agentId);
                     stack.pop();
                 }

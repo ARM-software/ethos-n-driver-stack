@@ -675,8 +675,6 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(DmaOp
     StreamersUtils::SetStripeIdStrides(ifmStreamerData.fmData, inputSramBuffer->m_Order);
     ifmStreamerData.packedBoundaryThickness = inputSramBuffer->m_PackedBoundaryThickness;
 
-    AgentDependencyInfo dependencyInfo = {};
-
     uint16_t numStripesTotal = ethosn::utils::NumericCast<uint16_t>(
         ifmStreamerData.fmData.numStripes.width * ifmStreamerData.fmData.numStripes.height *
         ifmStreamerData.fmData.numStripes.channels * inputSramBuffer->m_NumLoads);
@@ -686,7 +684,7 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(DmaOp
     // Push the Ifm Streamer agent to the command stream
     AgentIdType agentId         = m_CommandStreamAgents.size();
     m_OpToAgentIdMapping[ptrOp] = agentId;
-    m_CommandStreamAgents.push_back(AgentDescAndDeps{ ifmStreamerAgent, dependencyInfo });
+    m_CommandStreamAgents.push_back(AgentDescAndDeps{ ifmStreamerAgent, {} });
 
     return agentId;
 }
@@ -728,8 +726,6 @@ AgentIdType CascadingCommandStreamGenerator::AddWeightStreamerToCommandStream(Dm
     weightStreamerData.stripeIdStrides.ofmChannels =
         ethosn::utils::NumericCast<uint16_t>(weightStreamerData.numStripes.ifmChannels * weightsSramBuffer->m_NumLoads);
 
-    AgentDependencyInfo dependencyInfo = {};
-
     uint16_t numStripesTotal = ethosn::utils::NumericCast<uint16_t>(
         utils::GetNumStripesTotal(weightsSramBuffer->m_TensorShape, weightsSramBuffer->m_StripeShape) *
         weightsSramBuffer->m_NumLoads);
@@ -739,7 +735,7 @@ AgentIdType CascadingCommandStreamGenerator::AddWeightStreamerToCommandStream(Dm
     // Push the Weight Streamer agent to the command stream
     AgentIdType agentId            = m_CommandStreamAgents.size();
     m_OpToAgentIdMapping[ptrDmaOp] = agentId;
-    m_CommandStreamAgents.push_back(AgentDescAndDeps{ weightStreamerAgent, dependencyInfo });
+    m_CommandStreamAgents.push_back(AgentDescAndDeps{ weightStreamerAgent, {} });
 
     return agentId;
 }
@@ -837,8 +833,7 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
     mceSchedulerData.isPackedBoundaryY =
         (inputBuffer->m_PackedBoundaryThickness.top + inputBuffer->m_PackedBoundaryThickness.bottom) > 0;
 
-    AgentDependencyInfo dependencyInfo = {};
-    uint16_t numStripesTotal           = ethosn::utils::NumericCast<uint16_t>(
+    uint16_t numStripesTotal = ethosn::utils::NumericCast<uint16_t>(
         mceSchedulerData.numStripes.ifmChannels * mceSchedulerData.numStripes.ofmChannels *
         mceSchedulerData.numStripes.ofmWidth * mceSchedulerData.numStripes.ofmHeight);
 
@@ -847,7 +842,7 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
     // Push the Mce Scheduler agent to the command stream
     AgentIdType agentId            = m_CommandStreamAgents.size();
     m_OpToAgentIdMapping[ptrMceOp] = agentId;
-    m_CommandStreamAgents.push_back(AgentDescAndDeps{ mceSchedulerAgent, dependencyInfo });
+    m_CommandStreamAgents.push_back(AgentDescAndDeps{ mceSchedulerAgent, {} });
 
     return agentId;
 }
@@ -860,15 +855,14 @@ AgentIdType CascadingCommandStreamGenerator::AddPleLoaderToCommandStream(PleOp* 
     pleLoaderData.pleKernelId = ptrPleOp->m_PleKernelId;
     pleLoaderData.sramAddr    = ethosn::utils::NumericCast<uint32_t>(ptrPleOp->m_Offset.value());
 
-    AgentDependencyInfo dependencyInfo = {};
-    uint16_t numStripesTotal           = 1U;
+    uint16_t numStripesTotal = 1U;
 
     AgentDesc pleLoaderAgent(numStripesTotal, pleLoaderData);
 
     // Push the Ple Loader agent to the command stream
     AgentIdType agentId                                           = m_CommandStreamAgents.size();
     m_PleKernelToPleLoaderAgentIdMapping[ptrPleOp->m_PleKernelId] = agentId;
-    m_CommandStreamAgents.push_back(AgentDescAndDeps{ pleLoaderAgent, dependencyInfo });
+    m_CommandStreamAgents.push_back(AgentDescAndDeps{ pleLoaderAgent, {} });
 
     return agentId;
 }
@@ -947,7 +941,6 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
         pleS.ifmInfo1.zeroPoint = ethosn::utils::NumericCast<int16_t>(inputBuffer1->m_QuantizationInfo.GetZeroPoint());
     }
 
-    AgentDependencyInfo info = {};
     uint16_t numStripesTotal = ethosn::utils::NumericCast<uint16_t>(
         utils::GetNumStripesTotal(outputBuffer->m_TensorShape, ptrPleOp->m_OutputStripeShape));
 
@@ -956,7 +949,7 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
     // Push the Ple Scheduler agent to the command stream
     AgentIdType agentId            = m_CommandStreamAgents.size();
     m_OpToAgentIdMapping[ptrPleOp] = agentId;
-    m_CommandStreamAgents.push_back(AgentDescAndDeps{ pleSchedulerAgent, info });
+    m_CommandStreamAgents.push_back(AgentDescAndDeps{ pleSchedulerAgent, {} });
 
     return agentId;
 }
@@ -1010,8 +1003,7 @@ AgentIdType CascadingCommandStreamGenerator::AddOfmStreamerToCommandStream(DmaOp
 
     StreamersUtils::SetStripeIdStrides(ofmStreamerData.fmData, outputSramBuffer->m_Order);
 
-    AgentDependencyInfo dependencyInfo = {};
-    uint16_t numStripesTotal           = ethosn::utils::NumericCast<uint16_t>(
+    uint16_t numStripesTotal = ethosn::utils::NumericCast<uint16_t>(
         utils::GetNumStripesTotal(outputSramBuffer->m_TensorShape, outputSramBuffer->m_StripeShape));
 
     AgentDesc ofmStreamerAgent(numStripesTotal, ofmStreamerData);
@@ -1019,74 +1011,47 @@ AgentIdType CascadingCommandStreamGenerator::AddOfmStreamerToCommandStream(DmaOp
     // Push the Ofm Streamer agent to the command stream
     AgentIdType agentId         = m_CommandStreamAgents.size();
     m_OpToAgentIdMapping[ptrOp] = agentId;
-    m_CommandStreamAgents.push_back(AgentDescAndDeps{ ofmStreamerAgent, dependencyInfo });
+    m_CommandStreamAgents.push_back(AgentDescAndDeps{ ofmStreamerAgent, {} });
 
     return agentId;
 }
 
 // Private function to add ReadAfterWrite Dependency
 // Consumer agent creates and own the dependency
-inline void CascadingCommandStreamGenerator::AddReadAfterWriteDependency(const AgentType consumerAgentType,
-                                                                         const AgentIdType consumerAgentId,
-                                                                         const AgentType producerAgentType,
-                                                                         const AgentIdType producerAgentId,
-                                                                         const Op* producerOp)
+void CascadingCommandStreamGenerator::AddReadAfterWriteDependency(const AgentType consumerAgentType,
+                                                                  const AgentIdType consumerAgentId,
+                                                                  const AgentType producerAgentType,
+                                                                  const AgentIdType producerAgentId,
+                                                                  const Op* producerOp)
 {
-    AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
-    assert(relativeAgentId <= g_MaxRelativeAgentPosition);
-
-    Dependency newDependency      = {};
-    newDependency.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
-    FillConsumerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId,
-                                producerOp);
-    m_CommandStreamAgents[consumerAgentId].deps.readDependencies.push_back(newDependency);
-}
-
-// Private function to add SRAM Overlap Dependency
-// Consumer agent creates and own the dependency
-inline void CascadingCommandStreamGenerator::AddSramOverlapDependency(
-    const command_stream::cascading::AgentType consumerAgentType,
-    const AgentIdType consumerAgentId,
-    const command_stream::cascading::AgentType producerAgentType,
-    const AgentIdType producerAgentId,
-    const Op* producerOp)
-{
-    AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
-    assert(relativeAgentId <= g_MaxRelativeAgentPosition);
-
-    Dependency newDependency      = {};
-    newDependency.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
-    FillConsumerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId,
-                                producerOp);
-    if (newDependency.relativeAgentId != 0)
+    Dependency newDependency   = {};
+    newDependency.otherAgentId = static_cast<uint32_t>(producerAgentId);
+    if (FillConsumerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType,
+                                    producerAgentId, producerOp))
     {
-        m_CommandStreamAgents[consumerAgentId].deps.readDependencies.push_back(newDependency);
+        m_CommandStreamAgents[consumerAgentId].deps.push_back(newDependency);
     }
 }
 
 // Private function to add WriteAfterRead Dependency
 // Last consumer agent creates the dependency and assign it to the producer agent
-inline void CascadingCommandStreamGenerator::AddWriteAfterReadDependency(const AgentType consumerAgentType,
-                                                                         const AgentIdType consumerAgentId,
-                                                                         const AgentType producerAgentType,
-                                                                         const AgentIdType producerAgentId,
-                                                                         const Op* producerOp)
+void CascadingCommandStreamGenerator::AddWriteAfterReadDependency(const AgentType consumerAgentType,
+                                                                  const AgentIdType consumerAgentId,
+                                                                  const AgentType producerAgentType,
+                                                                  const AgentIdType producerAgentId,
+                                                                  const Op* producerOp)
 {
-    AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
-    assert(relativeAgentId <= g_MaxRelativeAgentPosition);
-
-    Dependency newDependency      = {};
-    newDependency.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
-    FillProducerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId,
-                                producerOp);
-    if (newDependency.relativeAgentId != 0)
+    Dependency newDependency   = {};
+    newDependency.otherAgentId = static_cast<uint32_t>(consumerAgentId);
+    if (FillProducerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType,
+                                    producerAgentId, producerOp))
     {
-        m_CommandStreamAgents[producerAgentId].deps.writeDependencies.push_back(newDependency);
+        m_CommandStreamAgents[producerAgentId].deps.push_back(newDependency);
     }
 }
 
 // Private function to fill the dependency data for Read After Write or SRAM Overlap dependencies
-void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
+bool CascadingCommandStreamGenerator::FillConsumerAgentDependency(
     Dependency& consumerAgentDependency,
     const command_stream::cascading::AgentType consumerAgentType,
     const AgentIdType consumerAgentId,
@@ -1094,12 +1059,18 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
     const AgentIdType producerAgentId,
     const Op* producerOp) const
 {
+    consumerAgentDependency.useForScheduling    = true;
+    consumerAgentDependency.useForCommandStream = true;
+    consumerAgentDependency.writesToTile        = false;
+
     const AgentDescAndDeps& consumerAgentAndDeps = m_CommandStreamAgents[consumerAgentId];
     const AgentDesc& consumerAgentData           = consumerAgentAndDeps.agent;
     const uint16_t consumerAgentNumStripes       = consumerAgentAndDeps.agent.numStripesTotal;
     const AgentDescAndDeps& producerAgentAndDeps = m_CommandStreamAgents[producerAgentId];
     const AgentDesc& producerAgentData           = producerAgentAndDeps.agent;
     const uint16_t producerAgentNumStripes       = producerAgentAndDeps.agent.numStripesTotal;
+
+    bool isValid = true;
 
     // Add a new 'Read After Write' dependency
     switch (consumerAgentType)
@@ -1323,6 +1294,13 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                 {
                     consumerAgentDependency.boundary = 1;
                 }
+
+                // Read dependencies on the MCE are ignored for the command stream, as the hardware manages MCE-PLE dependencies
+                // automatically using the BUFFER_FREED signal and block counters. This dependency
+                // is still used for the scheduling logic though, but we don't need to insert
+                // the corresponding WaitForCounter commands in the command queue (and in fact, doing so would be wrong
+                // because it would cause the MCE to deadlock waiting for the PLE, which wouldn't have started yet).
+                consumerAgentDependency.useForCommandStream = false;
             }
             // Read After Write Dependency for [PleScheduler][PleLoader]
             else if (producerAgentType == AgentType::PLE_LOADER)
@@ -1419,17 +1397,18 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
     }
 
     // Calculate remaining agent dependencies
-    if (consumerAgentDependency.relativeAgentId != 0)
+    if (isValid)
     {
         ethosn::support_library::cascading_compiler::DependencyUtils::CalculateInnerRatio(consumerAgentDependency);
 
         ethosn::support_library::cascading_compiler::DependencyUtils::CalculateRemainingAgentDependencies(
             consumerAgentDependency);
     }
+    return isValid;
 }
 
 // Private function to fill the dependency data for Write After Read dependencies
-void CascadingCommandStreamGenerator::FillProducerAgentDependency(
+bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
     Dependency& producerAgentDependency,
     const command_stream::cascading::AgentType consumerAgentType,
     const AgentIdType consumerAgentId,
@@ -1438,12 +1417,18 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
     const Op* producerOp) const
 {
     ETHOSN_UNUSED(producerOp);
+
+    producerAgentDependency.useForScheduling    = true;
+    producerAgentDependency.useForCommandStream = true;
+    producerAgentDependency.writesToTile        = true;
+
     const AgentDescAndDeps& consumerAgentAndDeps = m_CommandStreamAgents[consumerAgentId];
     const AgentDesc& consumerAgentData           = consumerAgentAndDeps.agent;
     const uint16_t consumerAgentNumStripes       = consumerAgentAndDeps.agent.numStripesTotal;
     const AgentDescAndDeps& producerAgentAndDeps = m_CommandStreamAgents[producerAgentId];
     const AgentDesc& producerAgentData           = producerAgentAndDeps.agent;
     const uint16_t producerAgentNumStripes       = producerAgentAndDeps.agent.numStripesTotal;
+    bool isValid                                 = true;
 
     // Add a new 'Write After Read' dependency or
     switch (consumerAgentType)
@@ -1551,7 +1536,7 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                     // For the case where we have the PLE stripes split in height but being written into an output buffer
                     // which is the full tensor, we have only one stripe in the following MceS. We don't want a write dependency
                     // from the PleS onto this MceS, otherwise it will stall.
-                    producerAgentDependency.relativeAgentId = 0;
+                    isValid = false;
                     break;
                 }
 
@@ -1716,13 +1701,14 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
     }
 
     // Calculate remaining agent dependencies
-    if (producerAgentDependency.relativeAgentId != 0)
+    if (isValid)
     {
         ethosn::support_library::cascading_compiler::DependencyUtils::CalculateInnerRatio(producerAgentDependency);
 
         ethosn::support_library::cascading_compiler::DependencyUtils::CalculateRemainingAgentDependencies(
             producerAgentDependency);
     }
+    return isValid;
 }
 
 namespace

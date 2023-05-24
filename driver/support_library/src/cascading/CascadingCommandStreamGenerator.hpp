@@ -98,13 +98,6 @@ private:
                                             const command_stream::cascading::AgentType producerAgentType,
                                             const AgentIdType producerAgentId,
                                             const Op* producerOp);
-    // Private function to add SRAM Overlap Dependency
-    // Consumer agent creates and own the dependency
-    inline void AddSramOverlapDependency(const command_stream::cascading::AgentType consumerAgentType,
-                                         const AgentIdType consumerAgentId,
-                                         const command_stream::cascading::AgentType producerAgentType,
-                                         const AgentIdType producerAgentId,
-                                         const Op* producerOp);
     // Private function to add WriteAfterRead Dependency
     // Last consumer agent creates the dependency and assign it to the producer agent
     inline void AddWriteAfterReadDependency(const command_stream::cascading::AgentType consumerAgentType,
@@ -113,14 +106,14 @@ private:
                                             const AgentIdType producerAgentId,
                                             const Op* producerOp);
     // Private function to fill the dependency data for Read After Write or SRAM Overlap dependencies
-    void FillConsumerAgentDependency(Dependency& consumerAgentDependency,
+    bool FillConsumerAgentDependency(Dependency& consumerAgentDependency,
                                      const command_stream::cascading::AgentType consumerAgentType,
                                      const AgentIdType consumerAgentId,
                                      const command_stream::cascading::AgentType producerAgentType,
                                      const AgentIdType producerAgentId,
                                      const Op* producerOp) const;
     // Private function to fill the dependency data for Write After Read dependencies
-    void FillProducerAgentDependency(Dependency& producerAgentDependency,
+    bool FillProducerAgentDependency(Dependency& producerAgentDependency,
                                      const command_stream::cascading::AgentType consumerAgentType,
                                      const AgentIdType consumerAgentId,
                                      const command_stream::cascading::AgentType producerAgentType,
