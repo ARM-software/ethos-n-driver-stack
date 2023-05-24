@@ -308,7 +308,6 @@ TEST_CASE("Cascading/Scheduler/ComplexSingleLayer")
     const std::vector<TestCommand> expectedMceCommands{
         // clang-format off
         TestCommand { CommandType::ProgramMceStripe, 3, 0 },
-        TestCommand { CommandType::WaitForCounter, 0, 3 },
         TestCommand { CommandType::WaitForCounter, 0, 4 },
         TestCommand { CommandType::ConfigMceif, 3, 0 },
         TestCommand { CommandType::StartMceStripe, 3, 0 },
@@ -319,7 +318,6 @@ TEST_CASE("Cascading/Scheduler/ComplexSingleLayer")
         TestCommand { CommandType::WaitForCounter, 0, 7 },
         TestCommand { CommandType::StartMceStripe, 3, 0 },
         TestCommand { CommandType::ProgramMceStripe, 3, 0 },
-        TestCommand { CommandType::WaitForCounter, 0, 10 },
         TestCommand { CommandType::WaitForCounter, 0, 11 },
         TestCommand { CommandType::StartMceStripe, 3, 0 },
         TestCommand { CommandType::ProgramMceStripe, 3, 0 },
@@ -329,7 +327,6 @@ TEST_CASE("Cascading/Scheduler/ComplexSingleLayer")
         TestCommand { CommandType::WaitForCounter, 0, 14 },
         TestCommand { CommandType::StartMceStripe, 3, 0 },
         TestCommand { CommandType::ProgramMceStripe, 3, 0 },
-        TestCommand { CommandType::WaitForCounter, 0, 17 },
         TestCommand { CommandType::WaitForCounter, 0, 18 },
         TestCommand { CommandType::StartMceStripe, 3, 0 },
         TestCommand { CommandType::ProgramMceStripe, 3, 0 },

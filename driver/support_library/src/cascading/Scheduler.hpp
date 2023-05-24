@@ -133,6 +133,22 @@ struct AgentDescAndDeps
     AgentDependencyInfo deps;
 };
 
+/// Stores a value for each of the firmware counters.
+struct Counters
+{
+    uint32_t m_DmaRd                    = 0;
+    uint32_t m_DmaWr                    = 0;
+    uint32_t m_Mceif                    = 0;
+    uint32_t m_MceStripe                = 0;
+    uint32_t m_PleCodeLoadedIntoPleSram = 0;
+    uint32_t m_PleStripe                = 0;
+
+    uint32_t Get(ethosn::command_stream::cascading::CounterName counterName) const;
+    void Set(ethosn::command_stream::cascading::CounterName counterName, uint32_t value);
+
+    static Counters Max(const Counters& a, const Counters& b);
+};
+
 /// Logic for converting a list of agents with dependency information into four
 /// lists of commands (Dma read, Dma write, Mce and Ple) to be executed by the firmware.
 class Scheduler
@@ -150,18 +166,57 @@ public:
     const std::vector<ethosn::command_stream::CommandVariant>& GetPleCommands() const;
 
 private:
-    /// Wraps a list of Commands along with storage of which stripe ID was last waited
-    /// for on each agent. This allows us to avoid inserting redundant WaitForAgents on
-    /// stripes which we can guarantee are already complete.
+    /// Adding a WaitForCounter will often mean implicitly waiting for other counter values too.
+    /// A trivial example of this would be that waiting for DmaRd=2 also means waiting for DmaRd=1,
+    /// but there are more complicated examples like waiting for MceStripe=2 where the MCE queue
+    /// waits for DmaRd=1 before kicking off stripe number 2, means that you are implicitly waiting
+    /// for DmaRd=1 as well.
+    /// This object stores these dependencies/implications, and allows us to omit some WaitForCounters
+    /// which we can guarantee will always be met.
+    class CounterImplications
+    {
+    public:
+        /// Gets the minimum value of each counter which we can guarantee will have been reached,
+        /// when the given counter reaches the given value.
+        Counters Get(ethosn::command_stream::cascading::CounterName counterName, uint32_t value) const;
+
+        /// Records that when the given counter reaches the given value, the other counters will have
+        /// at least the values given.
+        void Update(ethosn::command_stream::cascading::CounterName counterName, uint32_t value, Counters counters);
+
+    private:
+        /// Internal storage - for each counter name and value pair, the value that we can guarantee the
+        /// other counters will have reached.
+        std::map<std::pair<ethosn::command_stream::cascading::CounterName, uint32_t>, Counters> m_Map;
+    };
+
+    /// Wraps a list of Commands along with storage of which counter values were last waited
+    /// on. This allows us to avoid inserting redundant WaitForCounter commands on
+    /// counters which we can guarantee will have already passed that value.
     class CommandQueue
     {
     public:
+        CommandQueue(const CounterImplications& counterImplications)
+            : m_CounterImplications(counterImplications)
+        {}
+
         void Push(const ethosn::command_stream::CommandVariant& c);
         const std::vector<ethosn::command_stream::CommandVariant>& GetCommands() const;
 
+        const Counters& GetLastCounterValuesWaitedFor() const
+        {
+            return m_LastCounterValuesWaitedFor;
+        }
+
     private:
         std::vector<ethosn::command_stream::CommandVariant> m_Commands;
-        std::map<ethosn::command_stream::cascading::CounterName, uint32_t> m_LastValueWaitedForCounterName;
+
+        /// Reference to data shared between the different queues, for eliminating redundant WaitForCounters.
+        const CounterImplications& m_CounterImplications;
+
+        /// The maximum value of each firmware counter which we know has been reached by the time we get
+        /// to the current point in this command queue.
+        Counters m_LastCounterValuesWaitedFor;
     };
 
     /// Schedules the next stripe for the given agent.
@@ -208,19 +263,25 @@ private:
     uint32_t m_NextRdDmaCmdId = 0;
     uint32_t m_NextWrDmaCmdId = 4;
 
+    /// Map from agent ID and stripe ID to the value that a firmware counter will have
+    /// when that stripe is finished.
+    /// @{
     std::map<std::pair<uint32_t, uint32_t>, uint32_t> m_DmaRdCounters;
     std::map<std::pair<uint32_t, uint32_t>, uint32_t> m_DmaWrCounters;
     std::map<std::pair<uint32_t, uint32_t>, uint32_t> m_MceStripeCounters;
     std::map<std::pair<uint32_t, uint32_t>, uint32_t> m_PleStripeCounters;
-    uint32_t m_DmaRdCounter = 0;
-    uint32_t m_DmaWrCounter = 0;
+    /// @}
 
-    uint32_t m_MceifCounter                                     = 0;
-    command_stream::cascading::PleKernelId m_MceifConfiguration = command_stream::cascading::PleKernelId::NOT_FOUND;
-    uint32_t m_MceStripeCounter                                 = 0;
+    /// The value that each of the firmware counters will have after the stripes that have already been scheduled
+    /// have finished.
+    Counters m_Counters;
 
-    uint32_t m_PleCodeLoadedIntoPleSramCounter                   = 0;
-    uint32_t m_PleStripeCounter                                  = 0;
+    /// Adding a WaitForCounter on a particular counter value will often mean implicitly waiting for
+    /// other counter values too. This stores those dependencies, and allows us to omit some WaitForCounters
+    /// which we can guarantee will always be met.
+    CounterImplications m_CounterImplications;
+
+    command_stream::cascading::PleKernelId m_MceifConfiguration  = command_stream::cascading::PleKernelId::NOT_FOUND;
     command_stream::cascading::PleKernelId m_LastLoadedPleKernel = command_stream::cascading::PleKernelId::NOT_FOUND;
 
     const HardwareCapabilities& m_Capabilities;

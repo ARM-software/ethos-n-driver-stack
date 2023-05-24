@@ -134,20 +134,133 @@ void DumpDependencies(std::ofstream& f, const std::vector<AgentDescAndDeps>& age
 
 }    // namespace
 
+uint32_t Counters::Get(CounterName counterName) const
+{
+    switch (counterName)
+    {
+        case CounterName::DmaRd:
+            return m_DmaRd;
+        case CounterName::DmaWr:
+            return m_DmaWr;
+        case CounterName::Mceif:
+            return m_Mceif;
+        case CounterName::MceStripe:
+            return m_MceStripe;
+        case CounterName::PleCodeLoadedIntoPleSram:
+            return m_PleCodeLoadedIntoPleSram;
+        case CounterName::PleStripe:
+            return m_PleStripe;
+        default:
+            throw std::runtime_error("Invalid counter name");
+    }
+}
+
+void Counters::Set(CounterName counterName, uint32_t value)
+{
+    switch (counterName)
+    {
+        case CounterName::DmaRd:
+            m_DmaRd = value;
+            break;
+        case CounterName::DmaWr:
+            m_DmaWr = value;
+            break;
+        case CounterName::Mceif:
+            m_Mceif = value;
+            break;
+        case CounterName::MceStripe:
+            m_MceStripe = value;
+            break;
+        case CounterName::PleCodeLoadedIntoPleSram:
+            m_PleCodeLoadedIntoPleSram = value;
+            break;
+        case CounterName::PleStripe:
+            m_PleStripe = value;
+            break;
+        default:
+            throw std::runtime_error("Invalid counter name");
+    }
+}
+
+Counters Counters::Max(const Counters& a, const Counters& b)
+{
+    Counters result;
+    result.m_DmaRd                    = std::max(a.m_DmaRd, b.m_DmaRd);
+    result.m_DmaWr                    = std::max(a.m_DmaWr, b.m_DmaWr);
+    result.m_Mceif                    = std::max(a.m_Mceif, b.m_Mceif);
+    result.m_MceStripe                = std::max(a.m_MceStripe, b.m_MceStripe);
+    result.m_PleCodeLoadedIntoPleSram = std::max(a.m_PleCodeLoadedIntoPleSram, b.m_PleCodeLoadedIntoPleSram);
+    result.m_PleStripe                = std::max(a.m_PleStripe, b.m_PleStripe);
+    return result;
+}
+
+Counters Scheduler::CounterImplications::Get(ethosn::command_stream::cascading::CounterName counterName,
+                                             uint32_t value) const
+{
+    auto it = m_Map.find(std::make_pair(counterName, value));
+    if (it == m_Map.end())
+    {
+        // Due to the way we use CounterImplications, we should never query something that hasn't
+        // been added already.
+        throw InternalErrorException("Unexpected use of CounterImplications");
+    }
+    return it->second;
+}
+
+void Scheduler::CounterImplications::Update(ethosn::command_stream::cascading::CounterName counterName,
+                                            uint32_t value,
+                                            Counters counters)
+{
+    // The counter that we are recording implications for has a clear guaranteed value
+    // (using max() here just to avoid overwriting a larger value, although this shouldn't happen)
+    counters.Set(counterName, std::max(counters.Get(counterName), value));
+
+    auto it = m_Map.find(std::make_pair(counterName, value));
+    if (it == m_Map.end())
+    {
+        m_Map[std::make_pair(counterName, value)] = counters;
+    }
+    else
+    {
+        // If we already have information, update it
+        it->second = Counters::Max(it->second, counters);
+    }
+}
+
 void Scheduler::CommandQueue::Push(const CommandVariant& c)
 {
     if (c.type == CommandType::WaitForCounter)
     {
+        // Before we add a WaitForCounter command, check if we can optimise it out.
+        // This results in smaller command stream which will be faster for the firmware to process,
+        // and should have no effect on the correctness of the command stream.
         const WaitForCounterCommand& waitCommand = c.waitForCounter;
-        // Skip adding this command if we've already waited for this counter (or a later one)
-        auto lastStripeWaitedForIt = m_LastValueWaitedForCounterName.find(waitCommand.counterName);
-        if (lastStripeWaitedForIt != m_LastValueWaitedForCounterName.end() &&
-            lastStripeWaitedForIt->second >= waitCommand.counterValue)
+
+        // Skip adding this command if we know that this counter value will already have been reached
+        // by the time we get to this point in the queue
+        uint32_t alreadyWaitedFor = m_LastCounterValuesWaitedFor.Get(waitCommand.counterName);
+        if (alreadyWaitedFor >= waitCommand.counterValue)
         {
             return;
         }
-        // Remember that we've now waited for this counter value, so that future waits might be skippable.
-        m_LastValueWaitedForCounterName[waitCommand.counterName] = waitCommand.counterValue;
+
+        // Waiting for this counter value might then implicitly be waiting for other counters,
+        // which we remember, so that we might be able to skip later WaitForCounters.
+        m_LastCounterValuesWaitedFor = Counters::Max(
+            m_LastCounterValuesWaitedFor, m_CounterImplications.Get(waitCommand.counterName, waitCommand.counterValue));
+
+        // If the most recent command in the queue was also a WaitForCounter, we may be able to merge this
+        // with the new one instead of adding another, if the new one implies waiting for the existing one too
+        if (!m_Commands.empty() && m_Commands.back().type == CommandType::WaitForCounter)
+        {
+            WaitForCounterCommand& lastCmd = m_Commands.back().waitForCounter;
+            if (m_CounterImplications.Get(waitCommand.counterName, waitCommand.counterValue).Get(lastCmd.counterName) >=
+                lastCmd.counterValue)
+            {
+                lastCmd = waitCommand;
+                return;
+            }
+        }
     }
     m_Commands.push_back(c);
 }
@@ -329,8 +442,14 @@ void Scheduler::ScheduleIfmStreamerStripe(const uint32_t agentId, uint32_t strip
         m_NextRdDmaCmdId = (m_NextRdDmaCmdId + 1) % 4;
     }
 
-    m_DmaRdCounter += numChunks;
-    m_DmaRdCounters[std::make_pair(agentId, stripeId)] = m_DmaRdCounter;
+    m_Counters.m_DmaRd += numChunks;
+    m_DmaRdCounters[std::make_pair(agentId, stripeId)] = m_Counters.m_DmaRd;
+
+    // Update the shared counter implications so that other queues know that when they wait on this
+    // new counter value, they are also implicitly waiting on anything else that this queue has waited
+    // on too
+    m_CounterImplications.Update(CounterName::DmaRd, m_Counters.m_DmaRd,
+                                 m_DmaRdCommands.GetLastCounterValuesWaitedFor());
 }
 
 void Scheduler::ScheduleWgtStreamerStripe(const uint32_t agentId, uint32_t stripeId)
@@ -349,8 +468,14 @@ void Scheduler::ScheduleWgtStreamerStripe(const uint32_t agentId, uint32_t strip
     m_DmaRdCommands.Push(CommandVariant(cmd));
     m_NextRdDmaCmdId = (m_NextRdDmaCmdId + 1) % 4;
 
-    m_DmaRdCounter += 1;
-    m_DmaRdCounters[std::make_pair(agentId, stripeId)] = m_DmaRdCounter;
+    m_Counters.m_DmaRd += 1;
+    m_DmaRdCounters[std::make_pair(agentId, stripeId)] = m_Counters.m_DmaRd;
+
+    // Update the shared counter implications so that other queues know that when they wait on this
+    // new counter value, they are also implicitly waiting on anything else that this queue has waited
+    // on too
+    m_CounterImplications.Update(CounterName::DmaRd, m_Counters.m_DmaRd,
+                                 m_DmaRdCommands.GetLastCounterValuesWaitedFor());
 }
 
 void Scheduler::ScheduleMceSchedulerStripe(const uint32_t agentId, uint32_t stripeId)
@@ -369,14 +494,14 @@ void Scheduler::ScheduleMceSchedulerStripe(const uint32_t agentId, uint32_t stri
     // Reconfigure the MCEIF if necessary. This will be if this is the first MCE stripe in the whole inference,
     // or if the MCEIF configuration was changed due to a different PLE kernel being loaded.
     bool pleKernelChanged =
-        m_PleStripeCounter > 0 &&
+        m_Counters.m_PleStripe > 0 &&
         m_Agents[m_PleCommands.GetCommands().back().startPleStripe.agentId].agent.pleS.pleKernelId !=
             m_Agents[agentId].agent.mce.pleKernelId &&
         // Note this extra condition is needed because for strategy 1 cascading, we schedule all Mce
         // stripes before the Ple, and we don't want to reconfigure MCEIF for every stripe.
         m_MceifConfiguration != m_Agents[agentId].agent.mce.pleKernelId;
 
-    if (pleKernelChanged || m_MceifCounter == 0)
+    if (pleKernelChanged || m_Counters.m_Mceif == 0)
     {
         // If the PLE kernel has changed then the MCEIF will need reconfiguring, but we first need to wait
         // for the PLE to "catch up".
@@ -387,7 +512,7 @@ void Scheduler::ScheduleMceSchedulerStripe(const uint32_t agentId, uint32_t stri
             WaitForCounterCommand waitCommand;
             waitCommand.type         = CommandType::WaitForCounter;
             waitCommand.counterName  = CounterName::PleStripe;
-            waitCommand.counterValue = m_PleStripeCounter;
+            waitCommand.counterValue = m_Counters.m_PleStripe;
             m_MceCommands.Push(CommandVariant(waitCommand));
         }
 
@@ -396,15 +521,26 @@ void Scheduler::ScheduleMceSchedulerStripe(const uint32_t agentId, uint32_t stri
         mceifCommand.agentId = agentId;
         m_MceCommands.Push(CommandVariant(mceifCommand));
 
-        m_MceifCounter += 1;
+        m_Counters.m_Mceif += 1;
         m_MceifConfiguration = m_Agents[agentId].agent.mce.pleKernelId;
+
+        // Update the shared counter implications so that other queues know that when they wait on this
+        // new counter value, they are also implicitly waiting on other counters too
+        m_CounterImplications.Update(CounterName::Mceif, m_Counters.m_Mceif,
+                                     m_MceCommands.GetLastCounterValuesWaitedFor());
     }
 
     auto cmd2 = GenerateStartMceStripeCommand(agentAndDeps.agent.mce, agentId, stripeId, m_Capabilities);
     m_MceCommands.Push(CommandVariant(cmd2));
 
-    m_MceStripeCounter += 1;
-    m_MceStripeCounters[std::make_pair(agentId, stripeId)] = m_MceStripeCounter;
+    m_Counters.m_MceStripe += 1;
+    m_MceStripeCounters[std::make_pair(agentId, stripeId)] = m_Counters.m_MceStripe;
+
+    // Update the shared counter implications so that other queues know that when they wait on this
+    // new counter value, they are also implicitly waiting on anything else that this queue has waited
+    // on too
+    m_CounterImplications.Update(CounterName::MceStripe, m_Counters.m_MceStripe,
+                                 m_MceCommands.GetLastCounterValuesWaitedFor());
 }
 
 void Scheduler::SchedulePleLoaderStripe(const uint32_t agentId, uint32_t stripeId)
@@ -424,8 +560,14 @@ void Scheduler::SchedulePleLoaderStripe(const uint32_t agentId, uint32_t stripeI
     m_DmaRdCommands.Push(CommandVariant(cmd));
     m_NextRdDmaCmdId = (m_NextRdDmaCmdId + 1) % 4;
 
-    m_DmaRdCounter += 1;
-    m_DmaRdCounters[std::make_pair(agentId, stripeId)] = m_DmaRdCounter;
+    m_Counters.m_DmaRd += 1;
+    m_DmaRdCounters[std::make_pair(agentId, stripeId)] = m_Counters.m_DmaRd;
+
+    // Update the shared counter implications so that other queues know that when they wait on this
+    // new counter value, they are also implicitly waiting on anything else that this queue has waited
+    // on too
+    m_CounterImplications.Update(CounterName::DmaRd, m_Counters.m_DmaRd,
+                                 m_DmaRdCommands.GetLastCounterValuesWaitedFor());
 }
 
 void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stripeId)
@@ -457,12 +599,17 @@ void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stri
         m_PleCommands.Push(CommandVariant(loadCommand));
 
         m_LastLoadedPleKernel = agentAndDeps.agent.pleS.pleKernelId;
-        m_PleCodeLoadedIntoPleSramCounter += 1;
+        m_Counters.m_PleCodeLoadedIntoPleSram += 1;
+
+        // Update the shared counter implications so that other queues know that when they wait on this
+        // new counter value, they are also implicitly waiting on other counters too
+        m_CounterImplications.Update(CounterName::PleCodeLoadedIntoPleSram, m_Counters.m_PleCodeLoadedIntoPleSram,
+                                     m_PleCommands.GetLastCounterValuesWaitedFor());
 
         WaitForCounterCommand waitCommand;
         waitCommand.type         = CommandType::WaitForCounter;
         waitCommand.counterName  = CounterName::PleCodeLoadedIntoPleSram;
-        waitCommand.counterValue = m_PleCodeLoadedIntoPleSramCounter;
+        waitCommand.counterValue = m_Counters.m_PleCodeLoadedIntoPleSram;
         m_PleCommands.Push(CommandVariant(waitCommand));
 
         // Loading a new kernel invalidates the MCEIF configuration, as the PLE will be reset and therefore
@@ -484,7 +631,7 @@ void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stri
             WaitForCounterCommand waitCommand;
             waitCommand.type         = CommandType::WaitForCounter;
             waitCommand.counterName  = CounterName::Mceif;
-            waitCommand.counterValue = m_MceifCounter;
+            waitCommand.counterValue = m_Counters.m_Mceif;
             m_PleCommands.Push(CommandVariant(waitCommand));
         }
     }
@@ -492,8 +639,14 @@ void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stri
     auto cmd = GenerateStartPleStripeCommand(m_Agents[agentId].agent.pleS, agentId, stripeId);
     m_PleCommands.Push(CommandVariant(cmd));
 
-    m_PleStripeCounter += 1;
-    m_PleStripeCounters[std::make_pair(agentId, stripeId)] = m_PleStripeCounter;
+    m_Counters.m_PleStripe += 1;
+    m_PleStripeCounters[std::make_pair(agentId, stripeId)] = m_Counters.m_PleStripe;
+
+    // Update the shared counter implications so that other queues know that when they wait on this
+    // new counter value, they are also implicitly waiting on anything else that this queue has waited
+    // on too
+    m_CounterImplications.Update(CounterName::PleStripe, m_Counters.m_PleStripe,
+                                 m_PleCommands.GetLastCounterValuesWaitedFor());
 }
 
 void Scheduler::ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t stripeId)
@@ -515,8 +668,14 @@ void Scheduler::ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t strip
         m_NextWrDmaCmdId = 4 + ((m_NextWrDmaCmdId + 1) % 4);
     }
 
-    m_DmaWrCounter += numChunks;
-    m_DmaWrCounters[std::make_pair(agentId, stripeId)] = m_DmaWrCounter;
+    m_Counters.m_DmaWr += numChunks;
+    m_DmaWrCounters[std::make_pair(agentId, stripeId)] = m_Counters.m_DmaWr;
+
+    // Update the shared counter implications so that other queues know that when they wait on this
+    // new counter value, they are also implicitly waiting on anything else that this queue has waited
+    // on too
+    m_CounterImplications.Update(CounterName::DmaWr, m_Counters.m_DmaWr,
+                                 m_DmaWrCommands.GetLastCounterValuesWaitedFor());
 }
 
 Scheduler::Scheduler(const std::vector<AgentDescAndDeps>& agents,
@@ -525,6 +684,10 @@ Scheduler::Scheduler(const std::vector<AgentDescAndDeps>& agents,
     : m_DebuggingContext(debuggingContext)
     , m_Agents{ agents }
     , m_AgentProgress(agents.size(), 0)
+    , m_DmaRdCommands(m_CounterImplications)
+    , m_DmaWrCommands(m_CounterImplications)
+    , m_MceCommands(m_CounterImplications)
+    , m_PleCommands(m_CounterImplications)
     , m_Capabilities(capabilities)
 {}
 
