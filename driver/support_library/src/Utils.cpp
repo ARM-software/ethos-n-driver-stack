@@ -654,6 +654,13 @@ ethosn::command_stream::DumpDram GetDumpDramCommand(
     return cmdStrDumpDram;
 }
 
+bool CheckOverlap(uint32_t startA, uint32_t sizeA, uint32_t startB, uint32_t sizeB)
+{
+    const uint32_t endA = startA + sizeA;
+    const uint32_t endB = startB + sizeB;
+    return (startA <= startB && endA > startB) || (startB <= startA && endB > startA);
+}
+
 }    // namespace utils
 
 }    // namespace support_library

@@ -752,6 +752,9 @@ bool IsFullTensor(const TensorShape& tensorShape, const TensorShape& stripeShape
 ethosn::command_stream::DumpDram GetDumpDramCommand(
     const TensorShape& shape, uint32_t bufferId, DataType dataType, int32_t zeroPoint, const char* format);
 
+/// Checks if two ranges overlap.
+bool CheckOverlap(uint32_t startA, uint32_t sizeA, uint32_t startB, uint32_t sizeB);
+
 }    // namespace utils
 
 }    // namespace support_library

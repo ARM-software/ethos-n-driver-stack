@@ -34,7 +34,6 @@ CascadingCommandStreamGenerator::CascadingCommandStreamGenerator(const OpGraph& 
     , m_Capabilities{ capabilities }
     , m_CompilationOptions{ compilationOptions }
     , m_DebuggingContext(debuggingContext)
-    , m_FenceOp(nullptr)
 {
 
     m_CommandStreamAgents.reserve(m_MergedOpGraph.GetOps().size());
@@ -60,30 +59,25 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
 
     try
     {
-        for (auto currentOp : m_MergedOpGraph.GetOps())
+        for (uint32_t opIdx = 0; opIdx < m_MergedOpGraph.GetOps().size(); ++opIdx)
         {
+            Op* currentOp = m_MergedOpGraph.GetOps()[opIdx];
+
             if (IsObjectOfType<DmaOp>(currentOp))
             {
-                ProcessDmaOp(static_cast<DmaOp*>(currentOp));
+                ProcessDmaOp(static_cast<DmaOp*>(currentOp), opIdx);
             }
             else if (IsObjectOfType<MceOp>(currentOp))
             {
-                ProcessMceOp(currentOp);
+                ProcessMceOp(static_cast<MceOp*>(currentOp), opIdx);
             }
             else if (IsObjectOfType<PleOp>(currentOp))
             {
-                ProcessPleOp(currentOp);
+                ProcessPleOp(static_cast<PleOp*>(currentOp), opIdx);
             }
             else
             {
                 throw NotSupportedException("Op is not currently supported by the Cascading Compiler");
-            }
-
-            Buffer* producedBuffer = m_MergedOpGraph.GetOutput(currentOp);
-            if (producedBuffer != nullptr && producedBuffer->IsFullTensor() &&
-                !(IsObjectOfType<DmaOp>(currentOp) && producedBuffer->m_Location == Location::Sram))
-            {
-                m_FenceOp = currentOp;
             }
         }
     }
@@ -241,8 +235,104 @@ uint16_t CascadingCommandStreamGenerator::AddDramBufferAndCacheId(DramBuffer* in
     return inputBufferId;
 }
 
+void CascadingCommandStreamGenerator::AddSramOverlapDependencies(uint32_t newDataStart,
+                                                                 uint32_t newDataSize,
+                                                                 AgentIdType agentId,
+                                                                 uint32_t opIdx)
+{
+    // Add dependencies on earlier ops to make sure that we don't start loading the new data
+    // on top of older data which is still being used.
+    // We want to make these dependencies on agents which are as far back in the command stream as possible,
+    // to maximise the chance of being able to preload.
+    //
+    // Look backwards in execution order of the Ops, for any Op that reads from an SRAM address
+    // that we are going to overwrite
+    uint32_t numDramBuffers = 0;
+    for (int otherOpIdx = static_cast<int>(opIdx) - 1; otherOpIdx >= 0; otherOpIdx--)
+    {
+        Op* otherOp = m_MergedOpGraph.GetOp(static_cast<uint32_t>(otherOpIdx));
+
+        // Check if this Op reads from any SRAM buffers which overlap with the new data
+        bool anyOverlap = false;
+        for (Buffer* b : m_MergedOpGraph.GetInputs(otherOp))
+        {
+            if (b->m_Location == Location::Sram)
+            {
+                const uint32_t startB = b->Sram()->m_Offset.value();
+                const uint32_t sizeB  = b->m_SizeInBytes / m_Capabilities.GetNumberOfSrams();
+                anyOverlap            = utils::CheckOverlap(newDataStart, newDataSize, startB, sizeB);
+                if (anyOverlap)
+                {
+                    break;
+                }
+            }
+        }
+
+        // Also check for overlap with PLE kernel data, which isn't in a Buffer
+        if (PleOp* pleOp = dynamic_cast<PleOp*>(otherOp))
+        {
+            const uint32_t startB = pleOp->m_Offset.value();
+            const uint32_t sizeB  = m_Capabilities.GetMaxPleSize();
+            if (utils::CheckOverlap(newDataStart, newDataSize, startB, sizeB))
+            {
+                anyOverlap = true;
+            }
+        }
+
+        // Check if this Op is at the end of a cascade, and if so increment a counter.
+        // This is used to prevent us from looking at the entire OpGraph above this point, as that would
+        // make this algorithm O(n^2), and result in a lot of additional dependencies which
+        // would almost certainly be redundant.
+        // Once we go past two Dram buffers, that means we've got to the previous-but-one cascade, and
+        // we assume that there's no point preloading anything beyond this, so we add a dependency here
+        // and stop looking.
+        Buffer* output = m_MergedOpGraph.GetOutput(otherOp);
+        if (output != nullptr && output->m_Location == Location::Dram)
+        {
+            ++numDramBuffers;
+
+            if (numDramBuffers == 2)
+            {
+                anyOverlap = true;
+            }
+        }
+
+        if (anyOverlap)
+        {
+            uint32_t otherAgentId = static_cast<uint32_t>(m_OpToAgentIdMapping.at(otherOp));
+
+            // Wait for this other agent to finish
+            Dependency dep;
+            // Note that this is a command-stream-only dependency and so has no effect on the order in which
+            // stripes are scheduled. It just delays loading those stripes until a safe time.
+            // Also note that a lot of these dependencies will end up being redundant (e.g. waiting for something
+            // that we can guarantee is already finished), which should be removed by the Scheduler before reaching
+            // the final command stream.
+            dep.useForCommandStream = true;
+            dep.useForScheduling    = false;
+            dep.otherAgentId        = otherAgentId;
+            dep.writesToTile        = false;
+
+            dep.outerRatio.other = m_CommandStreamAgents[otherAgentId].agent.numStripesTotal;
+            dep.outerRatio.self  = m_CommandStreamAgents[agentId].agent.numStripesTotal;
+
+            dep.innerRatio.other = m_CommandStreamAgents[otherAgentId].agent.numStripesTotal;
+            dep.innerRatio.self  = 1;
+
+            dep.boundary = 0;
+
+            m_CommandStreamAgents[agentId].deps.push_back(dep);
+        }
+
+        if (numDramBuffers == 2)
+        {
+            break;
+        }
+    }
+}
+
 // Private functions for processing OpGraph Ops
-void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
+void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp, uint32_t opIdx)
 {
     // Get the input buffer to the Dma Op
     OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrDmaOp);
@@ -267,8 +357,6 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
                    inputBuffer->Dram()->m_BufferType.value() ==
                        BufferType::Input ||    // cppcheck-suppress assertWithSideEffect
                    inputBuffer->Dram()->m_BufferType.value() == BufferType::ConstantDma);
-
-            DmaOp* const dmaOp = static_cast<DmaOp*>(ptrDmaOp);
 
             uint16_t inputBufferId = AddDramBufferAndCacheId(inputBuffer->Dram(), ptrDmaOp);
 
@@ -295,31 +383,32 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
             }
 
             AgentIdType ifmStreamerAgentId = AddIfmStreamerToCommandStream(
-                ptrDmaOp, inputBufferId, inputBuffer, outputBuffer->Sram(), dmaOp->m_TransferFormat,
+                ptrDmaOp, inputBufferId, inputBuffer, outputBuffer->Sram(), ptrDmaOp->m_TransferFormat,
                 inputDramBufferOffset, isExtraIfmStripeAtRightEdge, isExtraIfmStripeAtBottomEdge);
 
-            if (m_FenceOp != nullptr)
+            // Wait for all the OfmS (there can be >1, e.g. for concat) that wrote out our input to finish
+            std::vector<Op*> producers = m_MergedOpGraph.GetProducers(inputBuffer);
+            for (auto&& producerOp : producers)
             {
-                // Note that this is an overly pessimistic approach, as corruption would only happen in practice if the SRAM
-                // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
                 AddReadAfterWriteDependency(AgentType::IFM_STREAMER, ifmStreamerAgentId,
-                                            m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOp)].agent.type,
-                                            this->m_OpToAgentIdMapping.at(m_FenceOp), m_FenceOp);
+                                            m_CommandStreamAgents[m_OpToAgentIdMapping.at(producerOp)].agent.type,
+                                            m_OpToAgentIdMapping.at(producerOp), producerOp);
             }
+
+            // Prevent loading this new data too soon, over older data that is still being used.
+            AddSramOverlapDependencies(outputBuffer->Sram()->m_Offset.value(),
+                                       outputBuffer->Sram()->m_SizeInBytes / m_Capabilities.GetNumberOfSrams(),
+                                       ifmStreamerAgentId, opIdx);
         }
         else
         {
             // Weight Streamer Agent
             AgentIdType weightStreamerAgentId = AddWeightStreamerToCommandStream(static_cast<DmaOp*>(ptrDmaOp));
 
-            if (m_FenceOp != nullptr)
-            {
-                // Note that this is an overly pessimistic approach, as corruption would only happen in practice if the SRAM
-                // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
-                AddReadAfterWriteDependency(AgentType::WGT_STREAMER, weightStreamerAgentId,
-                                            m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOp)].agent.type,
-                                            this->m_OpToAgentIdMapping.at(m_FenceOp), m_FenceOp);
-            }
+            // Prevent loading this new data too soon, over older data that is still being used.
+            AddSramOverlapDependencies(outputBuffer->Sram()->m_Offset.value(),
+                                       outputBuffer->Sram()->m_SizeInBytes / m_Capabilities.GetNumberOfSrams(),
+                                       weightStreamerAgentId, opIdx);
         }
     }
     else if (inputBuffer->m_Location == Location::Sram && outputBuffer->m_Location == Location::Dram)
@@ -391,7 +480,7 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
     }
 }
 
-void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
+void CascadingCommandStreamGenerator::ProcessMceOp(MceOp* const ptrMceOp, uint32_t opIdx)
 {
     // Get the input buffers to the Mce Op
     OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrMceOp);
@@ -427,19 +516,12 @@ void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
     {
         pleLoaderAgentId = AddPleLoaderToCommandStream(ptrPleOp);
 
-        if (m_FenceOp != nullptr)
-        {
-            // Note that this is an overly pessimistic approach, as corruption would only happen in practice if the SRAM
-            // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
-            AddReadAfterWriteDependency(AgentType::PLE_LOADER, pleLoaderAgentId,
-                                        m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOp)].agent.type,
-                                        this->m_OpToAgentIdMapping.at(m_FenceOp), m_FenceOp);
-        }
+        // Prevent loading this new data too soon, over older data that is still being used.
+        AddSramOverlapDependencies(ptrPleOp->m_Offset.value(), m_Capabilities.GetMaxPleSize(), pleLoaderAgentId, opIdx);
     }
 
     // MCE Scheduler Agent
-    AgentIdType mceSchedulerAgentId =
-        AddMceSchedulerToCommandStream(static_cast<MceOp*>(ptrMceOp), ptrPleOp->m_PleKernelId);
+    AgentIdType mceSchedulerAgentId = AddMceSchedulerToCommandStream(ptrMceOp, ptrPleOp->m_PleKernelId);
 
     // Add 'Read After Write' dependency to the MceScheduler agent
     // Read After Write Dependency for [MceScheduler][IfmStreamer] or
@@ -459,9 +541,39 @@ void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
     // Write After Read Dependency for [WeightStreamer][MceScheduler]
     AddWriteAfterReadDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::WGT_STREAMER,
                                 m_OpToAgentIdMapping[wgtDmaOp], wgtDmaOp);
+
+    // Add dependency from the WgtS and IfmS on the first stripe of the PleL, to make sure that
+    // the PleL can load before the DMA queue is filled up with IFM/weight stripes.
+    if (ptrPleOp->m_LoadKernel)
+    {
+        std::vector<Op*> ops = { wgtDmaOp };
+        if (producerAgentType == AgentType::IFM_STREAMER)
+        {
+            ops.push_back(producerOp);
+        }
+
+        for (Op* op : ops)
+        {
+            Dependency dep;
+            dep.useForCommandStream = false;
+            dep.useForScheduling    = true;
+            dep.otherAgentId        = static_cast<uint32_t>(pleLoaderAgentId);
+            dep.writesToTile        = false;
+
+            dep.outerRatio.other = 1;
+            dep.outerRatio.self  = m_CommandStreamAgents[m_OpToAgentIdMapping[op]].agent.numStripesTotal;
+
+            dep.innerRatio.other = 1;
+            dep.innerRatio.self  = 1;
+
+            dep.boundary = 0;
+
+            m_CommandStreamAgents[m_OpToAgentIdMapping[op]].deps.push_back(dep);
+        }
+    }
 }
 
-void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
+void CascadingCommandStreamGenerator::ProcessPleOp(PleOp* const ptrPleOp, uint32_t opIdx)
 {
     // Get the input buffers to the Ple Op
     OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrPleOp);
@@ -504,7 +616,8 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
         input1Producer = m_MergedOpGraph.GetSingleProducer(inputBuffers[g_PleInputBuffer1Index]);
     }
 
-    bool loadKernel = static_cast<PleOp*>(ptrPleOp)->m_LoadKernel;
+    bool loadKernel                 = static_cast<PleOp*>(ptrPleOp)->m_LoadKernel;
+    AgentIdType pleSchedulerAgentId = -1;
     if (isStandAlonePle)
     {
         AgentIdType pleLoaderAgentId = {};
@@ -514,26 +627,7 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
             pleLoaderAgentId = AddPleLoaderToCommandStream(static_cast<PleOp*>(ptrPleOp));
         }
 
-        AgentIdType pleSchedulerAgentId = AddPleSchedulerToCommandStream(static_cast<PleOp*>(ptrPleOp));
-
-        // PleL dependency must come before the IfmS dependency, to make sure the DMAs are scheduled in this order.
-        // This is because PLE code must be loaded before the MCE runs, when running on the model.
-        if (loadKernel)
-        {
-            // Read After Write Dependency for [PleScheduler][PleLoader]
-            AddReadAfterWriteDependency(
-                AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::PLE_LOADER,
-                m_PleKernelToPleLoaderAgentIdMapping[static_cast<PleOp*>(ptrPleOp)->m_PleKernelId], nullptr);
-
-            if (m_FenceOp != nullptr)
-            {
-                // Note that this is an overly pessimistic approach, as corruption would only happen in practice if the SRAM
-                // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
-                AddReadAfterWriteDependency(AgentType::PLE_LOADER, pleLoaderAgentId,
-                                            m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOp)].agent.type,
-                                            this->m_OpToAgentIdMapping.at(m_FenceOp), m_FenceOp);
-            }
-        }
+        pleSchedulerAgentId = AddPleSchedulerToCommandStream(static_cast<PleOp*>(ptrPleOp));
 
         AgentType input0AgentType = m_CommandStreamAgents[m_OpToAgentIdMapping[input0Producer]].agent.type;
 
@@ -581,13 +675,33 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
             AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, secondInputAgentType,
                                         m_OpToAgentIdMapping[secondInputProducer], secondInputProducer);
         }
+
+        // Prefer to go back up the cascade first.
+        // PleL dependency must come after the IfmS dependency, otherwise the PleL in a cascade would
+        // get scheduled in the opposite order
+        if (loadKernel)
+        {
+            // Read After Write Dependency for [PleScheduler][PleLoader]
+            AddReadAfterWriteDependency(
+                AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::PLE_LOADER,
+                m_PleKernelToPleLoaderAgentIdMapping[static_cast<PleOp*>(ptrPleOp)->m_PleKernelId], nullptr);
+
+            // Prevent loading this new data too soon, over older data that is still being used.
+            AddSramOverlapDependencies(ptrPleOp->m_Offset.value(), m_Capabilities.GetMaxPleSize(), pleLoaderAgentId,
+                                       opIdx);
+        }
     }
     else
     {
-        AgentIdType pleSchedulerAgentId = AddPleSchedulerToCommandStream(static_cast<PleOp*>(ptrPleOp));
+        pleSchedulerAgentId = AddPleSchedulerToCommandStream(static_cast<PleOp*>(ptrPleOp));
 
-        // PleL dependency must come before the IfmS dependency, to make sure the DMAs are scheduled in this order.
-        // This is because PLE code must be loaded before the MCE runs, when running on the model.
+        // Read After Write Dependency for [PleScheduler][MceScheduler]
+        AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::MCE_SCHEDULER,
+                                    m_OpToAgentIdMapping[input0Producer], input0Producer);
+
+        // Prefer to go back up the cascade first.
+        // PleL dependency must come after the MceS dependency, otherwise the PleL in a cascade would
+        // get scheduled in the opposite order
         if (loadKernel)
         {
             // Read After Write Dependency for [PleScheduler][PleLoader]
@@ -595,22 +709,14 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
                 AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::PLE_LOADER,
                 m_PleKernelToPleLoaderAgentIdMapping[static_cast<PleOp*>(ptrPleOp)->m_PleKernelId], nullptr);
         }
-
-        // Read After Write Dependency for [PleScheduler][MceScheduler]
-        AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::MCE_SCHEDULER,
-                                    m_OpToAgentIdMapping[input0Producer], input0Producer);
     }
+
+    // Prevent producing output data too soon, over older data that is still being used.
+    AddSramOverlapDependencies(outputBuffer->Sram()->m_Offset.value(),
+                               outputBuffer->Sram()->m_SizeInBytes / m_Capabilities.GetNumberOfSrams(),
+                               pleSchedulerAgentId, opIdx);
+
     ETHOSN_UNUSED(outputBuffer);
-}
-
-void CascadingCommandStreamGenerator::ProcessSpaceToDepthOp(Op* const ptrSpaceToDepthOp)
-{
-    ETHOSN_UNUSED(ptrSpaceToDepthOp);
-}
-
-void CascadingCommandStreamGenerator::ProcessTransposeOp(Op* const ptrTransposeOp)
-{
-    ETHOSN_UNUSED(ptrTransposeOp);
 }
 
 // Private function to add IFM_STREAMER to the command stream

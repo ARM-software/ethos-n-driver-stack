@@ -60,11 +60,9 @@ public:
 
 private:
     // Private functions for processing OpGraph Ops
-    void ProcessDmaOp(DmaOp* const ptrDmaOp);
-    void ProcessMceOp(Op* const ptrMceOp);
-    void ProcessPleOp(Op* const ptrPleOp);
-    void ProcessSpaceToDepthOp(Op* const ptrSpaceToDepthOp);
-    void ProcessTransposeOp(Op* const ptrTransposeOp);
+    void ProcessDmaOp(DmaOp* const ptrDmaOp, uint32_t opIdx);
+    void ProcessMceOp(MceOp* const ptrMceOp, uint32_t opIdx);
+    void ProcessPleOp(PleOp* const ptrPleOp, uint32_t opIdx);
 
     // Private function to add IFM_STREAMER to the command stream
     AgentIdType AddIfmStreamerToCommandStream(DmaOp* const ptrOp,
@@ -128,6 +126,8 @@ private:
     // Used for intermediate and input buffers as they can be duplicated
     uint16_t AddDramBufferAndCacheId(DramBuffer* inputBuffer, Op* const op);
 
+    void AddSramOverlapDependencies(uint32_t newDataStart, uint32_t newDataSize, AgentIdType agentId, uint32_t opIdx);
+
     // Merged OpGraph used to generate the command stream, set at creation time.
     const OpGraph m_MergedOpGraph;
     const std::set<uint32_t> m_OperationIds;
@@ -162,11 +162,6 @@ private:
 
     // BufferManager instance which maintains and builds up the set of buffers required by the compiled network
     BufferManager m_BufferManager;
-
-    /// The most recent Op that could block later Ops from loading data into SRAM, to prevent corruption.
-    /// The next occurence of an IfmS, PleL or WgtS will include a dependency on these to stall them until the
-    /// fence Op has finished.
-    Op* m_FenceOp;
 };
 }    // namespace cascading_compiler
 }    // namespace support_library
