@@ -127,6 +127,20 @@ static size_t ethosn_page_size(unsigned int start,
 	return size;
 }
 
+static int ethosn_nr_sg_objects_user_mmap(
+	struct ethosn_dma_info_internal *dma_info,
+	size_t vm_size)
+{
+	int nr_pages = 0;
+
+	if (dma_info->source == ETHOSN_MEMORY_IMPORT)
+		nr_pages = dma_info->dma_buf_internal->sgt->nents;
+	else
+		nr_pages = DIV_ROUND_UP(vm_size, PAGE_SIZE);
+
+	return nr_pages;
+}
+
 static int ethosn_nr_sg_objects(struct ethosn_dma_info_internal *dma_info)
 {
 	int nr_pages = 0;
@@ -990,7 +1004,9 @@ static int iommu_mmap(struct ethosn_dma_sub_allocator *allocator,
 {
 	struct ethosn_dma_info_internal *dma_info =
 		container_of(_dma_info, typeof(*dma_info), info);
-	int nr_scatter_pages = ethosn_nr_sg_objects(dma_info);
+	size_t vm_map_req_size = vma->vm_end - vma->vm_start;
+	int nr_scatter_pages =
+		ethosn_nr_sg_objects_user_mmap(dma_info, vm_map_req_size);
 	int i;
 
 	switch (dma_info->source) {
