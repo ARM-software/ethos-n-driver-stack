@@ -44,7 +44,6 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_platform.h>
-#include <linux/pci.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/string.h>
@@ -65,9 +64,6 @@
 		ETHOSN_KERNEL_MODULE_VERSION_PATCH)
 
 #define ETHOSN_MAX_DEVICES (1U << MINORBITS)
-
-#define ETHOSN_PCI_VENDOR 0x13b5
-#define ETHOSN_PCI_DEVICE 0x0001
 
 #define ETHOSN_SMMU_MAX_ADDR_BITS 49
 
@@ -1710,7 +1706,7 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 
 #endif  /* ETHOSN_TZMP1 */
 
-	snprintf(name, sizeof(name), "ethosn%u", ethosn->parent_id);
+	snprintf(name, sizeof(name), "ethosn%d", ethosn->parent_id);
 	ethosn->debug_dir = debugfs_create_dir(name, NULL);
 	if (IS_ERR_OR_NULL(ethosn->debug_dir)) {
 		if (PTR_ERR(ethosn->debug_dir) == -ENODEV) {
@@ -1933,72 +1929,6 @@ static struct platform_driver ethosn_pdev_driver = {
 };
 
 /*****************************************************************************
- * PCI device
- *****************************************************************************/
-
-/**
- * ethosn_pci_probe() - Do PCI specific probing
- * @pdev: Platform device
- * Return:
- * * 0 - OK
- * * -EINVAL - Invalid argument
- */
-static int ethosn_pci_probe(struct pci_dev *pdev,
-			    const struct pci_device_id *id)
-{
-	/* The PCI driver does not seem to use the dts file and so we cannot
-	 * query for the IRQ setup. We only use PCI for the qemu environment
-	 * so we hardcode the interrupts here.
-	 * As the PCI driver does not parse the dts, so it is assumed to work
-	 * for single core NPU only.
-	 */
-	int irq_numbers[ETHOSN_MAX_NUM_IRQS] = { pdev->irq };
-	unsigned long irq_flags[ETHOSN_MAX_NUM_IRQS] = {
-		IRQF_SHARED | IRQF_TRIGGER_HIGH
-	};
-	int num_irqs = 1;
-	struct ethosn_device *ethosn;
-
-	dma_set_mask_and_coherent(&pdev->dev, ETHOSN_REGION_MASK);
-
-	ethosn = devm_kzalloc(&pdev->dev, sizeof(*ethosn), GFP_KERNEL);
-	if (!ethosn)
-		return -ENOMEM;
-
-	/* Allocating for the parent device. We assume for a single core NPU
-	 * only.
-	 */
-	ethosn->dev = &pdev->dev;
-	dev_set_drvdata(&pdev->dev, ethosn);
-	ethosn->num_cores = 1;
-
-	/* Allocating the child device (ie struct ethosn_core)
-	 */
-	ethosn->core[0] = devm_kzalloc(&pdev->dev, sizeof(struct ethosn_core),
-				       GFP_KERNEL);
-	if (!ethosn->core[0])
-		return -ENOMEM;
-
-	return ethosn_driver_probe(ethosn->core[0],
-				   &pdev->resource[0],
-				   irq_numbers, irq_flags, num_irqs, true);
-}
-
-static struct pci_device_id ethosn_pci_device_id[] = {
-	{ PCI_DEVICE(ETHOSN_PCI_VENDOR,
-		     ETHOSN_PCI_DEVICE) },
-	{ 0, }
-};
-
-MODULE_DEVICE_TABLE(pci, ethosn_pci_device_id);
-
-static struct pci_driver ethosn_pci_driver = {
-	.name     = ETHOSN_DRIVER_NAME,
-	.id_table = ethosn_pci_device_id,
-	.probe    = &ethosn_pci_probe
-};
-
-/*****************************************************************************
  * Module initialization and destruction
  *****************************************************************************/
 
@@ -2037,16 +1967,7 @@ static int ethosn_class_init(void)
 		goto cleanup_ethosn;
 	}
 
-	ret = pci_register_driver(&ethosn_pci_driver);
-	if (ret != 0) {
-		pr_err("Failed to register PCI driver.\n");
-		goto unregister_class;
-	}
-
 	return 0;
-
-unregister_class:
-	class_unregister(&ethosn_class);
 
 cleanup_ethosn:
 	ethosn_major_cleanup();
@@ -2056,7 +1977,6 @@ cleanup_ethosn:
 
 static void ethosn_class_release(void)
 {
-	pci_unregister_driver(&ethosn_pci_driver);
 	class_unregister(&ethosn_class);
 	ethosn_major_cleanup();
 }
