@@ -481,12 +481,14 @@ double CalculateMetric(const NetworkPerformanceData& networkPerfData)
 
 double CalculateMetric(const PassPerformanceData& passPerfData)
 {
-    uint64_t nonParallelBytes = passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel +
+    // Casts to double may result in a loss of precision as doubles cannot represent all the values
+    // in a uint64_t, however it is unlikely to occur and is fine anyway as the metric is an estimation.
+    uint64_t nonParallelBytes = static_cast<uint64_t>(passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel) +
                                 passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel +
                                 passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel;
     double nonParallelBytesDouble = static_cast<double>(nonParallelBytes);
 
-    uint64_t parallelBytes = passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramParallel +
+    uint64_t parallelBytes = static_cast<uint64_t>(passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramParallel) +
                              passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramParallel +
                              passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramParallel;
     double parallelBytesDouble = static_cast<double>(parallelBytes);
