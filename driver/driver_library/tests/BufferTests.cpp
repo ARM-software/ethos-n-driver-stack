@@ -41,21 +41,6 @@ TEST_CASE("BufferSource")
     REQUIRE(std::memcmp(test_buffer.Map(), test_src, sizeof(test_src)) == 0);
 }
 
-TEST_CASE("BufferDescriptor")
-{
-    uint8_t test_src[] = "This is a test source data";
-    uint32_t buf_size  = sizeof(test_src);
-
-    ProcMemAllocator test_allocator;
-
-    // Create a buffer with test source data
-    Buffer test_buffer = test_allocator.CreateBuffer(test_src, buf_size);
-
-    // Verify Buffer properties
-    REQUIRE(test_buffer.GetSize() == buf_size);
-    REQUIRE(std::memcmp(test_buffer.Map(), test_src, buf_size) == 0);
-}
-
 TEST_CASE("BufferMove")
 {
     // Test that a move is possible and behaves correct.
