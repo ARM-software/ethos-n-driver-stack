@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -15,14 +15,6 @@ namespace driver_library
 {
 
 class ProcMemAllocator;
-
-// Buffer formats.
-// (N = batch, H = height, W = width, C = channel)
-enum class DataFormat
-{
-    NHWC,
-    NHWCB
-};
 
 enum class MemType
 {
@@ -71,9 +63,6 @@ public:
 
     // Returns the size of the buffer.
     uint32_t GetSize();
-
-    // Returns the data format of the buffer.
-    DataFormat GetDataFormat();
 
     // Returns the raw file descriptor.
     const int& GetBufferHandle() const;

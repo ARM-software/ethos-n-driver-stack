@@ -34,7 +34,7 @@ public:
     ProcMemAllocator& operator=(const ProcMemAllocator&) = delete;
 
     // Buffer Creation
-    Buffer CreateBuffer(uint32_t size, DataFormat format);
+    Buffer CreateBuffer(uint32_t size);
 
     /// Create buffer filled with the data from src. The buffer's data can later be accessed via the
     /// buffer's Map() function
@@ -52,7 +52,7 @@ public:
     ///
     /// ... another inference is executed ...
     ///
-    Buffer CreateBuffer(const uint8_t* src, uint32_t size, DataFormat format);
+    Buffer CreateBuffer(const uint8_t* src, uint32_t size);
 
     /// Import dma-buf based buffer to be used by the device
     Buffer ImportBuffer(int fd, uint32_t size);

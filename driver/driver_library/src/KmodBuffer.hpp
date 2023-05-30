@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -32,10 +32,9 @@ namespace driver_library
 class Buffer::BufferImpl
 {
 public:
-    BufferImpl(uint32_t size, DataFormat format, int allocatorFd)
+    BufferImpl(uint32_t size, int allocatorFd)
         : m_MappedData(nullptr)
         , m_Size(size)
-        , m_Format(format)
     {
         const ethosn_buffer_req bufferReq = {
             size,
@@ -50,8 +49,8 @@ public:
         }
     }
 
-    BufferImpl(const uint8_t* src, uint32_t size, DataFormat format, int allocatorFd)
-        : BufferImpl(size, format, allocatorFd)
+    BufferImpl(const uint8_t* src, uint32_t size, int allocatorFd)
+        : BufferImpl(size, allocatorFd)
     {
         uint8_t* data = Map();
         std::copy_n(src, size, data);
@@ -61,7 +60,6 @@ public:
     BufferImpl(int fd, uint32_t size, int allocatorFd)
         : m_MappedData(nullptr)
         , m_Size(size)
-        , m_Format(DataFormat::NHWC)
     {
         const ethosn_dma_buf_req importedBufferReq = {
             static_cast<__u32>(fd),
@@ -94,11 +92,6 @@ public:
     uint32_t GetSize()
     {
         return m_Size;
-    }
-
-    DataFormat GetDataFormat()
-    {
-        return m_Format;
     }
 
     const int& GetBufferHandle() const
@@ -151,7 +144,6 @@ private:
     int m_BufferFd;
     uint8_t* m_MappedData;
     uint32_t m_Size;
-    DataFormat m_Format;
 };
 
 }    // namespace driver_library

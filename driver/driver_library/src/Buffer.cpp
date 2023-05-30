@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -58,15 +58,6 @@ uint32_t Buffer::GetSize()
         throw std::runtime_error("Unable to GetSize as BufferImpl is null");
     }
     return bufferImpl->GetSize();
-}
-
-DataFormat Buffer::GetDataFormat()
-{
-    if (!bufferImpl)
-    {
-        throw std::runtime_error("Unable to GetDataFormat as BufferImpl is null");
-    }
-    return bufferImpl->GetDataFormat();
 }
 
 const int& Buffer::GetBufferHandle() const

@@ -101,14 +101,14 @@ ProcMemAllocator::~ProcMemAllocator()
 #endif
 }
 
-Buffer ProcMemAllocator::CreateBuffer(uint32_t size, DataFormat format)
+Buffer ProcMemAllocator::CreateBuffer(uint32_t size)
 {
-    return Buffer(std::make_unique<Buffer::BufferImpl>(size, format, m_AllocatorFd));
+    return Buffer(std::make_unique<Buffer::BufferImpl>(size, m_AllocatorFd));
 }
 
-Buffer ProcMemAllocator::CreateBuffer(const uint8_t* src, uint32_t size, DataFormat format)
+Buffer ProcMemAllocator::CreateBuffer(const uint8_t* src, uint32_t size)
 {
-    return Buffer(std::make_unique<Buffer::BufferImpl>(src, size, format, m_AllocatorFd));
+    return Buffer(std::make_unique<Buffer::BufferImpl>(src, size, m_AllocatorFd));
 }
 
 Buffer ProcMemAllocator::ImportBuffer(int fd, uint32_t size)

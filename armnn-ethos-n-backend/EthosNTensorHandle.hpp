@@ -220,8 +220,7 @@ private:
         uint32_t bufferSize =
             armnn::ethosnbackend::RoundUpToNearestMultiple(tensorInfo.GetNumElements(), static_cast<uint32_t>(1024));
 
-        return std::make_unique<Buffer>(
-            procMemAllocator.CreateBuffer(bufferSize, ethosn::driver_library::DataFormat::NHWC));
+        return std::make_unique<Buffer>(procMemAllocator.CreateBuffer(bufferSize));
     }
 };
 
