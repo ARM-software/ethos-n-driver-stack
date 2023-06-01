@@ -136,6 +136,32 @@ struct EncodedOfm
     uint32_t m_NumOfBits;
 };
 
+/// Stores a list of bit arrays, which are conceptually joined together end-to-end.
+/// This makes it very fast to join multiple bit arrays without having to do any copying.
+class BitstreamRope
+{
+public:
+    struct Element
+    {
+        std::vector<uint8_t> bytes;
+        uint32_t numBits;
+    };
+
+    void ReserveNumElements(size_t numElements);
+    void AddElement(Element&& e);
+    void AddRope(BitstreamRope&& rope);
+
+    uint32_t GetTotalBits() const;
+
+    /// Joins the stored bits to a single array. This is an expensive operation so is best left
+    /// until a linear array is really needed.
+    std::vector<uint8_t> Resolve() const;
+
+private:
+    uint32_t m_TotalBits = 0;
+    std::vector<Element> m_Elements;
+};
+
 class BitstreamWriter;
 
 uint8_t WeightOffsetClamp(WeightSymbol offset)
@@ -1366,7 +1392,7 @@ void WritePayloadHeader(BitstreamWriter& writer, const size_t payloadLength, con
 }
 
 // Calculates the exact offset and size in DRAM of each weight stripe
-std::vector<WeightsMetadata> CalculateWeightsMetadata(const std::vector<std::vector<uint8_t>>& streamPerStripeOg,
+std::vector<WeightsMetadata> CalculateWeightsMetadata(const std::vector<BitstreamRope>& streamPerStripeOg,
                                                       uint32_t numOgPerStripe)
 {
     std::vector<WeightsMetadata> metadata;
@@ -1376,7 +1402,7 @@ std::vector<WeightsMetadata> CalculateWeightsMetadata(const std::vector<std::vec
         uint32_t stripeSize = 0;
         for (size_t j = 0; j < numOgPerStripe; ++j)
         {
-            stripeSize += static_cast<uint32_t>(streamPerStripeOg[i + j].size());
+            stripeSize += static_cast<uint32_t>(utils::DivRoundUp(streamPerStripeOg[i + j].GetTotalBits(), 8));
         }
         metadata.push_back(WeightsMetadata{ runningSize, stripeSize });
         runningSize += stripeSize;
@@ -1651,6 +1677,126 @@ std::vector<uint8_t> GetRawOfmStream(const uint8_t* weightData,
     return result;
 }
 
+void BitstreamRope::ReserveNumElements(size_t numElements)
+{
+    m_Elements.reserve(numElements);
+}
+
+void BitstreamRope::AddElement(BitstreamRope::Element&& element)
+{
+    m_Elements.push_back(std::move(element));
+    m_TotalBits += element.numBits;
+}
+
+void BitstreamRope::AddRope(BitstreamRope&& rope)
+{
+    for (Element& e : rope.m_Elements)
+    {
+        AddElement(std::move(e));
+    }
+
+    // Moved-from
+    rope.m_Elements.clear();
+    rope.m_TotalBits = 0;
+}
+
+uint32_t BitstreamRope::GetTotalBits() const
+{
+    return m_TotalBits;
+}
+
+std::vector<uint8_t> BitstreamRope::Resolve() const
+{
+    std::vector<uint8_t> result;
+    result.reserve(utils::DivRoundUp(GetTotalBits(), 8));
+
+    uint32_t numBitsResult = 0;
+    for (uint32_t elementIdx = 0; elementIdx < m_Elements.size(); ++elementIdx)
+    {
+        const Element& element = m_Elements[elementIdx];
+
+        // We need to append the new `stream` onto `mergedGroup` bit-by-bit.
+        const uint32_t bitPos = numBitsResult % 8;
+        if (bitPos == 0)
+        {
+            // Simple case where we are byte-aligned, and can do a regular copy
+            std::copy(element.bytes.begin(), element.bytes.end(), std::back_inserter(result));
+        }
+        else
+        {
+            // Otherwise, we need to shuffle around the bits when appending.
+            // Note that least-significant-bits are considered as "first" (little endian), which is left-most/position 0 in this diagram:
+            //
+            // This diagram shows the alignment between the two sets of bytes, for the case where `bitPos` = 6.
+            //
+            //  |---------------|
+            //  |0 1 2 3 4 5 - -| <-     output bit stream (`mergedGroup`), before appending the new stream.
+            //  |---------------|        Last two bits are not yet set.
+            //
+            //                   new byte 0        new byte 1       new byte 2
+            //              |---------------|---------------|---------------|
+            //              |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|    <- bit stream being appended (`stream`)
+            //              |---------------|---------------|---------------|
+            //
+            //
+            //  |---------------|---------------|---------------|
+            //  |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|    <- output bit stream (`mergedGroup`) after new stream appended
+            //  |---------------|---------------|---------------|
+            //
+            //  * The first bit of the new stream is placed at bit position 6 in the already-existing final byte of `mergedGroup`
+            //  * the second bit of the new stream is placed at bit position 7 in the same byte
+            //  * The third bit of the new stream is placed in a new byte in `mergedGroup`, at bit position 0
+
+            const uint32_t invBitPos = 8 - bitPos;
+
+            // Function to construct the left/least-significant-bits of an output byte
+            // This comes from the right/most-significant-bits of the previous byte in the new stream
+            auto firstPart = [&](uint8_t prevStreamByte) -> uint8_t {
+                return static_cast<uint8_t>(prevStreamByte >> invBitPos);
+            };
+            // Function to construct the right/most-significant-bits of an output byte
+            // This comes from the left/least-significant-bits of the next byte in the new stream
+            auto secondPart = [&](uint8_t nextStreamByte) -> uint8_t {
+                return static_cast<uint8_t>(((nextStreamByte & ((1 << invBitPos) - 1)) << (bitPos)));
+            };
+
+            // Get the last element of the merged stream, as we'll need to append some bits to this and update it
+            uint8_t lastByte = static_cast<uint8_t>(result.back());
+            // Merge with new stream byte
+            lastByte      = static_cast<uint8_t>(lastByte | secondPart(element.bytes[0]));
+            result.back() = lastByte;
+
+            // Loop byte-by-byte appending each of the rest of the bytes of the new stream
+            // This might be faster to do multiple bytes at a time (e.g. 64-bit words). Would need to be careful about alignment though.
+            uint8_t prevStreamByte = element.bytes[0];
+            for (size_t i = 1; i < element.bytes.size() - 0; ++i)
+            {
+                const uint8_t nextStreamByte = element.bytes[i];
+                const uint8_t newByte        = firstPart(prevStreamByte) | secondPart(nextStreamByte);
+                result.push_back(newByte);
+
+                prevStreamByte = nextStreamByte;
+            }
+
+            // The second half of the final byte now needs adding, but this final byte
+            // might not be a full byte, so check if there's actually anything to add
+            uint32_t finalByteNumBits = element.numBits % 8;
+            if (finalByteNumBits == 0)
+            {
+                finalByteNumBits = 8;
+            }
+            if (finalByteNumBits > invBitPos)
+            {
+                result.push_back(firstPart(prevStreamByte));
+            }
+        }
+
+        numBitsResult += element.numBits;
+    }
+
+    return result;
+}
+
 /// Merges the given streams of data into 'numGroups' groups, using a round-robin allocation of streams to groups.
 /// All the streams in a group are then concatenated together.
 ///
@@ -1662,10 +1808,10 @@ std::vector<uint8_t> GetRawOfmStream(const uint8_t* weightData,
 ///                                      Group 2 (stream B):         | B1 | B2 | B3 | B4 |
 ///  C:   | C1 | C2 |
 ///
-std::vector<std::vector<uint8_t>> MergeStreams(const std::vector<std::vector<uint8_t>>& streams,
-                                               uint32_t numGroups,
-                                               uint32_t numIterations,
-                                               uint32_t numOfmPerSram)
+std::vector<BitstreamRope> MergeStreams(std::vector<BitstreamRope>& streams,
+                                        uint32_t numGroups,
+                                        uint32_t numIterations,
+                                        uint32_t numOfmPerSram)
 {
     // Assign each stream to a group (each group is stored as a vector of the stream indexes assigned to it).
     std::vector<std::vector<uint32_t>> groups(numGroups);
@@ -1771,18 +1917,21 @@ std::vector<std::vector<uint8_t>> MergeStreams(const std::vector<std::vector<uin
     }
 
     // For each group, merge all its streams together into one.
-    std::vector<std::vector<uint8_t>> result(numGroups);
+    std::vector<BitstreamRope> result(numGroups);
     for (uint32_t groupIdx = 0; groupIdx < numGroups; ++groupIdx)
     {
         const std::vector<uint32_t>& group = groups[groupIdx];
-        std::vector<uint8_t>& mergedGroup  = result[groupIdx];
+        BitstreamRope& mergedGroup         = result[groupIdx];
+
+        // Calculate size required and reserve space, to reduce overhead from reallocations
+        mergedGroup.ReserveNumElements(group.size());
 
         for (uint32_t streamIdxWithinGroup = 0; streamIdxWithinGroup < group.size(); ++streamIdxWithinGroup)
         {
-            uint32_t streamIdx                 = group[streamIdxWithinGroup];
-            const std::vector<uint8_t>& stream = streams[streamIdx];
+            uint32_t streamIdx    = group[streamIdxWithinGroup];
+            BitstreamRope& stream = streams[streamIdx];
 
-            std::copy(stream.begin(), stream.end(), std::back_inserter(mergedGroup));
+            mergedGroup.AddRope(std::move(stream));
         }
     }
 
@@ -1800,9 +1949,9 @@ std::vector<std::vector<uint8_t>> MergeStreams(const std::vector<std::vector<uin
 ///                                      Group 2 (stream B):         | B1 | B2 | B3 | B4 |
 ///  C:   | C1 | C2 |
 ///
-std::vector<std::vector<uint8_t>> MergeStreamsOg(const std::vector<EncodedOfm>& streams,
-                                                 uint32_t numGroups,
-                                                 const uint32_t streamHeadersUpdateAlignment)
+std::vector<BitstreamRope> MergeStreamsOgAndUpdateHeaders(std::vector<EncodedOfm>& streams,
+                                                          uint32_t numGroups,
+                                                          const uint32_t streamHeadersUpdateAlignment)
 {
     // Assign each stream to a group (each group is stored as a vector of the stream indexes assigned to it).
     std::vector<std::vector<uint32_t>> groups(numGroups);
@@ -1813,24 +1962,24 @@ std::vector<std::vector<uint8_t>> MergeStreamsOg(const std::vector<EncodedOfm>& 
     }
 
     // For each group, merge all its streams together into one.
-    std::vector<std::vector<uint8_t>> result(numGroups);
+    std::vector<BitstreamRope> result(numGroups);
     for (uint32_t groupIdx = 0; groupIdx < numGroups; ++groupIdx)
     {
         const std::vector<uint32_t>& group = groups[groupIdx];
-        std::vector<uint8_t>& mergedGroup  = result[groupIdx];
+        BitstreamRope& mergedGroup         = result[groupIdx];
 
         // Pre-allocate a conservative estimate of capacity, to reduce number of reallocations as the vector grows.
         if (group.size() > 0)
         {
-            mergedGroup.reserve(group.size() * streams[group[0]].m_EncodedWeights.size() * 2);
+            mergedGroup.ReserveNumElements(group.size());
         }
 
         uint32_t numBitsStream = 0;
 
         for (uint32_t streamIdxWithinGroup = 0; streamIdxWithinGroup < group.size(); ++streamIdxWithinGroup)
         {
-            uint32_t streamIdx                 = group[streamIdxWithinGroup];
-            const std::vector<uint8_t>& stream = streams[streamIdx].m_EncodedWeights;
+            uint32_t streamIdx           = group[streamIdxWithinGroup];
+            std::vector<uint8_t>& stream = streams[streamIdx].m_EncodedWeights;
 
             // start position in byte
             uint32_t start = numBitsStream / 8;
@@ -1850,94 +1999,11 @@ std::vector<std::vector<uint8_t>> MergeStreamsOg(const std::vector<EncodedOfm>& 
             const uint8_t h1 = headerPtr[0];
             const uint8_t h2 = headerPtr[1];
 
-            // We need to append the new `stream` onto `mergedGroup` bit-by-bit.
-            const uint32_t bitPos = numBitsStream % 8;
-            if (bitPos == 0)
-            {
-                // Simple case where we are byte-aligned, and can do a regular copy
-                // First two bytes are the header
-                mergedGroup.push_back(h1);
-                mergedGroup.push_back(h2);
-                // Then the rest of the data
-                std::copy(stream.begin() + 2, stream.end(), std::back_inserter(mergedGroup));
-            }
-            else
-            {
-                // Otherwise, we need to shuffle around the bits when appending.
-                // Note that least-significant-bits are considered as "first" (little endian), which is left-most/position 0 in this diagram:
-                //
-                // This diagram shows the alignment between the two sets of bytes, for the case where `bitPos` = 6.
-                //
-                //  |---------------|
-                //  |0 1 2 3 4 5 - -| <-     output bit stream (`mergedGroup`), before appending the new stream.
-                //  |---------------|        Last two bits are not yet set.
-                //
-                //                   new byte 0        new byte 1       new byte 2
-                //              |---------------|---------------|---------------|
-                //              |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|    <- bit stream being appended (`stream`)
-                //              |---------------|---------------|---------------|
-                //
-                //
-                //  |---------------|---------------|---------------|
-                //  |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|    <- output bit stream (`mergedGroup`) after new stream appended
-                //  |---------------|---------------|---------------|
-                //
-                //  * The first bit of the new stream is placed at bit position 6 in the already-existing final byte of `mergedGroup`
-                //  * the second bit of the new stream is placed at bit position 7 in the same byte
-                //  * The third bit of the new stream is placed in a new byte in `mergedGroup`, at bit position 0
+            // Update header bytes
+            stream[0] = h1;
+            stream[1] = h2;
 
-                const uint32_t invBitPos = 8 - bitPos;
-
-                // Function to construct the left/least-significant-bits of an output byte
-                // This comes from the right/most-significant-bits of the previous byte in the new stream
-                auto firstPart = [&](uint8_t prevStreamByte) -> uint8_t {
-                    return static_cast<uint8_t>(prevStreamByte >> invBitPos);
-                };
-                // Function to construct the right/most-significant-bits of an output byte
-                // This comes from the left/least-significant-bits of the next byte in the new stream
-                auto secondPart = [&](uint8_t nextStreamByte) -> uint8_t {
-                    return static_cast<uint8_t>(((nextStreamByte & ((1 << invBitPos) - 1)) << (bitPos)));
-                };
-
-                // Get the last element of the merged stream, as we'll need to append some bits to this and update it
-                uint8_t lastByte = static_cast<uint8_t>(mergedGroup.back());
-                // Merge with new header byte (the first byte of the new stream is `h1`)
-                lastByte           = static_cast<uint8_t>(lastByte | secondPart(h1));
-                mergedGroup.back() = lastByte;
-
-                // Add a new byte containing the second part of `h1` and the first part of `h2`
-                const uint8_t firstNewByte = firstPart(h1) | secondPart(h2);
-                mergedGroup.push_back(firstNewByte);
-
-                // Add a new byte containing the second part of `h2` and the first part of the first data byte in the new stream
-                const uint8_t firstStreamByte = stream[2];    // Skip the placeholder header bytes at 0 at 1
-                const uint8_t secondNewByte   = firstPart(h2) | secondPart(firstStreamByte);
-                mergedGroup.push_back(secondNewByte);
-
-                // Loop byte-by-byte appending each of the rest of the bytes of the new stream
-                // This might be faster to do multiple bytes at a time (e.g. 64-bit words). Would need to be careful about alignment though.
-                uint8_t prevStreamByte = firstStreamByte;
-                for (size_t i = 3; i < stream.size() - 0; ++i)
-                {
-                    const uint8_t nextStreamByte = stream[i];
-                    const uint8_t newByte        = firstPart(prevStreamByte) | secondPart(nextStreamByte);
-                    mergedGroup.push_back(newByte);
-
-                    prevStreamByte = nextStreamByte;
-                }
-
-                // The second half of the final byte now needs adding, but this final byte
-                // might not be a full byte, so check if there's actually anything to add
-                uint32_t finalByteNumBits = streams[streamIdx].m_NumOfBits % 8;
-                if (finalByteNumBits == 0)
-                {
-                    finalByteNumBits = 8;
-                }
-                if (finalByteNumBits > invBitPos)
-                {
-                    mergedGroup.push_back(firstPart(prevStreamByte));
-                }
-            }
+            mergedGroup.AddElement({ std::move(stream), streams[streamIdx].m_NumOfBits });
 
             numBitsStream += streams[streamIdx].m_NumOfBits;
         }
@@ -1957,11 +2023,17 @@ std::vector<std::vector<uint8_t>> MergeStreamsOg(const std::vector<EncodedOfm>& 
 ///
 ///  C:   | C1 | C2 |
 ///
-std::vector<uint8_t> InterleaveStreams(const std::vector<std::vector<uint8_t>>& streams, uint32_t numBytesPerStream)
+std::vector<uint8_t> InterleaveStreams(const std::vector<BitstreamRope>& streams, uint32_t numBytesPerStream)
 {
+    std::vector<std::vector<uint8_t>> resolvedStreams(streams.size());
+    for (uint32_t i = 0; i < streams.size(); ++i)
+    {
+        resolvedStreams[i] = streams[i].Resolve();
+    }
+
     // Calculate how long the longest stream is, which determines how big our output will be.
     uint32_t maxLength = 0;
-    for (const std::vector<uint8_t>& s : streams)
+    for (const std::vector<uint8_t>& s : resolvedStreams)
     {
         maxLength = std::max(maxLength, static_cast<uint32_t>(s.size()));
     }
@@ -1974,7 +2046,7 @@ std::vector<uint8_t> InterleaveStreams(const std::vector<std::vector<uint8_t>>& 
         // Go through each stream and add the requested number of bytes
         for (uint32_t streamIdx = 0; streamIdx < streams.size(); ++streamIdx)
         {
-            const std::vector<uint8_t>& stream = streams[streamIdx];
+            const std::vector<uint8_t>& stream = resolvedStreams[streamIdx];
 
             int32_t numBytesToCopy =
                 std::max(0, std::min(static_cast<int32_t>(numBytesPerStream),
@@ -2281,8 +2353,8 @@ EncodedWeights EncodeWeightsStage2(std::unique_ptr<IStage1Results> stage1Results
     // If numIterationsOfm > 1, then we have more entries in encodedStreams and we deal with this by pretending
     // we have more OGs.
     //
-    std::vector<std::vector<uint8_t>> streamPerStripeOg;
-    const uint32_t numStripes = utils::DivRoundUp(stage1Results.numOfms, request.m_StripeDepth);
+    std::vector<BitstreamRope> streamPerStripeOg;
+    const uint32_t numStripes = utils::DivRoundUp(stage1Results.numOfms, stage1Results.request.m_StripeDepth);
     for (uint32_t stripeIdx = 0; stripeIdx < numStripes; ++stripeIdx)
     {
         const uint32_t firstOfmInStripe = request.m_StripeDepth * stripeIdx * stage1Results.numIterationsOfm;
@@ -2292,17 +2364,17 @@ EncodedWeights EncodeWeightsStage2(std::unique_ptr<IStage1Results> stage1Results
         std::vector<EncodedOfm> encodedOfmStreamsForThisStripe(
             std::begin(stage1Results.encodedStreams) + firstOfmInStripe,
             std::begin(stage1Results.encodedStreams) + lastOfmInStripe);
-        std::vector<std::vector<uint8_t>> streamPerOgForThisStripe =
-            MergeStreamsOg(encodedOfmStreamsForThisStripe,
-                           stage1Results.numOfmInParallel * stage1Results.numIterationsOfm, dmaEngineAlignment);
+        std::vector<BitstreamRope> streamPerOgForThisStripe = MergeStreamsOgAndUpdateHeaders(
+            encodedOfmStreamsForThisStripe, stage1Results.numOfmInParallel * stage1Results.numIterationsOfm,
+            dmaEngineAlignment);
         streamPerStripeOg.insert(std::end(streamPerStripeOg), std::make_move_iterator(streamPerOgForThisStripe.begin()),
                                  std::make_move_iterator(streamPerOgForThisStripe.end()));
     }
 
     uint32_t maxLength = 0;
-    for (const std::vector<uint8_t>& s : streamPerStripeOg)
+    for (const BitstreamRope& s : streamPerStripeOg)
     {
-        maxLength = std::max(maxLength, static_cast<uint32_t>(s.size()));
+        maxLength = std::max(maxLength, utils::DivRoundUp(s.GetTotalBits(), 8));
     }
 
     // Ensure all streams are of equal size as SRAM offsets are same on all CEs
@@ -2310,9 +2382,16 @@ EncodedWeights EncodeWeightsStage2(std::unique_ptr<IStage1Results> stage1Results
     // (the DMA can only transfer blocks aligned to 16-bytes).
     // Therefore we pad each stream to 16 bytes.
     maxLength = utils::RoundUpToNearestMultiple(maxLength, dmaEngineAlignment);
-    for (std::vector<uint8_t>& s : streamPerStripeOg)
+    for (BitstreamRope& s : streamPerStripeOg)
     {
-        s.resize(maxLength, 0);
+        uint32_t numPaddingBits = maxLength * 8 - s.GetTotalBits();
+        if (numPaddingBits > 0)
+        {
+            BitstreamRope::Element paddingElement;
+            paddingElement.bytes = std::vector<uint8_t>(utils::DivRoundUp(numPaddingBits, 8), static_cast<uint8_t>(0));
+            paddingElement.numBits = numPaddingBits;
+            s.AddElement(std::move(paddingElement));
+        }
     }
 
     // Number of Ofm processed in parallel which is the minimum number of
@@ -2322,17 +2401,18 @@ EncodedWeights EncodeWeightsStage2(std::unique_ptr<IStage1Results> stage1Results
     uint32_t numOfmsPerSram = request.m_Capabilities.GetNumberOfOgs() / numSrams;
     assert(numOfmsPerSram >= 1);
 
+    EncodedWeights encodedWeights;
+    encodedWeights.m_Metadata = CalculateWeightsMetadata(streamPerStripeOg, stage1Results.numOfmInParallel);
+
     // Merge together all the stripes into groups based on the SRAM they will be loaded into.
     // Stream = group of stripes that are loaded into a particular SRAM
-    std::vector<std::vector<uint8_t>> mergedStreams = MergeStreams(
-        streamPerStripeOg, request.m_Capabilities.GetNumberOfSrams(), stage1Results.numIterationsOfm, numOfmsPerSram);
-
-    EncodedWeights encodedWeights;
+    std::vector<BitstreamRope> mergedStreams =
+        MergeStreams(streamPerStripeOg, stage1Results.request.m_Capabilities.GetNumberOfSrams(),
+                     stage1Results.numIterationsOfm, numOfmsPerSram);
 
     // Merge all the SRAM streams together by interleaving 16 bytes from each.
     // This is so the DMA will distribute the correct weight data to the correct SRAM.
     encodedWeights.m_Data         = InterleaveStreams(mergedStreams, dmaEngineAlignment);
-    encodedWeights.m_Metadata     = CalculateWeightsMetadata(streamPerStripeOg, stage1Results.numOfmInParallel);
     encodedWeights.m_IsWideFilter = stage1Results.wideSubfilters.size() > 1;
 
     encodedWeights.m_MaxSize = 0;
