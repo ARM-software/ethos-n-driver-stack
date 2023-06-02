@@ -183,6 +183,13 @@ bool Combiner::AllocateSram(SectionContext& context,
     Allocated bufferAllocated, pleKernelAllocated;
     SramAllocator localAlloc = context.alloc;
 
+    // To get more benefit from preloading of weights from later layers, we want to minimise the overlap of SRAM
+    // buffers with earlier buffers, even when those buffers are no longer being used. This will allow the
+    // command stream generation to detect that the later buffers can be loaded early, leading to faster inferences.
+    // The following is a very simple strategy to achieve this, which is to alternately allocate new buffers at the
+    // start and end of the available SRAM space.
+    AllocationPreference allocPref = (partId % 2 == 0) ? AllocationPreference::Start : AllocationPreference::End;
+
     if (pleKernelInfo.m_PleOp != nullptr)
     {
         // If PLE kernel of the current plan is already used by previous part of the same
@@ -204,8 +211,7 @@ bool Combiner::AllocateSram(SectionContext& context,
             assert(pleKernelSize <= m_Caps.GetMaxPleSize());
 
             // Allocate the PleKernel
-            pleKernelAllocated =
-                localAlloc.Allocate(pleKernelSize, AllocationPreference::Start, pleKernelInfo.m_PleOp->m_DebugTag);
+            pleKernelAllocated = localAlloc.Allocate(pleKernelSize, allocPref, pleKernelInfo.m_PleOp->m_DebugTag);
 
             isSramAllocated = pleKernelAllocated.first;
 
@@ -246,8 +252,8 @@ bool Combiner::AllocateSram(SectionContext& context,
                 {
                     assert(bufferSize != 0);
 
-                    bufferAllocated = localAlloc.Allocate(bufferSize / m_Caps.GetNumberOfSrams(),
-                                                          AllocationPreference::Start, buf->m_DebugTag);
+                    bufferAllocated =
+                        localAlloc.Allocate(bufferSize / m_Caps.GetNumberOfSrams(), allocPref, buf->m_DebugTag);
 
                     isSramAllocated = bufferAllocated.first;
 

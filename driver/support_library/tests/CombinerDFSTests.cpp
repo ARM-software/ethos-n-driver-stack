@@ -3475,9 +3475,10 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
     {
         GraphOfParts graph;
 
-        auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
-        auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
-        auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+        // Use even part IDs so that SRAM allocations all use AllocationPreference::Start
+        auto pA = std::make_unique<MockPart>(0);
+        auto pB = std::make_unique<MockPart>(2);
+        auto pC = std::make_unique<MockPart>(4);
 
         const BasePart& partA = *pA;
         const BasePart& partB = *pB;
