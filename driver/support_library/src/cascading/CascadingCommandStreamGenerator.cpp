@@ -537,28 +537,49 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
 
         AgentType input0AgentType = m_CommandStreamAgents[m_OpToAgentIdMapping[input0Producer]].agent.type;
 
-        // Read After Write Dependency for [PleScheduler][IfmStreamer] or [PleScheduler][PleScheduler]
-        AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input0AgentType,
-                                    m_OpToAgentIdMapping[input0Producer], input0Producer);
-        if (input1Producer != nullptr)
+        if (input1Producer == nullptr)
         {
-            AgentType input1AgentType = m_CommandStreamAgents[m_OpToAgentIdMapping[input1Producer]].agent.type;
+            // Single-input
+
             // Read After Write Dependency for [PleScheduler][IfmStreamer] or [PleScheduler][PleScheduler]
-            AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input1AgentType,
-                                        m_OpToAgentIdMapping[input1Producer], input1Producer);
-        }
-
-        // Write After Read Dependency for [IfmStreamer][PleScheduler] or [PleScheduler][PleScheduler]
-        AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input0AgentType,
-                                    m_OpToAgentIdMapping[input0Producer], input0Producer);
-
-        if (input1Producer != nullptr)
-        {
-            AgentType input1AgentType = m_CommandStreamAgents[m_OpToAgentIdMapping[input1Producer]].agent.type;
+            AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input0AgentType,
+                                        m_OpToAgentIdMapping[input0Producer], input0Producer);
 
             // Write After Read Dependency for [IfmStreamer][PleScheduler] or [PleScheduler][PleScheduler]
-            AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input1AgentType,
-                                        m_OpToAgentIdMapping[input1Producer], input1Producer);
+            AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input0AgentType,
+                                        m_OpToAgentIdMapping[input0Producer], input0Producer);
+        }
+        else
+        {
+            // Two inputs
+            AgentType input1AgentType = m_CommandStreamAgents[m_OpToAgentIdMapping[input1Producer]].agent.type;
+
+            // Order of dependencies matters
+            Op* firstInputProducer         = input0Producer;
+            Op* secondInputProducer        = input1Producer;
+            AgentType firstInputAgentType  = input0AgentType;
+            AgentType secondInputAgentType = input1AgentType;
+            if (m_OpToAgentIdMapping.at(input0Producer) > m_OpToAgentIdMapping.at(input1Producer))
+            {
+                std::swap(firstInputProducer, secondInputProducer);
+                std::swap(firstInputAgentType, secondInputAgentType);
+            }
+
+            // Read After Write Dependency for [PleScheduler][IfmStreamer] or [PleScheduler][PleScheduler]
+            AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, firstInputAgentType,
+                                        m_OpToAgentIdMapping[firstInputProducer], firstInputProducer);
+
+            // Read After Write Dependency for [PleScheduler][IfmStreamer] or [PleScheduler][PleScheduler]
+            AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, secondInputAgentType,
+                                        m_OpToAgentIdMapping[secondInputProducer], secondInputProducer);
+
+            // Write After Read Dependency for [IfmStreamer][PleScheduler] or [PleScheduler][PleScheduler]
+            AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, firstInputAgentType,
+                                        m_OpToAgentIdMapping[firstInputProducer], firstInputProducer);
+
+            // Write After Read Dependency for [IfmStreamer][PleScheduler] or [PleScheduler][PleScheduler]
+            AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, secondInputAgentType,
+                                        m_OpToAgentIdMapping[secondInputProducer], secondInputProducer);
         }
     }
     else
@@ -1097,6 +1118,18 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
 
                 consumerAgentDependency.boundary = 0;
             }
+            // Read After Write Dependency for [IfmStreamer][PleScheduler]
+            else if (producerAgentType == AgentType::PLE_SCHEDULER)
+            {
+                // The IfmS should wait until the PleS has completely finished.
+                consumerAgentDependency.outerRatio.other = producerAgentNumStripes;
+                consumerAgentDependency.outerRatio.self  = consumerAgentNumStripes;
+
+                consumerAgentDependency.innerRatio.other = producerAgentNumStripes;
+                consumerAgentDependency.innerRatio.self  = 1;
+
+                consumerAgentDependency.boundary = 0;
+            }
             break;
         }
 
@@ -1302,9 +1335,25 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
             // Read After Write Dependency for [PleScheduler][PleScheduler]
             else if (producerAgentType == AgentType::PLE_SCHEDULER)
             {
-                // We only support strategy 3 (full tensor) cascading for Ple -> Ple
-                consumerAgentDependency.outerRatio.other = 1U;
-                consumerAgentDependency.outerRatio.self  = 1U;
+                // Calculate outer ratios using number of stripes
+                consumerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
+                    producerAgentData.pleS.numStripes.height * producerAgentData.pleS.numStripes.width *
+                    producerAgentData.pleS.numStripes.channels);
+                consumerAgentDependency.outerRatio.self = ethosn::utils::NumericCast<uint16_t>(
+                    consumerAgentData.pleS.numStripes.height * consumerAgentData.pleS.numStripes.width *
+                    consumerAgentData.pleS.numStripes.channels);
+
+                // Calculate inner ratios using ratio of stripe size
+                uint16_t widthRatio   = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                    producerAgentData.pleS.numStripes.width, consumerAgentData.pleS.numStripes.width));
+                uint16_t heightRatio  = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                    producerAgentData.pleS.numStripes.height, consumerAgentData.pleS.numStripes.height));
+                uint16_t channelRatio = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                    producerAgentData.pleS.numStripes.channels, consumerAgentData.pleS.numStripes.channels));
+
+                consumerAgentDependency.innerRatio.other =
+                    ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio * channelRatio);
+                consumerAgentDependency.innerRatio.self = 1;
             }
             else
             {
@@ -1596,9 +1645,25 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
             // Write After Read Dependency for [PleScheduler][PleScheduler]
             else if (producerAgentType == AgentType::PLE_SCHEDULER)
             {
-                // We only support strategy 3 (full tensor) cascading for Ple -> Ple
-                producerAgentDependency.outerRatio.other = 1U;
-                producerAgentDependency.outerRatio.self  = 1U;
+                // Calculate outer ratios using number of stripes
+                producerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
+                    consumerAgentData.pleS.numStripes.height * consumerAgentData.pleS.numStripes.width *
+                    consumerAgentData.pleS.numStripes.channels);
+                producerAgentDependency.outerRatio.self = ethosn::utils::NumericCast<uint16_t>(
+                    producerAgentData.pleS.numStripes.height * producerAgentData.pleS.numStripes.width *
+                    producerAgentData.pleS.numStripes.channels);
+
+                // Calculate inner ratios using ratio of stripe size
+                uint16_t widthRatio   = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                    producerAgentData.pleS.numStripes.width, consumerAgentData.pleS.numStripes.width));
+                uint16_t heightRatio  = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                    producerAgentData.pleS.numStripes.height, consumerAgentData.pleS.numStripes.height));
+                uint16_t channelRatio = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                    producerAgentData.pleS.numStripes.channels, consumerAgentData.pleS.numStripes.channels));
+
+                producerAgentDependency.innerRatio.self =
+                    ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio * channelRatio);
+                producerAgentDependency.innerRatio.other = 1;
             }
             else
             {

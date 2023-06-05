@@ -61,6 +61,10 @@ public:
         , m_WeightEncoderCache{ capabilities, debuggingContext, m_DebugTag.c_str() }
         , m_InputDataType(m_InputDataType)
         , m_OutputDataType(m_OutputDataType)
+        , m_Input0Multiplier(0)
+        , m_Input0Shift(0)
+        , m_Input1Multiplier(0)
+        , m_Input1Shift(0)
     {
         m_StripeGenerator.m_StripeConfig.blockConfigs =
             FilterPleBlockConfigs(m_KernelOperation, m_StripeGenerator.m_StripeConfig.blockConfigs);
@@ -117,7 +121,7 @@ public:
 
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,
-                   Buffer* sramBuffer,
+                   const std::vector<Buffer*>& sramBufferInputs,
                    uint32_t numWeightStripes) const override;
 
     utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const override;

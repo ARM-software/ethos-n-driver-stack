@@ -199,7 +199,7 @@ TEST_CASE("PleOnlyAddition2Tensors")
     REQUIRE(inputPart0 != nullptr);
 
     Plans plansInputPart0 =
-        inputPart0->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+        inputPart0->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, { nullptr }, 1);
     CHECK(plansInputPart0.size() == 1);
 
     Buffer* bufferOutputPart0 = plansInputPart0[0].GetOutputBuffer(PartOutputSlot{ inputPart0->GetPartId(), 0 });
@@ -219,7 +219,7 @@ TEST_CASE("PleOnlyAddition2Tensors")
     REQUIRE(inputPart1 != nullptr);
 
     Plans plansInputPart1 =
-        inputPart1->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+        inputPart1->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, { nullptr }, 1);
     CHECK(plansInputPart1.size() == 1);
 
     Buffer* bufferOutputPart1 = plansInputPart1[0].GetOutputBuffer(PartOutputSlot{ inputPart1->GetPartId(), 0 });
@@ -239,7 +239,7 @@ TEST_CASE("PleOnlyAddition2Tensors")
     const StandalonePlePart* additionPlePart = dynamic_cast<const StandalonePlePart*>(&graph.GetPart(2));
     REQUIRE(additionPlePart != nullptr);
     Plans additionPlans =
-        additionPlePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+        additionPlePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, { nullptr }, 1);
     Op* maybePleOpAdditionPlans = additionPlans[0].m_OpGraph.GetOp(0);
     REQUIRE(IsPleOp(maybePleOpAdditionPlans));
     PleOp* pleOpAdditionPlans = static_cast<PleOp*>(maybePleOpAdditionPlans);
@@ -255,7 +255,7 @@ TEST_CASE("PleOnlyAddition2Tensors")
     REQUIRE(outputPart3 != nullptr);
 
     Plans plansOutputPart3 =
-        outputPart3->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+        outputPart3->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, { nullptr }, 1);
     CHECK(plansOutputPart3.size() == 1);
 
     Buffer* bufferInputPart3 = plansOutputPart3[0].GetInputBuffer(PartInputSlot{ outputPart3->GetPartId(), 0 });

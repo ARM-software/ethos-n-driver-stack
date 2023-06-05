@@ -20,6 +20,7 @@ namespace support_library
 {
 
 class Buffer;
+class SramBuffer;
 
 struct BoundaryRequirements
 {
@@ -29,11 +30,28 @@ struct BoundaryRequirements
     bool m_NeedsAfterY  = false;
 };
 
+///      Input buffers ->        All DRAM        Some SRAM and some DRAM       All SRAM
+/// Output buffers
+///      |
+///      v                     ------------------------------------------------------------
+///                           |
+///     All DRAM              |    Lonely                End                     End
+///                           |
+/// Some SRAM and some DRAM   |     -                     -                       -
+///                           |
+///       All SRAM            |  Beginning             Middle                   Middle
 enum class CascadeType
 {
+    /// All input buffers will be DMA'd from DRAM.
+    /// All output buffers will remain in SRAM for the consuming part(s).
     Beginning,
+    /// At least one input buffer will be already in SRAM.
+    /// All output buffers will remain in SRAM for the consuming part(s).
     Middle,
+    /// At least one input buffer will be already in SRAM.
+    /// All output buffers will be DMA'd to DRAM.
     End,
+    /// All input buffers and all output buffers will be DMA'd from/to DRAM.
     Lonely
 };
 
@@ -160,7 +178,7 @@ public:
     PartId GetPartId() const;
     virtual Plans GetPlans(CascadeType cascadeType,
                            ethosn::command_stream::BlockConfig blockConfig,
-                           Buffer* sramBuffer,
+                           const std::vector<Buffer*>& sramBufferInputs,
                            uint32_t numWeightStripes) const = 0;
     virtual utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const;
 
@@ -248,6 +266,7 @@ protected:
     void AddNewPlan(PartInputMapping&& inputMappings,
                     PartOutputMapping&& outputMappings,
                     OwnedOpGraph&& opGraph,
+                    utils::Optional<command_stream::BlockConfig> blockConfig,
                     Plans& plans) const;
 };
 

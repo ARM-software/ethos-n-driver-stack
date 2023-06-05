@@ -47,22 +47,6 @@ Buffer* Plan::GetOutputBuffer(const PartOutputSlot& partOutputSlot) const
     return nullptr;
 }
 
-ethosn::command_stream::BlockConfig Plan::GetBlockConfigures(const PartOutputSlot& partOutputSlot) const
-{
-    Buffer* outputBuffer = GetOutputBuffer(partOutputSlot);
-
-    Op* opProducer = m_OpGraph.GetSingleProducer(outputBuffer);
-
-    if (opProducer != nullptr && opProducer->GetBlockConfig().has_value())
-    {
-        return opProducer->GetBlockConfig().value();
-    }
-    else
-    {
-        return ethosn::command_stream::BlockConfig{};
-    }
-}
-
 PleKernelInfo Plan::GetPleKernelInfo(const HardwareCapabilities& cap) const
 {
     PleKernelInfo pleKernelInfo;

@@ -691,7 +691,7 @@ TEST_CASE("McePart GetPlans structure")
 
         WHEN("Asked to produce Lonely plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans structure Lonely");
 
             THEN("The plans are valid, start and end in Sram")
@@ -708,7 +708,7 @@ TEST_CASE("McePart GetPlans structure")
 
         WHEN("Asked to produce Beginning plans with Sram output")
         {
-            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans structure Beginning with Sram output");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -730,7 +730,7 @@ TEST_CASE("McePart GetPlans structure")
         {
             part.SetOutputRequirements({ BoundaryRequirements{} }, { true });
 
-            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans structure Beginning with PleInputSram output");
 
             THEN("The plans are valid and start in Sram and end in PleInputSram")
@@ -758,7 +758,7 @@ TEST_CASE("McePart GetPlans structure")
                                                          .AddNumStripes(1);
 
             Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, prevBuffer.get(), 1);
+                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart GetPlans structure Middle with Sram output");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -787,7 +787,7 @@ TEST_CASE("McePart GetPlans structure")
                                                          .AddNumStripes(1);
 
             Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, prevBuffer.get(), 1);
+                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart GetPlans structure Middle with PleInputSram output");
 
             THEN("The plans are valid and start in Sram and end in PleInputSram")
@@ -813,7 +813,8 @@ TEST_CASE("McePart GetPlans structure")
                                                          .AddSlotSize(8 * 16 * 16 * 1)
                                                          .AddNumStripes(1);
 
-            Plans plans = part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, prevBuffer.get(), 1);
+            Plans plans =
+                part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart GetPlans structure End");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -882,7 +883,8 @@ TEST_CASE("McePart End Cascade full tensor")
                                                          .AddSlotSize(24 * 24 * 256 * 1)
                                                          .AddNumStripes(1);
 
-            Plans plans = part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 16U, 16U }, prevBuffer.get(), 1);
+            Plans plans =
+                part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 16U, 16U }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart End Cascade");
 
             THEN("The plans have split the output of the mce, ple and memory buffer")
@@ -933,7 +935,7 @@ TEST_CASE("McePart GetPlans Strategy3", "[slow]")
 
         WHEN("Asked to generate plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans Strategy3");
 
             THEN("The plans are valid and contain at least one plan with Strategy3 stripe shapes and properties")
@@ -1008,7 +1010,7 @@ TEST_CASE("McePart GetPlans Strategy0", "[slow]")
 
         WHEN("Asked to generate plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans Strategy0");
 
             THEN("The plans are valid and contain at least one plan with Strategy0 stripe shapes and properties")
@@ -1095,7 +1097,8 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
 
             const uint32_t numWeightStripes = 1;
 
-            Plans plans = part.GetPlans(CascadeType::Middle, requestedBlockConfig, prevBuffer.get(), numWeightStripes);
+            Plans plans =
+                part.GetPlans(CascadeType::Middle, requestedBlockConfig, { prevBuffer.get() }, numWeightStripes);
 
             SavePlansToDot(plans, "McePart GetPlans Filters Block Config");
 
@@ -1138,7 +1141,8 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
 
             const uint32_t numWeightStripes = 2;
 
-            Plans plans = part.GetPlans(CascadeType::Middle, requestedBlockConfig, prevBuffer.get(), numWeightStripes);
+            Plans plans =
+                part.GetPlans(CascadeType::Middle, requestedBlockConfig, { prevBuffer.get() }, numWeightStripes);
 
             THEN("There are 0 plans generated")
             {
@@ -1160,7 +1164,8 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
 
             const uint32_t numWeightStripes = 2;
 
-            Plans plans = part.GetPlans(CascadeType::Middle, requestedBlockConfig, prevBuffer.get(), numWeightStripes);
+            Plans plans =
+                part.GetPlans(CascadeType::Middle, requestedBlockConfig, { prevBuffer.get() }, numWeightStripes);
 
             THEN("There are 0 plans generated")
             {
@@ -1199,7 +1204,7 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
             const uint32_t numWeightStripes = 1;
 
             Plans plans0 =
-                part0.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, numWeightStripes);
+                part0.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, numWeightStripes);
 
             SavePlansToDot(plans0, "McePart GetPlans Filters Block Config");
 
@@ -1260,7 +1265,7 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
 
                 REQUIRE(part0OutputBuffer != nullptr);
                 Plans plans1 =
-                    part1.GetPlans(CascadeType::Middle, requestedBlockConfig, part0OutputBuffer, numWeightStripes);
+                    part1.GetPlans(CascadeType::Middle, requestedBlockConfig, { part0OutputBuffer }, numWeightStripes);
 
                 // There is 1 plan which is generated
                 // 1 for mce + ple with 1 output stripe
@@ -1268,7 +1273,7 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
                 part1OutputBuffer = plans1[0].m_OpGraph.GetBuffers().back()->Sram();
 
                 Plans plans2 =
-                    part2.GetPlans(CascadeType::End, requestedBlockConfig, part1OutputBuffer, numWeightStripes);
+                    part2.GetPlans(CascadeType::End, requestedBlockConfig, { part1OutputBuffer }, numWeightStripes);
 
                 // There are 2 plan as we consider double buffering as the output stripe height is < output tensor
                 REQUIRE(plans2.size() == 2);
@@ -1295,7 +1300,7 @@ TEST_CASE("McePart GetPlans Winograd")
 
         WHEN("Asked to generate plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans Winograd");
 
             THEN("The plans are valid and have winograd enabled where possible")
@@ -1344,7 +1349,7 @@ TEST_CASE("McePart GetPlans Split input in height and width in the case of block
 
         WHEN("Asked to generate plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans Split input in height and width");
 
             THEN("The plans are valid, do have expected stripe configs")
@@ -1387,7 +1392,7 @@ TEST_CASE("McePart GetPlans Split output in depth")
 
         WHEN("Asked to generate plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans Split output in depth");
 
             THEN("The plans are valid and contain at least one plan with the stripe config we expect")
@@ -1481,7 +1486,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                     .AddNumStripes(1);    // For strategy 1 cascading, the buffers in SRAM are always the full tensor.
 
             Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, prevBuffer.get(), 1);
+                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart GetPlans MobileNet Part 2");
             CHECK(plans.size() == 1);
             CheckPlansParams params;
@@ -1529,7 +1534,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                     .AddNumStripes(1);    // For strategy 1 cascading, the buffers in SRAM are always the full tensor.
 
             Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, prevBuffer.get(), 1);
+                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart GetPlans MobileNet Part 3");
             CHECK(plans.size() == 1);
             CheckPlansParams params;
@@ -1574,7 +1579,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                     .AddNumStripes(1);    // For strategy 1 cascading, the buffers in SRAM are always the full tensor.
 
             Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, prevBuffer.get(), 2);
+                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 2);
             SavePlansToDot(plans, "McePart GetPlans MobileNet Part 4");
             CHECK(plans.size() == 1);
             CheckPlansParams params;
@@ -1617,7 +1622,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                     .AddNumStripes(1);    // For strategy 1 cascading, the buffers in SRAM are always the full tensor.
 
             Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, prevBuffer.get(), 1);
+                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart GetPlans MobileNet Part 6");
             CHECK(plans.size() == 1);
             CheckPlansParams params;
@@ -1661,7 +1666,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                     .AddNumStripes(1);    // For strategy 1 cascading, the buffers in SRAM are always the full tensor.
 
             Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, prevBuffer.get(), 2);
+                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 2);
             SavePlansToDot(plans, "McePart GetPlans MobileNet Part 7");
             CHECK(plans.size() == 1);
             CheckPlansParams params;
@@ -1706,7 +1711,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                     .AddNumStripes(1);    // For strategy 1 cascading, the buffers in SRAM are always the full tensor.
 
             Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, prevBuffer.get(), 1);
+                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart GetPlans MobileNet Part 8");
             CHECK(plans.size() == 1);
             CheckPlansParams params;
@@ -1751,7 +1756,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                     .AddNumStripes(1);    // For strategy 1 cascading, the buffers in SRAM are always the full tensor.
 
             Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, prevBuffer.get(), 2);
+                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 2);
             SavePlansToDot(plans, "McePart GetPlans MobileNet Part 9");
             CHECK(plans.size() == 1);
             CheckPlansParams params;
@@ -1791,7 +1796,7 @@ TEST_CASE("McePart GetPlans Upsampling")
 
         WHEN("Asked to generate Lonely plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans Upsampling Lonely");
 
             THEN("The plans are all valid and have stripe configs that are consistent with upsampling and there is a "
@@ -1832,7 +1837,7 @@ TEST_CASE("McePart GetPlans Upsampling")
                                                          .AddNumStripes(3);
 
             Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 32u, 8u }, prevBuffer.get(), 1);
+                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 32u, 8u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart GetPlans Upsampling Middle");
 
             THEN("The plans are all valid and have stripe configs that are consistent with upsampling and there is a "

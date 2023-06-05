@@ -479,7 +479,8 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                 opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
                 inputMappings[inBufferAndMceOp.first]   = PartInputSlot{ m_PartId, 0 };
                 outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
-                AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
+                AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph),
+                           info.m_MceCompute.m_BlockConfig, plans);
             }
         }
     }
@@ -526,7 +527,8 @@ void McePart::CreateMceOnlyPlans(const impl::MceOnlyInfo& info,
             opGraph.SetProducer(outBuffer, inBufferAndMceOp.second);
             inputMappings[inBufferAndMceOp.first] = PartInputSlot{ m_PartId, 0 };
             outputMappings[outBuffer]             = PartOutputSlot{ m_PartId, 0 };
-            AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
+            AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph),
+                       info.m_MceCompute.m_BlockConfig, plans);
         }
     }
 }
@@ -695,7 +697,7 @@ Plans McePart::GetEndPlans(ethosn::command_stream::BlockConfig blockConfig,
 
 Plans McePart::GetPlans(CascadeType cascadeType,
                         ethosn::command_stream::BlockConfig blockConfig,
-                        Buffer* sramBuffer,
+                        const std::vector<Buffer*>& sramBufferInputs,
                         uint32_t numWeightStripes) const
 {
     switch (cascadeType)
@@ -710,6 +712,7 @@ Plans McePart::GetPlans(CascadeType cascadeType,
         }
         case CascadeType::Middle:
         {
+            Buffer* sramBuffer = sramBufferInputs[0];
             if (sramBuffer->m_Location != Location::Sram)
             {
                 return Plans();
@@ -718,6 +721,7 @@ Plans McePart::GetPlans(CascadeType cascadeType,
         }
         case CascadeType::End:
         {
+            Buffer* sramBuffer = sramBufferInputs[0];
             if (sramBuffer->m_Location != Location::Sram)
             {
                 return Plans();

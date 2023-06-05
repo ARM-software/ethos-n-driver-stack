@@ -18,11 +18,11 @@ namespace support_library
 
 Plans ConcatPart::GetPlans(CascadeType cascadeType,
                            ethosn::command_stream::BlockConfig blockConfig,
-                           Buffer* sramBuffer,
+                           const std::vector<Buffer*>& sramBufferInputs,
                            uint32_t numWeightStripes) const
 {
     ETHOSN_UNUSED(blockConfig);
-    ETHOSN_UNUSED(sramBuffer);
+    ETHOSN_UNUSED(sramBufferInputs);
     ETHOSN_UNUSED(numWeightStripes);
 
     Plans plans;

@@ -159,29 +159,13 @@ void Combiner::DumpDebugInfo(const Combinations& combs,
     }
 }
 
-bool Combiner::IsPartSi(const BasePart& part) const
-{
-    return (m_GraphOfParts.GetPartInputs(part.GetPartId()).size() == 1);
-}
-
-bool Combiner::IsPartSo(const BasePart& part) const
-{
-    return (m_GraphOfParts.GetDestinationParts(part.GetPartId()).size() == 1);
-}
-
-bool Combiner::IsPartSiso(const BasePart& part) const
-{
-    return (m_GraphOfParts.GetPartInputs(part.GetPartId()).size() == 1 &&
-            m_GraphOfParts.GetDestinationParts(part.GetPartId()).size() == 1);
-}
-
 // Check if there is sufficient SRAM for plan to fit
 // into the SRAM allocation for the combination that
-// is compatible with the plan
-bool Combiner::IsPlanAllocated(SectionContext& context,
-                               const Plan& plan,
-                               const Buffer* const outBufOfPrevPlanInSection,
-                               bool inputBufferNeedAllocation) const
+// is compatible with the plan, and makes those allocations.
+bool Combiner::AllocateSram(SectionContext& context,
+                            PartId partId,
+                            const Plan& plan,
+                            const std::vector<Buffer*>& outputBuffersOfPrevPlans) const
 {
     // Some plans (e.g. from ConcatPart) do their own SRAM allocation, as the algorithm here
     // makes some assumptions which are sub-optimal
@@ -221,7 +205,7 @@ bool Combiner::IsPlanAllocated(SectionContext& context,
 
             // Allocate the PleKernel
             pleKernelAllocated =
-                localAlloc.Allocate((pleKernelSize), AllocationPreference::Start, pleKernelInfo.m_PleOp->m_DebugTag);
+                localAlloc.Allocate(pleKernelSize, AllocationPreference::Start, pleKernelInfo.m_PleOp->m_DebugTag);
 
             isSramAllocated = pleKernelAllocated.first;
 
@@ -257,31 +241,32 @@ bool Combiner::IsPlanAllocated(SectionContext& context,
             if (buf->m_Location == Location::Sram)
             {
                 // If an input buffer is in start of a section, or it's other buffer (i.e output buffer) in start/continue/end of section
-                if (inputBufferNeedAllocation || inputBuffersMapping.count(buf) == 0)
+                if (inputBuffersMapping.count(buf) == 0 || outputBuffersOfPrevPlans.empty() ||
+                    outputBuffersOfPrevPlans[inputBuffersMapping.at(buf).m_InputIndex] == nullptr)
                 {
                     assert(bufferSize != 0);
 
-                    bufferAllocated = localAlloc.Allocate((bufferSize / m_Caps.GetNumberOfSrams()),
+                    bufferAllocated = localAlloc.Allocate(bufferSize / m_Caps.GetNumberOfSrams(),
                                                           AllocationPreference::Start, buf->m_DebugTag);
 
                     isSramAllocated = bufferAllocated.first;
 
                     if (isSramAllocated == true)
                     {
-                        buf->Sram()->m_Offset = bufferAllocated.second;
-                        context.allocatedBuffers.push_back(buf->Sram());
+                        buf->Sram()->m_Offset                 = bufferAllocated.second;
+                        context.allocatedBuffers[buf->Sram()] = { partId };
                     }
                     else
                     {
                         break;
                     }
                 }
-                // If an input buffer in a continue or end section
+                // Input buffer, but in a continue or end section so we just copy the address of the output buffer
+                // from the incoming part.
                 else
                 {
-                    assert(outBufOfPrevPlanInSection != nullptr &&    // cppcheck-suppress assertWithSideEffect
-                           outBufOfPrevPlanInSection->Sram()->m_Offset.has_value());
-                    buf->Sram()->m_Offset = outBufOfPrevPlanInSection->Sram()->m_Offset;
+                    buf->Sram()->m_Offset =
+                        outputBuffersOfPrevPlans[inputBuffersMapping.at(buf).m_InputIndex]->Sram()->m_Offset.value();
                 }
             }
 
@@ -740,21 +725,56 @@ Combination
     return result;
 }
 
-void Combiner::DeallocateUnusedBuffers(const Buffer& prevPlanBuffer, SectionContext& context)
+void Combiner::DeallocateUnusedBuffers(PartId partId,
+                                       const PartOutputMapping& planOutputBuffers,
+                                       const std::vector<PartId>& consumingPartIds,
+                                       SectionContext& context)
 {
-    // If the output buffer from the previous plan contains the full tensor (either in SRAM like in
+    // If the output buffer(s) from the plan contains the full tensor (either in SRAM like in
     // a strategy 1/3 cascade or in DRAM), then we can safely free everything else in SRAM.
-    if (prevPlanBuffer.IsFullTensor())
+    bool allOutputBuffersFullTensor = true;
+    for (auto x : planOutputBuffers)
     {
-        for (size_t i = context.allocatedBuffers.size() - 1; i < context.allocatedBuffers.size(); --i)
+        Buffer* b = x.first;
+        if (!b->IsFullTensor())
         {
-            SramBuffer* b = context.allocatedBuffers[i];
-            if (b != &prevPlanBuffer)
+            allOutputBuffersFullTensor = false;
+        }
+    }
+
+    // Pass on the ownership to consumers of this part - they will handle deallocation when they are finished with it
+    // (recursively). This is important for e.g. strategy 0 cascades, as we can't free the buffers
+    // until the end of the section. We will keep passing on responsibility for the buffers down the cascade,
+    // accumulating more and more, until the end at which they will all be deallocated (see below block).
+    // For some cases like strategy 1 into strategy 3 cascading, buffers may be freed partway through a cascade.
+    std::vector<SramBuffer*> buffersToRemove;
+    for (std::pair<SramBuffer* const, std::set<PartId>>& bufferAndOwners : context.allocatedBuffers)
+    {
+        if (bufferAndOwners.second.count(partId) > 0)
+        {
+            bool isOutputBuffer = planOutputBuffers.count(bufferAndOwners.first) > 0;
+            if (!allOutputBuffersFullTensor || isOutputBuffer)
             {
-                context.alloc.Free(b->Sram()->m_Offset.value());
-                context.allocatedBuffers.erase(context.allocatedBuffers.begin() + i);
+                for (PartId consumingPartId : consumingPartIds)
+                {
+                    bufferAndOwners.second.insert(consumingPartId);
+                }
+            }
+
+            // Decrement ref count on all allocated buffers which we were a user of
+            // If we were the last user this will actually free it after this loop
+            bufferAndOwners.second.erase(partId);
+            if (bufferAndOwners.second.empty())
+            {
+                buffersToRemove.push_back(bufferAndOwners.first);
             }
         }
+    }
+
+    for (SramBuffer* b : buffersToRemove)
+    {
+        context.allocatedBuffers.erase(b);
+        context.alloc.Free(b->m_Offset.value());
     }
 }
 
@@ -794,15 +814,15 @@ Combination Combiner::ChooseBestLonelyPlan(const BasePart& part)
          ++currNumWeightStripes)
     {
         Plans plans =
-            part.GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, currNumWeightStripes);
+            part.GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, {}, currNumWeightStripes);
 
         for (Plan& plan : plans)
         {
             SramAllocator alloc(m_Caps.GetTotalSramSize() / m_Caps.GetNumberOfSrams());
             PleOperations pleOps = {};
-            SectionContext context{ {}, alloc, pleOps, {}, 0, false };
+            SectionContext context{ {}, alloc, pleOps, {}, 0, false, {}, ethosn::command_stream::BlockConfig{} };
 
-            if (!IsPlanAllocated(context, plan, nullptr, true))
+            if (!AllocateSram(context, part.GetPartId(), plan, {}))
             {
                 continue;
             }
@@ -850,10 +870,6 @@ Combination Combiner::ChooseBestLonelyPlan(const BasePart& part)
 //
 std::vector<SectionContext> Combiner::StartSection(const BasePart& part)
 {
-    if (!IsPartSo(part))
-    {
-        return {};
-    }
     std::vector<SectionContext> result = {};
 
     // Check if this Part can double buffer.
@@ -866,6 +882,13 @@ std::vector<SectionContext> Combiner::StartSection(const BasePart& part)
         hasSectionDoubleBuffered = true;
     }
 
+    std::vector<PartConnection> outgoingEdges = m_GraphOfParts.GetDestinationConnections(part.GetPartId());
+    std::vector<PartId> consumingParts;
+    for (PartConnection c : outgoingEdges)
+    {
+        consumingParts.push_back(c.m_Destination.m_PartId);
+    }
+
     // Double buffering is performed on a per Section basis, i.e. either the entire Section double buffers weights
     // (if the Parts allow it) or the Section single buffers weights. This double buffering is considered when the
     // Part being evaluated can be double buffered.
@@ -873,7 +896,7 @@ std::vector<SectionContext> Combiner::StartSection(const BasePart& part)
          ++currNumWeightStripes)
     {
         Plans plans =
-            part.GetPlans(CascadeType::Beginning, ethosn::command_stream::BlockConfig{}, nullptr, currNumWeightStripes);
+            part.GetPlans(CascadeType::Beginning, ethosn::command_stream::BlockConfig{}, {}, currNumWeightStripes);
 
         // SISO part:
         //
@@ -895,13 +918,25 @@ std::vector<SectionContext> Combiner::StartSection(const BasePart& part)
             // for this section. Once loaded, a PLE kernel will remain
             // in the SRAM as kernel reload is deemed to be costly.
             // The list is updated whenever a new kernel is encountered.
-            PleOperations pleOps = {};
-            SectionContext context{ {}, alloc, pleOps, {}, currNumWeightStripes, hasSectionDoubleBuffered };
+
+            // Default to 16x16 block if this plan doesn't have one. This means the rest of the section
+            // will never consider other block sizes which isn't ideal.
+            command_stream::BlockConfig blockConfig =
+                plan.m_BlockConfig.has_value() ? plan.m_BlockConfig.value() : command_stream::BlockConfig{ 16u, 16u };
+            SectionContext context{
+                {}, alloc, {}, {}, currNumWeightStripes, hasSectionDoubleBuffered, {}, blockConfig
+            };
 
             // Allocation requirement are different for start of section
-            if (!IsPlanAllocated(context, plan, nullptr, true))
+            if (!AllocateSram(context, part.GetPartId(), plan, {}))
             {
                 continue;
+            }
+            DeallocateUnusedBuffers(part.GetPartId(), plan.m_OutputMappings, consumingParts, context);
+
+            for (const PartConnection& connection : m_GraphOfParts.GetDestinationConnections(part.GetPartId()))
+            {
+                context.unresolvedOutputs.insert({ connection, plan.GetOutputBuffer(connection.m_Source) });
             }
 
             context.comb = Combination(part.GetPartId(), std::move(plan));
@@ -915,60 +950,90 @@ std::vector<SectionContext> Combiner::StartSection(const BasePart& part)
 
 std::vector<SectionContext> Combiner::ContinueSection(const BasePart& part, const SectionContext& context)
 {
-    if (!IsPartSiso(part))
-    {
-        return {};
-    }
+    return ContinueOrEndSection(false, part, context);
+}
 
+std::vector<SectionContext> Combiner::EndSection(const BasePart& part, const SectionContext& context)
+{
+    return ContinueOrEndSection(true, part, context);
+}
+
+std::vector<SectionContext>
+    Combiner::ContinueOrEndSection(bool isEnd, const BasePart& part, const SectionContext& context)
+{
     std::vector<SectionContext> result = {};
-
-    // A part can only be in the middle of a section
-    // if the next part in the sorted graph is also
-    // its destination.
-    // Otherwise the next part will have to start
-    // a new section which is already covered
-    // by EndPart(part) --- where the section
-    // ends in this part.
-    PartInputSlot inputSlot{ part.GetPartId(), 0 };
-    PartOutputSlot outputSlot = m_GraphOfParts.GetConnectedOutputSlot(inputSlot).value();
-
-    if (outputSlot.m_PartId != part.GetPartId() - 1)
-    {
-        return {};    // Prevent attempting to cascade in a non-linear chain
-    }
-
-    const Plan& sPlan = *context.comb.GetElem(outputSlot.m_PartId).m_Plan;
-
-    // SISO part:
-    //
-    // Try to continue this section with next part.
-    // Make sure that the chosen next plan is in the order:
-    //  - Compatible with the last plan in the section
-    //  - Allowed i.e. some restriction could be applied
-    //    to reduce the search space, for example it
-    //    could consider only plans that have identical
-    //    block configurations etc.
-    //  - Allocated i.e. there is space in SRAM to accommodate
-    //    all the buffers required by the plan
-
-    ethosn::command_stream::BlockConfig blkConfig = sPlan.GetBlockConfigures(outputSlot);
-    Buffer* sramBuffer                            = sPlan.GetOutputBuffer(outputSlot);
-
-    SectionContext contextCopy = context;
-    DeallocateUnusedBuffers(*sramBuffer, contextCopy);
 
     // Check if this Part can double buffer.
     // By default, no double buffering is performed.
     uint32_t currNumWeightStripesMax = g_NumWeightStripesMin;
     bool hasSectionDoubleBuffered    = false;
-    if (part.CanDoubleBufferWeights() && !context.hasSectionDoubleBuffered)
+    if (!isEnd)
     {
-        currNumWeightStripesMax = g_NumWeightStripesMax;
+        // ContinueSection
+        if (part.CanDoubleBufferWeights() && !context.hasSectionDoubleBuffered)
+        {
+            currNumWeightStripesMax = g_NumWeightStripesMax;
+        }
+
+        if (part.CanDoubleBufferWeights() || context.hasSectionDoubleBuffered)
+        {
+            hasSectionDoubleBuffered = true;
+        }
+    }
+    else
+    {
+        // EndSection
+        if (part.CanDoubleBufferWeights() && !context.hasSectionDoubleBuffered)
+        {
+            currNumWeightStripesMax = g_NumWeightStripesMax;
+        }
     }
 
-    if (part.CanDoubleBufferWeights() || context.hasSectionDoubleBuffered)
+    SectionContext contextCopy = context;
+
+    // Resolve the output buffers of any previous parts that are used as inputs by this part
+    std::vector<Buffer*> sramBufferInputs;
+    std::vector<PartConnection> sourceConnection = m_GraphOfParts.GetSourceConnections(part.GetPartId());
+    sramBufferInputs.resize(sourceConnection.size(), nullptr);
+    bool anyInputSramBuffers = false;
+    for (const PartConnection& connection : sourceConnection)
     {
-        hasSectionDoubleBuffered = true;
+        // Since we visit the parts in topological order, all connections should be available.
+        // If one isn't available it means that it isn't in this section.
+        auto bufferIt = contextCopy.unresolvedOutputs.find(connection);
+        if (bufferIt != contextCopy.unresolvedOutputs.end())
+        {
+            sramBufferInputs[connection.m_Destination.m_InputIndex] = bufferIt->second;
+            contextCopy.unresolvedOutputs.erase(connection);
+            anyInputSramBuffers = true;
+        }
+    }
+
+    // It might be that this part isn't connected to the existing section at all, which is considered
+    // invalid. In future it might be possible to support this (e.g. a section with two separate DRAM
+    // inputs which then merge together).
+    if (!anyInputSramBuffers)
+    {
+        return result;
+    }
+
+    if (isEnd)
+    {
+        // We prevent ending sections if there are any unresolved buffers, because by definition
+        // this would not be the end of a section.
+        if (contextCopy.unresolvedOutputs.size() != 0)
+        {
+            return result;
+        }
+    }
+
+    CascadeType planType = isEnd ? CascadeType::End : CascadeType::Middle;
+
+    std::vector<PartConnection> outgoingEdges = m_GraphOfParts.GetDestinationConnections(part.GetPartId());
+    std::vector<PartId> consumingParts;
+    for (PartConnection c : outgoingEdges)
+    {
+        consumingParts.push_back(c.m_Destination.m_PartId);
     }
 
     // Double buffering is performed on a per Section basis, i.e. either the entire Section double buffers weights
@@ -986,120 +1051,76 @@ std::vector<SectionContext> Combiner::ContinueSection(const BasePart& part, cons
         // to double buffer now, then multiple plans must be created for both single buffering and double buffering weights.
         uint32_t numWeightStripes =
             context.hasSectionDoubleBuffered ? context.currNumWeightStripes : currNumWeightStripes;
-        Plans plans = part.GetPlans(CascadeType::Middle, blkConfig, sramBuffer, numWeightStripes);
+        Plans plans = part.GetPlans(planType, context.blockConfig, sramBufferInputs, numWeightStripes);
 
-        // We shouldn't generate multiple plans here, as it could lead to an explosion of combinations.
-        assert(plans.size() <= 1);
+        if (planType == CascadeType::Middle)
+        {
+            // We shouldn't generate multiple plans here, as it could lead to an explosion of combinations.
+            if (plans.size() > 1)
+            {
+                throw InternalErrorException("Multiple Middle plans generated - could lead to combinatorial explosion");
+            }
+        }
 
         for (Plan& plan : plans)
         {
-            // Make a copy of the allocator since every plan needs to have its own,
+            // Make a copy of the allocator since every plan needs to have its own -
             // each potential section won't allocate from the same allocator.
             SectionContext tempContext           = contextCopy;
             tempContext.hasSectionDoubleBuffered = hasSectionDoubleBuffered;
             tempContext.currNumWeightStripes     = numWeightStripes;
 
-            if (!IsPlanAllocated(tempContext, plan, sramBuffer, false))
+            if (!AllocateSram(tempContext, part.GetPartId(), plan, sramBufferInputs))
             {
                 continue;
             }
+            DeallocateUnusedBuffers(part.GetPartId(), plan.m_OutputMappings, consumingParts, tempContext);
 
-            // Add current part and plan to the combination,
-            // no glue is required. Current part is SISO and
-            // has a single input/output
-            StartingGlue startingGlue;
-            EndingGlue endingGlue;
-            startingGlue.m_ExternalConnections.m_ReplacementBuffers.insert(
-                { plan.GetInputBuffer(inputSlot), sramBuffer });
-            tempContext.comb = context.comb + Combination(part.GetPartId(), std::move(plan));
-            tempContext.comb.SetStartingGlue(std::move(startingGlue), inputSlot);
-            tempContext.comb.SetEndingGlue(std::move(endingGlue), outputSlot);
-
-            result.push_back(tempContext);
-        }
-    }
-
-    return result;
-}
-
-// Try to end a section of the combination.
-// This is called only when a section needs to be ended since the plan
-// requirements are different to ContinueSection
-//
-std::vector<SectionContext> Combiner::EndSection(const BasePart& part, const SectionContext& context)
-{
-    if (!IsPartSi(part))
-    {
-        return {};
-    }
-    std::vector<SectionContext> result = {};
-
-    PartInputSlot inputSlot{ part.GetPartId(), 0 };
-    PartOutputSlot outputSlot = m_GraphOfParts.GetConnectedOutputSlot(inputSlot).value();
-    if (outputSlot.m_PartId != part.GetPartId() - 1)
-    {
-        return {};    // Prevent attempting to cascade in a non-linear chain
-    }
-
-    const Plan& sPlan = *context.comb.GetElem(outputSlot.m_PartId).m_Plan;
-
-    ethosn::command_stream::BlockConfig blkConfig = sPlan.GetBlockConfigures(outputSlot);
-    Buffer* sramBuffer                            = sPlan.GetOutputBuffer(outputSlot);
-
-    SectionContext contextCopy = context;
-    DeallocateUnusedBuffers(*sramBuffer, contextCopy);
-
-    // Check if this Part can double buffer.
-    // By default, no double buffering is performed.
-    uint32_t currNumWeightStripesMax = g_NumWeightStripesMin;
-    if (part.CanDoubleBufferWeights() && !context.hasSectionDoubleBuffered)
-    {
-        currNumWeightStripesMax = g_NumWeightStripesMax;
-    }
-
-    // Double buffering is performed on a per Section basis, i.e. either the entire Section double buffers weights
-    // (if the Parts allow it) or the Section single buffers weights. This double buffering is considered when the
-    // Part being evaluated can be double buffered.
-    for (uint32_t currNumWeightStripes = g_NumWeightStripesMin; currNumWeightStripes <= currNumWeightStripesMax;
-         ++currNumWeightStripes)
-    {
-        // Determine which numWeightStripes to use, based on the history of double-buffering.
-        // If previous Part was double-buffered, then:
-        //      1. Pass that number of weightStripes during current plan generation
-        //      2. Pass the same number to the next Parts, during the recursive plan generation calls.
-        // Otherwise, pass the current weightStripe number from the local for-loop.
-        // This is necessary, because if there was no double-buffering in the past and there is the possibility
-        // to double buffer now, then multiple plans must be created for both single buffering and double buffering weights.
-        uint32_t numWeightStripes =
-            context.hasSectionDoubleBuffered ? context.currNumWeightStripes : currNumWeightStripes;
-        Plans plans = part.GetPlans(CascadeType::End, blkConfig, sramBuffer, numWeightStripes);
-
-        for (Plan& plan : plans)
-        {
-            // Make a copy of the allocator since every plan needs to have its own,
-            // each potential section won't allocate from the same allocator.
-            SectionContext tempContext = contextCopy;
-
-            if (!IsPlanAllocated(tempContext, plan, sramBuffer, false))
+            if (!isEnd)
             {
-                continue;
+                for (const PartConnection& connection : m_GraphOfParts.GetDestinationConnections(part.GetPartId()))
+                {
+                    tempContext.unresolvedOutputs.insert({ connection, plan.GetOutputBuffer(connection.m_Source) });
+                }
             }
 
-            // Add current part and plan to the combination
-            StartingGlue startingGlue;
-            EndingGlue endingGlue;
-            startingGlue.m_ExternalConnections.m_ReplacementBuffers.insert(
-                { plan.GetInputBuffer(inputSlot), sramBuffer });
-            tempContext.comb = context.comb + Combination(part.GetPartId(), std::move(plan));
-            tempContext.comb.SetStartingGlue(std::move(startingGlue), inputSlot);
-            tempContext.comb.SetEndingGlue(std::move(endingGlue), outputSlot);
+            // Remember the input buffers of the plan before we std::move it away.
+            std::unordered_map<PartInputSlot, Buffer*> planInputBuffers;
+            for (PartConnection c : m_GraphOfParts.GetSourceConnections(part.GetPartId()))
+            {
+                planInputBuffers[c.m_Destination] = plan.GetInputBuffer(c.m_Destination);
+            }
 
-            // Add temporary glues to partial combinations so we can estimate performance
-            Combination resultWithGlues = AddTempGlues(tempContext.comb);
-            OpGraph combiOpGraph        = GetOpGraphForCombination(resultWithGlues, m_GraphOfParts);
-            EstimatedOpGraph estimatedOpGraph =
-                ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Caps, m_EstOpt);
-            tempContext.comb.SetMetric(estimatedOpGraph.m_Metric);
+            tempContext.comb = context.comb + Combination(part.GetPartId(), std::move(plan));
+
+            // Add empty glues for cascaded inputs
+            for (PartConnection c : sourceConnection)
+            {
+                if (sramBufferInputs[c.m_Destination.m_InputIndex] != nullptr)
+                {
+                    StartingGlue startingGlue;
+                    EndingGlue endingGlue;
+                    startingGlue.m_ExternalConnections.m_ReplacementBuffers.insert(
+                        { planInputBuffers.at(c.m_Destination), sramBufferInputs[c.m_Destination.m_InputIndex] });
+                    tempContext.comb.SetStartingGlue(std::move(startingGlue), c.m_Destination);
+                    // Multiple parts can share the same source (i.e. a branch), and we can't add the glue twice (even though it's empty)
+                    if (tempContext.comb.GetElem(c.m_Source.m_PartId).m_EndingGlues.count(c.m_Source) == 0)
+                    {
+                        tempContext.comb.SetEndingGlue(std::move(endingGlue), c.m_Source);
+                    }
+                }
+            }
+
+            // Once a section is finished, we can estimate performance for it
+            if (isEnd)
+            {
+                // Add temporary glues to partial combinations so we can estimate performance
+                Combination resultWithGlues = AddTempGlues(tempContext.comb);
+                OpGraph combiOpGraph        = GetOpGraphForCombination(resultWithGlues, m_GraphOfParts);
+                EstimatedOpGraph estimatedOpGraph =
+                    ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Caps, m_EstOpt);
+                tempContext.comb.SetMetric(estimatedOpGraph.m_Metric);
+            }
 
             result.push_back(tempContext);
         }
@@ -1282,7 +1303,7 @@ std::vector<Combination> Combiner::CalculateSectionsOfAllLengths(const BasePart&
         // Try ending the section on this part, storing the best option
         Combination& bestOfThisLength        = best[partIdxOffset + 1];
         std::vector<SectionContext> endPlans = EndSection(m_GraphOfParts.GetPart(partId), c);
-        for (const SectionContext& endPlan : endPlans)
+        for (SectionContext& endPlan : endPlans)
         {
             if (bestOfThisLength.IsEmpty() || endPlan.comb.GetMetric() < bestOfThisLength.GetMetric())
             {

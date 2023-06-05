@@ -129,7 +129,7 @@ TEST_CASE("OutputPart Plan Generation", "[OutputPartTests]")
 
         WHEN("Asked to generate Lonely plans")
         {
-            Plans plans = outputPart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = outputPart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "OutputPart GetPlans structure Lonely");
 
             THEN("The number of generated plans = 1")
@@ -145,7 +145,7 @@ TEST_CASE("OutputPart Plan Generation", "[OutputPartTests]")
 
         WHEN("Asked to generate Beginning plans")
         {
-            Plans plans = outputPart.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = outputPart.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "OutputPart GetPlans structure Beginning");
 
             THEN("The number of generated plans = 0")
@@ -156,7 +156,7 @@ TEST_CASE("OutputPart Plan Generation", "[OutputPartTests]")
 
         WHEN("Asked to generate Middle plans")
         {
-            Plans plans = outputPart.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = outputPart.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "OutputPart GetPlans structure Middle");
 
             THEN("The number of generated plans = 0")
@@ -167,7 +167,7 @@ TEST_CASE("OutputPart Plan Generation", "[OutputPartTests]")
 
         WHEN("Asked to generate End plans")
         {
-            Plans plans = outputPart.GetPlans(CascadeType::End, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = outputPart.GetPlans(CascadeType::End, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "OutputPart GetPlans structure End");
 
             THEN("The number of generated plans = 0")

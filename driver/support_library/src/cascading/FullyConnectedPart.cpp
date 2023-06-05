@@ -19,11 +19,11 @@ using namespace utils;
 
 Plans FullyConnectedPart::GetPlans(CascadeType cascadeType,
                                    BlockConfig blockConfig,
-                                   Buffer* sramBuffer,
+                                   const std::vector<Buffer*>& sramBufferInputs,
                                    uint32_t numWeightStripes) const
 {
     ETHOSN_UNUSED(blockConfig);
-    ETHOSN_UNUSED(sramBuffer);
+    ETHOSN_UNUSED(sramBufferInputs);
     // Only Lonely plans are supported at the moment as fully connected layers
     // are rare and usually very large. This means the likelihood they can be
     // cascaded is reduced and their impact on performance is small.
@@ -252,7 +252,8 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                     opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
                     inputMappings[dramInputRaw]             = PartInputSlot{ m_PartId, 0 };
                     outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
-                    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), ret);
+                    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph),
+                               info.m_MceCompute.m_BlockConfig, ret);
                 }
             }
         }

@@ -233,7 +233,8 @@ void FusedPlePart::CreateIdentityMceAndFusedPlePlans(const MceAndPleInfo& info,
                 opGraph.AddConsumer(mceInAndOutBuffer.second, outBufferAndPleOp.second, 0);
                 inputMappings[mceInAndOutBuffer.first]  = PartInputSlot{ m_PartId, 0 };
                 outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
-                AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
+                AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph),
+                           info.m_MceCompute.m_BlockConfig, plans);
             }
         }
     }
@@ -274,7 +275,8 @@ void FusedPlePart::CreateFuseOnlyPlans(const PleOnlyInfo& info, Plans& plans) co
             opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
             inputMappings[pleInBuffer]              = PartInputSlot{ m_PartId, 0 };
             outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
-            AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
+            AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph),
+                       info.m_PleCompute.m_BlockConfig, plans);
         }
     }
 }
@@ -529,7 +531,7 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
 
 Plans FusedPlePart::GetPlans(CascadeType cascadeType,
                              ethosn::command_stream::BlockConfig blockConfig,
-                             Buffer* prevBuffer,
+                             const std::vector<Buffer*>& sramBufferInputs,
                              uint32_t numWeightStripes) const
 {
     switch (cascadeType)
@@ -544,10 +546,12 @@ Plans FusedPlePart::GetPlans(CascadeType cascadeType,
         }
         case CascadeType::Middle:
         {
+            Buffer* prevBuffer = sramBufferInputs[0];
             return GenerateContinueSectionPlans(blockConfig, prevBuffer, numWeightStripes, cascadeType);
         }
         case CascadeType::End:
         {
+            Buffer* prevBuffer = sramBufferInputs[0];
             return GenerateContinueSectionPlans(blockConfig, prevBuffer, numWeightStripes, cascadeType);
         }
         default:

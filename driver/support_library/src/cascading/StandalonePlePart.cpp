@@ -25,7 +25,7 @@ using namespace impl;
 
 Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
                                   ethosn::command_stream::BlockConfig blockConfig,
-                                  Buffer* prevBuffer,
+                                  const std::vector<Buffer*>& sramBufferInputs,
                                   uint32_t numWeightStripes) const
 {
     ETHOSN_UNUSED(numWeightStripes);
@@ -33,10 +33,12 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
 
     if (cascadeType == CascadeType::Middle || cascadeType == CascadeType::End)
     {
-        assert(prevBuffer != nullptr);
-        if (prevBuffer->m_Location != Location::Sram)
+        for (auto p : sramBufferInputs)
         {
-            return {};    // Can't continue section from e.g. PleInputSram
+            if (p != nullptr && p->m_Location != Location::Sram)
+            {
+                return {};    // Can't continue section from e.g. PleInputSram
+            }
         }
     }
 
@@ -45,24 +47,11 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
 
     switch (m_KernelOperation)
     {
-        case (command_stream::PleOperation::ADDITION):
-        case (command_stream::PleOperation::ADDITION_RESCALE):
-        {
-            // ADDITION, ADDITION_RESCALE both have two inputs
-            // that makes them not cascadable in the current
-            // design where only SISO part is allowed in
-            // a section.
-            if (cascadeType == CascadeType::Lonely)
-            {
-                // All splits are valid
-            }
-            else
-            {
-                return Plans{};
-            }
+        case command_stream::PleOperation::ADDITION:
+        case command_stream::PleOperation::ADDITION_RESCALE:
+            // All split are possible as these operations are elementwise
             break;
-        }
-        case (command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA):
+        case command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA:
         {
             // AVGPOOL_3X3_1_1_UDMA: only split in D is allowed.
             // This makes it cascadalbe only if the whole input, output
@@ -77,7 +66,7 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
             }
             if (cascadeType == CascadeType::Middle || cascadeType == CascadeType::End)
             {
-                assert(prevBuffer != nullptr);
+                Buffer* prevBuffer = sramBufferInputs[0];
 
                 // A cascadable plan is not possible if the stripe shape of the previous buffer
                 // is smaller than the input tensor (in other words a full tensor plan is NOT
@@ -103,14 +92,40 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
     const uint32_t brickGroupDepth  = g_BrickGroupShape[3];
 
     auto addPlan = [&](const TensorShape& outputStripeShape) {
-        // Uses block configure (16, 16) which will be ignored
-        // by a standalone PLE kernel.
-        command_stream::BlockConfig blkConfig = { 16u, 16u };
+        command_stream::BlockConfig blkConfig = { 0u, 0u };    // Ignored by standalone PLE kernel.
         std::vector<TensorShape> inputStripes;
         for (uint32_t i = 0; i < m_InputTensorShapes.size(); ++i)
         {
             inputStripes.push_back(outputStripeShape);
         }
+
+        // Multiple output stripes might be needed because the following layers may require multiple buffers due to boundary data.
+        uint32_t numOutputStripes;
+        BoundaryRequirements outputBoundaryRequirements = m_OutputBoundaryRequirements.at(0);
+        if ((outputBoundaryRequirements.m_NeedsBeforeX || outputBoundaryRequirements.m_NeedsBeforeY) &&
+            (outputBoundaryRequirements.m_NeedsAfterX || outputBoundaryRequirements.m_NeedsAfterY))
+        {
+            numOutputStripes = 3;
+        }
+        else if (outputBoundaryRequirements.m_NeedsBeforeX || outputBoundaryRequirements.m_NeedsBeforeY ||
+                 outputBoundaryRequirements.m_NeedsAfterX || outputBoundaryRequirements.m_NeedsAfterY)
+        {
+            numOutputStripes = 2;
+        }
+        else
+        {
+            numOutputStripes = 1;
+        }
+        // Limit the max number of stripes based on the size of the tensor - there is no point considering plans where
+        // we can store more stripes in the tile than there are in the tensor!
+        numOutputStripes = std::min(numOutputStripes,
+                                    DivRoundUp(GetHeight(m_OutputTensorShape), GetHeight(outputStripeShape)) *
+                                        DivRoundUp(GetWidth(m_OutputTensorShape), GetWidth(outputStripeShape)) *
+                                        DivRoundUp(GetChannels(m_OutputTensorShape), GetChannels(outputStripeShape)));
+
+        NumMemoryStripes numMemoryStripes;
+        numMemoryStripes.m_Output = numOutputStripes;
+
         auto op =
             std::make_unique<PleOp>(m_KernelOperation, blkConfig, static_cast<uint32_t>(m_InputTensorShapes.size()),
                                     inputStripes, outputStripeShape, m_DataType, true);
@@ -122,17 +137,6 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
         OwnedOpGraph opGraph;
         PartInputMapping inputMappings;
         PartOutputMapping outputMappings;
-
-        // only m_Output is used by AddPleToOpGraph
-        NumMemoryStripes numMemoryStripes;
-        numMemoryStripes.m_Output = 2;
-        // Limit the max number of stripes based on the size of the tensor - there is no point considering plans where
-        // we can store more stripes in the tile than there are in the tensor!
-        numMemoryStripes.m_Output =
-            std::min(numMemoryStripes.m_Output,
-                     DivRoundUp(GetHeight(m_OutputTensorShape), GetHeight(outputStripeShape)) *
-                         DivRoundUp(GetWidth(m_OutputTensorShape), GetWidth(outputStripeShape)) *
-                         DivRoundUp(GetChannels(m_OutputTensorShape), GetChannels(outputStripeShape)));
 
         std::vector<Buffer*> pleInputBuffers;
         pleInputBuffers.resize(m_InputTensorShapes.size());
@@ -169,55 +173,77 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
         }
 
         outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
-        AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
+        AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), {}, plans);
     };
 
-    if (stripeConfig.splits.none)
+    if (cascadeType == CascadeType::Middle || cascadeType == CascadeType::End)
     {
-        TensorShape outputStripeShappe = CreateStripe(m_OutputTensorShape, { 0, 0, 0, 0 }, brickGroupDepth);
-        addPlan(outputStripeShappe);
-    }
-    if (stripeConfig.splits.widthOnly)
-    {
-        TensorShape outputStripeShappe =
-            CreateStripe(m_OutputTensorShape, { 0, 0, brickGroupWidth, 0 }, brickGroupDepth);
-        addPlan(outputStripeShappe);
-    }
-    if (stripeConfig.splits.mceAndPleOutputHeight)
-    {
-        TensorShape outputStripeShappe =
-            CreateStripe(m_OutputTensorShape, { 0, brickGroupHeight, 0, 0 }, brickGroupDepth);
-        addPlan(outputStripeShappe);
-    }
+        TensorShape stripeShape = { 0, 0, 0, 0 };
+        for (auto s : sramBufferInputs)
+        {
+            if (s == nullptr)
+            {
+                continue;
+            }
+            // Make sure all the input buffers' stripe shapes match.
+            if (stripeShape != TensorShape{ 0, 0, 0, 0 } && s->Sram()->m_StripeShape != stripeShape)
+            {
+                return Plans{};
+            }
+            stripeShape = s->Sram()->m_StripeShape;
+        }
 
-    if (cascadeType == CascadeType::Lonely)
+        addPlan(stripeShape);
+    }
+    else
     {
-        if (stripeConfig.splits.outputDepthInputDepth)
+        if (stripeConfig.splits.none)
+        {
+            TensorShape outputStripeShappe = CreateStripe(m_OutputTensorShape, { 0, 0, 0, 0 }, brickGroupDepth);
+            addPlan(outputStripeShappe);
+        }
+        if (stripeConfig.splits.widthOnly)
         {
             TensorShape outputStripeShappe =
-                CreateStripe(m_OutputTensorShape, { 0, 0, 0, brickGroupDepth }, brickGroupDepth);
+                CreateStripe(m_OutputTensorShape, { 0, 0, brickGroupWidth, 0 }, brickGroupDepth);
+            addPlan(outputStripeShappe);
+        }
+        if (stripeConfig.splits.mceAndPleOutputHeight)
+        {
+            TensorShape outputStripeShappe =
+                CreateStripe(m_OutputTensorShape, { 0, brickGroupHeight, 0, 0 }, brickGroupDepth);
             addPlan(outputStripeShappe);
         }
 
-        if (stripeConfig.splits.widthHeightOutputDepthInputDepth)
+        if (cascadeType == CascadeType::Lonely)
         {
-            // Inclusive loops so that we generate plans that split only one or two of the dimensions,
-            // but with larger stripe shapes than the non-lonely plans above.
-            for (uint32_t stripeHeight : StripeShapeLoop::Inclusive(
-                     utils::GetHeight(m_OutputTensorShape), brickGroupHeight, stripeConfig.blockHeightMultiplier.min,
-                     stripeConfig.blockHeightMultiplier.max))
+            if (stripeConfig.splits.outputDepthInputDepth)
             {
-                for (uint32_t stripeWidth : StripeShapeLoop::Inclusive(
-                         utils::GetWidth(m_OutputTensorShape), brickGroupWidth, stripeConfig.blockWidthMultiplier.min,
-                         stripeConfig.blockWidthMultiplier.max))
+                TensorShape outputStripeShappe =
+                    CreateStripe(m_OutputTensorShape, { 0, 0, 0, brickGroupDepth }, brickGroupDepth);
+                addPlan(outputStripeShappe);
+            }
+
+            if (stripeConfig.splits.widthHeightOutputDepthInputDepth)
+            {
+                // Inclusive loops so that we generate plans that split only one or two of the dimensions,
+                // but with larger stripe shapes than the non-lonely plans above.
+                for (uint32_t stripeHeight : StripeShapeLoop::Inclusive(
+                         utils::GetHeight(m_OutputTensorShape), brickGroupHeight,
+                         stripeConfig.blockHeightMultiplier.min, stripeConfig.blockHeightMultiplier.max))
                 {
-                    for (uint32_t stripeDepth : StripeShapeLoop::Inclusive(
-                             utils::GetChannels(m_OutputTensorShape), brickGroupDepth,
-                             stripeConfig.ofmDepthMultiplier.min, stripeConfig.ofmDepthMultiplier.max))
+                    for (uint32_t stripeWidth : StripeShapeLoop::Inclusive(
+                             utils::GetWidth(m_OutputTensorShape), brickGroupWidth,
+                             stripeConfig.blockWidthMultiplier.min, stripeConfig.blockWidthMultiplier.max))
                     {
-                        TensorShape outputStripeShappe = CreateStripe(
-                            m_OutputTensorShape, { 0, stripeHeight, stripeWidth, stripeDepth }, brickGroupDepth);
-                        addPlan(outputStripeShappe);
+                        for (uint32_t stripeDepth : StripeShapeLoop::Inclusive(
+                                 utils::GetChannels(m_OutputTensorShape), brickGroupDepth,
+                                 stripeConfig.ofmDepthMultiplier.min, stripeConfig.ofmDepthMultiplier.max))
+                        {
+                            TensorShape outputStripeShappe = CreateStripe(
+                                m_OutputTensorShape, { 0, stripeHeight, stripeWidth, stripeDepth }, brickGroupDepth);
+                            addPlan(outputStripeShappe);
+                        }
                     }
                 }
             }

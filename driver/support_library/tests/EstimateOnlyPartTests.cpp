@@ -158,7 +158,7 @@ TEST_CASE("EstimateOnlyPart Plan Generation", "[EstimateOnlyPartTests]")
 
         WHEN("Asked to generate Lonely plans")
         {
-            Plans plans = estimateOnlyPart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = estimateOnlyPart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "EstimateOnlyPart GetPlans structure Lonely");
 
             THEN("The number of generated plans = 1")
@@ -174,7 +174,8 @@ TEST_CASE("EstimateOnlyPart Plan Generation", "[EstimateOnlyPartTests]")
 
         WHEN("Asked to generate Beginning plans")
         {
-            Plans plans = estimateOnlyPart.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans =
+                estimateOnlyPart.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "EstimateOnlyPart GetPlans structure Beginning");
 
             THEN("The number of generated plans = 0")
@@ -185,7 +186,7 @@ TEST_CASE("EstimateOnlyPart Plan Generation", "[EstimateOnlyPartTests]")
 
         WHEN("Asked to generate Middle plans")
         {
-            Plans plans = estimateOnlyPart.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = estimateOnlyPart.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "EstimateOnlyPart GetPlans structure Middle");
 
             THEN("The number of generated plans = 0")
@@ -196,7 +197,7 @@ TEST_CASE("EstimateOnlyPart Plan Generation", "[EstimateOnlyPartTests]")
 
         WHEN("Asked to generate End plans")
         {
-            Plans plans = estimateOnlyPart.GetPlans(CascadeType::End, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = estimateOnlyPart.GetPlans(CascadeType::End, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "EstimateOnlyPart GetPlans structure End");
 
             THEN("The number of generated plans = 0")

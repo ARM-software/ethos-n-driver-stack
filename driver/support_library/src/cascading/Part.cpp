@@ -57,10 +57,12 @@ void BasePart::ChangePartId(PartId newId)
 void BasePart::AddNewPlan(PartInputMapping&& inputMappings,
                           PartOutputMapping&& outputMappings,
                           OwnedOpGraph&& opGraph,
+                          utils::Optional<command_stream::BlockConfig> blockConfig,
                           Plans& plans) const
 {
     Plan plan(std::move(inputMappings), std::move(outputMappings));
-    plan.m_OpGraph = std::move(opGraph);
+    plan.m_OpGraph     = std::move(opGraph);
+    plan.m_BlockConfig = blockConfig;
 
     if (IsPlanValid(m_Capabilities, plan))
     {

@@ -621,7 +621,7 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
 
         WHEN("Asked to generate plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "FullyConnected GetPlans");
 
             THEN("The plans are valid and contain at least one plan with the full IFM and full OFM")

@@ -16,11 +16,11 @@ namespace support_library
 
 Plans ConstantPart::GetPlans(CascadeType cascadeType,
                              ethosn::command_stream::BlockConfig blockConfig,
-                             Buffer* sramBuffer,
+                             const std::vector<Buffer*>& sramBufferInputs,
                              uint32_t numWeightStripes) const
 {
     ETHOSN_UNUSED(blockConfig);
-    ETHOSN_UNUSED(sramBuffer);
+    ETHOSN_UNUSED(sramBufferInputs);
     ETHOSN_UNUSED(numWeightStripes);
 
     Plans plans;
@@ -54,7 +54,7 @@ void ConstantPart::CreatePlanForConstantPart(Plans& plans) const
     outputMappings[buffer.get()] = PartOutputSlot{ m_PartId, 0 };
     opGraph.AddBuffer(std::move(buffer));
 
-    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
+    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), {}, plans);
 }
 
 ethosn::support_library::DotAttributes ConstantPart::GetDotAttributes(DetailLevel detail) const

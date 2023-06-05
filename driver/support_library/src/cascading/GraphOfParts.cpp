@@ -350,24 +350,30 @@ void GraphOfParts::SortAndCompact()
 
         for (PartOutputSlot outputSlot : outputSlots)
         {
-            // We should produce boundary data for this output slot, if any of the consuming parts require it.
-            BoundaryRequirements b;
-            bool p = true;
-            for (PartInputSlot connectedInputSlot : GetConnectedInputSlots(outputSlot))
+            // If this output slot is connected to multiple parts, then we have to be pessimistic w.r.t the
+            // number of stripes in the tile as later parts may require multiple stripes even though the direct descendents don't
+            if (GetConnectedInputSlots(outputSlot).size() > 1)
             {
-                const BasePart& consumingPart = GetPart(connectedInputSlot.m_PartId);
+                boundaryReqs[outputSlot.m_OutputIndex] = { true, true, true, true };
+            }
+            else
+            {
+                PartInputSlot connectedInputSlot = GetConnectedInputSlots(outputSlot)[0];
+                const BasePart& consumingPart    = GetPart(connectedInputSlot.m_PartId);
 
                 const std::vector<BoundaryRequirements>& inputReqs = consumingPart.GetInputBoundaryRequirements();
                 BoundaryRequirements inputReq                      = inputReqs.at(connectedInputSlot.m_InputIndex);
-                b.m_NeedsBeforeX |= inputReq.m_NeedsBeforeX;
-                b.m_NeedsAfterX |= inputReq.m_NeedsAfterX;
-                b.m_NeedsBeforeY |= inputReq.m_NeedsBeforeY;
-                b.m_NeedsAfterY |= inputReq.m_NeedsAfterY;
 
-                p &= consumingPart.CanInputsTakePleInputSram().at(connectedInputSlot.m_InputIndex);
+                boundaryReqs[outputSlot.m_OutputIndex] = inputReq;
             }
-            boundaryReqs[outputSlot.m_OutputIndex]              = b;
-            outputCanTakePleInputSram[outputSlot.m_OutputIndex] = p;
+
+            bool canTakePleInputSram = true;
+            for (PartInputSlot connectedInputSlot : GetConnectedInputSlots(outputSlot))
+            {
+                const BasePart& consumingPart = GetPart(connectedInputSlot.m_PartId);
+                canTakePleInputSram &= consumingPart.CanInputsTakePleInputSram().at(connectedInputSlot.m_InputIndex);
+            }
+            outputCanTakePleInputSram[outputSlot.m_OutputIndex] = canTakePleInputSram;
         }
 
         part->SetOutputRequirements(std::move(boundaryReqs), std::move(outputCanTakePleInputSram));

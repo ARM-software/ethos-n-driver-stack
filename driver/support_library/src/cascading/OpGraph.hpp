@@ -172,11 +172,6 @@ public:
     Op(const char* defaultTagPrefix);
     virtual ~Op() = default;
 
-    virtual utils::Optional<command_stream::BlockConfig> GetBlockConfig()
-    {
-        return utils::Optional<command_stream::BlockConfig>{};
-    }
-
     virtual DotAttributes GetDotAttributes(DetailLevel) const override;
 
     std::set<uint32_t> m_OperationIds;
@@ -213,11 +208,6 @@ public:
           int16_t lowerBound,
           int16_t upperBound);
 
-    utils::Optional<command_stream::BlockConfig> GetBlockConfig() override
-    {
-        return m_BlockConfig;
-    }
-
     virtual DotAttributes GetDotAttributes(DetailLevel) const override;
 
     command_stream::MceOperation m_Op;
@@ -248,11 +238,6 @@ public:
           TensorShape outputStripeShape,
           DataType dataType,
           bool loadKernel);
-
-    utils::Optional<command_stream::BlockConfig> GetBlockConfig() override
-    {
-        return m_BlockConfig;
-    }
 
     virtual DotAttributes GetDotAttributes(DetailLevel) const override;
 

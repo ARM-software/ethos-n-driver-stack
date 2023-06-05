@@ -18,7 +18,7 @@ namespace support_library
 {
 
 ethosn::support_library::Plans
-    MockPart::GetPlans(CascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const
+    MockPart::GetPlans(CascadeType, ethosn::command_stream::BlockConfig, const std::vector<Buffer*>&, uint32_t) const
 {
     Plans plans;
 

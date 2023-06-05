@@ -50,8 +50,6 @@ public:
     /// Returns nullptr if the slot is unrecognised.
     Buffer* GetOutputBuffer(const PartOutputSlot& partOutputSlot) const;
 
-    ethosn::command_stream::BlockConfig GetBlockConfigures(const PartOutputSlot& partOutputSlot) const;
-
     PleKernelInfo GetPleKernelInfo(const HardwareCapabilities& cap) const;
 
     /// The graph of Ops and Buffers which define how this plan would be executed.
@@ -67,6 +65,10 @@ public:
     /// Have the SRAM buffers for this plan already been allocated in SRAM?
     /// Note that this only makes sense for Lonely plans, and prevents the Combiner from doing its own allocation.
     bool m_IsPreallocated = false;
+
+    /// For plans which have the concept of a block config. This is used by the combiner to ensure
+    /// a consistent block config throughout a section.
+    utils::Optional<command_stream::BlockConfig> m_BlockConfig;
 };
 
 bool IsOutputBufferInDram(const Plan& plan, const PartOutputSlot& outputSlot);

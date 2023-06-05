@@ -25,7 +25,6 @@ enum class AllocationPreference
 class SramAllocator
 {
 public:
-    using UserId = size_t;
     SramAllocator()
         : m_Capacity(0)
         , m_FreeMemory()
@@ -58,10 +57,6 @@ public:
     /// Attempts to free the allocation at the given offset.
     /// If there is no allocation at the given offset then returns false, otherwise returns true.
     bool TryFree(uint32_t offset);
-
-    /// Adds the given userId to the list of users of the given allocation.
-    /// If there is no allocation at the given offset then the behaviour is undefined (assert).
-    void IncrementReferenceCount(uint32_t offset);
 
     void Reset();
 

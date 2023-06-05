@@ -37,10 +37,10 @@ public:
         , m_Filter(filter)
     {}
 
-    virtual Plans GetPlans(CascadeType cascadeType,
-                           ethosn::command_stream::BlockConfig,
-                           Buffer*,
-                           uint32_t numWeightBuffers) const override
+    Plans GetPlans(CascadeType cascadeType,
+                   ethosn::command_stream::BlockConfig,
+                   const std::vector<Buffer*>&,
+                   uint32_t numWeightBuffers) const override
     {
         if (!m_Filter(cascadeType, m_PartId))
         {
@@ -133,153 +133,6 @@ public:
         return false;
     }
 };
-
-TEST_CASE("IsPartSiso", "[CombinerDFS]")
-{
-    // Create graph:
-    //
-    //          D
-    //          |
-    //  A - B - C
-    //          |
-    //          E
-    //
-
-    GraphOfParts graph;
-    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
-    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
-    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
-    auto pD = std::make_unique<MockPart>(graph.GeneratePartId());
-    auto pE = std::make_unique<MockPart>(graph.GeneratePartId());
-
-    BasePart& partA = *pA;
-    BasePart& partB = *pB;
-    BasePart& partC = *pC;
-    BasePart& partD = *pD;
-    BasePart& partE = *pE;
-
-    PartId partAId = pA->GetPartId();
-    PartId partBId = pB->GetPartId();
-    PartId partCId = pC->GetPartId();
-    PartId partDId = pD->GetPartId();
-    PartId partEId = pE->GetPartId();
-    graph.AddPart(std::move(pA));
-    graph.AddPart(std::move(pB));
-    graph.AddPart(std::move(pC));
-    graph.AddPart(std::move(pD));
-    graph.AddPart(std::move(pE));
-
-    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
-
-    PartInputSlot partBInputSlot0   = { partBId, 0 };
-    PartOutputSlot partBOutputSlot0 = { partBId, 0 };
-
-    PartInputSlot partCInputSlot0   = { partCId, 0 };
-    PartOutputSlot partCOutputSlot0 = { partCId, 0 };
-
-    PartInputSlot partDInputSlot0 = { partDId, 0 };
-
-    PartInputSlot partEInputSlot0 = { partEId, 0 };
-
-    graph.AddConnection(partBInputSlot0, partAOutputSlot0);
-    graph.AddConnection(partCInputSlot0, partBOutputSlot0);
-    graph.AddConnection(partDInputSlot0, partCOutputSlot0);
-    graph.AddConnection(partEInputSlot0, partCOutputSlot0);
-
-    const CompilationOptions compOpt;
-    const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
-    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
-
-    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
-    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
-
-    REQUIRE(combiner.IsPartSiso(partA) == false);
-    REQUIRE(combiner.IsPartSiso(partB) == true);
-    REQUIRE(combiner.IsPartSiso(partC) == false);
-    REQUIRE(combiner.IsPartSiso(partD) == false);
-    REQUIRE(combiner.IsPartSiso(partE) == false);
-}
-
-TEST_CASE("IsPartSo", "[CombinerDFS]")
-{
-    // Create graph:
-    //
-    //  A    E
-    //  |    |
-    //   - - C - D
-    //       |
-    //       B - F
-    //
-    GraphOfParts graph;
-    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
-    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
-    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
-    auto pD = std::make_unique<MockPart>(graph.GeneratePartId());
-    auto pE = std::make_unique<MockPart>(graph.GeneratePartId());
-    auto pF = std::make_unique<MockPart>(graph.GeneratePartId());
-
-    BasePart& partA = *pA;
-    BasePart& partB = *pB;
-    BasePart& partC = *pC;
-    BasePart& partD = *pD;
-    BasePart& partE = *pE;
-    BasePart& partF = *pF;
-
-    PartId partAId = pA->GetPartId();
-    PartId partBId = pB->GetPartId();
-    PartId partCId = pC->GetPartId();
-    PartId partDId = pD->GetPartId();
-    PartId partEId = pE->GetPartId();
-    PartId partFId = pF->GetPartId();
-    graph.AddPart(std::move(pA));
-    graph.AddPart(std::move(pB));
-    graph.AddPart(std::move(pC));
-    graph.AddPart(std::move(pD));
-    graph.AddPart(std::move(pE));
-    graph.AddPart(std::move(pF));
-
-    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
-
-    PartOutputSlot partBOutputSlot0 = { partBId, 0 };
-
-    PartInputSlot partCInputSlot0   = { partCId, 0 };
-    PartInputSlot partCInputSlot1   = { partCId, 1 };
-    PartOutputSlot partCOutputSlot0 = { partCId, 0 };
-    PartOutputSlot partCOutputSlot1 = { partCId, 1 };
-
-    PartInputSlot partDInputSlot0 = { partDId, 0 };
-
-    PartInputSlot partEInputSlot0 = { partEId, 0 };
-
-    PartInputSlot partFInputSlot0 = { partFId, 0 };
-
-    graph.AddConnection(partCInputSlot0, partAOutputSlot0);
-    graph.AddConnection(partCInputSlot1, partBOutputSlot0);
-    graph.AddConnection(partDInputSlot0, partCOutputSlot0);
-    graph.AddConnection(partEInputSlot0, partCOutputSlot1);
-    graph.AddConnection(partFInputSlot0, partBOutputSlot0);
-
-    const CompilationOptions compOpt;
-    const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
-    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
-
-    FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
-    CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
-
-    REQUIRE(combiner.IsPartSo(partA) == true);
-
-    REQUIRE(combiner.IsPartSo(partB) == false);
-
-    REQUIRE(combiner.IsPartSo(partC) == false);
-
-    REQUIRE(combiner.IsPartSo(partD) == false);
-
-    REQUIRE(combiner.IsPartSo(partE) == false);
-
-    REQUIRE(combiner.IsPartSo(partF) == false);
-}
 
 // Manually creates a 3-part network consisting of MockParts without weights, to test the double buffering logic of the Combiner.
 // The topology is chosen to test cases including:
@@ -767,16 +620,19 @@ TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
     FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
     CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
-    SectionContext context = { {},   SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {}, 0,
-                               false };
+    SectionContext context = { {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()),
+                               {}, {},
+                               0,  false,
+                               {}, BlockConfig{ 16u, 16u } };
 
-    // Check that no buffers are allocated before calling IsPlanAllocated().
+    // Check that no buffers are allocated before calling AllocateSram().
     REQUIRE(context.alloc.GetAllocationSize() == 0);
-    REQUIRE(combiner.IsPlanAllocated(context, planA, nullptr, true) == true);
+    REQUIRE(combiner.AllocateSram(context, partAId, planA, { nullptr }) == true);
     // Check that all 4 buffers (Input, Mce Weights, Ple Code, Output) have been allocated.
     REQUIRE(context.alloc.GetAllocationSize() == 4);
     // Check that 2 buffers (Mce Weights, Input) have been deallocated.
-    combiner.DeallocateUnusedBuffers(*outputSram, context);
+    PartId nextPartId = 17;
+    combiner.DeallocateUnusedBuffers(partAId, { { outputSram, partAOutputSlot0 } }, { nextPartId }, context);
     REQUIRE(context.alloc.GetAllocationSize() == 2);
     // Check that it is only the Input and Mce Weights buffers that have been deallocated.
     REQUIRE(context.alloc.TryFree(inputSram->m_Offset.value()) == false);
@@ -873,16 +729,20 @@ TEST_CASE("BufferDeallocationTest_CascadeOps", "[CombinerDFS]")
     FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
     CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
-    SectionContext context = { {},   SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {}, 0,
-                               false };
+    SectionContext context = { {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()),
+                               {}, {},
+                               0,  false,
+                               {}, BlockConfig{ 16u, 16u } };
 
-    // Check that no buffers are allocated before calling IsPlanAllocated().
+    // Check that no buffers are allocated before calling AllocateSram().
     REQUIRE(context.alloc.GetAllocationSize() == 0);
-    REQUIRE(combiner.IsPlanAllocated(context, planA, nullptr, true) == true);
+    REQUIRE(combiner.AllocateSram(context, partAId, planA, { nullptr }) == true);
     // Check that all 4 buffers (Input, Mce Weights, Ple Code, Output) have been allocated.
     REQUIRE(context.alloc.GetAllocationSize() == 4);
     // Check that none of the buffers have been deallocated.
-    combiner.DeallocateUnusedBuffers(*planA.m_OpGraph.GetBuffers()[outputBufferIndex], context);
+    PartId nextPartId = 17;
+    combiner.DeallocateUnusedBuffers(partAId, { { planA.m_OpGraph.GetBuffers()[outputBufferIndex], partAOutputSlot0 } },
+                                     { nextPartId }, context);
     REQUIRE(context.alloc.GetAllocationSize() == 4);
 }
 
@@ -3385,7 +3245,7 @@ TEST_CASE("GluePartToCombinationSramToDramConversion", "[CombinerDFS]")
             std::unordered_map<Buffer*, Buffer*>{ { opGraphB.GetBuffers()[0], endingGlueA->m_Graph.GetBuffers()[1] } });
 }
 
-TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
+TEST_CASE("AllocateSram", "[CombinerDFS]")
 {
     GraphOfParts graph;
 
@@ -3440,12 +3300,14 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
     FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
     CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
 
-    SectionContext context = { {},   SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {}, 0,
-                               false };
+    SectionContext context = { {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()),
+                               {}, {},
+                               0,  false,
+                               {}, BlockConfig{ 8u, 8u } };
 
     // SRAM has enough space for ofm and the plan does not have a PLE kernel
     SectionContext context1 = context;
-    REQUIRE(combiner.IsPlanAllocated(context1, planA, mockBuffer.get(), false) == true);
+    REQUIRE(combiner.AllocateSram(context1, partA.GetPartId(), planA, { mockBuffer.get() }) == true);
     REQUIRE(context1.pleOps.size() == 0);
 
     // Adding a passthrough PLE kernel to the plan
@@ -3467,7 +3329,7 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
 
     // With a PLE kernel, the plan can still fit into SRAM and there is a need to Load the Kernel
     SectionContext context2 = context;
-    REQUIRE(combiner.IsPlanAllocated(context2, planA, mockBuffer.get(), false) == true);
+    REQUIRE(combiner.AllocateSram(context2, partA.GetPartId(), planA, { mockBuffer.get() }) == true);
     REQUIRE(context2.pleOps.size() == 1);
     REQUIRE(actualPleOp->m_LoadKernel == true);
 
@@ -3476,7 +3338,7 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
     SectionContext context3 = context;
     PleKernelId pleKernel1  = PleKernelId::PASSTHROUGH_8X16_1;
     context3.pleOps         = { { pleKernel1, 0 } };
-    REQUIRE(combiner.IsPlanAllocated(context3, planA, mockBuffer.get(), false) == true);
+    REQUIRE(combiner.AllocateSram(context3, partA.GetPartId(), planA, { mockBuffer.get() }) == true);
     REQUIRE(context3.pleOps.size() == 2);
     REQUIRE(actualPleOp->m_LoadKernel == true);
 
@@ -3485,7 +3347,7 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
     SectionContext context4 = context;
     PleKernelId pleKernel2  = PleKernelId::PASSTHROUGH_8X8_2;
     context4.pleOps         = { { pleKernel2, 0 } };
-    REQUIRE(combiner.IsPlanAllocated(context4, planA, mockBuffer.get(), false) == true);
+    REQUIRE(combiner.AllocateSram(context4, partA.GetPartId(), planA, { mockBuffer.get() }) == true);
     REQUIRE(context4.pleOps.size() == 1);
     REQUIRE(actualPleOp->m_LoadKernel == false);
 
@@ -3493,9 +3355,9 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
     // Allocate memory where the plan and the allocated memory exceeds the SRAM Size
     uint32_t planSize          = ofmSize + planA.m_OpGraph.GetBuffers()[2]->m_SizeInBytes + hwCaps.GetMaxPleSize();
     uint32_t remainingSramSize = hwCaps.GetTotalSramSize() - planSize;
-    context5.alloc.Allocate(((remainingSramSize + hwCaps.GetNumberOfSrams()) / hwCaps.GetNumberOfSrams()),
+    context5.alloc.Allocate((remainingSramSize + hwCaps.GetNumberOfSrams()) / hwCaps.GetNumberOfSrams(),
                             AllocationPreference::Start);
-    REQUIRE(combiner.IsPlanAllocated(context5, planA, mockBuffer.get(), false) == false);
+    REQUIRE(combiner.AllocateSram(context5, partA.GetPartId(), planA, { mockBuffer.get() }) == false);
     REQUIRE(context5.pleOps.size() == 0);
     REQUIRE(actualPleOp->m_LoadKernel == true);
 
@@ -3529,7 +3391,8 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
         CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
         SectionContext context     = { {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()),
                                    {}, {},
-                                   0,  false };
+                                   0,  false,
+                                   {}, BlockConfig{ 16u, 16u } };
         uint32_t currentSramOffset = 0;
 
         Plan planA;
@@ -3559,7 +3422,7 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
         WHEN("Lonely section with a plan that has no Ple Op")
         {
             REQUIRE(bufferA->m_Offset.has_value() == false);
-            REQUIRE(combiner.IsPlanAllocated(context, planA, nullptr, true) == true);
+            REQUIRE(combiner.AllocateSram(context, partA.GetPartId(), planA, { nullptr }) == true);
             REQUIRE(bufferA->m_Offset.has_value() == true);
             REQUIRE(bufferA->m_Offset.value() == currentSramOffset);
             currentSramOffset = bufferA->m_SizeInBytes / hwCaps.GetNumberOfSrams();
@@ -3588,7 +3451,7 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
 
             REQUIRE(bufferA->m_Offset.has_value() == false);
             REQUIRE(outBufferAndPleOp.first->m_Offset.has_value() == false);
-            REQUIRE(combiner.IsPlanAllocated(context, planA, nullptr, true) == true);
+            REQUIRE(combiner.AllocateSram(context, partA.GetPartId(), planA, { nullptr }) == true);
 
             REQUIRE(actualPleOp->m_Offset.has_value() == true);
             REQUIRE(actualPleOp->m_Offset.value() == currentSramOffset);
@@ -3643,7 +3506,8 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
         CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
         SectionContext context     = { {}, SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()),
                                    {}, {},
-                                   0,  false };
+                                   0,  false,
+                                   {}, BlockConfig{ 16u, 16u } };
         uint32_t currentSramOffset = 0;
 
         Plan planA;
@@ -3673,7 +3537,7 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
         WHEN("Starting the section with the first plan that has no Ple Op")
         {
             REQUIRE(bufferA1->m_Offset.has_value() == false);
-            REQUIRE(combiner.IsPlanAllocated(context, planA, nullptr, true) == true);
+            REQUIRE(combiner.AllocateSram(context, partA.GetPartId(), planA, { nullptr }) == true);
             REQUIRE(bufferA1->m_Offset.has_value() == true);
             REQUIRE(bufferA1->m_Offset.value() == currentSramOffset);
             currentSramOffset = bufferA1->m_SizeInBytes / hwCaps.GetNumberOfSrams();
@@ -3702,7 +3566,7 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
 
             REQUIRE(bufferA1->m_Offset.has_value() == false);
             REQUIRE(outBufferAndPleOp.first->m_Offset.has_value() == false);
-            REQUIRE(combiner.IsPlanAllocated(context, planA, nullptr, true) == true);
+            REQUIRE(combiner.AllocateSram(context, partA.GetPartId(), planA, { nullptr }) == true);
 
             REQUIRE(actualPleOp->m_Offset.has_value() == true);
             REQUIRE(actualPleOp->m_Offset.value() == currentSramOffset);
@@ -3746,7 +3610,7 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
             WHEN("Continuing the section with the second plan that has no Ple Op")
             {
                 REQUIRE(bufferB1->m_Offset.has_value() == false);
-                REQUIRE(combiner.IsPlanAllocated(context, planB, outBufferAndPleOp.first, false) == true);
+                REQUIRE(combiner.AllocateSram(context, partB.GetPartId(), planB, { outBufferAndPleOp.first }) == true);
                 REQUIRE(bufferB1->m_Offset.has_value() == true);
                 REQUIRE(bufferB1->m_Offset.value() == outBufferAndPleOp.first->m_Offset.value());
             }
@@ -3777,7 +3641,8 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                 PleOp* actualPleOpB = static_cast<PleOp*>(maybePleOpB);
 
                 REQUIRE(actualPleOpB->m_LoadKernel == true);
-                REQUIRE(combiner.IsPlanAllocated(context, planB, planA.m_OpGraph.GetBuffers()[2], false) == true);
+                REQUIRE(combiner.AllocateSram(context, partB.GetPartId(), planB,
+                                              { planA.m_OpGraph.GetBuffers()[2]->Sram() }) == true);
                 REQUIRE(context.pleOps.size() == 1);
 
                 REQUIRE(actualPleOpB->m_LoadKernel == false);
@@ -3813,7 +3678,8 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
 
                 REQUIRE(actualPleOpB->m_LoadKernel == true);
 
-                REQUIRE(combiner.IsPlanAllocated(context, planB, planA.m_OpGraph.GetBuffers()[2], false) == true);
+                REQUIRE(combiner.AllocateSram(context, partB.GetPartId(), planB,
+                                              { planA.m_OpGraph.GetBuffers()[2]->Sram() }) == true);
                 REQUIRE(context.pleOps.size() == 2);
 
                 REQUIRE(actualPleOpB->m_LoadKernel == true);
@@ -3852,7 +3718,8 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                 WHEN("Ending the section with the third plan that has no Ple Op")
                 {
                     REQUIRE(bufferC1->m_Offset.has_value() == false);
-                    REQUIRE(combiner.IsPlanAllocated(context, planC, outBufferAndPleOp.first, false) == true);
+                    REQUIRE(combiner.AllocateSram(context, partC.GetPartId(), planC, { outBufferAndPleOp.first }) ==
+                            true);
                     REQUIRE(bufferC1->m_Offset.has_value() == true);
                     REQUIRE(bufferC1->m_Offset.value() == outBufferAndPleOp.first->m_Offset.value());
                 }
@@ -3887,7 +3754,8 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
 
                     REQUIRE(actualPleOpC->m_LoadKernel == true);
 
-                    REQUIRE(combiner.IsPlanAllocated(context, planC, planB.m_OpGraph.GetBuffers()[2], false) == true);
+                    REQUIRE(combiner.AllocateSram(context, partC.GetPartId(), planC,
+                                                  { planB.m_OpGraph.GetBuffers()[2]->Sram() }) == true);
                     REQUIRE(context.pleOps.size() == 2);
 
                     REQUIRE(actualPleOpC->m_LoadKernel == false);
@@ -3926,7 +3794,8 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
 
                     REQUIRE(actualPleOpC->m_LoadKernel == true);
 
-                    REQUIRE(combiner.IsPlanAllocated(context, planC, planB.m_OpGraph.GetBuffers()[2], false) == true);
+                    REQUIRE(combiner.AllocateSram(context, partC.GetPartId(), planC,
+                                                  { planB.m_OpGraph.GetBuffers()[2]->Sram() }) == true);
                     REQUIRE(context.pleOps.size() == 3);
 
                     REQUIRE(actualPleOpB->m_LoadKernel == true);

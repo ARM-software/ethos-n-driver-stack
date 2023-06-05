@@ -14,7 +14,10 @@ namespace ethosn
 namespace support_library
 {
 
-Plans ReshapePart::GetPlans(CascadeType cascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const
+Plans ReshapePart::GetPlans(CascadeType cascadeType,
+                            ethosn::command_stream::BlockConfig,
+                            const std::vector<Buffer*>&,
+                            uint32_t) const
 {
     Plans plans;
 
@@ -70,7 +73,7 @@ Plans ReshapePart::GetPlans(CascadeType cascadeType, ethosn::command_stream::Blo
         inputMappings[inputBufferRaw]   = PartInputSlot{ m_PartId, 0 };
         outputMappings[outputBufferRaw] = PartOutputSlot{ m_PartId, 0 };
 
-        AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(graph), plans);
+        AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(graph), {}, plans);
     }
 
     return plans;

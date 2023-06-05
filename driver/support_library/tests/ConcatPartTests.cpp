@@ -164,7 +164,7 @@ TEST_CASE("ConcatPart Plan Generation", "[ConcatPartTests]")
 
         WHEN("Asked to generate Lonely plans")
         {
-            Plans plans = concatPart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = concatPart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ConcatPart GetPlans structure Lonely");
 
             THEN("The number of generated plans >= 1")
@@ -180,7 +180,7 @@ TEST_CASE("ConcatPart Plan Generation", "[ConcatPartTests]")
 
         WHEN("Asked to generate Beginning plans")
         {
-            Plans plans = concatPart.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = concatPart.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ConcatPart GetPlans structure Beginning");
 
             THEN("The number of generated plans = 0")
@@ -191,7 +191,7 @@ TEST_CASE("ConcatPart Plan Generation", "[ConcatPartTests]")
 
         WHEN("Asked to generate Middle plans")
         {
-            Plans plans = concatPart.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = concatPart.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ConcatPart GetPlans structure Middle");
 
             THEN("The number of generated plans = 0")
@@ -202,7 +202,7 @@ TEST_CASE("ConcatPart Plan Generation", "[ConcatPartTests]")
 
         WHEN("Asked to generate End plans")
         {
-            Plans plans = concatPart.GetPlans(CascadeType::End, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = concatPart.GetPlans(CascadeType::End, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ConcatPart GetPlans structure End");
 
             THEN("The number of generated plans = 0")

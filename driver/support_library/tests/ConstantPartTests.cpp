@@ -130,7 +130,7 @@ TEST_CASE("ConstantPart Plan Generation", "[ConstantPartTests]")
 
         WHEN("Asked to generate Lonely plans")
         {
-            Plans plans = constantPart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = constantPart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ConstantPart GetPlans structure Lonely");
 
             THEN("The number of generated plans = 1")
@@ -146,7 +146,7 @@ TEST_CASE("ConstantPart Plan Generation", "[ConstantPartTests]")
 
         WHEN("Asked to generate Beginning plans")
         {
-            Plans plans = constantPart.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = constantPart.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ConstantPart GetPlans structure Beginning");
 
             THEN("The number of generated plans = 1")
@@ -162,7 +162,7 @@ TEST_CASE("ConstantPart Plan Generation", "[ConstantPartTests]")
 
         WHEN("Asked to generate Middle plans")
         {
-            Plans plans = constantPart.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = constantPart.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ConstantPart GetPlans structure Middle");
 
             THEN("The number of generated plans = 0")
@@ -173,7 +173,7 @@ TEST_CASE("ConstantPart Plan Generation", "[ConstantPartTests]")
 
         WHEN("Asked to generate End plans")
         {
-            Plans plans = constantPart.GetPlans(CascadeType::End, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = constantPart.GetPlans(CascadeType::End, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ConstantPart GetPlans structure End");
 
             THEN("The number of generated plans = 0")

@@ -617,7 +617,7 @@ TEST_CASE("FusedPlePart GetPlans structure")
 
         WHEN("Asked to produce Lonely plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans structure Lonely");
 
             THEN("The plans are valid, start and end in Sram")
@@ -634,7 +634,7 @@ TEST_CASE("FusedPlePart GetPlans structure")
 
         WHEN("Asked to produce Beginning plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans structure Beginning");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -661,7 +661,7 @@ TEST_CASE("FusedPlePart GetPlans structure")
                                                          .AddNumStripes(1);
 
             Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, prevBuffer.get(), 1);
+                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans structure Middle sram input");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -683,7 +683,7 @@ TEST_CASE("FusedPlePart GetPlans structure")
                                                                  .AddNumStripes(1);
 
             Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, prevBuffer.get(), 1);
+                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans structure Middle sram input");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -705,7 +705,8 @@ TEST_CASE("FusedPlePart GetPlans structure")
                                                          .AddSlotSize(8 * 16 * 16 * 1)
                                                          .AddNumStripes(1);
 
-            Plans plans = part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 16u, 16u }, prevBuffer.get(), 1);
+            Plans plans =
+                part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans structure End sram input");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -726,7 +727,8 @@ TEST_CASE("FusedPlePart GetPlans structure")
                                                                  .AddSizeInBytes(8 * 16 * 16 * 1)
                                                                  .AddNumStripes(1);
 
-            Plans plans = part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 16u, 16u }, prevBuffer.get(), 1);
+            Plans plans =
+                part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans structure End sram input");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -790,10 +792,10 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
 
         WHEN("Asked to produce Lonely plans")
         {
-            Plans plansEven = partEven.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plansEven = partEven.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Lonely");
 
-            Plans plansOdd = partOdd.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plansOdd = partOdd.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd Lonely");
 
             THEN("The plans are valid, start and end in Sram")
@@ -842,10 +844,10 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
 
         WHEN("Asked to produce Beginning plans")
         {
-            Plans plansEven = partEven.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plansEven = partEven.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Beginning");
 
-            Plans plansOdd = partOdd.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plansOdd = partOdd.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd Beginning");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -903,8 +905,8 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                                                              .AddSlotSize(1 * 8 * 128 * 64)
                                                              .AddNumStripes(1);
 
-            Plans plansEven =
-                partEven.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, prevBufferEven.get(), 1);
+            Plans plansEven = partEven.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U },
+                                                { prevBufferEven.get() }, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Middle Sram NoFullTensorInput");
 
             THEN("The are no valid plans that start in Sram and end in Sram")
@@ -924,8 +926,8 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                                                              .AddSlotSize(1 * 128 * 128 * 64)
                                                              .AddNumStripes(1);
 
-            Plans plansEven =
-                partEven.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, prevBufferEven.get(), 1);
+            Plans plansEven = partEven.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U },
+                                                { prevBufferEven.get() }, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Middle Sram Input");
 
             std::unique_ptr<SramBuffer> prevBufferOdd = SramBuffer::Build()
@@ -937,8 +939,8 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                                                             .AddSlotSize(1 * 136 * 136 * 64)
                                                             .AddNumStripes(1);
 
-            Plans plansOdd =
-                partOdd.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, prevBufferOdd.get(), 1);
+            Plans plansOdd = partOdd.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U },
+                                              { prevBufferOdd.get() }, 1);
             SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd Middle Sram Input");
 
             THEN("The are valid plans that start in Sram and end in Sram")
@@ -1007,8 +1009,8 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                                                                      .AddSizeInBytes(1 * 128 * 128 * 64)
                                                                      .AddNumStripes(1);
 
-            Plans plansEven =
-                partEven.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, prevBufferEven.get(), 1);
+            Plans plansEven = partEven.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U },
+                                                { prevBufferEven.get() }, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Middle Ple Sram Input");
 
             std::unique_ptr<PleInputSramBuffer> prevBufferOdd = PleInputSramBuffer::Build()
@@ -1019,8 +1021,8 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                                                                     .AddSizeInBytes(1 * 136 * 136 * 64)
                                                                     .AddNumStripes(1);
 
-            Plans plansOdd =
-                partOdd.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, prevBufferOdd.get(), 1);
+            Plans plansOdd = partOdd.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U },
+                                              { prevBufferOdd.get() }, 1);
             SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd Middle Ple Sram Input");
 
             THEN("The plans are valid and start in PleInputSram and end in Sram")
@@ -1083,7 +1085,7 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                                                              .AddNumStripes(1);
 
             Plans plansEven =
-                partEven.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, prevBufferEven.get(), 1);
+                partEven.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, { prevBufferEven.get() }, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven End Sram Input");
 
             std::unique_ptr<SramBuffer> prevBufferOdd = SramBuffer::Build()
@@ -1096,7 +1098,7 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                                                             .AddNumStripes(1);
 
             Plans plansOdd =
-                partOdd.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, prevBufferOdd.get(), 1);
+                partOdd.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, { prevBufferOdd.get() }, 1);
             SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd End Sram Input");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -1166,7 +1168,7 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                                                                      .AddNumStripes(1);
 
             Plans plansEven =
-                partEven.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, prevBufferEven.get(), 1);
+                partEven.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, { prevBufferEven.get() }, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven End Ple Sram Input");
 
             std::unique_ptr<PleInputSramBuffer> prevBufferOdd = PleInputSramBuffer::Build()
@@ -1178,7 +1180,7 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                                                                     .AddNumStripes(1);
 
             Plans plansOdd =
-                partOdd.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, prevBufferOdd.get(), 1);
+                partOdd.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, { prevBufferOdd.get() }, 1);
             SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd End Ple Sram Input");
 
             THEN("The plans are valid and start in PleInputSram and end in Sram")
@@ -1251,7 +1253,7 @@ TEST_CASE("FusedPlePart GetPlans strategy 0 shape multiplier")
 
         WHEN("Asked to generate plans at the beginning of a cascade")
         {
-            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
 
             SavePlansToDot(plans, "FusedPlePart GetPlans strategy 0 shape multiplier");
 
@@ -1313,7 +1315,7 @@ TEST_CASE("FusedPlePart GetPlans invalid previous buffer")
                                                          .AddSlotSize(1 * 8 * 16 * 16)
                                                          .AddNumStripes(2);
 
-            Plans plans = part.GetPlans(CascadeType::Middle, blockConfig, prevBuffer.get(), 1);
+            Plans plans = part.GetPlans(CascadeType::Middle, blockConfig, { prevBuffer.get() }, 1);
 
             SavePlansToDot(plans, "FusedPlePart GetPlans Filters Sram buffer");
 
@@ -1346,7 +1348,7 @@ TEST_CASE("FusedPlePart GetPlans lonely height and width splits")
         WHEN("Asked to generate plans")
         {
             command_stream::BlockConfig blockConfig = { 8u, 8u };
-            Plans plans                             = part.GetPlans(CascadeType::Lonely, blockConfig, nullptr, 1);
+            Plans plans                             = part.GetPlans(CascadeType::Lonely, blockConfig, { nullptr }, 1);
 
             SavePlansToDot(plans, "FusedPlePart GetPlans Filters Sram buffer");
 
@@ -1425,7 +1427,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
                 BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
                           utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, compOpts, caps, estOpts, debuggingContext);
 
-            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans MobileNet Part 1");
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
@@ -1467,7 +1469,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
                     .AddNumStripes(0);
 
             Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, prevBuffer.get(), 2);
+                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 2);
             SavePlansToDot(plans, "FusedPlePart GetPlans MobileNet Part 5");
             CheckPlansParams params;
             params.m_InputLocation = PlanInputLocation::PleInputSram;
@@ -1502,7 +1504,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
                     .AddNumStripes(0);
 
             Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, prevBuffer.get(), 2);
+                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 2);
             SavePlansToDot(plans, "FusedPlePart GetPlans MobileNet Part 10");
             CHECK(plans.size() == 1);
             CheckPlansParams params;
@@ -1541,7 +1543,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
                           utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, compOpts, caps, estOpts, debuggingContext);
             part.SetOutputRequirements({ BoundaryRequirements{ true, true, true, true } }, { false });
 
-            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
+            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans MobileNet Part 1 1TOPS_2PLE_RATIO");
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
@@ -1585,7 +1587,8 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
                     .AddSizeInBytes(0)    // PleInputSram buffers have no size or num stripes
                     .AddNumStripes(0);
 
-            Plans plans = part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 16u, 16u }, prevBuffer.get(), 1);
+            Plans plans =
+                part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans MobileNet Part 5 1TOPS_2PLE_RATIO");
             CheckPlansParams params;
             params.m_InputLocation = PlanInputLocation::PleInputSram;
@@ -1625,7 +1628,8 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
                     .AddSizeInBytes(0)                               // PleInputSram buffers have no size or num stripes
                     .AddNumStripes(0);
 
-            Plans plans = part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 16u, 16u }, prevBuffer.get(), 2);
+            Plans plans =
+                part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 2);
             SavePlansToDot(plans, "FusedPlePart GetPlans MobileNet Part 10 1TOPS_2PLE_RATIO");
             CheckPlansParams params;
             params.m_InputLocation = PlanInputLocation::PleInputSram;

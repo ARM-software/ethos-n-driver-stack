@@ -6,8 +6,11 @@
 #include "SramAllocator.hpp"
 #include "Utils.hpp"
 
+#include <ethosn_utils/Macros.hpp>
+
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 
 namespace ethosn
 {

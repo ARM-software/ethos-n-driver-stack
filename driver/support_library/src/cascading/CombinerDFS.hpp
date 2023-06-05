@@ -11,6 +11,9 @@
 #include "Plan.hpp"
 #include "SramAllocator.hpp"
 
+#include <set>
+#include <unordered_map>
+
 namespace ethosn
 {
 namespace support_library
@@ -133,15 +136,28 @@ private:
     double m_Metric;
 };
 
-/// Information about a section.
+/// Information about a partially-complete section, which is created in StartSection and through
+/// ContinueSection(s) and finally into EndSection.
 struct SectionContext
 {
+    /// All the plans chosen so far.
     Combination comb;
+    /// Tracks which parts of SRAM are in use by buffers that need to be kept alive.
     SramAllocator alloc;
+    /// Tracks which PLE kernels have already been loaded into SRAM.
     PleOperations pleOps;
-    std::vector<SramBuffer*> allocatedBuffers;
+    /// Tracks which buffers have live allocations in `alloc`, along with a list of which parts
+    /// have ownership of the buffer (ownership is passed between parts as we progress through the section).
+    std::unordered_map<SramBuffer*, std::set<PartId>> allocatedBuffers;
+    /// Whether or not we are double-buffering weight stripes.
     uint32_t currNumWeightStripes;
     bool hasSectionDoubleBuffered;
+    /// @}
+    /// When partway through a section, we might have several Parts whose outputs haven't yet
+    /// been processed. These are tracked here. This should be empty once the section is finished.
+    std::unordered_map<PartConnection, Buffer*> unresolvedOutputs;
+    /// Which block config to use for this section (we use the same block config for the whole section).
+    command_stream::BlockConfig blockConfig;
 };
 
 using Combinations = std::vector<Combination>;
@@ -161,15 +177,14 @@ public:
     void Run();
 
 protected:
-    bool IsPartSi(const BasePart& part) const;
-    bool IsPartSo(const BasePart& part) const;
-    bool IsPartSiso(const BasePart& part) const;
-
-    bool IsPlanAllocated(SectionContext& context,
-                         const Plan& plan,
-                         const Buffer* const outBufOfPrevPlanInSection,
-                         bool inputBufferNeedAllocation) const;
-    void DeallocateUnusedBuffers(const Buffer& prevPlanBuffer, SectionContext& context);
+    bool AllocateSram(SectionContext& context,
+                      PartId partId,
+                      const Plan& plan,
+                      const std::vector<Buffer*>& outputBuffersOfPrevPlan) const;
+    void DeallocateUnusedBuffers(PartId partId,
+                                 const PartOutputMapping& planOutputBuffers,
+                                 const std::vector<PartId>& consumingPartIds,
+                                 SectionContext& context);
 
     Combination GluePartToCombinationSrcToDests(const BasePart& sPart, const Combination& comb, uint32_t outputSlotIdx);
 
@@ -192,6 +207,8 @@ private:
     std::vector<SectionContext> StartSection(const BasePart& part);
     std::vector<SectionContext> ContinueSection(const BasePart& part, const SectionContext& context);
     std::vector<SectionContext> EndSection(const BasePart& part, const SectionContext& context);
+
+    std::vector<SectionContext> ContinueOrEndSection(bool isEnd, const BasePart& part, const SectionContext& context);
 
     std::vector<Combination> CalculateSectionsOfAllLengths(const BasePart& startingPart);
 

@@ -114,7 +114,7 @@ TEST_CASE("ReshapePart Plan Generation", "[ReshapePartTests]")
 
         WHEN("Asked to generate Lonely plans")
         {
-            Plans plans = reshapePart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = reshapePart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ReshapePart GetPlans structure Lonely");
 
             AND_THEN("The plan is valid and end in Dram")
@@ -125,7 +125,7 @@ TEST_CASE("ReshapePart Plan Generation", "[ReshapePartTests]")
 
         WHEN("Asked to generate Beginning plans")
         {
-            Plans plans = reshapePart.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = reshapePart.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ReshapePart GetPlans structure Beginning");
 
             THEN("The number of generated plans = 0")
@@ -136,7 +136,7 @@ TEST_CASE("ReshapePart Plan Generation", "[ReshapePartTests]")
 
         WHEN("Asked to generate Middle plans")
         {
-            Plans plans = reshapePart.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = reshapePart.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ReshapePart GetPlans structure Middle");
 
             THEN("The number of generated plans = 0")
@@ -147,7 +147,7 @@ TEST_CASE("ReshapePart Plan Generation", "[ReshapePartTests]")
 
         WHEN("Asked to generate End plans")
         {
-            Plans plans = reshapePart.GetPlans(CascadeType::End, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = reshapePart.GetPlans(CascadeType::End, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ReshapePart GetPlans structure End");
 
             THEN("The number of generated plans = 0")

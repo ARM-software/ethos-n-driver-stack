@@ -52,7 +52,7 @@ public:
 
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,
-                   Buffer* prevBuffer,
+                   const std::vector<Buffer*>& sramBufferInputs,
                    uint32_t numWeightStripes) const override;
 
     DotAttributes GetDotAttributes(DetailLevel detail) const override;

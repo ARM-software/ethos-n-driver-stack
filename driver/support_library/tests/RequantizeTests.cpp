@@ -219,7 +219,7 @@ TEST_CASE("Compile a network with Requantize layer with different input/output t
     REQUIRE(inputPart0 != nullptr);
 
     Plans plansInputPart0 =
-        inputPart0->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+        inputPart0->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, { nullptr }, 1);
     CHECK(plansInputPart0.size() == 1);
 
     Buffer* bufferOutputPart0 = plansInputPart0[0].GetOutputBuffer(PartOutputSlot{ inputPart0->GetPartId(), 0 });
@@ -253,7 +253,7 @@ TEST_CASE("Compile a network with Requantize layer with different input/output t
     REQUIRE(outputPart2 != nullptr);
 
     Plans plansOutputPart2 =
-        outputPart2->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+        outputPart2->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, { nullptr }, 1);
     CHECK(plansOutputPart2.size() == 1);
 
     Buffer* bufferInputPart2 = plansOutputPart2[0].GetInputBuffer(PartInputSlot{ outputPart2->GetPartId(), 0 });

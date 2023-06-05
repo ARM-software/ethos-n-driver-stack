@@ -43,9 +43,13 @@ public:
         , m_HasInput(hasInput)
         , m_HasOutput(hasOutput)
     {}
-    virtual Plans GetPlans(CascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const override;
 
-    virtual utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const override
+    Plans GetPlans(CascadeType,
+                   ethosn::command_stream::BlockConfig,
+                   const std::vector<Buffer*>&,
+                   uint32_t) const override;
+
+    utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const override
     {
         return {};
     }
@@ -95,30 +99,20 @@ class CombinerTest : public Combiner
 public:
     using Combiner::Combiner;
 
-    bool IsPartSi(const BasePart& part) const
+    bool AllocateSram(SectionContext& context,
+                      PartId partId,
+                      const Plan& plan,
+                      const std::vector<Buffer*>& outputBuffersOfPrevPlan) const
     {
-        return Combiner::IsPartSi(part);
-    }
-    bool IsPartSo(const BasePart& part) const
-    {
-        return Combiner::IsPartSo(part);
-    }
-    bool IsPartSiso(const BasePart& part) const
-    {
-        return Combiner::IsPartSiso(part);
+        return Combiner::AllocateSram(context, partId, plan, outputBuffersOfPrevPlan);
     }
 
-    bool IsPlanAllocated(SectionContext& context,
-                         const Plan& plan,
-                         const Buffer* const outBufOfPrevPlanInSection,
-                         bool inputBufferNeedAllocation) const
+    void DeallocateUnusedBuffers(PartId partId,
+                                 const PartOutputMapping& planOutputBuffers,
+                                 const std::vector<PartId>& consumingPartIds,
+                                 SectionContext& context)
     {
-        return Combiner::IsPlanAllocated(context, plan, outBufOfPrevPlanInSection, inputBufferNeedAllocation);
-    }
-
-    void DeallocateUnusedBuffers(const Buffer& prevPlanBuffer, SectionContext& context)
-    {
-        return Combiner::DeallocateUnusedBuffers(prevPlanBuffer, context);
+        return Combiner::DeallocateUnusedBuffers(partId, planOutputBuffers, consumingPartIds, context);
     }
 
     Combination GluePartToCombinationSrcToDests(const BasePart& sPart, const Combination& comb, uint32_t outputSlotIdx)

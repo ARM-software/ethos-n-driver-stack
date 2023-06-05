@@ -164,7 +164,7 @@ TEST_CASE("SplitPart Plan Generation", "[SplitPartTests]")
 
         WHEN("Asked to generate Lonely plans")
         {
-            Plans plans = splitPart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = splitPart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "SplitPart GetPlans structure Lonely");
 
             THEN("The number of generated plans >= 1")
@@ -180,7 +180,7 @@ TEST_CASE("SplitPart Plan Generation", "[SplitPartTests]")
 
         WHEN("Asked to generate Beginning plans")
         {
-            Plans plans = splitPart.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = splitPart.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "SplitPart GetPlans structure Beginning");
 
             THEN("The number of generated plans = 0")
@@ -191,7 +191,7 @@ TEST_CASE("SplitPart Plan Generation", "[SplitPartTests]")
 
         WHEN("Asked to generate Middle plans")
         {
-            Plans plans = splitPart.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = splitPart.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "SplitPart GetPlans structure Middle");
 
             THEN("The number of generated plans = 0")
@@ -202,7 +202,7 @@ TEST_CASE("SplitPart Plan Generation", "[SplitPartTests]")
 
         WHEN("Asked to generate End plans")
         {
-            Plans plans = splitPart.GetPlans(CascadeType::End, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = splitPart.GetPlans(CascadeType::End, command_stream::BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "SplitPart GetPlans structure End");
 
             THEN("The number of generated plans = 0")
