@@ -129,13 +129,7 @@ TEST_SUITE("EthosNCaching")
         // Invalid option (Wrong CachedNetworkFilePath type)
         BackendOptions optInvalidTypeFilePath(EthosNBackend::GetIdStatic(), { { "CachedNetworkFilePath", true } });
         CHECK_THROWS_WITH_AS(GetEthosNCachingOptionsFromModelOptions({ optInvalidTypeFilePath }),
-                             "Invalid option type for CachedNetworkFilePath - must be string.",
-                             InvalidArgumentException);
-
-        // Invalid option (File doesn't exist)
-        BackendOptions optInvalidFilePath(EthosNBackend::GetIdStatic(), { { "CachedNetworkFilePath", "test" } });
-        CHECK_THROWS_WITH_AS(GetEthosNCachingOptionsFromModelOptions({ optInvalidFilePath }),
-                             "The file used to write cached networks to is invalid or doesn't exist.",
+                             "Invalid option type for CachedNetworkFilePath - must be a non-empty string.",
                              InvalidArgumentException);
     }
 
@@ -350,6 +344,16 @@ TEST_SUITE("EthosNCaching")
             CHECK(networkAndSize.value().first == compiledSubgraph);
             CHECK(networkAndSize.value().second == intermediateBufferSize);
         }
+        // Testing loading fails - non-existewnt file
+        {
+            EthosNCaching cache;
+            BackendOptions backendOptions(
+                EthosNBackend::GetIdStatic(),
+                { { "SaveCachedNetwork", false }, { "CachedNetworkFilePath", "doesntexist.bin" } });
+            cache.SetEthosNCachingOptions({ backendOptions });
+            CHECK(!cache.Load());
+            CHECK(!cache.GetIsLoaded());
+        }
         // Testing loading fails
         {
             {
@@ -363,13 +367,30 @@ TEST_SUITE("EthosNCaching")
             CHECK(!cache.Load());
             CHECK(!cache.GetIsLoaded());
         }
-        // Testing Saving fails
+        // Test saving with a non-existent file works (by creating that file)
         {
-            std::string nonExistantPath = tmpDir.Str() + "/EthosNTesting-NonExistant.bin";
+            std::string nonExistentPath = tmpDir.Str() + "/EthosNTesting-NonExistent.bin";
             EthosNCaching cache;
             BackendOptions backendOptions(
                 EthosNBackend::GetIdStatic(),
-                { { "SaveCachedNetwork", true }, { "CachedNetworkFilePath", nonExistantPath } });
+                { { "SaveCachedNetwork", true }, { "CachedNetworkFilePath", nonExistentPath } });
+            cache.SetEthosNCachingOptions({ backendOptions });
+
+            cache.AddCompiledNetwork(0, compiledSubgraph, intermediateBufferSize);
+            armnn::Optional<std::pair<std::vector<char>, uint32_t>> networkAndSize =
+                cache.GetCompiledNetworkAndIntermediateSize(0);
+            CHECK(networkAndSize.value().first == compiledSubgraph);
+            CHECK(networkAndSize.value().second == intermediateBufferSize);
+            CHECK(cache.Save());
+
+            CHECK(fs::exists(nonExistentPath));
+        }
+        // Testing Saving fails
+        {
+            std::string emptyPath = "";
+            EthosNCaching cache;
+            BackendOptions backendOptions(EthosNBackend::GetIdStatic(),
+                                          { { "SaveCachedNetwork", true }, { "CachedNetworkFilePath", emptyPath } });
             CHECK_THROWS(cache.SetEthosNCachingOptions({ backendOptions }));
         }
     }

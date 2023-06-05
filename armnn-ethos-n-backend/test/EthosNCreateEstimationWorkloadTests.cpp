@@ -38,6 +38,7 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
         os << armnn::EthosNConfig::PERF_CURRENT << " = 0\n";
         os << armnn::EthosNConfig::INTERMEDIATE_COMPRESSION << " = 1\n";
         os << armnn::EthosNConfig::INFERENCE_TIMEOUT << " = 25\n";
+        os << armnn::EthosNConfig::OFFLINE << " = 1\n";
 
         os.seekg(0);
         armnn::EthosNConfig config;
@@ -53,6 +54,7 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
         CHECK(config.m_PerfCurrent == false);
         CHECK(config.m_IntermediateCompression == true);
         CHECK(config.m_InferenceTimeout == 25);
+        CHECK(config.m_Offline == 1);
     }
 
     // A test which estimates the performance of a supported (relu) operation

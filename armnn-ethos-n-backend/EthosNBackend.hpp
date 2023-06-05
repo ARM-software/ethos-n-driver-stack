@@ -172,7 +172,7 @@ public:
     {
         using namespace ethosn::driver_library;
 
-        if (config.m_PerfOnly)
+        if (config.m_PerfOnly || config.m_Offline)
         {
             // Performance only, allocators not needed
             return;
@@ -261,11 +261,12 @@ private:
 class EthosNBackendContext : public IBackendContext
 {
 public:
-    EthosNBackendContext(const IRuntime::CreationOptions& options)
+    EthosNBackendContext(const IRuntime::CreationOptions& options, const EthosNConfig& ethosNConfig)
         : IBackendContext(options)
-        , m_options(options)
+        , m_EthosNConfig(ethosNConfig)
+        , m_Options(options)
     {
-        EthosNBackendAllocatorService::GetInstance().SetProtected(m_options.m_ProtectedMode);
+        EthosNBackendAllocatorService::GetInstance().SetProtected(m_Options.m_ProtectedMode);
     }
 
     bool BeforeLoadNetwork(NetworkId networkId) override;
@@ -279,7 +280,8 @@ public:
     bool AfterEnqueueWorkload(NetworkId networkId) override;
 
 private:
-    IRuntime::CreationOptions m_options;
+    EthosNConfig m_EthosNConfig;
+    IRuntime::CreationOptions m_Options;
 };
 
 namespace ethosnbackend

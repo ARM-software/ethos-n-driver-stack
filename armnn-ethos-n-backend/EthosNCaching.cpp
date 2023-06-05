@@ -2,8 +2,9 @@
 // Copyright © 2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "EthosNBackend.hpp"
 #include "EthosNCaching.hpp"
+
+#include "EthosNBackend.hpp"
 
 #include <armnn/Exceptions.hpp>
 #include <armnnUtils/Filesystem.hpp>
@@ -40,23 +41,14 @@ EthosNCachingOptions GetEthosNCachingOptionsFromModelOptions(const armnn::ModelO
                 }
                 else if (option.GetName() == "CachedNetworkFilePath")
                 {
-                    if (option.GetValue().IsString())
+                    if (option.GetValue().IsString() && option.GetValue().AsString() != "")
                     {
-                        std::string filePath = option.GetValue().AsString();
-                        if (filePath != "" && fs::exists(filePath) && fs::is_regular_file(filePath))
-                        {
-                            result.m_CachedNetworkFilePath = filePath;
-                        }
-                        else
-                        {
-                            throw armnn::InvalidArgumentException(
-                                "The file used to write cached networks to is invalid or doesn't exist.");
-                        }
+                        result.m_CachedNetworkFilePath = option.GetValue().AsString();
                     }
                     else
                     {
                         throw armnn::InvalidArgumentException(
-                            "Invalid option type for CachedNetworkFilePath - must be string.");
+                            "Invalid option type for CachedNetworkFilePath - must be a non-empty string.");
                     }
                 }
             }
@@ -179,6 +171,11 @@ bool EthosNCaching::LoadCachedSubgraphs()
     std::string filePath = m_EthosNCachingOptions.m_CachedNetworkFilePath;
     ARMNN_LOG(info) << "Loading cached network " << filePath;
     std::ifstream in(filePath, std::ios::binary);
+    if (!in)
+    {
+        ARMNN_LOG(error) << "Error reading cached network file";
+        return false;
+    }
 
     // Read in the number of subgraphs, used for the loop limit.
     uint32_t numOfNetworks;

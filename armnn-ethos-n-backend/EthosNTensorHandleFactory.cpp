@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "EthosNTensorHandle.hpp"
 #include "EthosNTensorHandleFactory.hpp"
+
+#include "EthosNTensorHandle.hpp"
 
 namespace armnn
 {
@@ -35,7 +36,7 @@ std::unique_ptr<ITensorHandle> EthosNImportTensorHandleFactory::CreateTensorHand
     {
         return nullptr;
     }
-    if (m_EthosNConfig.m_PerfOnly)
+    if (m_EthosNConfig.m_PerfOnly || m_EthosNConfig.m_Offline)
     {
         return std::make_unique<ScopedTensorHandle>(tensorInfo);
     }
@@ -80,7 +81,7 @@ std::unique_ptr<ITensorHandle> EthosNProtectedTensorHandleFactory::CreateTensorH
     {
         return nullptr;
     }
-    if (m_EthosNConfig.m_PerfOnly)
+    if (m_EthosNConfig.m_PerfOnly || m_EthosNConfig.m_Offline)
     {
         return std::make_unique<ScopedTensorHandle>(tensorInfo);
     }

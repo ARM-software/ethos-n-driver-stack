@@ -826,6 +826,184 @@ void DeleteAsType(const void* const blob)
 {
     delete static_cast<const T*>(blob);
 }
+
+struct PerfData
+{
+    std::string m_PerfOutFile;
+    ethosn::support_library::EthosNVariant m_PerfVariant;
+    uint32_t m_PerfSramSizeBytesOverride;
+    ethosn::support_library::NetworkPerformanceData m_Data;
+    ethosn::support_library::EstimationOptions m_EstimationOptions;
+};
+
+template <typename T>
+struct QuotedT
+{
+    explicit constexpr QuotedT(const T& value)
+        : m_Value(value)
+    {}
+
+    const T& m_Value;
+};
+
+template <typename T>
+QuotedT<T> Quoted(const T& value)
+{
+    return QuotedT<T>(value);
+}
+
+template <typename T>
+std::ostream& operator<<(std::ostream& os, const QuotedT<T>& field)
+{
+    return os << '"' << field.m_Value << '"';
+}
+
+template <typename T>
+struct JsonFieldT
+{
+    explicit constexpr JsonFieldT(const T& value)
+        : m_Value(value)
+    {}
+
+    const T& m_Value;
+};
+
+template <typename T>
+JsonFieldT<T> JsonField(const T& value)
+{
+    return JsonFieldT<T>(value);
+}
+
+template <typename T>
+std::ostream& operator<<(std::ostream& os, const JsonFieldT<T>& field)
+{
+    return os << Quoted(field.m_Value) << ':';
+}
+
+struct Indent
+{
+    explicit constexpr Indent(const size_t depth)
+        : m_Depth(depth)
+    {}
+
+    constexpr operator size_t&()
+    {
+        return m_Depth;
+    }
+
+    constexpr operator size_t() const
+    {
+        return m_Depth;
+    }
+
+    size_t m_Depth;
+};
+
+std::ostream& operator<<(std::ostream& os, const Indent& indent)
+{
+    for (size_t i = 0; i < indent; ++i)
+    {
+        os << '\t';
+    }
+
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const ethosn::support_library::EthosNVariant variant)
+{
+    switch (variant)
+    {
+        case ethosn::support_library::EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO:
+            os << Quoted("Ethos-N78_1TOPS_2PLE_RATIO");
+            break;
+        case ethosn::support_library::EthosNVariant::ETHOS_N78_1TOPS_4PLE_RATIO:
+            os << Quoted("Ethos-N78_1TOPS_4PLE_RATIO");
+            break;
+        case ethosn::support_library::EthosNVariant::ETHOS_N78_2TOPS_2PLE_RATIO:
+            os << Quoted("Ethos-N78_2TOPS_2PLE_RATIO");
+            break;
+        case ethosn::support_library::EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO:
+            os << Quoted("Ethos-N78_2TOPS_4PLE_RATIO");
+            break;
+        case ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_2PLE_RATIO:
+            os << Quoted("Ethos-N78_4TOPS_2PLE_RATIO");
+            break;
+        case ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO:
+            os << Quoted("Ethos-N78_4TOPS_4PLE_RATIO");
+            break;
+        case ethosn::support_library::EthosNVariant::ETHOS_N78_8TOPS_2PLE_RATIO:
+            os << Quoted("Ethos-N78_8TOPS_2PLE_RATIO");
+            break;
+        default:
+            ARMNN_ASSERT_MSG(false, "Unexpected variant");
+    }
+    return os;
+}
+
+std::ostream& Print(std::ostream& os, Indent indent, const std::map<uint32_t, std::string>& map)
+{
+    os << indent << "{\n";
+    ++indent;
+
+    for (auto it = map.begin(); it != map.end(); ++it)
+    {
+        os << indent << JsonField(it->first) << ' ' << Quoted(it->second);
+        if (it != std::prev(map.end()))
+        {
+            os << ",";
+        }
+        os << '\n';
+    }
+
+    --indent;
+    os << indent << "}";
+    return os;
+}
+
+void SavePerformanceJson(const PerfData& perfData, const std::map<uint32_t, std::string>& ethosNOperationNameMapping)
+{
+    std::ofstream os(perfData.m_PerfOutFile);
+
+    Indent indent(0);
+    os << indent << "{\n";
+    ++indent;
+
+    os << indent << JsonField("Config") << "\n";
+    os << indent << "{\n";
+    ++indent;
+
+    os << indent << JsonField("Variant") << ' ' << perfData.m_PerfVariant << ",\n";
+    os << indent << JsonField("SramSizeBytesOverride") << ' ' << perfData.m_PerfSramSizeBytesOverride << ",\n";
+    os << indent << JsonField("ActivationCompressionSavings") << ' '
+       << perfData.m_EstimationOptions.m_ActivationCompressionSaving << ",\n";
+
+    if (perfData.m_EstimationOptions.m_UseWeightCompressionOverride)
+    {
+        os << indent << JsonField("WeightCompressionSavings") << ' '
+           << perfData.m_EstimationOptions.m_WeightCompressionSaving << ",\n";
+    }
+    else
+    {
+        os << indent << JsonField("WeightCompressionSavings") << ' ' << Quoted("Not Specified") << ",\n";
+    }
+
+    os << indent << JsonField("Current") << ' ' << perfData.m_EstimationOptions.m_Current << "\n";
+
+    --indent;
+    os << indent << "},\n";
+
+    os << indent << JsonField("OperationNames") << '\n';
+    Print(os, indent, ethosNOperationNameMapping) << ",\n";
+
+    os << indent << JsonField("Results") << '\n';
+    ethosn::support_library::PrintNetworkPerformanceDataJson(os, static_cast<uint32_t>(indent.m_Depth),
+                                                             perfData.m_Data);
+
+    --indent;
+
+    os << indent << "}\n";
+}
+
 }    // namespace
 
 std::vector<EthosNPreCompiledObjectPtr> EthosNSubgraphViewConverter::Estimate()
@@ -835,7 +1013,7 @@ std::vector<EthosNPreCompiledObjectPtr> EthosNSubgraphViewConverter::Estimate()
     ethosnEstimationOpts.m_UseWeightCompressionOverride = m_EthosNConfig.m_PerfUseWeightCompressionOverride;
     ethosnEstimationOpts.m_WeightCompressionSaving      = m_EthosNConfig.m_PerfWeightCompressionSaving;
     ethosnEstimationOpts.m_Current                      = m_EthosNConfig.m_PerfCurrent;
-    EthosNPreCompiledObject::PerfData perfData;
+    PerfData perfData;
 
     perfData.m_PerfOutFile               = m_CompilationOptions.m_DebugInfo.m_DebugDir + "/report.json";
     perfData.m_PerfVariant               = m_EthosNConfig.m_PerfVariant;
@@ -845,8 +1023,11 @@ std::vector<EthosNPreCompiledObjectPtr> EthosNSubgraphViewConverter::Estimate()
     ARMNN_LOG(debug) << "Estimating Ethos-N network";
     perfData.m_Data = ethosn_lib::EstimatePerformance(*m_Network, m_CompilationOptions, ethosnEstimationOpts);
 
+    SavePerformanceJson(perfData, m_EthosNOperationNameMapping);
+
     auto preCompiledObj =
-        std::make_unique<EthosNPreCompiledObject>(std::move(perfData), m_EthosNOperationNameMapping, m_SubgraphIdx);
+        std::make_unique<EthosNPreCompiledObject>(armnn::EmptyOptional{}, true, m_EthosNOperationNameMapping,
+                                                  m_EthosNConfig.m_InferenceTimeout, m_SubgraphIdx, 0);
 
     std::vector<EthosNPreCompiledObjectPtr> compiledBlobs;
 
@@ -899,8 +1080,9 @@ std::vector<EthosNPreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
         {
             std::pair<std::vector<char>, uint32_t> networkAndIntermediate = std::move(cached.value());
             auto preCompiledObject                                        = std::make_unique<EthosNPreCompiledObject>(
-                EthosNPreCompiledObject::Network(std::move(networkAndIntermediate.first)), m_EthosNOperationNameMapping,
-                m_EthosNConfig.m_InferenceTimeout, m_SubgraphIdx, networkAndIntermediate.second);
+                EthosNPreCompiledObject::Network(std::move(networkAndIntermediate.first)), m_EthosNConfig.m_Offline,
+                m_EthosNOperationNameMapping, m_EthosNConfig.m_InferenceTimeout, m_SubgraphIdx,
+                networkAndIntermediate.second);
 
             // Convert the EthosNPreCompiledObject into a "blob" (void) object and attach the custom blob deleter
             compiledBlobs.emplace_back(preCompiledObject.release(), DeleteAsType<EthosNPreCompiledObject>);
@@ -965,8 +1147,9 @@ std::vector<EthosNPreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
             }
 
             auto preCompiledObject = std::make_unique<EthosNPreCompiledObject>(
-                EthosNPreCompiledObject::Network(std::move(compiledNetworkData)), m_EthosNOperationNameMapping,
-                m_EthosNConfig.m_InferenceTimeout, m_SubgraphIdx, intermediateBufSize);
+                armnn::Optional<EthosNPreCompiledObject::Network>(std::move(compiledNetworkData)),
+                m_EthosNConfig.m_Offline, m_EthosNOperationNameMapping, m_EthosNConfig.m_InferenceTimeout,
+                m_SubgraphIdx, intermediateBufSize);
 
             // Convert the EthosNPreCompiledObject into a "blob" (void) object and attach the custom blob deleter
             compiledBlobs.emplace_back(preCompiledObject.release(), DeleteAsType<EthosNPreCompiledObject>);

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -32,6 +32,7 @@ struct EthosNConfig
     static constexpr char PERF_CURRENT[]                        = "PERFORMANCE_CURRENT";                          // boolean
     static constexpr char INTERMEDIATE_COMPRESSION[]            = "INTERMEDIATE_COMPRESSION";                     // boolean
     static constexpr char INFERENCE_TIMEOUT[]                   = "INFERENCE_TIMEOUT";                            // int
+    static constexpr char OFFLINE[]                             = "OFFLINE";                                      // boolean
     // clang-format on
 
     bool m_PerfOnly = false;
@@ -48,10 +49,11 @@ struct EthosNConfig
     bool m_PerfCurrent                      = false;
     bool m_IntermediateCompression          = true;
     int m_InferenceTimeout                  = 60;
+    bool m_Offline                          = false;
 
     std::vector<char> QueryCapabilities() const
     {
-        if (m_PerfOnly)
+        if (m_PerfOnly || m_Offline)
         {
             return ethosn::support_library::GetFwAndHwCapabilities(m_PerfVariant, m_PerfSramSizeBytesOverride);
         }

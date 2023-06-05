@@ -351,7 +351,7 @@ IBackendInternal::IBackendContextPtr EthosNBackend::CreateBackendContext(const I
     {
         throw RuntimeException("ProtectedMode mismatch between CreateBackendContext and Backend");
     }
-    return IBackendContextPtr{ new EthosNBackendContext{ options } };
+    return IBackendContextPtr{ new EthosNBackendContext{ options, m_Config } };
 }
 
 IBackendInternal::IBackendProfilingContextPtr
@@ -480,7 +480,10 @@ void EthosNBackend::RegisterTensorHandleFactories(TensorHandleFactoryRegistry& r
 
 bool EthosNBackendContext::BeforeLoadNetwork(NetworkId)
 {
-    EthosNBackendAllocatorService::GetInstance().GetAllocators();
+    if (!m_EthosNConfig.m_PerfOnly && !m_EthosNConfig.m_Offline)
+    {
+        EthosNBackendAllocatorService::GetInstance().GetAllocators();
+    }
     return true;
 }
 
@@ -496,7 +499,10 @@ bool EthosNBackendContext::BeforeUnloadNetwork(NetworkId)
 
 bool EthosNBackendContext::AfterUnloadNetwork(NetworkId)
 {
-    EthosNBackendAllocatorService::GetInstance().PutAllocators();
+    if (!m_EthosNConfig.m_PerfOnly && !m_EthosNConfig.m_Offline)
+    {
+        EthosNBackendAllocatorService::GetInstance().PutAllocators();
+    }
     return true;
 }
 

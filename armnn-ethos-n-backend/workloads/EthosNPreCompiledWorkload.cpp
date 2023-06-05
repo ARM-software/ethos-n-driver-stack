@@ -300,9 +300,9 @@ EthosNPreCompiledWorkload::EthosNPreCompiledWorkload(const PreCompiledQueueDescr
         throw InvalidArgumentException("EthosNPreCompiledWorkload requires a valid pre-compiled object");
     }
 
-    if (!m_PreCompiledObject->IsPerfEstimationOnly())
+    if (!m_PreCompiledObject->IsSkipInference())
     {
-        Init(*m_PreCompiledObject->GetNetwork(), deviceId);
+        Init(m_PreCompiledObject->GetNetwork().value(), deviceId);
     }
 }
 
@@ -310,236 +310,52 @@ void EthosNPreCompiledWorkload::Execute() const
 {
     ARMNN_SCOPED_PROFILING_EVENT_ETHOSN("EthosNPreCompiledWorkload_Execute");
 
-    if (m_PreCompiledObject->IsPerfEstimationOnly())
+    if (m_PreCompiledObject->IsSkipInference())
     {
-        SavePerformanceJson();
-    }
-    else
-    {
-
-        uint32_t numInputBuffers  = static_cast<uint32_t>(m_Data.m_Inputs.size());
-        uint32_t numOutputBuffers = static_cast<uint32_t>(m_Data.m_Outputs.size());
-
-        std::vector<ethosn::driver_library::Buffer*> inputBuffers(numInputBuffers);
-        std::vector<ethosn::driver_library::Buffer*> outputBuffers(numOutputBuffers);
-
-        // Fill inputBuffers from the input tensor handles, assuming that the order
-        // is the same from the Arm NN inputs slots to the Ethos-N inputs slots.
-        for (uint32_t inputSlotIdx = 0; inputSlotIdx < numInputBuffers; ++inputSlotIdx)
-        {
-            auto&& inputTensorHandle   = m_Data.m_Inputs[inputSlotIdx];
-            inputBuffers[inputSlotIdx] = &(static_cast<EthosNBaseTensorHandle*>(inputTensorHandle)->GetBuffer());
-        }
-        // Fill outputBuffers from the output tensor handles, assuming that the order
-        // is the same from the Arm NN output slots to the Ethos-N output slots.
-        for (uint32_t outputSlotIdx = 0; outputSlotIdx < numOutputBuffers; ++outputSlotIdx)
-        {
-            auto&& outputTensorHandle    = m_Data.m_Outputs[outputSlotIdx];
-            outputBuffers[outputSlotIdx] = &(static_cast<EthosNBaseTensorHandle*>(outputTensorHandle)->GetBuffer());
-        }
-
-        ARMNN_LOG(debug) << "Ethos-N ScheduleInference Subgraph " << m_PreCompiledObject->GetSubgraphIndex();
-        const std::unique_ptr<ethosn::driver_library::Inference> inference(
-            m_Network->ScheduleInference(inputBuffers.data(), numInputBuffers, outputBuffers.data(), numOutputBuffers));
-
-        WaitStatus result =
-            WaitForInference(inference->GetFileDescriptor(), m_PreCompiledObject->GetInferenceTimeout());
-
-        if (EthosNBackendProfilingService::Instance().IsProfilingEnabled())
-        {
-            SendProfilingEvents();
-        }
-        switch (result.GetErrorCode())
-        {
-            case WaitErrorCode::Success:
-                break;
-            case WaitErrorCode::Timeout:
-            case WaitErrorCode::Error:
-            default:
-                throw RuntimeException("An error has occurred waiting for the inference of a pre-compiled object: " +
-                                       result.GetErrorDescription());
-        }
-    }
-}
-
-namespace
-{
-
-template <typename T>
-struct QuotedT
-{
-    explicit constexpr QuotedT(const T& value)
-        : m_Value(value)
-    {}
-
-    const T& m_Value;
-};
-
-template <typename T>
-QuotedT<T> Quoted(const T& value)
-{
-    return QuotedT<T>(value);
-}
-
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const QuotedT<T>& field)
-{
-    return os << '"' << field.m_Value << '"';
-}
-
-template <typename T>
-struct JsonFieldT
-{
-    explicit constexpr JsonFieldT(const T& value)
-        : m_Value(value)
-    {}
-
-    const T& m_Value;
-};
-
-template <typename T>
-JsonFieldT<T> JsonField(const T& value)
-{
-    return JsonFieldT<T>(value);
-}
-
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const JsonFieldT<T>& field)
-{
-    return os << Quoted(field.m_Value) << ':';
-}
-
-struct Indent
-{
-    explicit constexpr Indent(const size_t depth)
-        : m_Depth(depth)
-    {}
-
-    constexpr operator size_t&()
-    {
-        return m_Depth;
+        return;
     }
 
-    constexpr operator size_t() const
+    uint32_t numInputBuffers  = static_cast<uint32_t>(m_Data.m_Inputs.size());
+    uint32_t numOutputBuffers = static_cast<uint32_t>(m_Data.m_Outputs.size());
+
+    std::vector<ethosn::driver_library::Buffer*> inputBuffers(numInputBuffers);
+    std::vector<ethosn::driver_library::Buffer*> outputBuffers(numOutputBuffers);
+
+    // Fill inputBuffers from the input tensor handles, assuming that the order
+    // is the same from the Arm NN inputs slots to the Ethos-N inputs slots.
+    for (uint32_t inputSlotIdx = 0; inputSlotIdx < numInputBuffers; ++inputSlotIdx)
     {
-        return m_Depth;
+        auto&& inputTensorHandle   = m_Data.m_Inputs[inputSlotIdx];
+        inputBuffers[inputSlotIdx] = &(static_cast<EthosNBaseTensorHandle*>(inputTensorHandle)->GetBuffer());
+    }
+    // Fill outputBuffers from the output tensor handles, assuming that the order
+    // is the same from the Arm NN output slots to the Ethos-N output slots.
+    for (uint32_t outputSlotIdx = 0; outputSlotIdx < numOutputBuffers; ++outputSlotIdx)
+    {
+        auto&& outputTensorHandle    = m_Data.m_Outputs[outputSlotIdx];
+        outputBuffers[outputSlotIdx] = &(static_cast<EthosNBaseTensorHandle*>(outputTensorHandle)->GetBuffer());
     }
 
-    size_t m_Depth;
-};
+    ARMNN_LOG(debug) << "Ethos-N ScheduleInference Subgraph " << m_PreCompiledObject->GetSubgraphIndex();
+    const std::unique_ptr<ethosn::driver_library::Inference> inference(
+        m_Network->ScheduleInference(inputBuffers.data(), numInputBuffers, outputBuffers.data(), numOutputBuffers));
 
-std::ostream& operator<<(std::ostream& os, const Indent& indent)
-{
-    for (size_t i = 0; i < indent; ++i)
+    WaitStatus result = WaitForInference(inference->GetFileDescriptor(), m_PreCompiledObject->GetInferenceTimeout());
+
+    if (EthosNBackendProfilingService::Instance().IsProfilingEnabled())
     {
-        os << '\t';
+        SendProfilingEvents();
     }
-
-    return os;
-}
-
-std::ostream& operator<<(std::ostream& os, const ethosn::support_library::EthosNVariant variant)
-{
-    switch (variant)
+    switch (result.GetErrorCode())
     {
-        case ethosn::support_library::EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO:
-            os << Quoted("Ethos-N78_1TOPS_2PLE_RATIO");
+        case WaitErrorCode::Success:
             break;
-        case ethosn::support_library::EthosNVariant::ETHOS_N78_1TOPS_4PLE_RATIO:
-            os << Quoted("Ethos-N78_1TOPS_4PLE_RATIO");
-            break;
-        case ethosn::support_library::EthosNVariant::ETHOS_N78_2TOPS_2PLE_RATIO:
-            os << Quoted("Ethos-N78_2TOPS_2PLE_RATIO");
-            break;
-        case ethosn::support_library::EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO:
-            os << Quoted("Ethos-N78_2TOPS_4PLE_RATIO");
-            break;
-        case ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_2PLE_RATIO:
-            os << Quoted("Ethos-N78_4TOPS_2PLE_RATIO");
-            break;
-        case ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO:
-            os << Quoted("Ethos-N78_4TOPS_4PLE_RATIO");
-            break;
-        case ethosn::support_library::EthosNVariant::ETHOS_N78_8TOPS_2PLE_RATIO:
-            os << Quoted("Ethos-N78_8TOPS_2PLE_RATIO");
-            break;
+        case WaitErrorCode::Timeout:
+        case WaitErrorCode::Error:
         default:
-            ARMNN_ASSERT_MSG(false, "Unexpected variant");
+            throw RuntimeException("An error has occurred waiting for the inference of a pre-compiled object: " +
+                                   result.GetErrorDescription());
     }
-    return os;
-}
-
-std::ostream& Print(std::ostream& os, Indent indent, const std::map<uint32_t, std::string>& map)
-{
-    os << indent << "{\n";
-    ++indent;
-
-    for (auto it = map.begin(); it != map.end(); ++it)
-    {
-        os << indent << JsonField(it->first) << ' ' << Quoted(it->second);
-        if (it != std::prev(map.end()))
-        {
-            os << ",";
-        }
-        os << '\n';
-    }
-
-    --indent;
-    os << indent << "}";
-    return os;
-}
-
-}    // namespace
-
-void EthosNPreCompiledWorkload::SavePerformanceJson() const
-{
-    const EthosNPreCompiledObject::PerfData& perfData = *m_PreCompiledObject->GetPerfData();
-
-    std::ofstream os(perfData.m_PerfOutFile);
-
-    Indent indent(0);
-    os << indent << "{\n";
-    ++indent;
-
-    os << indent << JsonField("Config") << "\n";
-    os << indent << "{\n";
-    ++indent;
-
-    os << indent << JsonField("Variant") << ' ' << perfData.m_PerfVariant << ",\n";
-    os << indent << JsonField("SramSizeBytesOverride") << ' ' << perfData.m_PerfSramSizeBytesOverride << ",\n";
-    os << indent << JsonField("ActivationCompressionSavings") << ' '
-       << perfData.m_EstimationOptions.m_ActivationCompressionSaving << ",\n";
-
-    if (perfData.m_EstimationOptions.m_UseWeightCompressionOverride)
-    {
-        os << indent << JsonField("WeightCompressionSavings") << ' '
-           << perfData.m_EstimationOptions.m_WeightCompressionSaving << ",\n";
-    }
-    else
-    {
-        os << indent << JsonField("WeightCompressionSavings") << ' ' << Quoted("Not Specified") << ",\n";
-    }
-
-    os << indent << JsonField("Current") << ' ' << perfData.m_EstimationOptions.m_Current << "\n";
-
-    --indent;
-    os << indent << "},\n";
-
-    os << indent << JsonField("OperationNames") << '\n';
-    Print(os, indent, m_PreCompiledObject->GetEthosNOperationNameMapping()) << ",\n";
-
-    os << indent << JsonField("Results") << '\n';
-    ethosn::support_library::PrintNetworkPerformanceDataJson(os, static_cast<uint32_t>(indent.m_Depth),
-                                                             perfData.m_Data);
-
-    --indent;
-
-    os << indent << "}\n";
-}
-
-bool EthosNPreCompiledWorkloadValidate(std::string*)
-{
-    return true;
 }
 
 }    //namespace armnn

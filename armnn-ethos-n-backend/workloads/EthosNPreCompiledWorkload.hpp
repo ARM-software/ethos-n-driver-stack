@@ -23,8 +23,6 @@
 namespace armnn
 {
 
-bool EthosNPreCompiledWorkloadValidate(std::string* reasonIfUnsupported);
-
 /// The data type stored as the m_PreCompiledObject in the PreCompiledLayer.
 /// This is the mechanism to pass data between the conversion stage (EthosNSubgraphViewConverter)
 /// and the execution stage (EthosNPreCompiledWorkload).
@@ -43,21 +41,13 @@ public:
         std::vector<char> m_SerializedCompiledNetwork;
     };
 
-    struct PerfData
-    {
-        std::string m_PerfOutFile;
-        ethosn::support_library::EthosNVariant m_PerfVariant;
-        uint32_t m_PerfSramSizeBytesOverride;
-        ethosn::support_library::NetworkPerformanceData m_Data;
-        ethosn::support_library::EstimationOptions m_EstimationOptions;
-    };
-
-    EthosNPreCompiledObject(Network network,
+    EthosNPreCompiledObject(armnn::Optional<Network> network,
+                            bool isSkipInference,
                             std::map<uint32_t, std::string> ethosnOperationNameMapping,
                             int inferenceTimeout,
                             uint32_t subgraphIndex,
                             uint32_t intermediateBufSize)
-        : m_IsPerfEstimationOnly(false)
+        : m_IsSkipInference(isSkipInference)
         , m_InferenceTimeout(inferenceTimeout)
         , m_Network(std::move(network))
         , m_EthosNOperationNameMapping(std::move(ethosnOperationNameMapping))
@@ -65,31 +55,9 @@ public:
         , m_IntermediateBufSize(intermediateBufSize)
     {}
 
-    EthosNPreCompiledObject(PerfData perfData,
-                            std::map<uint32_t, std::string> ethosnOperationNameMapping,
-                            uint32_t subgraphIndex)
-        : m_IsPerfEstimationOnly(true)
-        , m_InferenceTimeout(0)    // Not relevant for estimation
-        , m_PerfData(std::move(perfData))
-        , m_EthosNOperationNameMapping(std::move(ethosnOperationNameMapping))
-        , m_SubgraphIndex(subgraphIndex)
-    {}
-
-    ~EthosNPreCompiledObject()
+    bool IsSkipInference() const
     {
-        if (m_IsPerfEstimationOnly)
-        {
-            m_PerfData.~PerfData();
-        }
-        else
-        {
-            m_Network.~Network();
-        }
-    }
-
-    bool IsPerfEstimationOnly() const
-    {
-        return m_IsPerfEstimationOnly;
+        return m_IsSkipInference;
     }
 
     int GetInferenceTimeout() const
@@ -97,14 +65,9 @@ public:
         return m_InferenceTimeout;
     }
 
-    const Network* GetNetwork() const
+    const armnn::Optional<Network>& GetNetwork() const
     {
-        return !m_IsPerfEstimationOnly ? &m_Network : nullptr;
-    }
-
-    const PerfData* GetPerfData() const
-    {
-        return m_IsPerfEstimationOnly ? &m_PerfData : nullptr;
+        return m_Network;
     }
 
     const std::map<uint32_t, std::string>& GetEthosNOperationNameMapping() const
@@ -123,14 +86,11 @@ public:
     }
 
 private:
-    const bool m_IsPerfEstimationOnly;
+    const bool m_IsSkipInference;
     const int m_InferenceTimeout;
 
-    union
-    {
-        Network m_Network;
-        PerfData m_PerfData;
-    };
+    /// The Network may not be present if we are running in estimate-only or offline mode.
+    armnn::Optional<Network> m_Network;
 
     /// Map from Ethos-N operation ID to the corresponding Arm NN layer name.
     std::map<uint32_t, std::string> m_EthosNOperationNameMapping;
@@ -150,7 +110,6 @@ public:
 
 private:
     void Init(const EthosNPreCompiledObject::Network& network, const std::string& deviceId);
-    void SavePerformanceJson() const;
 
     bool SupportsTensorHandleReplacement() const override
     {
@@ -171,7 +130,7 @@ private:
     const EthosNPreCompiledObject* m_PreCompiledObject;
 
     // The workload does own the network and the inference instances
-    mutable std::unique_ptr<ethosn::driver_library::Network> m_Network;
+    std::unique_ptr<ethosn::driver_library::Network> m_Network;
     std::shared_ptr<armnn::ICustomAllocator> m_InternalAllocator;
 };
 
