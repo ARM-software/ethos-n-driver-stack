@@ -2143,7 +2143,9 @@ EncodedOfm EncodeOfm(const WeightEncodingRequest& request,
     std::vector<WeightSymbol> weightSymbols, zeroSymbols;
 
     std::vector<Weight> uncompressedWeights = GetUncompressedWeights(weights, request.m_WeightsTensorInfo);
+    weights                                 = std::vector<uint8_t>{};    // Free memory
     PaletteZrunEncode(uncompressedWeights, compParams, weightSymbols, zeroSymbols);
+    uncompressedWeights = std::vector<Weight>{};    // Free memory
 
     // Note the weight stream length will be filled later
     WriteWeightHeader(writer, 0xffff, static_cast<uint64_t>(params.m_OfmBias), ofmBiasSize, ofmReload,
@@ -2158,7 +2160,8 @@ EncodedOfm EncodeOfm(const WeightEncodingRequest& request,
     // Remember current compression parameters
     prevCompParams = compParams;
 
-    return { std::move(writer.GetBitstream()), static_cast<uint32_t>(writer.GetOffset()) };
+    // Note that we deliberately make a copy of the byte array here, as that will trim off any unused capacity at the end
+    return { writer.GetBitstream(), static_cast<uint32_t>(writer.GetOffset()) };
 }
 
 }    // namespace
