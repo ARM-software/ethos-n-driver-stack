@@ -56,6 +56,19 @@ DepthwiseConvolution&
     return AddOperationWithId<DepthwiseConvolution>(input, bias, weights, convInfo);
 }
 
+StandalonePadding& Network::AddStandalonePadding(Operand& input, const Padding& padding)
+{
+    char reason[1024];
+    SupportedLevel supportedLevel =
+        m_Queries.IsStandalonePaddingSupported(padding, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+    if (!CheckSupportedLevel(supportedLevel))
+    {
+        throw NotSupportedException(reason);
+    }
+
+    return AddOperationWithId<StandalonePadding>(input, padding);
+}
+
 TransposeConvolution&
     Network::AddTransposeConvolution(Operand& input, Constant& bias, Constant& weights, const ConvolutionInfo& convInfo)
 {

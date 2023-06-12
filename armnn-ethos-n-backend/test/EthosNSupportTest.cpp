@@ -1583,4 +1583,66 @@ TEST_SUITE("EthosNSupport")
         CHECK_THROWS_WITH(Optimize(*net, backends, runtime->GetDeviceSpec()),
                           "Failed to assign a backend to each layer");
     }
+
+    TEST_CASE("IsStandalonePaddingSupported")
+    {
+        EthosNLayerSupport layerSupport(EthosNConfig(), EthosNConfig().QueryCapabilities());
+        auto ExpectFail = [&layerSupport](const TensorInfo& input, const TensorInfo& output,
+                                          const BaseDescriptor& descriptor, const char* expectedFailureReason) {
+            std::string failureReason;
+            CHECK(!layerSupport.IsLayerSupported(LayerType::Pad, { input, output }, descriptor, EmptyOptional(),
+                                                 EmptyOptional(), failureReason));
+            CHECK(failureReason.find(expectedFailureReason) != std::string::npos);
+        };
+
+        // Declare a set of parameters that are supported, so we can re-use these for the different subcases
+        const TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
+        TensorInfo outputInfo({ 1, 19, 19, 16 }, DataType::QAsymmU8, 1.0f, 0);
+
+        PadDescriptor descriptor;
+        descriptor.m_PadValue    = 0;
+        descriptor.m_PaddingMode = PaddingMode::Constant;
+        descriptor.m_PadList     = { { 0, 0 }, { 1, 2 }, { 1, 2 }, { 0, 0 } };
+
+        SUBCASE("Expected success")
+        {
+            CHECK(layerSupport.IsLayerSupported(LayerType::Pad, { inputInfo, outputInfo }, descriptor, EmptyOptional(),
+                                                EmptyOptional(), EmptyOptional()));
+        }
+        SUBCASE("Non-constant padding")
+        {
+            descriptor.m_PaddingMode = PaddingMode::Reflect;
+            ExpectFail(inputInfo, outputInfo, descriptor, "Only constant padding supported");
+        }
+        SUBCASE("Different scales")
+        {
+            outputInfo.SetQuantizationScale(2.0);
+            ExpectFail(inputInfo, outputInfo, descriptor, "Input and output quantization scales are not equal");
+        }
+        SUBCASE("Different zero-points")
+        {
+            outputInfo.SetQuantizationOffset(2.0);
+            ExpectFail(inputInfo, outputInfo, descriptor, "Input and output quantization offsets are not equal");
+        }
+        SUBCASE("Non-zero-point padding")
+        {
+            descriptor.m_PadValue = 2.0;
+            ExpectFail(inputInfo, outputInfo, descriptor, "Only zero (or zero point if quantized) padding supported");
+        }
+        SUBCASE("Non-zero-point padding")
+        {
+            descriptor.m_PadValue = 2.0;
+            ExpectFail(inputInfo, outputInfo, descriptor, "Only zero (or zero point if quantized) padding supported");
+        }
+        SUBCASE("Pad List has more than 4 entries")
+        {
+            descriptor.m_PadList.push_back({ 0, 0 });
+            ExpectFail(inputInfo, outputInfo, descriptor, "Pad List contains more than 4 dimensions");
+        }
+        SUBCASE("Non-HW padding")
+        {
+            descriptor.m_PadList[0] = { 1, 1 };
+            ExpectFail(inputInfo, outputInfo, descriptor, "Only padding in the middle two dimensions supported");
+        }
+    }
 }

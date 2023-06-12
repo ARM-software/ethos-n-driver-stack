@@ -130,6 +130,8 @@ public:
     DepthwiseConvolution&
         AddDepthwiseConvolution(Operand& input, Constant& bias, Constant& weights, const ConvolutionInfo& convInfo);
 
+    StandalonePadding& AddStandalonePadding(Operand& input, const Padding& padding);
+
     TransposeConvolution&
         AddTransposeConvolution(Operand& input, Constant& bias, Constant& weights, const ConvolutionInfo& convInfo);
 

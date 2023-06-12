@@ -1078,6 +1078,10 @@ TensorAndId<Operand> AddDepthwiseConvolution(const std::shared_ptr<Network>& net
                                              Constant& weights,
                                              const ConvolutionInfo& convInfo);
 
+// Add Standalone Padding to a Network. The returned shared_ptr ref-counts the network.
+TensorAndId<Operand>
+    AddStandalonePadding(const std::shared_ptr<Network>& network, Operand& input, const Padding& padding);
+
 // Add Transpose Convolution to a Network. The returned shared_ptr ref-counts the network.
 TensorAndId<Operand> AddTransposeConvolution(const std::shared_ptr<Network>& network,
                                              Operand& input,

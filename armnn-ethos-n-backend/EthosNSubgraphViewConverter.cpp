@@ -386,6 +386,20 @@ void EthosNSubgraphViewConverter::AddDepthwiseConvolution2dLayer(const IConnecta
                                                                                 *weights, convolutionInfo.value()));
 }
 
+void EthosNSubgraphViewConverter::AddPadLayer(const IConnectableLayer* layer)
+{
+    ARMNN_ASSERT(layer != nullptr);
+    ARMNN_ASSERT(layer->GetType() == LayerType::Pad);
+
+    const PadDescriptor& descriptor = *PolymorphicDowncast<const PadDescriptor*>(&layer->GetParameters());
+    const auto& inputConnection     = layer->GetInputSlot(0).GetConnection();
+    auto input                      = AddOrRetrieveEthosNOperand(inputConnection);
+    auto padding                    = BuildEthosNPaddingInfo(descriptor, inputConnection->GetTensorInfo().GetShape());
+
+    // Standalone Padding has exactly one output that maps neatly to the NPU
+    InsertConvertedLayerSingleOutput(layer, ethosn_lib::AddStandalonePadding(m_Network, *input.tensor, padding));
+}
+
 void EthosNSubgraphViewConverter::AddTransposeConvolution2dLayer(const IConnectableLayer* layer)
 {
     ARMNN_ASSERT(layer != nullptr);
@@ -759,6 +773,9 @@ EthosNOperand EthosNSubgraphViewConverter::AddOrRetrieveEthosNOperand(const IOut
             }
             break;
         }
+        case LayerType::Pad:
+            AddPadLayer(&layer);
+            break;
         default:
             std::string string(layer.GetName());
             std::string reason = string + " is not currently supported.";

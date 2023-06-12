@@ -106,6 +106,7 @@ private:
     void AddResizeLayer(const IConnectableLayer* layer);
     void AddMeanXyLayer(const IConnectableLayer* layer);
     void AddStandInLayer(const IConnectableLayer* layer);
+    void AddPadLayer(const IConnectableLayer* layer);
     /// @}
 
     /// When in PerfOnly mode, this function tries to add estimate only layer from Support Library if the layer in

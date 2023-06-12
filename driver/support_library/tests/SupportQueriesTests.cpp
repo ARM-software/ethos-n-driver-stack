@@ -363,6 +363,72 @@ TEST_CASE("Unsupported Tensor Depth", "[IsSupported][TVM]")
             queries.IsSpaceToDepthSupported(spaceToDepthInputInfo, info, &outputs[0], reason, sizeof(reason)), reason);
         CHECK_UNSUPPORTED_TENSOR_DEPTH_REASON(reason);
     }
+    SECTION("Pad")
+    {
+        Padding padding;
+        CHECK_UNSUPPORTED(queries.IsStandalonePaddingSupported(padding, inputInfo, &outputs[0], reason, sizeof(reason)),
+                          reason);
+        CHECK_UNSUPPORTED_TENSOR_DEPTH_REASON(reason);
+    }
+}
+
+TEST_CASE("StandalonePaddingSupported", "[IsSupported]")
+{
+    char reason[1024] = {
+        0,
+    };
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, TOTAL_SRAM));
+    TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+    Padding padding(1, 2, 3, 4);
+
+    SECTION("Valid Config")
+    {
+        SupportedLevel level =
+            queries.IsStandalonePaddingSupported(padding, inputInfo, nullptr, reason, sizeof(reason));
+        CHECK(level == SupportedLevel::Supported);
+    }
+    SECTION("Batch Size")
+    {
+        inputInfo.m_Dimensions[0] = 5;
+        CHECK_UNSUPPORTED(queries.IsStandalonePaddingSupported(padding, inputInfo, nullptr, reason, sizeof(reason)),
+                          reason);
+    }
+    SECTION("Data Type")
+    {
+        inputInfo.m_DataType = DataType::INT32_QUANTIZED;
+        CHECK_UNSUPPORTED(queries.IsStandalonePaddingSupported(padding, inputInfo, nullptr, reason, sizeof(reason)),
+                          reason);
+    }
+    SECTION("Data Format")
+    {
+        inputInfo.m_DataFormat = DataFormat::HWIO;
+        CHECK_UNSUPPORTED(queries.IsStandalonePaddingSupported(padding, inputInfo, nullptr, reason, sizeof(reason)),
+                          reason);
+    }
+    SECTION("Empty Tensor")
+    {
+        inputInfo.m_Dimensions[1] = 0;
+        CHECK_UNSUPPORTED(queries.IsStandalonePaddingSupported(padding, inputInfo, nullptr, reason, sizeof(reason)),
+                          reason);
+    }
+    SECTION("Invalid Zero Point")
+    {
+        inputInfo.m_QuantizationInfo.SetZeroPoint(utils::GetRangeOfDataType(DataType::UINT8_QUANTIZED).max + 1);
+        CHECK_UNSUPPORTED(queries.IsStandalonePaddingSupported(padding, inputInfo, nullptr, reason, sizeof(reason)),
+                          reason);
+    }
+    SECTION("Output Mismatch")
+    {
+        TensorInfo outputInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        CHECK_UNSUPPORTED(queries.IsStandalonePaddingSupported(padding, inputInfo, &outputInfo, reason, sizeof(reason)),
+                          reason);
+    }
+    SECTION("Invalid Padding")
+    {
+        Padding invalidPadding(9, 9, 9, 9);
+        CHECK_UNSUPPORTED(
+            queries.IsStandalonePaddingSupported(invalidPadding, inputInfo, nullptr, reason, sizeof(reason)), reason);
+    }
 }
 
 constexpr const uint32_t MAX_SUPPORTED_16_8_OUTPUT_DEPTH   = 64 * 256;

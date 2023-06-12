@@ -23,6 +23,7 @@ class Output;
 class Constant;
 class Convolution;
 class DepthwiseConvolution;
+class StandalonePadding;
 class TransposeConvolution;
 class Concatenation;
 class Split;
@@ -77,6 +78,7 @@ public:
     virtual void Visit(Constant& constant)                               = 0;
     virtual void Visit(Convolution& convolution)                         = 0;
     virtual void Visit(DepthwiseConvolution& depthwiseConvolution)       = 0;
+    virtual void Visit(StandalonePadding& padding)                       = 0;
     virtual void Visit(TransposeConvolution& transposeConvolution)       = 0;
     virtual void Visit(Concatenation& concatenation)                     = 0;
     virtual void Visit(Split& split)                                     = 0;
@@ -114,6 +116,8 @@ public:
     void Visit(Convolution&) override
     {}
     void Visit(DepthwiseConvolution&) override
+    {}
+    void Visit(StandalonePadding&) override
     {}
     void Visit(TransposeConvolution&) override
     {}

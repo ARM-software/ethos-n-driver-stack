@@ -1668,10 +1668,70 @@ bool EthosNLayerSupport::IsNormalizationSupportedImpl(const TensorInfo& input,
 
 bool EthosNLayerSupport::IsPadSupportedImpl(const TensorInfo& input,
                                             const TensorInfo& output,
-                                            const PadDescriptor&,
+                                            const PadDescriptor& padding,
                                             Optional<std::string&> reasonIfUnsupported) const
 {
-    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
+    using ethosn_lib::SupportedLevel;
+    if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported) &&
+          IsTensorSupportedOnEthosN(output, reasonIfUnsupported)))
+    {
+        return false;
+    }
+
+    auto ethosnInput  = BuildEthosNTensorInfo(input, DataLayout::NHWC);
+    auto ethosnOutput = BuildEthosNTensorInfo(output, DataLayout::NHWC);
+
+    if (padding.m_PaddingMode != PaddingMode::Constant)
+    {
+        SetReason(reasonIfUnsupported, "Only constant padding supported");
+        return false;
+    }
+
+    if (std::abs(output.GetQuantizationScale() - input.GetQuantizationScale()) > 0.00001f)
+    {
+        SetReason(reasonIfUnsupported, "Input and output quantization scales are not equal");
+        return false;
+    }
+
+    if (output.GetQuantizationOffset() != input.GetQuantizationOffset())
+    {
+        SetReason(reasonIfUnsupported, "Input and output quantization offsets are not equal");
+        return false;
+    }
+
+    if (std::abs(padding.m_PadValue - static_cast<float>(input.GetQuantizationOffset())) > 0.00001f)
+    {
+        SetReason(reasonIfUnsupported, "Only zero (or zero point if quantized) padding supported");
+        return false;
+    }
+
+    if (padding.m_PadList.size() > 4)
+    {
+        SetReason(reasonIfUnsupported, "Pad List contains more than 4 dimensions");
+        return false;
+    }
+
+    std::pair<unsigned int, unsigned int> zeroPad = { 0, 0 };
+    auto extendedPadList                          = ExtendPadList(padding.m_PadList, input.GetShape());
+    if (extendedPadList[0] != zeroPad || extendedPadList[3] != zeroPad)
+    {
+        SetReason(reasonIfUnsupported, "Only padding in the middle two dimensions supported");
+        return false;
+    }
+
+    ReasonMessageHelper messageHelper;
+    SupportedLevel supportedLevel =
+        m_Queries.IsStandalonePaddingSupported(BuildEthosNPaddingInfo(padding, input.GetShape()), ethosnInput,
+                                               &ethosnOutput, messageHelper.GetBuffer(), messageHelper.GetBufferSize());
+
+    if (!CheckSupportedLevel(supportedLevel, m_Config.m_PerfOnly))
+    {
+        SetReason(reasonIfUnsupported, "Padding config not supported");
+    }
+
+    bool supported = CheckSupportedLevel(supportedLevel, m_Config.m_PerfOnly);
+    SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
+    return supported;
 }
 
 bool EthosNLayerSupport::IsPermuteSupportedImpl(const TensorInfo& input,

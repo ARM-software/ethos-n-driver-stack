@@ -162,6 +162,28 @@ private:
     ConvolutionInfo m_ConvInfo;
 };
 
+// Standalone Padding operation
+class StandalonePadding : public VisitableOperation<StandalonePadding>
+{
+public:
+    StandalonePadding(const detail::PosInNetwork pos, uint32_t id, Operand& input, const Padding& padding);
+
+    const Padding& GetPadding() const
+    {
+        return m_Padding;
+    }
+
+    static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const Padding& padding);
+
+    const char* GetTypeName() final
+    {
+        return "StandalonePadding";
+    }
+
+private:
+    Padding m_Padding;
+};
+
 // TransposeConvolution operation
 class TransposeConvolution : public VisitableOperation<TransposeConvolution>
 {

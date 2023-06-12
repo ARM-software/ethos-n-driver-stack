@@ -151,6 +151,12 @@ TensorAndId<Operand> AddDepthwiseConvolution(const std::shared_ptr<Network>& net
     return GetSingleOutputResult(network, network->AddDepthwiseConvolution(input, bias, weights, convInfo));
 }
 
+TensorAndId<Operand>
+    AddStandalonePadding(const std::shared_ptr<Network>& network, Operand& input, const Padding& padding)
+{
+    return GetSingleOutputResult(network, network->AddStandalonePadding(input, padding));
+}
+
 TensorAndId<Operand> AddTransposeConvolution(const std::shared_ptr<Network>& network,
                                              Operand& input,
                                              Constant& bias,

@@ -4,6 +4,7 @@
 //
 
 #include "../include/ethosn_support_library/Support.hpp"
+#include "../src/ConcreteOperations.hpp"
 #include "../src/DebuggingContext.hpp"
 #include "../src/Network.hpp"
 #include "../src/ThreadPool.hpp"
@@ -3659,4 +3660,67 @@ TEST_CASE("NetworkToGraphOfPartsConverter EstimateOnly")
     REQUIRE(IsEstimateOnlyOp(maybeEstimateOnlyOp));
     EstimateOnlyOp* estimateOnlyOp = static_cast<EstimateOnlyOp*>(maybeEstimateOnlyOp);
     CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("EstimateOnly operation added.") != std::string::npos);
+}
+
+TEST_CASE("NetworkToGraphOfPartsConverter Standalone Padding")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 64, 64, 64 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    const Padding paddingInfo(1, 2, 3, 4);
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    // Input -> Padding -> Output
+    std::shared_ptr<Operand> input   = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Operand> padding = AddStandalonePadding(network, *input, paddingInfo).tensor;
+    std::shared_ptr<Output> output   = AddOutput(network, *padding).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTests.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTests_Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
+    }
+
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
+
+    // McePart has a depthwise convolution in it
+    const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(1));
+    REQUIRE(part != nullptr);
+    auto operation = part->GetMceOperation();
+    REQUIRE(operation.has_value());
+    REQUIRE(operation.value() == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION);
+
+    // Check output dimensions are equal to the input plus padding
+    TensorShape outputShape         = output->GetTensorInfo().m_Dimensions;
+    TensorShape expectedOutputShape = inputInfo.m_Dimensions;
+    expectedOutputShape[1] += paddingInfo.m_Top + paddingInfo.m_Bottom;
+    expectedOutputShape[2] += paddingInfo.m_Left + paddingInfo.m_Right;
+    REQUIRE(outputShape == expectedOutputShape);
 }

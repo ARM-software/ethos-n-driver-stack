@@ -93,6 +93,13 @@
 - If Arm NN is used, the multiplication of a variable with a scalar constant is supported when the quantized values in the output are the same as the input. The Arm NN backend replaces this multiplication with a reinterpret quantization operation.
 
 
+## Pad
+- Only zero padding in the H and W dimension is supported.
+- Padding of up to 7 each side of the tensor in those dimensions is supported.
+    - Padding amounts can differ per side, e.g. pad of 1 before the tensor in the H dimension and a pad of 3 after the tensor in the H dimension.
+- Quantization for input and output tensors must be identical.
+
+
 ## Reinterpret quantization
 - No specific restrictions.
 

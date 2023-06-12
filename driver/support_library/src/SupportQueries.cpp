@@ -819,6 +819,67 @@ SupportedLevel SupportQueries::IsDepthwiseConvolutionSupported(const TensorInfo&
     return SupportedLevel::Supported;
 }
 
+SupportedLevel SupportQueries::IsStandalonePaddingSupported(const Padding& padding,
+                                                            const TensorInfo& inputInfo,
+                                                            TensorInfo* outputInfo,
+                                                            char* reason,
+                                                            size_t reasonMaxLength) const
+{
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to standalone padding", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsInputDataTypeSupported(inputInfo, "Input to standalone padding", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (inputInfo.m_DataFormat != DataFormat::NHWC && inputInfo.m_DataFormat != DataFormat::NHWCB)
+    {
+        SetReason("Input to standalone padding must be NHWC OR NHWCB", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    // Output tensor will always be larger than the input, so just check if the input is empty
+    if (utils::GetNumElements(inputInfo.m_Dimensions) == 0)
+    {
+        SetReason("Output tensor would be empty", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    // Only change compared to input should be dimensions
+    if (outputInfo != nullptr)
+    {
+        TensorInfo expectedOutputInfo = StandalonePadding::CalculateOutputTensorInfo(inputInfo, padding);
+        if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)
+        {
+            SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
+            return SupportedLevel::Unsupported;
+        }
+    }
+
+    if (padding.m_Top > 7 || padding.m_Bottom > 7 || padding.m_Left > 7 || padding.m_Right > 7)
+    {
+        SetReason("Padding not supported", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    return SupportedLevel::Supported;
+}
+
 SupportedLevel SupportQueries::IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
                                                                const TensorInfo& weightsInfo,
                                                                const ConvolutionInfo& convInfo,

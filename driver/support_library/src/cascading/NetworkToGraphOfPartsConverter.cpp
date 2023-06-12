@@ -395,6 +395,54 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
     ConnectParts(depthwise, parts);
 }
 
+void NetworkToGraphOfPartsConverter::Visit(StandalonePadding& padding)
+{
+    std::vector<BasePart*> parts;
+    const Padding& paddingInfo   = padding.GetPadding();
+    const TensorInfo& inputInfo  = padding.GetInput(0).GetTensorInfo();
+    const TensorInfo& outputInfo = padding.GetOutput(0).GetTensorInfo();
+
+    const uint32_t numIfm                = inputInfo.m_Dimensions[3];
+    const float weightScale              = 0.5f;
+    const TensorInfo identityWeightsInfo = {
+        { 1, 1, numIfm, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM, { 0, weightScale }
+    };
+
+    const float biasScale             = weightScale * inputInfo.m_QuantizationInfo.GetScale();
+    const TensorInfo identityBiasInfo = {
+        { 1, 1, 1, numIfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale }
+    };
+
+    McePart::ConstructionParams params(m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+                                       m_DebuggingContext, m_ThreadPool);
+    params.m_Id                     = m_GraphOfParts.GeneratePartId();
+    params.m_InputTensorShape       = inputInfo.m_Dimensions;
+    params.m_OutputTensorShape      = outputInfo.m_Dimensions;
+    params.m_InputQuantizationInfo  = inputInfo.m_QuantizationInfo;
+    params.m_OutputQuantizationInfo = outputInfo.m_QuantizationInfo;
+    params.m_WeightsInfo            = identityWeightsInfo;
+    params.m_WeightsData            = std::vector<uint8_t>(1 * 1 * 1 * numIfm, 2);
+    params.m_BiasInfo               = identityBiasInfo;
+    params.m_BiasData               = std::vector<int32_t>(numIfm, 0);
+    params.m_PadTop                 = paddingInfo.m_Top;
+    params.m_PadLeft                = paddingInfo.m_Left;
+    params.m_Op                     = command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
+    params.m_OperationIds           = std::set<uint32_t>{ padding.GetId() };
+    params.m_UpscaleFactor          = 1;
+    params.m_UpsampleType           = MceUpsampleType::OFF;
+    params.m_InputDataType          = inputInfo.m_DataType;
+    params.m_OutputDataType         = outputInfo.m_DataType;
+    params.m_LowerBound             = outputInfo.m_DataType == DataType::UINT8_QUANTIZED ? 0 : -128;
+    params.m_UpperBound             = outputInfo.m_DataType == DataType::UINT8_QUANTIZED ? 255 : 127;
+    params.m_IsChannelSelector      = false;
+
+    auto mcePart = std::make_unique<McePart>(std::move(params));
+    parts.push_back(mcePart.get());
+    m_GraphOfParts.AddPart(std::move(mcePart));
+
+    ConnectParts(padding, parts);
+}
+
 void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
 {
     std::vector<BasePart*> parts;

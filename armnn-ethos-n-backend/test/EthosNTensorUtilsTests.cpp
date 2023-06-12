@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -143,6 +143,43 @@ TEST_SUITE("EthosNTensorUtils")
             REQUIRE_THROWS_WITH(ExpectFail(biasInfo, inputInfo, weightInfo),
                                 "The amount of biases scales(2) is different from weightScales*inputScales(1)");
         }
+    }
+
+    TEST_CASE("ExtendPadList")
+    {
+        // Padding is only allowed in the HW dimensions, but this test uses batch and channel padding
+        // to confirm ExtendPadList is extending the padding correctly, as it only inserts {0,0}
+
+        using PadList = std::vector<std::pair<unsigned int, unsigned int>>;
+
+        // H    -> NHWC, (23)               -> (1, 23, 1, 1)
+        CHECK(ExtendPadList({ { 1, 1 } }, TensorShape{ 23 }) == PadList({ { 0, 0 }, { 1, 1 }, { 0, 0 }, { 0, 0 } }));
+        // HW   -> NHWC, (23, 45)           -> (1, 23, 45, 1)
+        CHECK(ExtendPadList({ { 1, 1 }, { 2, 2 } }, TensorShape{ 23, 45 }) ==
+              PadList({ { 0, 0 }, { 1, 1 }, { 2, 2 }, { 0, 0 } }));
+        // NHWC -> NHWC, (23, 45, 4)        -> (1, 23, 45, 4)
+        CHECK(ExtendPadList({ { 1, 1 }, { 2, 2 }, { 3, 3 } }, TensorShape{ 23, 45, 4 }) ==
+              PadList({ { 0, 0 }, { 1, 1 }, { 2, 2 }, { 3, 3 } }));
+        // NHWC -> NHWC, (23, 45, 4, 235)   -> (23, 45, 4, 235)
+        // Invalid as batch > 1 but this function shouldn't change the padding regardless
+        CHECK(ExtendPadList({ { 1, 1 }, { 2, 2 }, { 3, 3 }, { 4, 4 } }, TensorShape{ 23, 45, 4, 235 }) ==
+              PadList({ { 1, 1 }, { 2, 2 }, { 3, 3 }, { 4, 4 } }));
+        // NH   -> NHWC, (1, 23)            -> (1, 23, 1, 1)
+        CHECK(ExtendPadList({ { 1, 1 }, { 2, 2 } }, TensorShape{ 1, 23 }) ==
+              PadList({ { 1, 1 }, { 2, 2 }, { 0, 0 }, { 0, 0 } }));
+        // NHW  -> NHWC, (1, 23, 45)        -> (1, 23, 45, 1)
+        CHECK(ExtendPadList({ { 1, 1 }, { 2, 2 }, { 3, 3 } }, TensorShape{ 1, 23, 45 }) ==
+              PadList({ { 1, 1 }, { 2, 2 }, { 3, 3 }, { 0, 0 } }));
+        // NHWC -> NHWC, (1, 23, 45, 4)     -> (1, 23, 45, 4)
+        CHECK(ExtendPadList({ { 1, 1 }, { 2, 2 }, { 3, 3 }, { 4, 4 } }, TensorShape{ 1, 23, 45, 4 }) ==
+              PadList({ { 1, 1 }, { 2, 2 }, { 3, 3 }, { 4, 4 } }));
+    }
+
+    TEST_CASE("BuildEthosNPaddingInfo")
+    {
+        PadDescriptor padding;
+        padding.m_PadList = { { 1, 1 }, { 2, 2 }, { 3, 3 }, { 4, 4 } };
+        CHECK(BuildEthosNPaddingInfo(padding, TensorShape{ 1, 23, 45, 4 }) == ethosn_lib::Padding(2, 2, 3, 3));
     }
 }
 

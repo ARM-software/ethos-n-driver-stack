@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -202,6 +202,15 @@ Optional<ethosn_lib::ConvolutionInfo>
 ethosn_lib::ConvolutionInfo BuildEthosNConvolutionInfo(const armnn::TransposeConvolution2dDescriptor& descriptor,
                                                        int32_t quantizationOffset,
                                                        float quantizationScale);
+
+/// Utility function to extend a pad list if the tensor is less than 4d, following the same rules as BuildEthosNTensorInfo
+std::vector<std::pair<unsigned int, unsigned int>>
+    ExtendPadList(const std::vector<std::pair<unsigned int, unsigned int>>& padList,
+                  const armnn::TensorShape& tensorShape);
+
+/// Utility function to set up a ethosn_lib::Padding object from armnn::PadDescriptor
+ethosn_lib::Padding BuildEthosNPaddingInfo(const armnn::PadDescriptor& descriptor,
+                                           const armnn::TensorShape& tensorShape);
 
 /// Utility function used to setup an ethosn_lib::FullyConnectedLayerInfo object from an armnn::FullyConnectedDescriptor
 ethosn_lib::FullyConnectedInfo BuildEthosNFullyConnectedLayerInfo(const FullyConnectedDescriptor& descriptor,

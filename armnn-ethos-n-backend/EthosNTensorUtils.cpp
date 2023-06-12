@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -403,6 +403,62 @@ ethosn_lib::ConvolutionInfo BuildEthosNConvolutionInfo(const armnn::TransposeCon
                                                        float quantizationScale)
 {
     return ::BuildEthosNConvolutionInfo(descriptor, quantizationScale, quantizationOffset, {}).value();
+}
+
+std::vector<std::pair<unsigned int, unsigned int>>
+    ExtendPadList(const std::vector<std::pair<unsigned int, unsigned int>>& padList,
+                  const armnn::TensorShape& tensorShape)
+{
+    constexpr size_t maxEthosNDims = ethosn_lib::TensorShape{}.size();
+
+    const size_t numDims = tensorShape.GetNumDimensions();
+
+    if (numDims > maxEthosNDims)
+    {
+        std::string msg = "Invalid TensorShape: max number of dimensions exceeded in EthosNAcc backend ";
+        msg += std::to_string(numDims);
+        msg += " > ";
+        msg += std::to_string(maxEthosNDims);
+        throw armnn::InvalidArgumentException(msg);
+    }
+
+    if (numDims != padList.size())
+    {
+        std::string msg = "Invalid Pad List: does not match number of dimensions in TensorShape ";
+        msg += std::to_string(numDims);
+        msg += " != ";
+        msg += std::to_string(padList.size());
+        throw armnn::InvalidArgumentException(msg);
+    }
+
+    // Pad dimensions needs to match the tensor, so extending the pad list needs to follow the same
+    // rules as when converting a armnn tensor to an ethosn tensor.
+    // Batch dimension is padded if the first dimension is > 1 as batch dimension needs to be 1, otherwise
+    // extra dimensions are added to the end to extend it to a 4d tensor.
+    // e.g. HW -> NHW -> NHWC, H-> NH -> NHWC
+    std::vector<std::pair<unsigned int, unsigned int>> newPadList;
+    if (tensorShape[0] > 1U && numDims < maxEthosNDims)
+    {
+        newPadList.push_back({ 0, 0 });
+    }
+    for (auto&& padEntry : padList)
+    {
+        newPadList.push_back(padEntry);
+    }
+    for (size_t i = newPadList.size(); i < maxEthosNDims; ++i)
+    {
+        newPadList.push_back({ 0, 0 });
+    }
+
+    return newPadList;
+}
+
+ethosn_lib::Padding BuildEthosNPaddingInfo(const armnn::PadDescriptor& descriptor,
+                                           const armnn::TensorShape& tensorShape)
+{
+    std::vector<std::pair<unsigned int, unsigned int>> newPadList = ExtendPadList(descriptor.m_PadList, tensorShape);
+
+    return ethosn_lib::Padding(newPadList[1].first, newPadList[1].second, newPadList[2].first, newPadList[2].second);
 }
 
 ethosn_lib::FullyConnectedInfo BuildEthosNFullyConnectedLayerInfo(const FullyConnectedDescriptor&,

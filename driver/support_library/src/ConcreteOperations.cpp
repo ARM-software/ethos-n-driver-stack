@@ -149,6 +149,28 @@ TensorInfo DepthwiseConvolution::CalculateOutputTensorInfo(const TensorInfo& inp
     return CalcOutputTensorInfo<false>(inputInfo, weightsInfo, convInfo);
 }
 
+StandalonePadding::StandalonePadding(const detail::PosInNetwork pos,
+                                     uint32_t id,
+                                     Operand& input,
+                                     const Padding& padding)
+    : VisitableOperation<StandalonePadding>(
+          pos, id, { &input }, { CalculateOutputTensorInfo(input.GetTensorInfo(), padding) })
+    , m_Padding(padding)
+{}
+
+TensorInfo StandalonePadding::CalculateOutputTensorInfo(const TensorInfo& inputInfo, const Padding& padding)
+{
+    const uint32_t numIfm   = inputInfo.m_Dimensions[3];
+    const float weightScale = 0.5f;
+    TensorInfo weightsInfo  = { { 1, 1, numIfm, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM, { 0, weightScale } };
+
+    ConvolutionInfo convInfo;
+    convInfo.m_Padding                = padding;
+    convInfo.m_OutputQuantizationInfo = inputInfo.m_QuantizationInfo;
+
+    return CalcOutputTensorInfo<false>(inputInfo, weightsInfo, convInfo);
+}
+
 TransposeConvolution::TransposeConvolution(const detail::PosInNetwork pos,
                                            uint32_t id,
                                            Operand& input,

@@ -147,6 +147,13 @@ public:
                                                    char* reason           = nullptr,
                                                    size_t reasonMaxLength = g_ReasonMaxLength) const;
 
+    // Checks whether a specific standalone padding operation is supported by the NPU
+    SupportedLevel IsStandalonePaddingSupported(const Padding& padding,
+                                                const TensorInfo& inputInfo,
+                                                TensorInfo* outputInfo,
+                                                char* reason,
+                                                size_t reasonMaxLength) const;
+
     // Checks whether a specific transpose convolution operation configuration is supported by the NPU
     SupportedLevel IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
                                                    const TensorInfo& weightsInfo,

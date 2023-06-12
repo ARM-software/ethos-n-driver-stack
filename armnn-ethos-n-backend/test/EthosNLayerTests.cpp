@@ -164,6 +164,46 @@ std::vector<uint8_t> GetIdentityConvolutionExpectedOutputData(const TensorInfo& 
     return expectedOutputData;
 }
 
+std::vector<uint8_t> ZeroPadTensor(const TensorInfo& inputInfo,
+                                   const std::vector<uint8_t>& inputData,
+                                   unsigned int top,
+                                   unsigned int bottom,
+                                   unsigned int left,
+                                   unsigned int right)
+{
+    ARMNN_ASSERT(inputInfo.GetNumDimensions() == 4);
+    ARMNN_ASSERT(inputInfo.GetShape()[0] == 1);
+
+    const unsigned int inputH     = inputInfo.GetShape()[1];
+    const unsigned int inputW     = inputInfo.GetShape()[2];
+    const unsigned int outputH    = inputH + top + bottom;
+    const unsigned int outputW    = inputW + left + right;
+    const unsigned int channels   = inputInfo.GetShape()[3];
+    const unsigned int outputSize = outputH * outputW * channels;
+
+    std::vector<uint8_t> paddedOutput(outputSize, 0);
+
+    for (unsigned int inputY = 0; inputY < inputH; ++inputY)
+    {
+        const unsigned int outputY = inputY + top;
+
+        for (unsigned int inputX = 0; inputX < inputW; ++inputX)
+        {
+            const unsigned int outputX = inputX + left;
+
+            for (unsigned int channel = 0; channel < channels; ++channel)
+            {
+                const unsigned int inputIndex  = (inputY * inputW * channels) + (inputX * channels) + channel;
+                const unsigned int outputIndex = (outputY * outputW * channels) + (outputX * channels) + channel;
+
+                paddedOutput[outputIndex] = inputData[inputIndex];
+            }
+        }
+    }
+
+    return paddedOutput;
+}
+
 template <typename ActivationDescriptor>
 std::vector<uint8_t> GetActivationExpectedOutputData(const TensorInfo& inputInfo,
                                                      const TensorInfo& outputInfo,
@@ -1728,6 +1768,91 @@ LayerTestResult<uint8_t, 4>
     return OptimiseAndRunNetwork(workloadFactory, *net, 0, inputInfo, inputData, 1, outputInfo, expectedOutputData);
 }
 
+LayerTestResult<uint8_t, 4> PreCompiledStandalonePaddingTest(armnn::IWorkloadFactory& workloadFactory,
+                                                             const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
+{
+    // ArmNN has issues with a layer consisting only of a pad layer, do a conv first
+
+    // Create conv layer
+    const unsigned int inputSize      = 16;
+    const unsigned int convOutputSize = 16;
+    const unsigned int channels       = 1;
+    const unsigned int kernelSize     = 3;
+    const unsigned int stride         = 1;
+    const unsigned int convPadding    = 1;
+
+    // Set up tensor shapes and infos for the conv layer
+    const TensorShape inputShape({ 1, inputSize, inputSize, channels });
+    const TensorShape convOutputShape({ 1, convOutputSize, convOutputSize, channels });
+
+    const TensorShape kernelShape = TensorShape({ 1, kernelSize, kernelSize, channels });
+    const TensorShape biasesShape({ 1, 1, 1, channels });
+
+    // NOTE: inputScale * weightsScale / outputScale must be >= 0.0 and < 1.0
+    TensorInfo inputInfo(inputShape, DataType::QAsymmU8, 1.0f, 0);
+    TensorInfo convOutputInfo(convOutputShape, DataType::QAsymmU8, 2.0f, 0);
+    TensorInfo weightsInfo(kernelShape, DataType::QAsymmU8, 1.0f, 0, true);
+    TensorInfo biasesInfo(biasesShape, DataType::Signed32, 1.0f, 0, true);
+
+    // Populate weight and bias data
+    std::vector<uint8_t> weightsData = CreateIdentityConvolutionKernel(kernelSize, channels);
+
+    // NOTE: We need to multiply the elements of the identity kernel by 2
+    // to compensate for the scaling factor
+    std::transform(weightsData.begin(), weightsData.end(), weightsData.begin(),
+                   [](uint8_t w) -> uint8_t { return static_cast<uint8_t>(w * 2); });
+
+    const unsigned int biasDataSize = biasesInfo.GetNumElements();
+    std::vector<int32_t> biasesData(biasDataSize, 0);
+
+    Convolution2dDescriptor descriptor = CreateConvolutionDescriptor<Convolution2dDescriptor>(stride, convPadding);
+    ARMNN_ASSERT(descriptor.m_BiasEnabled == true);
+    ARMNN_ASSERT(descriptor.m_DataLayout == DataLayout::NHWC);
+
+    // Create pad layer
+    const unsigned int padding = 1;
+
+    const TensorShape outputShape({ 1, convOutputSize + (padding * 2), convOutputSize + (padding * 2), channels });
+    TensorInfo outputInfo(outputShape, DataType::QAsymmU8, 2.0f, 0);
+
+    PadDescriptor padDescriptor;
+    padDescriptor.m_PadList     = { { 0, 0 }, { padding, padding }, { padding, padding }, { 0, 0 } };
+    padDescriptor.m_PaddingMode = PaddingMode::Constant;
+    padDescriptor.m_PadValue    = 0;
+
+    // Construct network
+    INetworkPtr network = armnn::INetwork::Create();
+
+    ConstTensor weights(weightsInfo, weightsData);
+    ConstTensor biases(biasesInfo, biasesData);
+
+    IConnectableLayer* const inputLayer       = network->AddInputLayer(0, "input");
+    IConnectableLayer* const convolutionLayer = AddConvolutionLayerToNetwork(*network, descriptor, weights, biases);
+    IConnectableLayer* const padLayer         = network->AddPadLayer(padDescriptor, "pad");
+    IConnectableLayer* const outputLayer      = network->AddOutputLayer(0, "output");
+
+    inputLayer->GetOutputSlot(0).Connect(convolutionLayer->GetInputSlot(0));
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+
+    convolutionLayer->GetOutputSlot(0).Connect(padLayer->GetInputSlot(0));
+    convolutionLayer->GetOutputSlot(0).SetTensorInfo(convOutputInfo);
+
+    padLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+    padLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
+
+    // Generate input data: sequence [0, 1 .. 255]
+    const unsigned int inputDataSize = inputInfo.GetNumElements();
+    std::vector<uint8_t> inputData(inputDataSize);
+    std::iota(inputData.begin(), inputData.end(), 0);
+
+    // Set expected output
+    std::vector<uint8_t> expectedOutputData = ZeroPadTensor(
+        convOutputInfo, GetIdentityConvolutionExpectedOutputData(inputInfo, convOutputInfo, descriptor, inputData),
+        padding, padding, padding, padding);
+
+    return OptimiseAndRunNetwork(workloadFactory, *network, 0, inputInfo, inputData, 0, outputInfo, expectedOutputData);
+}
+
 TEST_SUITE("EthosNLayer")
 {
     using FactoryType = armnn::EthosNWorkloadFactory;
@@ -1785,4 +1910,6 @@ TEST_SUITE("EthosNLayer")
     ARMNN_AUTO_TEST_CASE(PreCompiledScalarAddToReinterpret, PreCompiledScalarAddToReinterpretTest)
 
     ARMNN_AUTO_TEST_CASE(PreCompiledConstMulToReinterpretQuantize, PreCompiledConstMulToReinterpretQuantizeTest)
+
+    ARMNN_AUTO_TEST_CASE(PreCompiledStandalonePaddingTest, PreCompiledStandalonePaddingTest)
 }
