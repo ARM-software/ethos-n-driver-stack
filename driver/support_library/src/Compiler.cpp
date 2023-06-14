@@ -4,6 +4,7 @@
 //
 
 #include "Compiler.hpp"
+#include "ConcreteOperations.hpp"
 #include "SramAllocator.hpp"
 #include "cascading/Cascading.hpp"
 
@@ -36,6 +37,28 @@ void DumpNetwork(const DebuggingContext& debuggingContext, const Network& networ
                           [&](std::ofstream& s) { SaveNetworkToDot(network, s, DetailLevel::High); });
 }
 
+/// Check that the network is valid:
+/// * Ensure that all the operations which produce an operand have at least 1 consumer
+///   (i.e. There are no dangling outputs).
+bool ValidateNetwork(const Network& network)
+{
+    for (detail::OperationList::const_iterator operation = network.begin(); operation != network.end(); ++operation)
+    {
+        auto outputOperands = (*operation)->GetOutputs();
+        for (auto&& operand : outputOperands)
+        {
+            // Constants are special because they can correspond to convolutions but we don't actually connect them in the graph
+            // These constants will have no outputs and the network will still be valid.
+            bool isConstant = dynamic_cast<Constant*>(operation->get()) != nullptr;
+            if (operand.GetConsumers().empty() && !isConstant)
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 }    // namespace
 
 Compiler::Compiler(const Network& network,
@@ -55,6 +78,12 @@ Compiler::~Compiler()
 std::unique_ptr<CompiledNetwork> Compiler::Compile()
 {
     DumpNetwork(m_DebuggingContext, m_Network);
+
+    bool validNetwork = ValidateNetwork(m_Network);
+    if (!validNetwork)
+    {
+        return std::unique_ptr<CompiledNetworkImpl>(nullptr);
+    }
 
     try
     {

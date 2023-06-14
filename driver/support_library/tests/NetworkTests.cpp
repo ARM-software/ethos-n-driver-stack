@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -180,4 +180,25 @@ TEST_CASE("TopologyTest")
         }
         REQUIRE(visited.emplace(operation.get()).second);
     }
+}
+
+TEST_CASE("Input with no output")
+{
+    using namespace ethosn::support_library;
+
+    std::shared_ptr<Network> network = CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_8TOPS_2PLE_RATIO));
+
+    const ethosn::support_library::DataType inputType = ethosn::support_library::DataType::UINT8_QUANTIZED;
+
+    TensorInfo inputInfo{
+        { { 1, 1, 1, 1 } },
+        inputType,
+        DataFormat::NHWCB,
+        { 0, 1.0f },
+    };
+
+    auto input = AddInput(network, inputInfo).tensor;
+    ethosn::support_library::CompilationOptions compilationOptions;
+    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork = Compile(*network, compilationOptions);
+    REQUIRE(compiledNetwork.size() == 0);
 }
