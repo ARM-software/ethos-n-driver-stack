@@ -5,7 +5,9 @@
 
 #include "NetworkToGraphOfPartsConverter.hpp"
 
+#include "../DebuggingContext.hpp"
 #include "ConcatPart.hpp"
+#include "ConcreteOperations.hpp"
 #include "ConstantPart.hpp"
 #include "EstimateOnlyPart.hpp"
 #include "FullyConnectedPart.hpp"

@@ -6,7 +6,7 @@
 #pragma once
 
 #include "../include/ethosn_support_library/SupportQueries.hpp"
-#include "ConcreteOperations.hpp"
+#include "Operation.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -17,6 +17,32 @@ namespace ethosn
 {
 namespace support_library
 {
+
+class Operation;
+class Input;
+class Output;
+class Constant;
+class Convolution;
+class DepthwiseConvolution;
+class TransposeConvolution;
+class Concatenation;
+class Split;
+class Addition;
+class FullyConnected;
+class ReinterpretQuantization;
+class Relu;
+class LeakyRelu;
+class Requantize;
+class Sigmoid;
+class Tanh;
+class MeanXy;
+class Pooling;
+class Reshape;
+class DepthToSpace;
+class SpaceToDepth;
+class Transpose;
+class Resize;
+class EstimateOnly;
 
 // Represents a data object. It's owned by its only producer (writer)
 class Operand

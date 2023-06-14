@@ -58,7 +58,7 @@ public:
                             shapeMultiplier,
                             capabilities,
                             m_StripeConfig)
-        , m_WeightEncoderCache{ capabilities, debuggingContext, m_DebugTag.c_str() }
+        , m_WeightEncoderCache{ capabilities, debuggingContext }
         , m_InputDataType(m_InputDataType)
         , m_OutputDataType(m_OutputDataType)
         , m_Input0Multiplier(0)

@@ -7,8 +7,10 @@
 
 #include "CascadingCommandStreamGenerator.hpp"
 #include "CombinerDFS.hpp"
+#include "ConcreteOperations.hpp"
 #include "Estimation.hpp"
 #include "EstimationUtils.hpp"
+#include "Network.hpp"
 #include "Part.hpp"
 #include "PerformanceData.hpp"
 #include "Plan.hpp"

@@ -5,6 +5,7 @@
 
 #include "Network.hpp"
 
+#include "ConcreteOperations.hpp"
 #include "Utils.hpp"
 
 #include <algorithm>

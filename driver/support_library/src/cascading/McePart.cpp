@@ -236,7 +236,7 @@ McePart::McePart(ConstructionParams&& params)
                params.m_Capabilities)
     , m_InputTensorShape(params.m_InputTensorShape)
     , m_OutputTensorShape(params.m_OutputTensorShape)
-    , m_WeightEncoderCache{ params.m_Capabilities, params.m_DebuggingContext, m_DebugTag.c_str() }
+    , m_WeightEncoderCache{ params.m_Capabilities, params.m_DebuggingContext }
     , m_InputQuantizationInfo(params.m_InputQuantizationInfo)
     , m_OutputQuantizationInfo(params.m_OutputQuantizationInfo)
     , m_WeightsInfo(params.m_WeightsInfo)
@@ -284,29 +284,29 @@ Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
     const uint32_t weightStripeSize  = mceComputeInfo.m_Weight[2];
     const uint32_t weightStripeDepth = GetWeightStripeDepth(convData.weightInfo, mceComputeInfo.m_Weight, m_Stride);
 
-    WeightEncoderCache::Params wp;
-    wp.weightsTensorInfo      = convData.weightInfo;
-    wp.weightsData            = convData.weightData;
-    wp.biasTensorInfo         = convData.biasInfo;
-    wp.biasData               = convData.biasData;
-    wp.inputQuantizationInfo  = m_InputQuantizationInfo;
-    wp.outputQuantizationInfo = m_OutputQuantizationInfo;
-    wp.stripeDepth            = weightStripeDepth;
-    wp.strideY                = m_Stride.m_Y;
-    wp.strideX                = m_Stride.m_X;
-    wp.paddingTop             = m_PadTop;
-    wp.paddingLeft            = m_PadLeft;
-    wp.iterationSize          = weightStripeSize;
-    wp.operation              = m_Operation;
-    wp.algorithm              = mceOpAlgo;
-    auto encodedWeights       = weightEncoderCache.Encode(wp);
+    WeightEncodingRequest wp(m_Capabilities);
+    wp.m_WeightsTensorInfo      = convData.weightInfo;
+    wp.m_WeightsData            = convData.weightData;
+    wp.m_BiasTensorInfo         = convData.biasInfo;
+    wp.m_BiasData               = convData.biasData;
+    wp.m_InputQuantizationInfo  = m_InputQuantizationInfo;
+    wp.m_OutputQuantizationInfo = m_OutputQuantizationInfo;
+    wp.m_StripeDepth            = weightStripeDepth;
+    wp.m_StrideY                = m_Stride.m_Y;
+    wp.m_StrideX                = m_Stride.m_X;
+    wp.m_PaddingTop             = m_PadTop;
+    wp.m_PaddingLeft            = m_PadLeft;
+    wp.m_IterationSize          = weightStripeSize;
+    wp.m_Operation              = m_Operation;
+    wp.m_Algorithm              = mceOpAlgo;
+    auto encodedWeights         = weightEncoderCache.Encode(std::move(wp));
     if (!encodedWeights)
     {
         return nullptr;    // Weight compression failed (too big for SRAM) - abandon this plan
     }
 
     auto weightShape = convData.weightInfo.m_Dimensions;
-    weightShape[2]   = GetNumSubmapChannels(weightShape[2], wp.strideX, wp.strideY, m_Capabilities);
+    weightShape[2]   = GetNumSubmapChannels(weightShape[2], m_Stride.m_X, m_Stride.m_Y, m_Capabilities);
 
     CascadingBufferFormat formatInSram = GetCascadingBufferFormatFromCompilerDataFormat(CompilerDataFormat::WEIGHT);
 

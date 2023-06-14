@@ -18,6 +18,7 @@ namespace support_library
 {
 
 class McePart;
+struct DebuggingContext;
 
 class NetworkToGraphOfPartsConverter : public NetworkVisitor
 {

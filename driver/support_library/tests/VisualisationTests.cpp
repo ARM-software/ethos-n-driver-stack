@@ -4,6 +4,7 @@
 //
 
 #include "Compiler.hpp"
+#include "ConcreteOperations.hpp"
 #include "TestUtils.hpp"
 #include "cascading/CascadingCommandStreamGenerator.hpp"
 #include "cascading/CombinerDFS.hpp"

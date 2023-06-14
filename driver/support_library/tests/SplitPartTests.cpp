@@ -4,6 +4,7 @@
 //
 
 #include "CapabilitiesInternal.hpp"
+#include "ConcreteOperations.hpp"
 #include "GlobalParameters.hpp"
 #include "TestUtils.hpp"
 #include "Utils.hpp"

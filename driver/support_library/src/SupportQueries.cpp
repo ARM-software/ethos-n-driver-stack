@@ -6,6 +6,7 @@
 #include "../include/ethosn_support_library/SupportQueries.hpp"
 
 #include "CapabilitiesInternal.hpp"
+#include "ConcreteOperations.hpp"
 #include "Network.hpp"
 #include "Utils.hpp"
 

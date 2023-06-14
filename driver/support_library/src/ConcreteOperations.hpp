@@ -6,6 +6,7 @@
 #pragma once
 
 #include "../include/ethosn_support_library/Support.hpp"
+#include "Network.hpp"
 #include "Operation.hpp"
 
 #include <ethosn_command_stream/CommandData.hpp>

@@ -45,23 +45,23 @@ Buffer* FusedPlePart::AddIdentityWeights(OwnedOpGraph& opGraph,
     const uint32_t weightStripeDepth =
         GetWeightStripeDepth(convData.weightInfo, mceComputeInfo.m_Weight, Stride{ 1, 1 });
 
-    WeightEncoderCache::Params wp;
-    wp.weightsTensorInfo     = convData.weightInfo;
-    wp.weightsData           = convData.weightData;
-    wp.biasTensorInfo        = convData.biasInfo;
-    wp.biasData              = convData.biasData;
-    wp.inputQuantizationInfo = m_InputQuantizationInfo;
+    WeightEncodingRequest wp(m_Capabilities);
+    wp.m_WeightsTensorInfo     = convData.weightInfo;
+    wp.m_WeightsData           = convData.weightData;
+    wp.m_BiasTensorInfo        = convData.biasInfo;
+    wp.m_BiasData              = convData.biasData;
+    wp.m_InputQuantizationInfo = m_InputQuantizationInfo;
     // An identity convolution is being added and hence, the Input/Output quantization information should be the same.
-    wp.outputQuantizationInfo = m_InputQuantizationInfo;
-    wp.stripeDepth            = weightStripeDepth;
-    wp.strideY                = 1;
-    wp.strideX                = 1;
-    wp.paddingTop             = 0;
-    wp.paddingLeft            = 0;
-    wp.iterationSize          = weightStripeSize;
-    wp.operation              = MceOperation::DEPTHWISE_CONVOLUTION;
-    wp.algorithm              = CompilerMceAlgorithm::Direct;
-    auto encodedWeights       = weightEncoderCache.Encode(wp);
+    wp.m_OutputQuantizationInfo = m_InputQuantizationInfo;
+    wp.m_StripeDepth            = weightStripeDepth;
+    wp.m_StrideY                = 1;
+    wp.m_StrideX                = 1;
+    wp.m_PaddingTop             = 0;
+    wp.m_PaddingLeft            = 0;
+    wp.m_IterationSize          = weightStripeSize;
+    wp.m_Operation              = MceOperation::DEPTHWISE_CONVOLUTION;
+    wp.m_Algorithm              = CompilerMceAlgorithm::Direct;
+    auto encodedWeights         = weightEncoderCache.Encode(std::move(wp));
     if (!encodedWeights)
     {
         return nullptr;    // Weight compression failed (too big for SRAM) - abandon this plan

@@ -7,6 +7,7 @@
 
 #include "Compiler.hpp"
 #include "SubmapFilter.hpp"
+#include "ThreadPool.hpp"
 #include "Utils.hpp"
 
 #include <ethosn_utils/Macros.hpp>
@@ -24,10 +25,191 @@ namespace ethosn
 namespace support_library
 {
 
+WeightEncodingRequest::WeightEncodingRequest(const HardwareCapabilities& capabilities)
+    : m_Capabilities(capabilities)
+{}
+
+WeightEncodingRequest::WeightEncodingRequest(TensorInfo weightsTensorInfo,
+                                             std::shared_ptr<const std::vector<uint8_t>> weightsData,
+                                             TensorInfo biasTensorInfo,
+                                             std::vector<int32_t> biasData,
+                                             QuantizationInfo inputQuantizationInfo,
+                                             QuantizationInfo outputQuantizationInfo,
+                                             uint32_t stripeDepth,
+                                             uint32_t strideY,
+                                             uint32_t strideX,
+                                             uint32_t paddingTop,
+                                             uint32_t paddingLeft,
+                                             uint32_t iterationSize,
+                                             ethosn::command_stream::MceOperation operation,
+                                             CompilerMceAlgorithm algorithm,
+                                             const HardwareCapabilities& capabilities,
+                                             WeightCompMode mode,
+                                             const WeightCompressionParams& testParams)
+    : m_Capabilities(capabilities)
+    , m_WeightsTensorInfo(std::move(weightsTensorInfo))
+    , m_WeightsData(weightsData)
+    , m_BiasTensorInfo(std::move(biasTensorInfo))
+    , m_BiasData(std::move(biasData))
+    , m_InputQuantizationInfo(inputQuantizationInfo)
+    , m_OutputQuantizationInfo(outputQuantizationInfo)
+    , m_StripeDepth(stripeDepth)
+    , m_StrideY(strideY)
+    , m_StrideX(strideX)
+    , m_PaddingTop(paddingTop)
+    , m_PaddingLeft(paddingLeft)
+    , m_IterationSize(iterationSize)
+    , m_Operation(operation)
+    , m_Algorithm(algorithm)
+    , m_Mode(mode)
+    , m_TestParams(testParams)
+{}
+
+bool WeightEncodingRequest::operator==(const WeightEncodingRequest& r) const
+{
+    // Compare things in an order such that we avoid comparing the big data (weights and bias) until
+    // we absolutely need to
+    bool same = m_WeightsTensorInfo == r.m_WeightsTensorInfo && m_BiasTensorInfo == r.m_BiasTensorInfo &&
+                m_InputQuantizationInfo == r.m_InputQuantizationInfo &&
+                m_OutputQuantizationInfo == r.m_OutputQuantizationInfo && m_StripeDepth == r.m_StripeDepth &&
+                m_StrideY == r.m_StrideY && m_StrideX == r.m_StrideX && m_PaddingTop == r.m_PaddingTop &&
+                m_PaddingLeft == r.m_PaddingLeft && m_IterationSize == r.m_IterationSize &&
+                m_Operation == r.m_Operation && m_Algorithm == r.m_Algorithm;
+    if (!same)
+    {
+        return false;
+    }
+
+    // At this point just bias and weights need to be compared. Do bias first because it's smaller.
+    if (m_BiasData != r.m_BiasData)
+    {
+        return false;
+    }
+
+    // Now just need to compare weights, but we can skip this if the shared_ptrs are the same
+    if (m_WeightsData == r.m_WeightsData)
+    {
+        return true;
+    }
+
+    if (*m_WeightsData != *r.m_WeightsData)
+    {
+        return false;
+    }
+
+    return true;
+}
+
 namespace
 {
 
-using Weight = WeightEncoder::Weight;
+typedef int16_t Weight;
+typedef uint16_t WeightSymbol;
+
+struct GRCSymbol
+{
+    uint32_t m_NumQuotientBits;
+    uint16_t m_Quotient;
+    uint16_t m_Remainder;
+};
+
+struct WeightSymbolFreqInfo
+{
+    std::vector<std::pair<WeightSymbol, uint32_t>> m_SymbolFreqPairs;
+    WeightSymbol m_MinSymbol;
+    WeightSymbol m_MaxSymbol;
+};
+
+struct ZeroGroupInfo
+{
+    std::vector<uint32_t> m_ZeroGroups;
+    uint32_t m_MinGroup;
+    uint32_t m_MaxGroup;
+};
+
+struct EncodedOfm
+{
+    std::vector<uint8_t> m_EncodedWeights;
+    uint32_t m_NumOfBits;
+};
+
+class BitstreamWriter;
+
+uint8_t WeightOffsetClamp(WeightSymbol offset)
+{
+    constexpr uint8_t maxWeightOffset = 31;
+    return static_cast<uint8_t>(offset < maxWeightOffset ? offset : maxWeightOffset);
+}
+
+/// Get absolute weight value.
+///
+/// Depending on which compiler and compiler version that is being used, std::abs(short/int16_t/Weight) may
+/// return an int or a double. Therefore, to ensure a consistent behavior this function should be used to
+/// get the absolute weight value.
+///
+/// @see https://cplusplus.github.io/LWG/issue2735
+///
+Weight AbsWeight(Weight weight)
+{
+    return static_cast<Weight>(weight < 0 ? -weight : weight);
+}
+
+WeightSymbol WeightToSymbol(Weight weight)
+{
+    // See Ethos-N78 MCE specification, section 6.8.6.3.2
+    return static_cast<WeightSymbol>((AbsWeight(weight) << 1u) - (weight < 0));
+}
+
+Weight SymbolToWeight(WeightSymbol weightSymbol)
+{
+    uint16_t sign = weightSymbol & 1;
+    uint16_t mag  = static_cast<uint16_t>((weightSymbol + 1) >> 1);
+    return static_cast<Weight>(sign ? -mag : mag);
+}
+
+/// Private implementation of results passed from stage 1 encoding to stage 2 encoding.
+struct Stage1Results : public IStage1Results
+{
+    Stage1Results(WeightEncodingRequest&& r)
+        : request(std::move(r))
+    {}
+
+    WeightEncodingRequest request;
+
+    uint32_t numOfms          = 0;
+    uint32_t numIterationsOfm = 0;
+    uint32_t numOfmInParallel = 0;
+    std::vector<SubmapFilter> wideSubfilters;
+    std::vector<EncodedOfm> encodedStreams;
+};
+
+/// Private implementation of the pending calculation of stage 1 results.
+struct Stage1ResultsFuture : public IStage1ResultsFuture
+{
+    std::unique_ptr<IStage1Results> Wait() override;
+
+    /// Shared state between all worker threads for stage 1.
+    /// Includes the shared input data as well as the shared results.
+    struct SharedState
+    {
+        // Inputs not needed in stage 2
+        std::vector<std::vector<uint32_t>> perOgOfms;
+        std::vector<std::unique_ptr<WeightCompressionParams>> compressionParams;
+        std::vector<SubmapFilter> subfilters;
+
+        // Results
+        std::unique_ptr<Stage1Results> results;
+    };
+
+    /// This shared state is jointly owned by all the worker threads, plus this future object.
+    std::shared_ptr<SharedState> m_SharedState;
+    /// The futures for each of the tasks enqueued onto the thread pool.
+    /// These are needed so that we can wait on them to finish.
+    std::vector<std::future<void>> m_WaitHandles;
+};
+
+namespace
+{
 
 template <typename T>
 std::vector<Weight>
@@ -139,136 +321,21 @@ const std::vector<uint8_t>& BitstreamWriter::GetBitstream()
     return m_Bitstream;
 }
 
-WeightEncoder::WeightEncoder(const HardwareCapabilities& capabilities)
-    : m_Capabilities(capabilities)
-    , m_Mode(WeightCompMode::AUTO)
-    , m_IfmConsumedPerEnginex3d4((3 * capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines()) / 4)
-    , m_IfmConsumedPerEngined2((capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines()) / 2)
-{}
-
-WeightEncoder::WeightEncoder(const HardwareCapabilities& capabilities,
-                             WeightCompMode mode,
-                             const WeightEncoder::WeightCompressionParams& params)
-    : m_Capabilities(capabilities)
-    , m_Mode(mode)
-    , m_TestParams(params)
-    , m_IfmConsumedPerEnginex3d4((3 * capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines()) / 4)
-    , m_IfmConsumedPerEngined2((capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines()) / 2)
-{}
-
-std::vector<std::unique_ptr<WeightEncoder::WeightCompressionParams>>
-    WeightEncoder::GenerateCompressionParams(uint32_t numOfmInParallel)
+/// Generate vector of weight compression parameters
+std::vector<std::unique_ptr<WeightCompressionParams>> GenerateCompressionParams(uint32_t numOfmInParallel)
 {
     std::vector<std::unique_ptr<WeightCompressionParams>> params(numOfmInParallel);
     std::generate(params.begin(), params.end(), std::make_unique<WeightCompressionParams>);
     return params;
 }
 
-WeightEncoder::EncodedOfm
-    WeightEncoder::EncodeOfm(const uint8_t* weightData,
-                             uint32_t ofmIdx,
-                             uint32_t numOfmInParallel,
-                             uint32_t numIterationsOfm,
-                             uint32_t stripeDepth,
-                             uint32_t iteration,
-                             const TensorInfo& weightsTensorInfo,
-                             uint32_t strideY,
-                             uint32_t strideX,
-                             uint32_t iterationSize,
-                             ethosn::command_stream::MceOperation operation,
-                             CompilerMceAlgorithm algorithm,
-                             const EncodingParams& params,
-                             std::vector<std::unique_ptr<WeightCompressionParams>>& compressionParams,
-                             const std::vector<SubmapFilter>& subfilters,
-                             const std::vector<SubmapFilter>& wideSubfilters)
-{
-    uint32_t wdIdx = (ofmIdx % stripeDepth) % numOfmInParallel;
-
-    // Grab a reference to previous compression parameters
-    WeightCompressionParams& prevCompParams = static_cast<WeightCompressionParams&>(*compressionParams[wdIdx]);
-
-    if (!prevCompParams.m_InitialParameters)
-    {
-        if (numIterationsOfm > 1)
-        {
-            prevCompParams.m_InitialParameters = iteration == 0;
-        }
-
-        uint32_t numOfmSetsPerStripe = utils::DivRoundUp(stripeDepth, numOfmInParallel);
-        assert(numOfmSetsPerStripe >= 1);
-
-        if ((ofmIdx % stripeDepth) == wdIdx && numOfmSetsPerStripe > 1)
-        {
-            prevCompParams.m_InitialParameters = true;
-        }
-    }
-
-    std::vector<uint8_t> weights = GetRawOfmStream(weightData, ofmIdx, iteration, weightsTensorInfo, strideY, strideX,
-                                                   iterationSize, operation, algorithm, subfilters, wideSubfilters);
-
-    const WeightCompressionParams compParams =
-        SelectWeightCompressionParams(weights, weightsTensorInfo, params, prevCompParams);
-
-    const uint32_t ofmBiasSize = GetOfmBiasSize(weightsTensorInfo);
-
-    // When using per channel quantization the reload parameter depends on the memory streaming
-    // being used. At the moment this information is not available here. Always reload in this case.
-    // Example:
-    //
-    // Number of Ofms : 4
-    // Ofm number: 0 1 2 3
-    // scale:      a a a b (a, b are numbers)
-    // reload:     T F F T (T=True, F=False)
-    //
-    // Case 1
-    // Ofm stripe is full height, full width and full depth
-    // Streaming strategy processes Ofms in the order: 0, 1, 2, 3
-    // No issue
-    //
-    // Case 2
-    // Ofm stripe is partial height, full width and partial depth
-    // Streaming strategy processes Ofms in the order: 0, 1, 0, 1, 2, 3, 2, 3
-    // Reload:                                         T  F  T  F  F  T  F  T
-    //                                                                   ^
-    //                                                       it uses scale "b" of 3 which
-    //                                                       is not correct. It should
-    //                                                       have reloaded its own scale "a"
-    //
-    const auto isPerChannelQuantization = weightsTensorInfo.m_QuantizationInfo.GetScales().size() > 1;
-    const bool ofmReload =
-        isPerChannelQuantization || GetOfmReload(compParams, prevCompParams, ofmIdx < numOfmInParallel);
-
-    // Over-estimate of how many bits we need. This could be more accurate as we've already decided the best scheme.
-    const uint32_t capacityBits = std::max(static_cast<uint32_t>(weights.size()) * 8 * 2, 1024u);
-    BitstreamWriter writer(capacityBits);
-    std::vector<WeightSymbol> weightSymbols, zeroSymbols;
-
-    std::vector<Weight> uncompressedWeights = GetUncompressedWeights(weights, weightsTensorInfo);
-    PaletteZrunEncode(uncompressedWeights, compParams, weightSymbols, zeroSymbols);
-
-    // Note the weight stream length will be filled later
-    WriteWeightHeader(writer, 0xffff, static_cast<uint64_t>(params.m_OfmBias), ofmBiasSize, ofmReload,
-                      params.m_OfmScaleFactor, params.m_OfmShift, params.m_OfmZeroPoint);
-
-    uint32_t pldLen = static_cast<uint32_t>(weightSymbols.size());
-
-    WritePayloadHeader(writer, pldLen, compParams);
-
-    GRCCompressPackChunk(weightSymbols, zeroSymbols, compParams, writer);
-
-    // Remember current compression parameters
-    prevCompParams = compParams;
-
-    return { std::move(writer.GetBitstream()), static_cast<uint32_t>(writer.GetOffset()) };
-}
-
 /// Number of Ofm processed in parallel which is the minimum number of
 /// weights streams that need to be loaded at the same time for all the
 /// mce interfaces to start producing an Ofm each.
-uint32_t WeightEncoder::GetNumOfmInParallel(const uint32_t numOfm,
-                                            const uint32_t numSrams,
-                                            const uint32_t stripeDepth,
-                                            const DataFormat dataFormat) const
+uint32_t GetNumOfmInParallel(const uint32_t numOfm,
+                             const uint32_t numSrams,
+                             const uint32_t stripeDepth,
+                             const DataFormat dataFormat)
 {
     if (dataFormat == DataFormat::HWIO)
     {
@@ -281,7 +348,7 @@ uint32_t WeightEncoder::GetNumOfmInParallel(const uint32_t numOfm,
 }
 
 /// Get HWIM encoding parameters
-std::pair<uint32_t, uint32_t> WeightEncoder::GetHwimWeightPadding(const bool, const uint32_t, const uint32_t) const
+std::pair<uint32_t, uint32_t> GetHwimWeightPadding(const bool, const uint32_t, const uint32_t)
 {
     return std::make_pair(1, 1);
 }
@@ -296,11 +363,13 @@ static uint8_t CalcBitWidth(size_t value, uint8_t minWidth)
     return bitwidth;
 }
 
-WeightEncoder::WeightSymbolFreqInfo
-    WeightEncoder::CreateUncompressedSymbolFreqs(const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs,
-                                                 const std::map<Weight, uint8_t>& inversePalette,
-                                                 size_t paletteSize,
-                                                 uint8_t weightOffset) const
+/// Create vector of weight symbol frequency pairs where the DIROFS, Palette size and Palette has
+/// been applied.
+WeightSymbolFreqInfo
+    CreateUncompressedSymbolFreqs(const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs,
+                                  const std::map<Weight, uint8_t>& inversePalette,
+                                  size_t paletteSize,
+                                  uint8_t weightOffset)
 {
     WeightSymbolFreqInfo symbolFreqInfo{};
     symbolFreqInfo.m_SymbolFreqPairs.reserve(symbolFreqPairs.size());
@@ -332,13 +401,18 @@ WeightEncoder::WeightSymbolFreqInfo
     return symbolFreqInfo;
 }
 
-uint32_t WeightEncoder::FindGRCParams(WeightCompressionParams& params,
-                                      const WeightSymbolFreqInfo& symbolFreqPairInfo,
-                                      const WeightSymbolFreqInfo& noPaletteSymbolFreqPairInfo) const
+/// Find the optimal GRC parameters for the specified weight symbol frequency pairs.
+uint32_t FindGRCParams(WeightCompressionParams& params,
+                       const WeightSymbolFreqInfo& symbolFreqPairInfo,
+                       const WeightSymbolFreqInfo& noPaletteSymbolFreqPairInfo,
+                       const HardwareCapabilities& capabilities)
 {
+    const uint32_t ifmConsumedPerEnginex3d4 =
+        (3 * capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines()) / 4;
+
     constexpr uint8_t maxNumQuotientBits = 31;
-    constexpr uint32_t wDiv0             = static_cast<uint32_t>(WDivisor::WDIV_0);
-    constexpr uint32_t wDiv5             = static_cast<uint32_t>(WDivisor::WDIV_5);
+    constexpr uint32_t wDiv0             = static_cast<uint32_t>(WeightCompressionParams::WDivisor::WDIV_0);
+    constexpr uint32_t wDiv5             = static_cast<uint32_t>(WeightCompressionParams::WDivisor::WDIV_5);
 
     // If the no palette vector is not empty, it should be used for the uncompressed bitcost
     const auto& uncompressedSymbolFreqInfo =
@@ -362,9 +436,9 @@ uint32_t WeightEncoder::FindGRCParams(WeightCompressionParams& params,
 
     // Calculate the bitcost for each WDiv to find the one with the lowest overall bitcost. Use the
     // uncompressed bitcost as the initial best choice to include it in the selection process.
-    uint32_t bestBitcost = uncompressedBitcost;
-    WDivisor bestWDiv    = WDivisor::UNCOMPRESSED;
-    bool truncated       = false;
+    uint32_t bestBitcost                       = uncompressedBitcost;
+    WeightCompressionParams::WDivisor bestWDiv = WeightCompressionParams::WDivisor::UNCOMPRESSED;
+    bool truncated                             = false;
     for (uint32_t i = startDiv; i <= endDiv; ++i)
     {
         uint32_t sumQuots        = 0;
@@ -408,27 +482,28 @@ uint32_t WeightEncoder::FindGRCParams(WeightCompressionParams& params,
         // Calculate the total bitcost for the GRC chunk packing with padding
         // See Ethos-N78 MCE Specification, section 6.8.6.3.5
         uint32_t bitcost =
-            utils::RoundUpToNearestMultiple(sumQuots - wUnary1Len, m_IfmConsumedPerEnginex3d4) + wUnary1Len + sumRemain;
+            utils::RoundUpToNearestMultiple(sumQuots - wUnary1Len, ifmConsumedPerEnginex3d4) + wUnary1Len + sumRemain;
 
         if (bitcost < bestBitcost)
         {
             bestBitcost = bitcost;
-            bestWDiv    = static_cast<WDivisor>(i);
+            bestWDiv    = static_cast<WeightCompressionParams::WDivisor>(i);
             truncated   = canTruncate;
         }
     }
 
     params.m_Wdiv = bestWDiv;
     // Ignore truncated if uncompressed is used
-    params.m_TruncationEnabled = truncated && bestWDiv != WDivisor::UNCOMPRESSED;
+    params.m_TruncationEnabled = truncated && bestWDiv != WeightCompressionParams::WDivisor::UNCOMPRESSED;
 
     return bestBitcost;
 }
 
-void WeightEncoder::CreatePalette(WeightCompressionParams& params,
-                                  const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs,
-                                  uint8_t paletteSize,
-                                  bool palettePadding) const
+/// Create a palette of the specified size
+void CreatePalette(WeightCompressionParams& params,
+                   const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs,
+                   uint8_t paletteSize,
+                   bool palettePadding)
 {
     // See Ethos-N78 MCE Specification, section 6.8.6.3.4
     std::vector<uint16_t> palette(paletteSize);
@@ -455,8 +530,9 @@ void WeightEncoder::CreatePalette(WeightCompressionParams& params,
     params.m_InversePalette = std::move(inversePalette);
 }
 
-bool WeightEncoder::FindPaletteParams(WeightCompressionParams& params,
-                                      const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs) const
+/// Find Palette parameters for the specified weight symbol frequency pairs
+bool FindPaletteParams(WeightCompressionParams& params,
+                       const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs)
 {
     // See Ethos-N78 MCE Specification, section 6.8.6.3.4
     constexpr uint8_t maxPaletteSize            = 32;
@@ -507,7 +583,7 @@ bool WeightEncoder::FindPaletteParams(WeightCompressionParams& params,
         if (paletteSizeNoPadding == symbolFreqPairs.size())
         {
             // RLE must be taken into account when selecting the weight offset.
-            weightOffset   = params.m_Zdiv != ZDivisor::RLE_DISABLED;
+            weightOffset   = params.m_Zdiv != WeightCompressionParams::ZDivisor::RLE_DISABLED;
             valueRangeLeft = maxWeightSymbolValue;
         }
         else
@@ -537,9 +613,16 @@ bool WeightEncoder::FindPaletteParams(WeightCompressionParams& params,
     return true;
 }
 
-uint32_t WeightEncoder::FindRLEParams(WeightCompressionParams& params, const ZeroGroupInfo& zeroGroupInfo) const
+/// Find the optimal RLE parameters for the specified weights
+uint32_t FindRLEParams(WeightCompressionParams& params,
+                       const ZeroGroupInfo& zeroGroupInfo,
+                       const HardwareCapabilities& capabilities)
 {
-    constexpr uint32_t zDiv3 = static_cast<uint32_t>(ZDivisor::ZDIV_3);
+    const uint32_t ifmConsumedPerEnginex3d4 =
+        (3 * capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines()) / 4;
+    const uint32_t ifmConsumedPerEngined2 = (capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines()) / 2;
+
+    constexpr uint32_t zDiv3 = static_cast<uint32_t>(WeightCompressionParams::ZDivisor::ZDIV_3);
 
     const uint32_t minWidth = CalcBitWidth(zeroGroupInfo.m_MinGroup, 2);
     const uint32_t maxWidth = CalcBitWidth(zeroGroupInfo.m_MaxGroup, 1);
@@ -547,8 +630,8 @@ uint32_t WeightEncoder::FindRLEParams(WeightCompressionParams& params, const Zer
     const uint32_t endDiv   = std::min(zDiv3, maxWidth - 1);
 
     // Find the ZDiv with the lowest overall bitcost
-    uint32_t bestBitcost = UINT32_MAX;
-    ZDivisor bestZDiv    = ZDivisor::ZDIV_0;
+    uint32_t bestBitcost                       = UINT32_MAX;
+    WeightCompressionParams::ZDivisor bestZDiv = WeightCompressionParams::ZDivisor::ZDIV_0;
     for (uint32_t i = startDiv; i <= endDiv; ++i)
     {
         uint32_t sumQuots  = 0;
@@ -561,13 +644,13 @@ uint32_t WeightEncoder::FindRLEParams(WeightCompressionParams& params, const Zer
 
         // Calculate the total bitcost for the RLE chunk packing with padding
         // See Ethos-N78 MCE Specification, section 6.8.6.3.5
-        uint32_t packSize = i < zDiv3 ? m_IfmConsumedPerEnginex3d4 : m_IfmConsumedPerEngined2;
+        uint32_t packSize = i < zDiv3 ? ifmConsumedPerEnginex3d4 : ifmConsumedPerEngined2;
         uint32_t bitcost  = utils::RoundUpToNearestMultiple(sumQuots, packSize) + sumRemain;
 
         if (bitcost < bestBitcost)
         {
             bestBitcost = bitcost;
-            bestZDiv    = static_cast<ZDivisor>(i);
+            bestZDiv    = static_cast<WeightCompressionParams::ZDivisor>(i);
         }
     }
 
@@ -576,10 +659,12 @@ uint32_t WeightEncoder::FindRLEParams(WeightCompressionParams& params, const Zer
     return bestBitcost;
 }
 
-void WeightEncoder::FindWeightCompressionParams(WeightCompressionParams& newParams,
-                                                const WeightCompressionParams& prevParams,
-                                                const std::vector<uint8_t>& weights,
-                                                const TensorInfo& weightsTensorInfo) const
+/// Find optimal compression parameter for the specified weights
+void FindWeightCompressionParams(WeightCompressionParams& newParams,
+                                 const WeightCompressionParams& prevParams,
+                                 const std::vector<uint8_t>& weights,
+                                 const TensorInfo& weightsTensorInfo,
+                                 const HardwareCapabilities& capabilities)
 {
     const int32_t zeroPoint           = weightsTensorInfo.m_QuantizationInfo.GetZeroPoint();
     const uint8_t rawZeroPoint        = static_cast<uint8_t>(zeroPoint);
@@ -662,18 +747,18 @@ void WeightEncoder::FindWeightCompressionParams(WeightCompressionParams& newPara
         // Only use RLE for the second pass
         if (pass > 0)
         {
-            bitCost += FindRLEParams(params, zeroGroupInfo);
+            bitCost += FindRLEParams(params, zeroGroupInfo, capabilities);
             // If there are only zero weights, there is nothing more to do.
             if (sortedSymbolFreqInfo.m_SymbolFreqPairs.size() == 1)
             {
                 // There are only zero weights so only the ZDivisor will be used. All other compression
                 // parameters should stay the same as the previous OFM.
-                ZDivisor zDiv              = params.m_Zdiv;
-                EncodingParams encParams   = params.m_EncodingParams;
-                params                     = prevParams;
-                params.m_Zdiv              = zDiv;
-                params.m_EncodingParams    = encParams;
-                params.m_InitialParameters = false;
+                WeightCompressionParams::ZDivisor zDiv            = params.m_Zdiv;
+                WeightCompressionParams::EncodingParams encParams = params.m_EncodingParams;
+                params                                            = prevParams;
+                params.m_Zdiv                                     = zDiv;
+                params.m_EncodingParams                           = encParams;
+                params.m_InitialParameters                        = false;
                 // The palette only needs to be written if this is the initial parameters.
                 params.m_PaletteReload = prevParams.m_InitialParameters;
 
@@ -717,8 +802,9 @@ void WeightEncoder::FindWeightCompressionParams(WeightCompressionParams& newPara
                 CreateUncompressedSymbolFreqs(sortedSymbolFreqInfo.m_SymbolFreqPairs, {}, 0, noPaletteOffset);
         }
 
-        bitCost += FindGRCParams(params, uncompressedSymbolFreqInfo, uncompressedNoPaletteSymbolFreqInfo);
-        if (params.m_Wdiv == WDivisor::UNCOMPRESSED && !uncompressedNoPaletteSymbolFreqInfo.m_SymbolFreqPairs.empty())
+        bitCost += FindGRCParams(params, uncompressedSymbolFreqInfo, uncompressedNoPaletteSymbolFreqInfo, capabilities);
+        if (params.m_Wdiv == WeightCompressionParams::WDivisor::UNCOMPRESSED &&
+            !uncompressedNoPaletteSymbolFreqInfo.m_SymbolFreqPairs.empty())
         {
             params.m_Palette.clear();
             params.m_InversePalette.clear();
@@ -751,33 +837,35 @@ void WeightEncoder::FindWeightCompressionParams(WeightCompressionParams& newPara
     newParams         = std::min_element(passCostParamPairs.begin(), passCostParamPairs.end(), min_cost_cmp)->second;
 }
 
-const WeightEncoder::WeightCompressionParams
-    WeightEncoder::SelectWeightCompressionParams(const std::vector<uint8_t>& weights,
-                                                 const TensorInfo& weightsTensorInfo,
-                                                 const EncodingParams& encodingParams,
-                                                 const WeightCompressionParams& prevCompParams) const
+/// Select compression parameters based through analyzis of the weight stream.
+const WeightCompressionParams
+    SelectWeightCompressionParams(const WeightEncodingRequest& request,
+                                  const std::vector<uint8_t>& weights,
+                                  const TensorInfo& weightsTensorInfo,
+                                  const WeightCompressionParams::EncodingParams& encodingParams,
+                                  const WeightCompressionParams& prevCompParams)
 {
     WeightCompressionParams params(encodingParams);
 
-    switch (m_Mode)
+    switch (request.m_Mode)
     {
         case WeightCompMode::UNCOMPRESSED:
-            assert(params.m_Wdiv == WDivisor::UNCOMPRESSED);
-            assert(params.m_Zdiv == ZDivisor::RLE_DISABLED);
+            assert(params.m_Wdiv == WeightCompressionParams::WDivisor::UNCOMPRESSED);
+            assert(params.m_Zdiv == WeightCompressionParams::ZDivisor::RLE_DISABLED);
             assert(params.m_Palette.size() == 0);
             break;
         case WeightCompMode::DIRECT_RLE:
-            params.m_Wdiv         = m_TestParams.m_Wdiv;
-            params.m_Zdiv         = m_TestParams.m_Zdiv;
+            params.m_Wdiv         = request.m_TestParams.m_Wdiv;
+            params.m_Zdiv         = request.m_TestParams.m_Zdiv;
             params.m_WeightOffset = 1;
             break;
         case WeightCompMode::DIRECT_TRUNC:
             params.m_TruncationEnabled = true;
-            params.m_Wdiv              = m_TestParams.m_Wdiv;
+            params.m_Wdiv              = request.m_TestParams.m_Wdiv;
             break;
         case WeightCompMode::DIRECT:
-            params.m_Wdiv = m_TestParams.m_Wdiv;
-            assert(params.m_Zdiv == ZDivisor::RLE_DISABLED);
+            params.m_Wdiv = request.m_TestParams.m_Wdiv;
+            assert(params.m_Zdiv == WeightCompressionParams::ZDivisor::RLE_DISABLED);
             break;
         case WeightCompMode::PALETTE_RLE:
             ETHOSN_FALLTHROUGH;    // intentional fallthrough
@@ -787,15 +875,16 @@ const WeightEncoder::WeightCompressionParams
         case WeightCompMode::PALETTE:
             ETHOSN_FALLTHROUGH;    // intentional fallthrough
         case WeightCompMode::PALETTE_DIRECT:
-            params.m_Wdiv = m_TestParams.m_Wdiv;
+            params.m_Wdiv = request.m_TestParams.m_Wdiv;
             // sanity check WDIV != 7 for palette direct modes
-            assert(params.m_Wdiv != WDivisor::UNCOMPRESSED ||
-                   ((m_Mode != WeightCompMode::PALETTE_DIRECT) && (m_Mode != WeightCompMode::PALETTE_DIRECT_RLE)));
-            params.m_Zdiv              = m_TestParams.m_Zdiv;
+            assert(params.m_Wdiv != WeightCompressionParams::WDivisor::UNCOMPRESSED ||
+                   ((request.m_Mode != WeightCompMode::PALETTE_DIRECT) &&
+                    (request.m_Mode != WeightCompMode::PALETTE_DIRECT_RLE)));
+            params.m_Zdiv              = request.m_TestParams.m_Zdiv;
             params.m_TruncationEnabled = false;
-            params.m_Palette           = m_TestParams.m_Palette;
-            params.m_InversePalette    = m_TestParams.m_InversePalette;
-            params.m_PaletteBits       = m_TestParams.m_PaletteBits;
+            params.m_Palette           = request.m_TestParams.m_Palette;
+            params.m_InversePalette    = request.m_TestParams.m_InversePalette;
+            params.m_PaletteBits       = request.m_TestParams.m_PaletteBits;
             break;
         case WeightCompMode::PALETTE_DIRECT_TRUNC_RLE:
             params.m_WeightOffset = 1;
@@ -806,15 +895,15 @@ const WeightEncoder::WeightCompressionParams
         case WeightCompMode::PALETTE_TRUNC:
             ETHOSN_FALLTHROUGH;    // intentional fallthrough
         case WeightCompMode::PALETTE_DIRECT_TRUNC:
-            params.m_Wdiv              = m_TestParams.m_Wdiv;
-            params.m_Zdiv              = m_TestParams.m_Zdiv;
+            params.m_Wdiv              = request.m_TestParams.m_Wdiv;
+            params.m_Zdiv              = request.m_TestParams.m_Zdiv;
             params.m_TruncationEnabled = true;
-            params.m_Palette           = m_TestParams.m_Palette;
-            params.m_InversePalette    = m_TestParams.m_InversePalette;
-            params.m_PaletteBits       = m_TestParams.m_PaletteBits;
+            params.m_Palette           = request.m_TestParams.m_Palette;
+            params.m_InversePalette    = request.m_TestParams.m_InversePalette;
+            params.m_PaletteBits       = request.m_TestParams.m_PaletteBits;
             break;
         case WeightCompMode::AUTO:
-            FindWeightCompressionParams(params, prevCompParams, weights, weightsTensorInfo);
+            FindWeightCompressionParams(params, prevCompParams, weights, weightsTensorInfo, request.m_Capabilities);
             break;
         default:
             throw NotSupportedException("Unsupported weight compression mode");
@@ -824,7 +913,8 @@ const WeightEncoder::WeightCompressionParams
     return params;
 }
 
-uint32_t WeightEncoder::GetOfmBiasSize(const TensorInfo& weightsTensorInfo) const
+/// Get the size in bytes of the OFM bias.
+uint32_t GetOfmBiasSize(const TensorInfo& weightsTensorInfo)
 {
     // See Ethos-N78 MCE Specification, section 6.8.6.2.2
     uint32_t ofmBiasSize = 3;
@@ -845,9 +935,10 @@ uint32_t WeightEncoder::GetOfmBiasSize(const TensorInfo& weightsTensorInfo) cons
     return ofmBiasSize;
 }
 
-bool WeightEncoder::GetOfmReload(const WeightCompressionParams& compParams,
-                                 const WeightCompressionParams& prevCompParams,
-                                 const bool firstOfm) const
+/// Determine if OFM parameters need to be reloaded.
+bool GetOfmReload(const WeightCompressionParams& compParams,
+                  const WeightCompressionParams& prevCompParams,
+                  const bool firstOfm)
 {
     // If this is the first OFM, then we shall always reload the OFM parameters
     if (firstOfm)
@@ -876,8 +967,8 @@ bool WeightEncoder::GetOfmReload(const WeightCompressionParams& compParams,
     return false;
 }
 
-std::vector<WeightEncoder::Weight> WeightEncoder::GetUncompressedWeights(const std::vector<uint8_t>& weights,
-                                                                         const TensorInfo& weightsTensorInfo) const
+/// Convert 8-bit weights to 9-bit weights including zero point.
+std::vector<Weight> GetUncompressedWeights(const std::vector<uint8_t>& weights, const TensorInfo& weightsTensorInfo)
 {
     switch (weightsTensorInfo.m_DataType)
     {
@@ -895,14 +986,14 @@ std::vector<WeightEncoder::Weight> WeightEncoder::GetUncompressedWeights(const s
     }
 }
 
-WeightEncoder::WeightSymbol WeightEncoder::DirectEncode(const Weight weight,
-                                                        const WeightCompressionParams& compParams) const
+/// Convert 9-bit signed weight to 9-bit unsigned weight symbol.
+WeightSymbol DirectEncode(const Weight weight, const WeightCompressionParams& compParams)
 {
     WeightSymbol x = WeightToSymbol(weight);
 
     x = static_cast<WeightSymbol>(x + compParams.m_Palette.size());
 
-    assert(compParams.m_WeightOffset >= 1 || compParams.m_Zdiv == ZDivisor::RLE_DISABLED);
+    assert(compParams.m_WeightOffset >= 1 || compParams.m_Zdiv == WeightCompressionParams::ZDivisor::RLE_DISABLED);
 
     assert(x >= compParams.m_WeightOffset);
     x = static_cast<WeightSymbol>(x - compParams.m_WeightOffset);
@@ -912,10 +1003,11 @@ WeightEncoder::WeightSymbol WeightEncoder::DirectEncode(const Weight weight,
     return x;
 }
 
-void WeightEncoder::PaletteZrunEncode(const std::vector<WeightEncoder::Weight>& uncompressedWeights,
-                                      const WeightCompressionParams& compParams,
-                                      std::vector<WeightSymbol>& weightSymbols,
-                                      std::vector<WeightSymbol>& zeroSymbols) const
+/// Palette or direct encode the uncompressed weight symbol stream.
+void PaletteZrunEncode(const std::vector<Weight>& uncompressedWeights,
+                       const WeightCompressionParams& compParams,
+                       std::vector<WeightSymbol>& weightSymbols,
+                       std::vector<WeightSymbol>& zeroSymbols)
 {
     // Please refer to Ethos-N78 MCE specification, section 6.8.6.3.2
     const std::map<Weight, uint8_t>& invPalette = compParams.m_InversePalette;
@@ -926,7 +1018,7 @@ void WeightEncoder::PaletteZrunEncode(const std::vector<WeightEncoder::Weight>& 
     wItr = uncompressedWeights.begin();
     while (wItr != uncompressedWeights.end())
     {
-        if (compParams.m_Zdiv != ZDivisor::RLE_DISABLED)
+        if (compParams.m_Zdiv != WeightCompressionParams::ZDivisor::RLE_DISABLED)
         {
             // RLE enabled, counts the number of consecutive 0s
             for (; wItr != uncompressedWeights.end() && *wItr == 0; ++wItr)
@@ -946,7 +1038,7 @@ void WeightEncoder::PaletteZrunEncode(const std::vector<WeightEncoder::Weight>& 
             break;
         }
 
-        if (compParams.m_Zdiv != ZDivisor::RLE_DISABLED)
+        if (compParams.m_Zdiv != WeightCompressionParams::ZDivisor::RLE_DISABLED)
         {
             // After encountering a non zero symbol, writes
             // accumulated RLE symbol then resets the RLE.
@@ -955,7 +1047,7 @@ void WeightEncoder::PaletteZrunEncode(const std::vector<WeightEncoder::Weight>& 
         }
 
         // sanity check: non-zero weight if RLE
-        assert(value != 0 || compParams.m_Zdiv == ZDivisor::RLE_DISABLED);
+        assert(value != 0 || compParams.m_Zdiv == WeightCompressionParams::ZDivisor::RLE_DISABLED);
 
         // Search for symbol in palette (using the weight as the key)
         std::map<Weight, uint8_t>::const_iterator itr = invPalette.find(value);
@@ -975,22 +1067,29 @@ void WeightEncoder::PaletteZrunEncode(const std::vector<WeightEncoder::Weight>& 
         weightSymbols.push_back(x);
     }
 
-    if (compParams.m_Zdiv != ZDivisor::RLE_DISABLED)
+    if (compParams.m_Zdiv != WeightCompressionParams::ZDivisor::RLE_DISABLED)
     {
         zeroSymbols.push_back(static_cast<WeightSymbol>(zeroCnt));
     }
 
-    assert((zeroSymbols.size() == (weightSymbols.size() + 1)) || (compParams.m_Zdiv == ZDivisor::RLE_DISABLED));
+    assert((zeroSymbols.size() == (weightSymbols.size() + 1)) ||
+           (compParams.m_Zdiv == WeightCompressionParams::ZDivisor::RLE_DISABLED));
 }
 
-void WeightEncoder::GRCCompressPackChunk(const std::vector<WeightSymbol>& weightSymbols,
-                                         const std::vector<WeightSymbol>& zeroSymbols,
-                                         const WeightCompressionParams& compParams,
-                                         BitstreamWriter& writer) const
+/// Golomb Rice code the palette/direct weight symbol stream and pack the
+/// symbols into chunks.
+void GRCCompressPackChunk(const std::vector<WeightSymbol>& weightSymbols,
+                          const std::vector<WeightSymbol>& zeroSymbols,
+                          const WeightCompressionParams& compParams,
+                          BitstreamWriter& writer,
+                          const HardwareCapabilities& capabilities)
 {
+    const uint32_t ifmConsumedPerEnginex3d4 =
+        (3 * capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines()) / 4;
+    const uint32_t ifmConsumedPerEngined2 = (capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines()) / 2;
 
-    bool unCompressed = compParams.m_Wdiv == WDivisor::UNCOMPRESSED;
-    bool rleEnabled   = compParams.m_Zdiv != ZDivisor::RLE_DISABLED;
+    bool unCompressed = compParams.m_Wdiv == WeightCompressionParams::WDivisor::UNCOMPRESSED;
+    bool rleEnabled   = compParams.m_Zdiv != WeightCompressionParams::ZDivisor::RLE_DISABLED;
 
     // GRC divisor for weight symbols
     int32_t wDivisor = static_cast<int32_t>(compParams.m_Wdiv);
@@ -1026,8 +1125,8 @@ void WeightEncoder::GRCCompressPackChunk(const std::vector<WeightSymbol>& weight
     int32_t zUnary     = 0;
     int32_t zQuot      = -1;
     int32_t zRmd       = 0;
-    int32_t zUnaryLen  = (zDivisor < 3) ? static_cast<int32_t>(m_IfmConsumedPerEnginex3d4)
-                                       : static_cast<int32_t>(m_IfmConsumedPerEngined2);
+    int32_t zUnaryLen =
+        (zDivisor < 3) ? static_cast<int32_t>(ifmConsumedPerEnginex3d4) : static_cast<int32_t>(ifmConsumedPerEngined2);
 
     int32_t j;
 
@@ -1045,12 +1144,12 @@ void WeightEncoder::GRCCompressPackChunk(const std::vector<WeightSymbol>& weight
     {
         // See Ethos-N78 MCE specification, section 6.8.6.3.5
         int32_t balance = rleEnabled ? wPos - zPos : 0;
-        bool wEnable    = (balance < static_cast<int32_t>(m_IfmConsumedPerEngined2)) && (wPos < nWeights);
+        bool wEnable    = (balance < static_cast<int32_t>(ifmConsumedPerEngined2)) && (wPos < nWeights);
         bool zEnable    = balance >= 0 && rleEnabled && zPos < nZeros;
 
         // maximum number of weight symbols
-        int32_t maxNumWunary0Bits = (unCompressed && (wDivisor > 5)) ? static_cast<int32_t>(m_IfmConsumedPerEngined2)
-                                                                     : static_cast<int32_t>(m_IfmConsumedPerEnginex3d4);
+        int32_t maxNumWunary0Bits = (unCompressed && (wDivisor > 5)) ? static_cast<int32_t>(ifmConsumedPerEngined2)
+                                                                     : static_cast<int32_t>(ifmConsumedPerEnginex3d4);
 
         if (wEnable)
         {
@@ -1215,14 +1314,15 @@ void WeightEncoder::GRCCompressPackChunk(const std::vector<WeightSymbol>& weight
     } while (prevWenable || prevZenable);
 }
 
-void WeightEncoder::WriteWeightHeader(BitstreamWriter& writer,
-                                      const uint32_t streamLength,
-                                      const uint64_t ofmBias,
-                                      const size_t ofmBiasLength,
-                                      const bool ofmReload,
-                                      const uint32_t ofmScaling,
-                                      const uint32_t ofmShift,
-                                      const uint32_t ofmZeroPointCorrection) const
+/// Write the weight stream header. There is exactly one header per OFM.
+void WriteWeightHeader(BitstreamWriter& writer,
+                       const uint32_t streamLength,
+                       const uint64_t ofmBias,
+                       const size_t ofmBiasLength,
+                       const bool ofmReload,
+                       const uint32_t ofmScaling,
+                       const uint32_t ofmShift,
+                       const uint32_t ofmZeroPointCorrection)
 {
     // See Ethos-N78 MCE Specification, section 6.8.6.2.2
     writer.Write(&streamLength, 16);
@@ -1237,9 +1337,8 @@ void WeightEncoder::WriteWeightHeader(BitstreamWriter& writer,
     }
 }
 
-void WeightEncoder::WritePayloadHeader(BitstreamWriter& writer,
-                                       const size_t payloadLength,
-                                       const WeightCompressionParams& compParams)
+/// Write the weight payload header. There may be one or multiple payload headers in the weight stream.
+void WritePayloadHeader(BitstreamWriter& writer, const size_t payloadLength, const WeightCompressionParams& compParams)
 {
     // See Ethos-N78 MCE Specification, section 6.8.6.3.3
     writer.Write(&payloadLength, 17);
@@ -1269,211 +1368,9 @@ void WeightEncoder::WritePayloadHeader(BitstreamWriter& writer,
     }
 }
 
-EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
-                                     const uint8_t* weightsData,
-                                     const TensorInfo& biasTensorInfo,
-                                     const int32_t* biasData,
-                                     const QuantizationInfo& inputQuantizationInfo,
-                                     const QuantizationInfo& outputQuantizationInfo,
-                                     uint32_t stripeDepth,
-                                     uint32_t strideY,
-                                     uint32_t strideX,
-                                     uint32_t paddingTop,
-                                     uint32_t paddingLeft,
-                                     uint32_t iterationSize,
-                                     ethosn::command_stream::MceOperation operation,
-                                     CompilerMceAlgorithm algorithm)
-{
-    ETHOSN_UNUSED(biasTensorInfo);
-    assert(stripeDepth > 0);
-    assert(iterationSize > 0);
-
-    const uint32_t filterX = weightsTensorInfo.m_Dimensions[1];
-    const uint32_t filterY = weightsTensorInfo.m_Dimensions[0];
-
-    uint32_t numOfms = 0;
-    if (weightsTensorInfo.m_DataFormat == DataFormat::HWIO)
-    {
-        numOfms = weightsTensorInfo.m_Dimensions[3];
-    }
-    else if (weightsTensorInfo.m_DataFormat == DataFormat::HWIM)
-    {
-        numOfms = weightsTensorInfo.m_Dimensions[2] * weightsTensorInfo.m_Dimensions[3];
-    }
-    else
-    {
-        assert(false);
-    }
-
-    // Bias dimensions should be valid
-    assert((biasTensorInfo.m_Dimensions[0] * biasTensorInfo.m_Dimensions[1] * biasTensorInfo.m_Dimensions[2] == 1) &&
-           biasTensorInfo.m_Dimensions[3] == numOfms);
-
-    // Zero point value should be within allowed range
-    const utils::DataTypeRange zeroPointBounds = utils::GetRangeOfDataType(weightsTensorInfo.m_DataType);
-    ETHOSN_UNUSED(zeroPointBounds);
-    assert(weightsTensorInfo.m_QuantizationInfo.GetZeroPoint() <= zeroPointBounds.max &&
-           weightsTensorInfo.m_QuantizationInfo.GetZeroPoint() >= zeroPointBounds.min);
-
-    uint32_t ifmChannels = weightsTensorInfo.m_Dimensions[2] * strideX * strideY;
-    uint32_t numIterationsOfm =
-        weightsTensorInfo.m_DataFormat == DataFormat::HWIM ? 1 : utils::DivRoundUp(ifmChannels, iterationSize);
-
-    // Number of Ofm processed in parallel which is the minimum number of
-    // weights streams that need to be loaded at the same time for all the
-    // mce interfaces to start producing an Ofm each.
-    uint32_t numSrams       = m_Capabilities.GetNumberOfSrams();
-    uint32_t numOfmsPerSram = m_Capabilities.GetNumberOfOgs() / numSrams;
-
-    // The number of OFMs that can be processed in parallel is limited to the stripe depth
-    uint32_t numOfmInParallel =
-        GetNumOfmInParallel(m_Capabilities.GetNumberOfOgs(), numSrams, stripeDepth, weightsTensorInfo.m_DataFormat);
-
-    std::vector<std::unique_ptr<WeightCompressionParams>> compressionParams =
-        GenerateCompressionParams(numOfmInParallel);
-
-    // Decide if wide filter is needed
-    const uint32_t maxFilterSize = algorithm == CompilerMceAlgorithm::Direct ? 7 : 1;
-    std::vector<SubmapFilter> subfilters =
-        GetSubmapFilters(filterX, filterY, strideX, strideY, paddingLeft, paddingTop, weightsTensorInfo.m_Dimensions);
-    const uint32_t wideKernelSize = m_Capabilities.GetWideKernelSize();
-    std::vector<SubmapFilter> wideSubfilters =
-        GetSubmapFilters(filterX, filterY, wideKernelSize, maxFilterSize, weightsTensorInfo.m_Dimensions);
-
-    // Encode each OFM stream independently
-    // Split the work for each OG so that the OFMs for each OG can be encoded in parallel.
-    // Assign each OFM to an OG
-    std::vector<std::vector<uint32_t>> perOgOfms(numOfmInParallel);
-    for (uint32_t ofm = 0; ofm < (numOfms * numIterationsOfm); ++ofm)
-    {
-        const uint32_t ofmIdx = ofm / numIterationsOfm;
-        const uint32_t ogIdx  = (ofmIdx % stripeDepth) % numOfmInParallel;
-        perOgOfms[ogIdx].push_back(ofm);
-    }
-
-    std::vector<EncodedOfm> encodedStreams;
-    encodedStreams.resize(numOfms * numIterationsOfm);
-    const auto numWeightScales = weightsTensorInfo.m_QuantizationInfo.GetScales().size();
-
-    // Process each OG independently
-    std::vector<std::future<void>> waitHandles(numOfmInParallel);
-    for (size_t og = 0; og < numOfmInParallel; ++og)
-    {
-        waitHandles[og] = std::async(
-            [&](size_t og) {
-                for (uint32_t ofm : perOgOfms[og])
-                {
-                    const uint32_t iteration = ofm % numIterationsOfm;
-                    const uint32_t ofmIdx    = ofm / numIterationsOfm;
-
-                    // Calculate encoding parameters from the various quantization infos
-                    EncodingParams params;
-                    double overallScale =
-                        (inputQuantizationInfo.GetScale() *
-                         weightsTensorInfo.m_QuantizationInfo.GetScale(numWeightScales > 1 ? ofmIdx : 0)) /
-                        outputQuantizationInfo.GetScale();
-                    utils::CalculateQuantizedMultiplierSmallerThanOne(overallScale, params.m_OfmScaleFactor,
-                                                                      params.m_OfmShift);
-
-                    params.m_OfmBias      = biasData[ofmIdx];
-                    params.m_OfmZeroPoint = static_cast<uint32_t>(outputQuantizationInfo.GetZeroPoint());
-                    params.m_FilterZeroPoint =
-                        static_cast<uint32_t>(weightsTensorInfo.m_QuantizationInfo.GetZeroPoint());
-
-                    EncodedOfm encodedOfm =
-                        EncodeOfm(weightsData, ofmIdx, numOfmInParallel, numIterationsOfm, stripeDepth, iteration,
-                                  weightsTensorInfo, strideY, strideX, iterationSize, operation, algorithm, params,
-                                  compressionParams, subfilters, wideSubfilters);
-
-                    encodedStreams[ofm] = std::move(encodedOfm);
-                }
-            },
-            og);
-    }
-    for (const auto& h : waitHandles)
-    {
-        h.wait();
-    }
-
-    constexpr uint32_t dmaEngineAlignment = 16;
-
-    // Merge the OFM streams together so that all the OFMs that will be processed in the same stripe
-    // on the same OG are consecutive in the same stream. Here is a diagram showing how the OFM streams
-    // are allocated, assuming we have 8 OGs, a stripe depth of 16 and 35 OFMs. Each row of OFM streams in
-    // each stripe column correspond to a separate entry in streamPerStripeOg, reading first down the column
-    // and across. i.e. the second stripe for OG 4 would be in entry 12.
-    //
-    //            |    STRIPE 0       |      STRIPE 1         |       STRIPE 2
-    //            |-------------------|-----------------------|-------------------|
-    //       0    | 0  8              | 16  24                |  32
-    //       1    | 1  9              | 17  25                |  33
-    //       2    | 2  10             | 18  26                |  34
-    //   OG  3    | 3  11             | 19  27                |
-    //       4    | 4  12             | 20  28                |
-    //       5    | 5  13             | 21  29                |
-    //       6    | 6  14             | 22  30                |
-    //       7    | 7  15             | 23  31                |
-    //
-    // If numIterationsOfm > 1, then we have more entries in encodedStreams and we deal with this by pretending
-    // we have more OGs.
-    //
-    std::vector<std::vector<uint8_t>> streamPerStripeOg;
-    const uint32_t numStripes = utils::DivRoundUp(numOfms, stripeDepth);
-    for (uint32_t stripeIdx = 0; stripeIdx < numStripes; ++stripeIdx)
-    {
-        const uint32_t firstOfmInStripe = stripeDepth * stripeIdx * numIterationsOfm;
-        const uint32_t lastOfmInStripe  = std::min<uint32_t>(numOfms, stripeDepth * (stripeIdx + 1)) * numIterationsOfm;
-        std::vector<EncodedOfm> encodedOfmStreamsForThisStripe(std::begin(encodedStreams) + firstOfmInStripe,
-                                                               std::begin(encodedStreams) + lastOfmInStripe);
-        std::vector<std::vector<uint8_t>> streamPerOgForThisStripe =
-            MergeStreamsOg(encodedOfmStreamsForThisStripe, numOfmInParallel * numIterationsOfm, dmaEngineAlignment);
-        streamPerStripeOg.insert(std::end(streamPerStripeOg), std::make_move_iterator(streamPerOgForThisStripe.begin()),
-                                 std::make_move_iterator(streamPerOgForThisStripe.end()));
-    }
-
-    uint32_t maxLength = 0;
-    for (const std::vector<uint8_t>& s : streamPerStripeOg)
-    {
-        maxLength = std::max(maxLength, static_cast<uint32_t>(s.size()));
-    }
-
-    // Ensure all streams are of equal size as SRAM offsets are same on all CEs
-    // Because the weights will be DMA'd in stripes, there is an alignment requirement for the start of each stripe
-    // (the DMA can only transfer blocks aligned to 16-bytes).
-    // Therefore we pad each stream to 16 bytes.
-    maxLength = utils::RoundUpToNearestMultiple(maxLength, dmaEngineAlignment);
-    for (std::vector<uint8_t>& s : streamPerStripeOg)
-    {
-        s.resize(maxLength, 0);
-    }
-
-    // Merge together all the stripes into groups based on the SRAM they will be loaded into.
-    // Stream = group of stripes that are loaded into a particular SRAM
-    assert(numOfmsPerSram >= 1);
-    std::vector<std::vector<uint8_t>> mergedStreams =
-        MergeStreams(streamPerStripeOg, numSrams, numIterationsOfm, numOfmsPerSram);
-
-    EncodedWeights encodedWeights;
-
-    // Merge all the SRAM streams together by interleaving 16 bytes from each.
-    // This is so the DMA will distribute the correct weight data to the correct SRAM.
-    encodedWeights.m_Data         = InterleaveStreams(mergedStreams, dmaEngineAlignment);
-    encodedWeights.m_Metadata     = CalculateWeightsMetadata(streamPerStripeOg, numOfmInParallel);
-    encodedWeights.m_IsWideFilter = wideSubfilters.size() > 1;
-
-    encodedWeights.m_MaxSize = 0;
-
-    for (uint32_t i = 0; i < encodedWeights.m_Metadata.size(); ++i)
-    {
-        encodedWeights.m_MaxSize = std::max(encodedWeights.m_Metadata[i].m_Size, encodedWeights.m_MaxSize);
-    }
-
-    return encodedWeights;
-}
-
-std::vector<WeightsMetadata>
-    WeightEncoder::CalculateWeightsMetadata(const std::vector<std::vector<uint8_t>>& streamPerStripeOg,
-                                            uint32_t numOgPerStripe) const
+// Calculates the exact offset and size in DRAM of each weight stripe
+std::vector<WeightsMetadata> CalculateWeightsMetadata(const std::vector<std::vector<uint8_t>>& streamPerStripeOg,
+                                                      uint32_t numOgPerStripe)
 {
     std::vector<WeightsMetadata> metadata;
     uint32_t runningSize = 0;
@@ -1491,17 +1388,19 @@ std::vector<WeightsMetadata>
     return metadata;
 }
 
-std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
-                                                    uint32_t ofmIdx,
-                                                    uint32_t iteration,
-                                                    const TensorInfo& weightsTensorInfo,
-                                                    uint32_t strideY,
-                                                    uint32_t strideX,
-                                                    uint32_t iterationSize,
-                                                    ethosn::command_stream::MceOperation operation,
-                                                    CompilerMceAlgorithm algorithm,
-                                                    const std::vector<SubmapFilter>& subfilters,
-                                                    const std::vector<SubmapFilter>& wideSubfilters) const
+/// Gets the raw (unencoded) stream for all the weights required to calculate a single OFM.
+std::vector<uint8_t> GetRawOfmStream(const uint8_t* weightData,
+                                     uint32_t ofmIdx,
+                                     uint32_t iteration,
+                                     const TensorInfo& weightsTensorInfo,
+                                     uint32_t strideY,
+                                     uint32_t strideX,
+                                     uint32_t iterationSize,
+                                     ethosn::command_stream::MceOperation operation,
+                                     CompilerMceAlgorithm algorithm,
+                                     const std::vector<SubmapFilter>& subfilters,
+                                     const std::vector<SubmapFilter>& wideSubfilters,
+                                     const HardwareCapabilities& capabilities)
 {
     assert(algorithm != CompilerMceAlgorithm::None);
 
@@ -1510,8 +1409,8 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
     const uint32_t filterX = weightsTensorInfo.m_Dimensions[1];
     const uint32_t filterY = weightsTensorInfo.m_Dimensions[0];
 
-    uint32_t numEngines      = m_Capabilities.GetNumberOfEngines();
-    uint32_t numIgsPerEngine = m_Capabilities.GetIgsPerEngine();
+    uint32_t numEngines      = capabilities.GetNumberOfEngines();
+    uint32_t numIgsPerEngine = capabilities.GetIgsPerEngine();
 
     std::vector<uint8_t> result;
     result.reserve(filterX * filterY * iterationSize);
@@ -1661,7 +1560,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
         // Offset in the weight data for this iteration
         const uint32_t iterationOffset = iteration * numUninterleavedIfmsPerIteration;
         const uint32_t numIfms         = weightsTensorInfo.m_Dimensions[2];
-        const uint32_t numSrams        = m_Capabilities.GetNumberOfSrams();
+        const uint32_t numSrams        = capabilities.GetNumberOfSrams();
 
         assert(numIfms % g_WeightsChannelVecProd == 0);
 
@@ -1724,7 +1623,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
 
         const uint32_t numIfms = weightsTensorInfo.m_Dimensions[2];
         // Note numIfmsProcessedInParallel is different to non-depthwise convolution weights, as in some configurations not all OGs are used.
-        const uint32_t numIfmsProcessedInParallel = m_Capabilities.GetNumberOfSrams();
+        const uint32_t numIfmsProcessedInParallel = capabilities.GetNumberOfSrams();
 
         // Decompose the ofm index to find which ifm it corresponds to.
         const uint32_t channelMultiplierIdx = ofmIdx / numIfms;
@@ -1782,10 +1681,21 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
     return result;
 }
 
-std::vector<std::vector<uint8_t>> WeightEncoder::MergeStreams(const std::vector<std::vector<uint8_t>>& streams,
-                                                              uint32_t numGroups,
-                                                              uint32_t numIterations,
-                                                              uint32_t numOfmPerSram) const
+/// Merges the given streams of data into 'numGroups' groups, using a round-robin allocation of streams to groups.
+/// All the streams in a group are then concatenated together.
+///
+/// For example, the three streams below (A, B, C) are merged into numGroups=2 groups.
+///
+///  A:   | A1 | A2 | A3 |
+///                                      Group 1 (streams A and C):  | A1 | A2 | A3 | C1 | C2 |
+///  B:   | B1 | B2 | B3 | B4 |    =>
+///                                      Group 2 (stream B):         | B1 | B2 | B3 | B4 |
+///  C:   | C1 | C2 |
+///
+std::vector<std::vector<uint8_t>> MergeStreams(const std::vector<std::vector<uint8_t>>& streams,
+                                               uint32_t numGroups,
+                                               uint32_t numIterations,
+                                               uint32_t numOfmPerSram)
 {
     // Assign each stream to a group (each group is stored as a vector of the stream indexes assigned to it).
     std::vector<std::vector<uint32_t>> groups(numGroups);
@@ -1909,9 +1819,20 @@ std::vector<std::vector<uint8_t>> WeightEncoder::MergeStreams(const std::vector<
     return result;
 }
 
-std::vector<std::vector<uint8_t>> WeightEncoder::MergeStreamsOg(const std::vector<EncodedOfm>& streams,
-                                                                uint32_t numGroups,
-                                                                const uint32_t streamHeadersUpdateAlignment) const
+/// Merges the given streams of data into 'numGroups' groups, using a round-robin allocation of streams to groups.
+/// All the streams in a group are then concatenated together.
+///
+/// For example, the three streams below (A, B, C) are merged into numGroups=2 groups.
+///
+///  A:   | A1 | A2 | A3 |
+///                                      Group 1 (streams A and C):  | A1 | A2 | A3 | C1 | C2 |
+///  B:   | B1 | B2 | B3 | B4 |    =>
+///                                      Group 2 (stream B):         | B1 | B2 | B3 | B4 |
+///  C:   | C1 | C2 |
+///
+std::vector<std::vector<uint8_t>> MergeStreamsOg(const std::vector<EncodedOfm>& streams,
+                                                 uint32_t numGroups,
+                                                 const uint32_t streamHeadersUpdateAlignment)
 {
     // Assign each stream to a group (each group is stored as a vector of the stream indexes assigned to it).
     std::vector<std::vector<uint32_t>> groups(numGroups);
@@ -2055,8 +1976,18 @@ std::vector<std::vector<uint8_t>> WeightEncoder::MergeStreamsOg(const std::vecto
     return result;
 }
 
-std::vector<uint8_t> WeightEncoder::InterleaveStreams(const std::vector<std::vector<uint8_t>>& streams,
-                                                      uint32_t numBytesPerStream) const
+/// Interleaves the given streams of data by taking 'numBytesPerStream' bytes from each stream in turn.
+/// If some streams are shorter than others then zeroes will be used to pad these to the required length.
+///
+/// For example, the three streams below (A, B, C) are interleaved with numBytesPerStream=2:
+///
+///  A:   | A1 | A2 | A3 |
+///
+///  B:   | B1 | B2 | B3 | B4 |    =>   | A1 | A2 | B1 | B2 | C1 | C2 | A3 | 0 | B3 | B4 | 0 | 0 |
+///
+///  C:   | C1 | C2 |
+///
+std::vector<uint8_t> InterleaveStreams(const std::vector<std::vector<uint8_t>>& streams, uint32_t numBytesPerStream)
 {
     // Calculate how long the longest stream is, which determines how big our output will be.
     uint32_t maxLength = 0;
@@ -2093,6 +2024,332 @@ std::vector<uint8_t> WeightEncoder::InterleaveStreams(const std::vector<std::vec
     }
 
     return result;
+}
+
+/// Encodes all the weights required to calculate a single OFM.
+EncodedOfm EncodeOfm(const WeightEncodingRequest& request,
+                     uint32_t ofmIdx,
+                     uint32_t numOfmInParallel,
+                     uint32_t numIterationsOfm,
+                     uint32_t iteration,
+                     const WeightCompressionParams::EncodingParams& params,
+                     std::vector<std::unique_ptr<WeightCompressionParams>>& compressionParams,
+                     const std::vector<SubmapFilter>& subfilters,
+                     const std::vector<SubmapFilter>& wideSubfilters)
+{
+    uint32_t wdIdx = (ofmIdx % request.m_StripeDepth) % numOfmInParallel;
+
+    // Grab a reference to previous compression parameters
+    WeightCompressionParams& prevCompParams = static_cast<WeightCompressionParams&>(*compressionParams[wdIdx]);
+
+    if (!prevCompParams.m_InitialParameters)
+    {
+        if (numIterationsOfm > 1)
+        {
+            prevCompParams.m_InitialParameters = iteration == 0;
+        }
+
+        uint32_t numOfmSetsPerStripe = utils::DivRoundUp(request.m_StripeDepth, numOfmInParallel);
+        assert(numOfmSetsPerStripe >= 1);
+
+        if ((ofmIdx % request.m_StripeDepth) == wdIdx && numOfmSetsPerStripe > 1)
+        {
+            prevCompParams.m_InitialParameters = true;
+        }
+    }
+
+    std::vector<uint8_t> weights =
+        GetRawOfmStream(request.m_WeightsData->data(), ofmIdx, iteration, request.m_WeightsTensorInfo,
+                        request.m_StrideY, request.m_StrideX, request.m_IterationSize, request.m_Operation,
+                        request.m_Algorithm, subfilters, wideSubfilters, request.m_Capabilities);
+
+    const WeightCompressionParams compParams =
+        SelectWeightCompressionParams(request, weights, request.m_WeightsTensorInfo, params, prevCompParams);
+
+    const uint32_t ofmBiasSize = GetOfmBiasSize(request.m_WeightsTensorInfo);
+
+    // When using per channel quantization the reload parameter depends on the memory streaming
+    // being used. At the moment this information is not available here. Always reload in this case.
+    // Example:
+    //
+    // Number of Ofms : 4
+    // Ofm number: 0 1 2 3
+    // scale:      a a a b (a, b are numbers)
+    // reload:     T F F T (T=True, F=False)
+    //
+    // Case 1
+    // Ofm stripe is full height, full width and full depth
+    // Streaming strategy processes Ofms in the order: 0, 1, 2, 3
+    // No issue
+    //
+    // Case 2
+    // Ofm stripe is partial height, full width and partial depth
+    // Streaming strategy processes Ofms in the order: 0, 1, 0, 1, 2, 3, 2, 3
+    // Reload:                                         T  F  T  F  F  T  F  T
+    //                                                                   ^
+    //                                                       it uses scale "b" of 3 which
+    //                                                       is not correct. It should
+    //                                                       have reloaded its own scale "a"
+    //
+    const auto isPerChannelQuantization = request.m_WeightsTensorInfo.m_QuantizationInfo.GetScales().size() > 1;
+    const bool ofmReload =
+        isPerChannelQuantization || GetOfmReload(compParams, prevCompParams, ofmIdx < numOfmInParallel);
+
+    // Over-estimate of how many bits we need. This could be more accurate as we've already decided the best scheme.
+    const uint32_t capacityBits = std::max(static_cast<uint32_t>(weights.size()) * 8 * 2, 1024u);
+    BitstreamWriter writer(capacityBits);
+    std::vector<WeightSymbol> weightSymbols, zeroSymbols;
+
+    std::vector<Weight> uncompressedWeights = GetUncompressedWeights(weights, request.m_WeightsTensorInfo);
+    PaletteZrunEncode(uncompressedWeights, compParams, weightSymbols, zeroSymbols);
+
+    // Note the weight stream length will be filled later
+    WriteWeightHeader(writer, 0xffff, static_cast<uint64_t>(params.m_OfmBias), ofmBiasSize, ofmReload,
+                      params.m_OfmScaleFactor, params.m_OfmShift, params.m_OfmZeroPoint);
+
+    uint32_t pldLen = static_cast<uint32_t>(weightSymbols.size());
+
+    WritePayloadHeader(writer, pldLen, compParams);
+
+    GRCCompressPackChunk(weightSymbols, zeroSymbols, compParams, writer, request.m_Capabilities);
+
+    // Remember current compression parameters
+    prevCompParams = compParams;
+
+    return { std::move(writer.GetBitstream()), static_cast<uint32_t>(writer.GetOffset()) };
+}
+
+}    // namespace
+
+EncodedWeights EncodeWeights(WeightEncodingRequest&& request)
+{
+    std::unique_ptr<IStage1ResultsFuture> future  = EncodeWeightsStage1Async(std::move(request));
+    std::unique_ptr<IStage1Results> stage1Results = future->Wait();
+    return EncodeWeightsStage2(std::move(stage1Results));
+}
+
+std::unique_ptr<IStage1ResultsFuture> EncodeWeightsStage1Async(WeightEncodingRequest&& requestIn)
+{
+    // State which will be shared between all the thread pool tasks
+    auto sharedState = std::make_shared<Stage1ResultsFuture::SharedState>();
+
+    // Move the request into the shared state, as it is needed by all the tasks.
+    sharedState->results                 = std::make_unique<Stage1Results>(std::move(requestIn));
+    Stage1Results& results               = *sharedState->results;
+    const WeightEncodingRequest& request = sharedState->results->request;
+
+    assert(request.m_StripeDepth > 0);
+    assert(request.m_IterationSize > 0);
+
+    const uint32_t filterX = request.m_WeightsTensorInfo.m_Dimensions[1];
+    const uint32_t filterY = request.m_WeightsTensorInfo.m_Dimensions[0];
+
+    results.numOfms = 0;
+    if (request.m_WeightsTensorInfo.m_DataFormat == DataFormat::HWIO)
+    {
+        results.numOfms = request.m_WeightsTensorInfo.m_Dimensions[3];
+    }
+    else if (request.m_WeightsTensorInfo.m_DataFormat == DataFormat::HWIM)
+    {
+        results.numOfms = request.m_WeightsTensorInfo.m_Dimensions[2] * request.m_WeightsTensorInfo.m_Dimensions[3];
+    }
+    else
+    {
+        assert(false);
+    }
+
+    // Bias dimensions should be valid
+    assert((request.m_BiasTensorInfo.m_Dimensions[0] * request.m_BiasTensorInfo.m_Dimensions[1] *
+                request.m_BiasTensorInfo.m_Dimensions[2] ==
+            1) &&
+           request.m_BiasTensorInfo.m_Dimensions[3] == results.numOfms);
+
+    // Zero point value should be within allowed range
+    const utils::DataTypeRange zeroPointBounds = utils::GetRangeOfDataType(request.m_WeightsTensorInfo.m_DataType);
+    ETHOSN_UNUSED(zeroPointBounds);
+    assert(request.m_WeightsTensorInfo.m_QuantizationInfo.GetZeroPoint() <= zeroPointBounds.max &&
+           request.m_WeightsTensorInfo.m_QuantizationInfo.GetZeroPoint() >= zeroPointBounds.min);
+
+    uint32_t ifmChannels     = request.m_WeightsTensorInfo.m_Dimensions[2] * request.m_StrideX * request.m_StrideY;
+    results.numIterationsOfm = request.m_WeightsTensorInfo.m_DataFormat == DataFormat::HWIM
+                                   ? 1
+                                   : utils::DivRoundUp(ifmChannels, request.m_IterationSize);
+
+    // The number of OFMs that can be processed in parallel is limited to the stripe depth
+    uint32_t numSrams        = request.m_Capabilities.GetNumberOfSrams();
+    results.numOfmInParallel = GetNumOfmInParallel(request.m_Capabilities.GetNumberOfOgs(), numSrams,
+                                                   request.m_StripeDepth, request.m_WeightsTensorInfo.m_DataFormat);
+
+    sharedState->compressionParams = GenerateCompressionParams(results.numOfmInParallel);
+
+    // Decide if wide filter is needed
+    const uint32_t maxFilterSize = request.m_Algorithm == CompilerMceAlgorithm::Direct ? 7 : 1;
+    sharedState->subfilters =
+        GetSubmapFilters(filterX, filterY, request.m_StrideX, request.m_StrideY, request.m_PaddingLeft,
+                         request.m_PaddingTop, request.m_WeightsTensorInfo.m_Dimensions);
+    const uint32_t wideKernelSize = request.m_Capabilities.GetWideKernelSize();
+    results.wideSubfilters =
+        GetSubmapFilters(filterX, filterY, wideKernelSize, maxFilterSize, request.m_WeightsTensorInfo.m_Dimensions);
+
+    // Encode each OFM stream independently
+    // Split the work for each OG so that the OFMs for each OG can be encoded in parallel.
+    // Assign each OFM to an OG
+    sharedState->perOgOfms.resize(results.numOfmInParallel);
+    for (uint32_t ofm = 0; ofm < (results.numOfms * results.numIterationsOfm); ++ofm)
+    {
+        const uint32_t ofmIdx = ofm / results.numIterationsOfm;
+        const uint32_t ogIdx  = (ofmIdx % request.m_StripeDepth) % results.numOfmInParallel;
+        sharedState->perOgOfms[ogIdx].push_back(ofm);
+    }
+
+    const size_t numWeightScales = request.m_WeightsTensorInfo.m_QuantizationInfo.GetScales().size();
+
+    results.encodedStreams.resize(results.numOfms * results.numIterationsOfm);
+
+    auto future           = std::make_unique<Stage1ResultsFuture>();
+    future->m_SharedState = sharedState;
+    future->m_WaitHandles.resize(results.numOfmInParallel);
+
+    // Process each OG independently
+    for (int og = 0; og < static_cast<int>(results.numOfmInParallel); ++og)
+    {
+        future->m_WaitHandles[og] = g_ThreadPool.AddToQueue(
+            // Note that we copy the shared state (i.e. add reference to the shared_ptr) into the task
+            [sharedStateCopy = sharedState, numWeightScales](int og) {
+                Stage1Results& results               = *sharedStateCopy->results;
+                const WeightEncodingRequest& request = sharedStateCopy->results->request;
+                for (uint32_t ofm : sharedStateCopy->perOgOfms[static_cast<size_t>(og)])
+                {
+                    const uint32_t iteration = ofm % results.numIterationsOfm;
+                    const uint32_t ofmIdx    = ofm / results.numIterationsOfm;
+
+                    // Calculate encoding parameters from the various quantization infos
+                    WeightCompressionParams::EncodingParams params;
+                    double overallScale =
+                        (request.m_InputQuantizationInfo.GetScale() *
+                         request.m_WeightsTensorInfo.m_QuantizationInfo.GetScale(numWeightScales > 1 ? ofmIdx : 0)) /
+                        request.m_OutputQuantizationInfo.GetScale();
+                    utils::CalculateQuantizedMultiplierSmallerThanOne(overallScale, params.m_OfmScaleFactor,
+                                                                      params.m_OfmShift);
+
+                    params.m_OfmBias      = request.m_BiasData[ofmIdx];
+                    params.m_OfmZeroPoint = static_cast<uint32_t>(request.m_OutputQuantizationInfo.GetZeroPoint());
+                    params.m_FilterZeroPoint =
+                        static_cast<uint32_t>(request.m_WeightsTensorInfo.m_QuantizationInfo.GetZeroPoint());
+
+                    EncodedOfm encodedOfm = EncodeOfm(
+                        request, ofmIdx, results.numOfmInParallel, results.numIterationsOfm, iteration, params,
+                        sharedStateCopy->compressionParams, sharedStateCopy->subfilters, results.wideSubfilters);
+
+                    results.encodedStreams[ofm] = std::move(encodedOfm);
+                }
+            },
+            og);
+    }
+
+    return future;
+}
+
+std::unique_ptr<IStage1Results> Stage1ResultsFuture::Wait()
+{
+    // The results are produced by many tasks, so wait for them all to finish.
+    for (auto&& h : m_WaitHandles)
+    {
+        h.wait();
+    }
+
+    return std::move(m_SharedState->results);
+}
+
+EncodedWeights EncodeWeightsStage2(std::unique_ptr<IStage1Results> stage1ResultsInterface)
+{
+    Stage1Results& stage1Results         = static_cast<Stage1Results&>(*stage1ResultsInterface);
+    const WeightEncodingRequest& request = stage1Results.request;
+
+    constexpr uint32_t dmaEngineAlignment = 16;
+
+    // Merge the OFM streams together so that all the OFMs that will be processed in the same stripe
+    // on the same OG are consecutive in the same stream. Here is a diagram showing how the OFM streams
+    // are allocated, assuming we have 8 OGs, a stripe depth of 16 and 35 OFMs. Each row of OFM streams in
+    // each stripe column correspond to a separate entry in streamPerStripeOg, reading first down the column
+    // and across. i.e. the second stripe for OG 4 would be in entry 12.
+    //
+    //            |    STRIPE 0       |      STRIPE 1         |       STRIPE 2
+    //            |-------------------|-----------------------|-------------------|
+    //       0    | 0  8              | 16  24                |  32
+    //       1    | 1  9              | 17  25                |  33
+    //       2    | 2  10             | 18  26                |  34
+    //   OG  3    | 3  11             | 19  27                |
+    //       4    | 4  12             | 20  28                |
+    //       5    | 5  13             | 21  29                |
+    //       6    | 6  14             | 22  30                |
+    //       7    | 7  15             | 23  31                |
+    //
+    // If numIterationsOfm > 1, then we have more entries in encodedStreams and we deal with this by pretending
+    // we have more OGs.
+    //
+    std::vector<std::vector<uint8_t>> streamPerStripeOg;
+    const uint32_t numStripes = utils::DivRoundUp(stage1Results.numOfms, request.m_StripeDepth);
+    for (uint32_t stripeIdx = 0; stripeIdx < numStripes; ++stripeIdx)
+    {
+        const uint32_t firstOfmInStripe = request.m_StripeDepth * stripeIdx * stage1Results.numIterationsOfm;
+        const uint32_t lastOfmInStripe =
+            std::min<uint32_t>(stage1Results.numOfms, request.m_StripeDepth * (stripeIdx + 1)) *
+            stage1Results.numIterationsOfm;
+        std::vector<EncodedOfm> encodedOfmStreamsForThisStripe(
+            std::begin(stage1Results.encodedStreams) + firstOfmInStripe,
+            std::begin(stage1Results.encodedStreams) + lastOfmInStripe);
+        std::vector<std::vector<uint8_t>> streamPerOgForThisStripe =
+            MergeStreamsOg(encodedOfmStreamsForThisStripe,
+                           stage1Results.numOfmInParallel * stage1Results.numIterationsOfm, dmaEngineAlignment);
+        streamPerStripeOg.insert(std::end(streamPerStripeOg), std::make_move_iterator(streamPerOgForThisStripe.begin()),
+                                 std::make_move_iterator(streamPerOgForThisStripe.end()));
+    }
+
+    uint32_t maxLength = 0;
+    for (const std::vector<uint8_t>& s : streamPerStripeOg)
+    {
+        maxLength = std::max(maxLength, static_cast<uint32_t>(s.size()));
+    }
+
+    // Ensure all streams are of equal size as SRAM offsets are same on all CEs
+    // Because the weights will be DMA'd in stripes, there is an alignment requirement for the start of each stripe
+    // (the DMA can only transfer blocks aligned to 16-bytes).
+    // Therefore we pad each stream to 16 bytes.
+    maxLength = utils::RoundUpToNearestMultiple(maxLength, dmaEngineAlignment);
+    for (std::vector<uint8_t>& s : streamPerStripeOg)
+    {
+        s.resize(maxLength, 0);
+    }
+
+    // Number of Ofm processed in parallel which is the minimum number of
+    // weights streams that need to be loaded at the same time for all the
+    // mce interfaces to start producing an Ofm each.
+    uint32_t numSrams       = request.m_Capabilities.GetNumberOfSrams();
+    uint32_t numOfmsPerSram = request.m_Capabilities.GetNumberOfOgs() / numSrams;
+    assert(numOfmsPerSram >= 1);
+
+    // Merge together all the stripes into groups based on the SRAM they will be loaded into.
+    // Stream = group of stripes that are loaded into a particular SRAM
+    std::vector<std::vector<uint8_t>> mergedStreams = MergeStreams(
+        streamPerStripeOg, request.m_Capabilities.GetNumberOfSrams(), stage1Results.numIterationsOfm, numOfmsPerSram);
+
+    EncodedWeights encodedWeights;
+
+    // Merge all the SRAM streams together by interleaving 16 bytes from each.
+    // This is so the DMA will distribute the correct weight data to the correct SRAM.
+    encodedWeights.m_Data         = InterleaveStreams(mergedStreams, dmaEngineAlignment);
+    encodedWeights.m_Metadata     = CalculateWeightsMetadata(streamPerStripeOg, stage1Results.numOfmInParallel);
+    encodedWeights.m_IsWideFilter = stage1Results.wideSubfilters.size() > 1;
+
+    encodedWeights.m_MaxSize = 0;
+
+    for (uint32_t i = 0; i < encodedWeights.m_Metadata.size(); ++i)
+    {
+        encodedWeights.m_MaxSize = std::max(encodedWeights.m_Metadata[i].m_Size, encodedWeights.m_MaxSize);
+    }
+
+    return encodedWeights;
 }
 
 }    // namespace support_library

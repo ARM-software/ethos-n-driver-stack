@@ -41,6 +41,7 @@ srcs = [
     os.path.join("src", "SubmapFilter.cpp"),
     os.path.join("src", "SramAllocator.cpp"),
     os.path.join("src", "Utils.cpp"),
+    os.path.join("src", "ThreadPool.cpp"),
     os.path.join("src", "DebuggingContext.cpp"),
     os.path.join("src", "PerformanceData.cpp"),
     os.path.join("src", "cascading", "Cascading.cpp"),

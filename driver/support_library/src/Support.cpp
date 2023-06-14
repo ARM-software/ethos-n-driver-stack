@@ -7,6 +7,7 @@
 
 #include "CapabilitiesInternal.hpp"
 #include "Compiler.hpp"
+#include "ConcreteOperations.hpp"
 #include "Network.hpp"
 #include "PerformanceData.hpp"
 

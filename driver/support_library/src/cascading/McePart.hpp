@@ -81,7 +81,7 @@ public:
         : BasePart(id, "McePart", std::forward<Ids>(operationIds), estOpt, compOpt, capabilities)
         , m_InputTensorShape(inputTensorShape)
         , m_OutputTensorShape(outputTensorShape)
-        , m_WeightEncoderCache{ capabilities, debuggingContext, m_DebugTag.c_str() }
+        , m_WeightEncoderCache{ capabilities, debuggingContext }
         , m_InputQuantizationInfo(inputQuantizationInfo)
         , m_OutputQuantizationInfo(outputQuantizationInfo)
         , m_WeightsInfo(weightsInfo)
