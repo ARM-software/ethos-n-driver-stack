@@ -607,5 +607,63 @@ std::vector<bool> FusedPlePart::CanInputsTakePleInputSram() const
     return { true };
 }
 
+void FusedPlePart::PreprocessWeightsAsync() const
+{
+    // Start encoding all the possible weight stripe and algorithm combinations that we might need later.
+
+    const float weightScale = 0.5f;
+    const float biasScale   = weightScale * m_InputQuantizationInfo.GetScale();
+    const uint32_t numIfm   = m_InputTensorShape[3];
+
+    TensorInfo weightInfo{ { 1, 1, numIfm, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM, { 0, weightScale } };
+    TensorInfo biasInfo{ { 1, 1, 1, numIfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
+
+    std::shared_ptr<std::vector<uint8_t>> weightsData = std::make_shared<std::vector<uint8_t>>(1 * 1 * 1 * numIfm, 2);
+    std::vector<int32_t> biasData(numIfm, 0);
+
+    WeightEncodingRequest request(m_Capabilities);
+    request.m_WeightsTensorInfo      = weightInfo;
+    request.m_WeightsData            = weightsData;
+    request.m_BiasTensorInfo         = biasInfo;
+    request.m_BiasData               = biasData;
+    request.m_InputQuantizationInfo  = m_InputQuantizationInfo;
+    request.m_OutputQuantizationInfo = m_InputQuantizationInfo;
+    request.m_StripeDepth            = 0;
+    request.m_StrideY                = 1;
+    request.m_StrideX                = 1;
+    request.m_PaddingTop             = 0;
+    request.m_PaddingLeft            = 0;
+    request.m_IterationSize          = 0;
+    request.m_Operation              = MceOperation::DEPTHWISE_CONVOLUTION;
+    request.m_Algorithm              = CompilerMceAlgorithm::Direct;
+
+    // Note we only consider high priority lonely plans so that we don't encode a bunch of weights
+    // which we might never consider (for low priority plans). If we do need these, they will encoded
+    // later (serially).
+    StripeInfos stripeInfosLonely =
+        m_StripeGenerator.GenerateStripes(CascadeType::Lonely, m_OutputBoundaryRequirements.at(0), PlanPriority::High);
+    for (const MceAndPleInfo& i : stripeInfosLonely.m_MceAndPleInfos)
+    {
+        WeightEncodingRequest modifiedRequest = request;
+        modifiedRequest.m_StripeDepth         = GetWeightStripeDepth(weightInfo, i.m_MceCompute.m_Weight, { 1, 1 });
+        modifiedRequest.m_IterationSize       = i.m_MceCompute.m_Weight[2];
+        modifiedRequest.m_Algorithm           = CompilerMceAlgorithm::Direct;
+
+        m_WeightEncoderCache.EncodeStage1Async(std::move(modifiedRequest));
+    }
+
+    StripeInfos stripeInfosBeginning =
+        m_StripeGenerator.GenerateStripes(CascadeType::Beginning, m_OutputBoundaryRequirements.at(0), {});
+    for (const MceAndPleInfo& i : stripeInfosBeginning.m_MceAndPleInfos)
+    {
+        WeightEncodingRequest modifiedRequest = request;
+        modifiedRequest.m_StripeDepth         = GetWeightStripeDepth(weightInfo, i.m_MceCompute.m_Weight, { 1, 1 });
+        modifiedRequest.m_IterationSize       = i.m_MceCompute.m_Weight[2];
+        modifiedRequest.m_Algorithm           = CompilerMceAlgorithm::Direct;
+
+        m_WeightEncoderCache.EncodeStage1Async(std::move(modifiedRequest));
+    }
+}
+
 }    // namespace support_library
 }    // namespace ethosn

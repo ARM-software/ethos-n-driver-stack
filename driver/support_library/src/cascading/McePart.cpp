@@ -236,7 +236,7 @@ McePart::McePart(ConstructionParams&& params)
                params.m_Capabilities)
     , m_InputTensorShape(params.m_InputTensorShape)
     , m_OutputTensorShape(params.m_OutputTensorShape)
-    , m_WeightEncoderCache{ params.m_Capabilities, params.m_DebuggingContext }
+    , m_WeightEncoderCache{ params.m_Capabilities }
     , m_InputQuantizationInfo(params.m_InputQuantizationInfo)
     , m_OutputQuantizationInfo(params.m_OutputQuantizationInfo)
     , m_WeightsInfo(params.m_WeightsInfo)
@@ -345,15 +345,8 @@ Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
     return sramWeightBufferRaw;
 }
 
-std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
-                                                 const impl::MceStripesInfo& mceStripeInfo,
-                                                 const impl::MemoryStripesInfo& memoryStripesInfo,
-                                                 impl::NumMemoryStripes& numMemoryStripes,
-                                                 const TensorShape& inputShape,
-                                                 const QuantizationInfo& inputQuantInfo,
-                                                 impl::ConvData& convData,
-                                                 WeightEncoderCache& weightEncoderCache,
-                                                 bool couldSourceBeFcaf) const
+CompilerMceAlgorithm McePart::ResolveMceAlgorithm(const ethosn::command_stream::BlockConfig& blockConfig,
+                                                  uint32_t inputStripeChannels) const
 {
     uint32_t kernelHeight   = m_WeightsInfo.m_Dimensions[0];
     uint32_t kernelWidth    = m_WeightsInfo.m_Dimensions[1];
@@ -369,15 +362,30 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
     }
 
     std::vector<command_stream::BlockConfig> blockConfigs =
-        FilterAlgoBlockConfigs(effectiveAlgo, isWinograd2d, { mceStripeInfo.m_BlockConfig }, m_Capabilities);
+        FilterAlgoBlockConfigs(effectiveAlgo, isWinograd2d, { blockConfig }, m_Capabilities);
 
     CompilerMceAlgorithm mceOpAlgo = blockConfigs.empty() ? CompilerMceAlgorithm::Direct : effectiveAlgo;
 
     // Encoder doesn't support multiple iterations with Winograd enabled
-    if (mceStripeInfo.m_Weight[2] < convData.weightInfo.m_Dimensions[2])
+    if (inputStripeChannels < m_WeightsInfo.m_Dimensions[2])
     {
         mceOpAlgo = CompilerMceAlgorithm::Direct;
     }
+
+    return mceOpAlgo;
+}
+
+std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
+                                                 const impl::MceStripesInfo& mceStripeInfo,
+                                                 const impl::MemoryStripesInfo& memoryStripesInfo,
+                                                 impl::NumMemoryStripes& numMemoryStripes,
+                                                 const TensorShape& inputShape,
+                                                 const QuantizationInfo& inputQuantInfo,
+                                                 impl::ConvData& convData,
+                                                 WeightEncoderCache& weightEncoderCache,
+                                                 bool couldSourceBeFcaf) const
+{
+    const CompilerMceAlgorithm mceOpAlgo = ResolveMceAlgorithm(mceStripeInfo.m_BlockConfig, mceStripeInfo.m_Weight[2]);
 
     const TraversalOrder ifmTraversalOrder =
         m_Operation == command_stream::MceOperation::DEPTHWISE_CONVOLUTION ? TraversalOrder::Xyz : TraversalOrder::Zxy;
@@ -1040,6 +1048,54 @@ std::vector<bool> McePart::CanInputsTakePleInputSram() const
 {
     // We can't take input that's in PLE input SRAM, as it needs to go to the MCE
     return { false };
+}
+
+void McePart::PreprocessWeightsAsync() const
+{
+    // Start encoding all the possible weight stripe and algorithm combinations that we might need later.
+
+    WeightEncodingRequest request(m_Capabilities);
+    request.m_WeightsTensorInfo      = m_WeightsInfo;
+    request.m_WeightsData            = m_WeightsData;
+    request.m_BiasTensorInfo         = m_BiasInfo;
+    request.m_BiasData               = m_BiasData;
+    request.m_InputQuantizationInfo  = m_InputQuantizationInfo;
+    request.m_OutputQuantizationInfo = m_OutputQuantizationInfo;
+    request.m_StripeDepth            = 0;
+    request.m_StrideY                = m_Stride.m_Y;
+    request.m_StrideX                = m_Stride.m_X;
+    request.m_PaddingTop             = m_PadTop;
+    request.m_PaddingLeft            = m_PadLeft;
+    request.m_IterationSize          = 0;
+    request.m_Operation              = m_Operation;
+    request.m_Algorithm              = CompilerMceAlgorithm::Direct;
+
+    // Note we only consider high priority lonely plans so that we don't encode a bunch of weights
+    // which we might never consider (for low priority plans). If we do need these, they will encoded
+    // later (serially).
+    StripeInfos stripeInfosLonely =
+        m_StripeGenerator.GenerateStripes(CascadeType::Lonely, m_OutputBoundaryRequirements.at(0), PlanPriority::High);
+    for (const MceAndPleInfo& i : stripeInfosLonely.m_MceAndPleInfos)
+    {
+        WeightEncodingRequest modifiedRequest = request;
+        modifiedRequest.m_StripeDepth         = GetWeightStripeDepth(m_WeightsInfo, i.m_MceCompute.m_Weight, m_Stride);
+        modifiedRequest.m_IterationSize       = i.m_MceCompute.m_Weight[2];
+        modifiedRequest.m_Algorithm = ResolveMceAlgorithm(i.m_MceCompute.m_BlockConfig, i.m_MceCompute.m_Weight[2]);
+
+        m_WeightEncoderCache.EncodeStage1Async(std::move(modifiedRequest));
+    }
+
+    StripeInfos stripeInfosBeginning =
+        m_StripeGenerator.GenerateStripes(CascadeType::Beginning, m_OutputBoundaryRequirements.at(0), {});
+    for (const MceAndPleInfo& i : stripeInfosBeginning.m_MceAndPleInfos)
+    {
+        WeightEncodingRequest modifiedRequest = request;
+        modifiedRequest.m_StripeDepth         = GetWeightStripeDepth(m_WeightsInfo, i.m_MceCompute.m_Weight, m_Stride);
+        modifiedRequest.m_IterationSize       = i.m_MceCompute.m_Weight[2];
+        modifiedRequest.m_Algorithm = ResolveMceAlgorithm(i.m_MceCompute.m_BlockConfig, i.m_MceCompute.m_Weight[2]);
+
+        m_WeightEncoderCache.EncodeStage1Async(std::move(modifiedRequest));
+    }
 }
 
 }    // namespace support_library

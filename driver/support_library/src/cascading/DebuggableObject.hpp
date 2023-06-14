@@ -1,10 +1,11 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
 
+#include <atomic>
 #include <string>
 
 #include "Visualisation.hpp"
@@ -33,7 +34,7 @@ public:
 
     /// Counter for generating unique debug tags (see DebuggableObject constructor).
     /// This is publicly exposed so can be manipulated by tests.
-    static int ms_IdCounter;
+    static std::atomic<int> ms_IdCounter;
 
     virtual DotAttributes GetDotAttributes(DetailLevel) const
     {

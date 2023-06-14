@@ -77,11 +77,11 @@ public:
             Ids&& operationIds,
             DataType inputDataType,
             DataType outputDataType,
-            DebuggingContext& debuggingContext)
+            DebuggingContext&)
         : BasePart(id, "McePart", std::forward<Ids>(operationIds), estOpt, compOpt, capabilities)
         , m_InputTensorShape(inputTensorShape)
         , m_OutputTensorShape(outputTensorShape)
-        , m_WeightEncoderCache{ capabilities, debuggingContext }
+        , m_WeightEncoderCache{ capabilities }
         , m_InputQuantizationInfo(inputQuantizationInfo)
         , m_OutputQuantizationInfo(outputQuantizationInfo)
         , m_WeightsInfo(weightsInfo)
@@ -117,6 +117,7 @@ public:
     {}
 
     McePart(ConstructionParams&& params);
+    McePart(McePart&&) = default;
 
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,
@@ -147,7 +148,12 @@ public:
     bool MergeWithChannelSelectorBefore(const utils::ConstTensorData& channelSelectorWeights) override;
     bool MergeWithChannelSelectorAfter(const utils::ConstTensorData& channelSelectorWeights) override;
 
+    void PreprocessWeightsAsync() const override;
+
 protected:
+    CompilerMceAlgorithm ResolveMceAlgorithm(const ethosn::command_stream::BlockConfig& blockConfig,
+                                             uint32_t inputStripeChannels) const;
+
     void CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                                       WeightEncoderCache& weightEncoderCache,
                                       Plans& plans,

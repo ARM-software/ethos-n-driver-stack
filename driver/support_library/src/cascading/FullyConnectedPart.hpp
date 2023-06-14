@@ -65,8 +65,12 @@ public:
 
     utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const override;
 
+    void PreprocessWeightsAsync() const override;
+
 private:
     Plans GetLonelyPlans(uint32_t numWeightStripes) const;
+
+    impl::StripeInfos GenerateStripeInfos() const;
 
     TensorShape m_OriginalInputShape;
 };

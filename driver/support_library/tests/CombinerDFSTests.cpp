@@ -13,6 +13,7 @@
 
 #include <catch.hpp>
 
+#include <atomic>
 #include <fstream>
 
 using namespace ethosn::support_library;
@@ -26,7 +27,7 @@ class WeightPart : public MockPart
 {
 public:
     WeightPart(PartId id,
-               uint32_t* numPlansCounter,
+               std::atomic<uint32_t>* numPlansCounter,
                std::vector<uint32_t>* numWeightBuffers,
                const std::function<bool(CascadeType, PartId)>& filter,
                bool hasInput,
@@ -110,7 +111,7 @@ public:
         return true;
     }
 
-    uint32_t* m_NumPlansCounter;
+    std::atomic<uint32_t>* m_NumPlansCounter;
     std::vector<uint32_t>* m_NumWeightBuffers;
     // Function instance used to store the filter lambda function.
     std::function<bool(CascadeType, PartId)> m_Filter;
@@ -120,7 +121,7 @@ class NoWeightPart : public WeightPart
 {
 public:
     NoWeightPart(PartId id,
-                 uint32_t* numPlansCounter,
+                 std::atomic<uint32_t>* numPlansCounter,
                  std::vector<uint32_t>* weightBuffers,
                  const std::function<bool(CascadeType, PartId)>& filter,
                  bool hasInput,
@@ -146,7 +147,7 @@ TEST_CASE("DoubleBufferingTestVariant_PleKernelsOnly", "[CombinerDFS]")
     //
 
     GraphOfParts graph;
-    uint32_t numPlansCounter = 0;
+    std::atomic<uint32_t> numPlansCounter(0);
     std::array<std::vector<uint32_t>, 3> planWeightBuffers;
     // Filter lambda function used to force the CombinerTest in generating specific Plans for specific Parts.
     auto filter = [](auto cascadeType, auto partId) {
@@ -224,7 +225,7 @@ TEST_CASE("DoubleBufferingTestVariant_SinglePartSection", "[CombinerDFS]")
     //
 
     GraphOfParts graph;
-    uint32_t numPlansCounter = 0;
+    std::atomic<uint32_t> numPlansCounter(0);
     std::array<std::vector<uint32_t>, 3> planWeightBuffers;
     // Filter lambda function used to force the CombinerTest in generating specific Plans for specific Parts.
     auto filter = [](auto cascadeType, auto partId) {
@@ -304,7 +305,7 @@ TEST_CASE("DoubleBufferingTestVariant_McePleMce", "[CombinerDFS]")
     //
 
     GraphOfParts graph;
-    uint32_t numPlansCounter = 0;
+    std::atomic<uint32_t> numPlansCounter(0);
     std::array<std::vector<uint32_t>, 3> planWeightBuffers;
     // Filter lambda function used to force the CombinerTest in generating specific Plans for specific Parts.
     auto filter = [](auto cascadeType, auto partId) {
@@ -382,7 +383,7 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMce", "[CombinerDFS]")
     //
 
     GraphOfParts graph;
-    uint32_t numPlansCounter = 0;
+    std::atomic<uint32_t> numPlansCounter(0);
     std::array<std::vector<uint32_t>, 3> planWeightBuffers;
     // Filter lambda function used to force the CombinerTest in generating specific Plans for specific Parts.
     auto filter = [](auto cascadeType, auto partId) {
@@ -461,7 +462,7 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMcePle", "[CombinerDFS]")
     //
 
     GraphOfParts graph;
-    uint32_t numPlansCounter = 0;
+    std::atomic<uint32_t> numPlansCounter(0);
     std::array<std::vector<uint32_t>, 4> planWeightBuffers;
     // Filter lambda function used to force the CombinerTest in generating specific Plans for specific Parts.
     auto filter = [](auto cascadeType, auto partId) {

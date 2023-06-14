@@ -20,6 +20,9 @@ namespace ethosn
 namespace support_library
 {
 
+extern uint32_t g_NumWeightEncodingsStage1;
+extern uint32_t g_NumWeightEncodingsStage2;
+
 // Currently the weights encoder for fully connected works best with multiple of 1024 input channels.
 constexpr uint32_t g_WeightsChannelVecProd = 1024U;
 
@@ -171,6 +174,8 @@ struct WeightEncodingRequest
 
     bool operator==(const WeightEncodingRequest& r) const;
 };
+
+uint64_t GetUncompressedWeightStripeSize(const WeightEncodingRequest& r);
 
 // Weight encoding is split into two stages (stage 1 and stage 2). This is because
 // stage 1 can be split in parallel across multiple threads but stage 2 is serial.

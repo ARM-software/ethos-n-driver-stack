@@ -25,6 +25,9 @@ namespace ethosn
 namespace support_library
 {
 
+uint32_t g_NumWeightEncodingsStage1 = 0;
+uint32_t g_NumWeightEncodingsStage2 = 0;
+
 WeightEncodingRequest::WeightEncodingRequest(const HardwareCapabilities& capabilities)
     : m_Capabilities(capabilities)
 {}
@@ -345,12 +348,6 @@ uint32_t GetNumOfmInParallel(const uint32_t numOfm,
     {
         return std::min(numSrams, stripeDepth);
     }
-}
-
-/// Get HWIM encoding parameters
-std::pair<uint32_t, uint32_t> GetHwimWeightPadding(const bool, const uint32_t, const uint32_t)
-{
-    return std::make_pair(1, 1);
 }
 
 static uint8_t CalcBitWidth(size_t value, uint8_t minWidth)
@@ -1622,8 +1619,6 @@ std::vector<uint8_t> GetRawOfmStream(const uint8_t* weightData,
         assert(algorithm != CompilerMceAlgorithm::Winograd);
 
         const uint32_t numIfms = weightsTensorInfo.m_Dimensions[2];
-        // Note numIfmsProcessedInParallel is different to non-depthwise convolution weights, as in some configurations not all OGs are used.
-        const uint32_t numIfmsProcessedInParallel = capabilities.GetNumberOfSrams();
 
         // Decompose the ofm index to find which ifm it corresponds to.
         const uint32_t channelMultiplierIdx = ofmIdx / numIfms;
@@ -1631,21 +1626,10 @@ std::vector<uint8_t> GetRawOfmStream(const uint8_t* weightData,
 
         // Compared to 'regular' HWIO weights, we only need to specify the weights for as many IFMs as there are IGs
         // rather than all of the IFMs.
-        // Ethos-Nx7:
-        // Mathematically we only need to supply 1 (as each OFM is dependent on only 1 IFM),
-        // but the HW requires a full set of 16 weights so we just set the others to zero. Add weight data in row-major
-        // order, with a slice of as many IFMs as there are IGs, tightly packed for each filter coordinate.
-        // Ethos-N78:
         // Only packs on set of weights and the HW will insert 0s accordingly after decoding.
         for (uint32_t filterIdx = 0; filterIdx < subfilters.size(); ++filterIdx)
         {
             const SubmapFilter& filter = subfilters[filterIdx];
-
-            // Get encoding params
-            bool usePadding               = (filterIdx == subfilters.size() - 1);
-            uint32_t numChannels          = 0;
-            uint32_t ifmMod               = 0;
-            std::tie(numChannels, ifmMod) = GetHwimWeightPadding(usePadding, ifmIdx, numIfmsProcessedInParallel);
 
             // Add weight data in row-major order, with the slice of as many IFMs as there are IGs, tightly packed
             // for each filter coordinate.
@@ -1653,21 +1637,7 @@ std::vector<uint8_t> GetRawOfmStream(const uint8_t* weightData,
             {
                 for (uint32_t w = 0; w < filter.GetFilterX(); ++w)
                 {
-                    for (uint32_t i = 0; i < numChannels; ++i)
-                    {
-                        uint8_t weight;
-
-                        if (i == ifmIdx % ifmMod)
-                        {
-                            weight = filter.GetWeightAt(weightData, h, w, ifmIdx, channelMultiplierIdx);
-                        }
-                        else
-                        {
-                            weight = static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.GetZeroPoint());
-                        }
-
-                        result.push_back(weight);
-                    }
+                    result.push_back(filter.GetWeightAt(weightData, h, w, ifmIdx, channelMultiplierIdx));
                 }
             }
         }
@@ -2121,6 +2091,20 @@ EncodedOfm EncodeOfm(const WeightEncodingRequest& request,
 
 }    // namespace
 
+uint64_t GetUncompressedWeightStripeSize(const WeightEncodingRequest& r)
+{
+    const uint64_t wh =
+        static_cast<uint64_t>(r.m_WeightsTensorInfo.m_Dimensions[0]) * r.m_WeightsTensorInfo.m_Dimensions[1];
+    if (r.m_Operation == command_stream::MceOperation::DEPTHWISE_CONVOLUTION)
+    {
+        return wh * r.m_StripeDepth;
+    }
+    else
+    {
+        return wh * r.m_IterationSize / (r.m_StrideX * r.m_StrideY) * r.m_StripeDepth;
+    }
+}
+
 EncodedWeights EncodeWeights(WeightEncodingRequest&& request)
 {
     std::unique_ptr<IStage1ResultsFuture> future  = EncodeWeightsStage1Async(std::move(request));
@@ -2130,6 +2114,12 @@ EncodedWeights EncodeWeights(WeightEncodingRequest&& request)
 
 std::unique_ptr<IStage1ResultsFuture> EncodeWeightsStage1Async(WeightEncodingRequest&& requestIn)
 {
+    g_NumWeightEncodingsStage1++;
+
+    g_Logger.Verbose("Encode %lu weights, stripeDepth = %u, iterationSize = %u, algorithm = %s...",
+                     requestIn.m_WeightsData->size(), requestIn.m_StripeDepth, requestIn.m_IterationSize,
+                     ToString(requestIn.m_Algorithm).c_str());
+
     // State which will be shared between all the thread pool tasks
     auto sharedState = std::make_shared<Stage1ResultsFuture::SharedState>();
 
@@ -2263,6 +2253,8 @@ std::unique_ptr<IStage1Results> Stage1ResultsFuture::Wait()
 
 EncodedWeights EncodeWeightsStage2(std::unique_ptr<IStage1Results> stage1ResultsInterface)
 {
+    g_NumWeightEncodingsStage2++;
+
     Stage1Results& stage1Results         = static_cast<Stage1Results&>(*stage1ResultsInterface);
     const WeightEncodingRequest& request = stage1Results.request;
 

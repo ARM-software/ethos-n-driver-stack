@@ -197,6 +197,11 @@ public:
 
     DotAttributes GetDotAttributes(DetailLevel) const override;
 
+    /// Instruct this part to kick off any stage 1 weight encoding that it might need the results for.
+    /// This means we can run all these weight encodings for all parts in parallel.
+    virtual void PreprocessWeightsAsync() const
+    {}
+
     virtual ~BasePart()
     {}
 

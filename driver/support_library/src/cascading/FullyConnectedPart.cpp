@@ -42,10 +42,8 @@ utils::Optional<MceOperation> FullyConnectedPart::GetMceOperation() const
     return ethosn::command_stream::MceOperation::FULLY_CONNECTED;
 }
 
-Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
+StripeInfos FullyConnectedPart::GenerateStripeInfos() const
 {
-    Plans ret;
-
     // Fully connected only supports 8x8 block configs
     const BlockConfig blockConfig                   = { 8u, 8u };
     PackedBoundaryThickness packedBoundaryThickness = { 0, 0, 0, 0 };
@@ -180,6 +178,15 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
         }
     }
 
+    return stripeInfos;
+}
+
+Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
+{
+    Plans ret;
+
+    StripeInfos stripeInfos = GenerateStripeInfos();
+
     // Fully connected input cannot be de-compressed from FCAF
     const bool couldSourceBeFcaf = false;
 
@@ -259,6 +266,38 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
         }
     }
     return ret;
+}
+
+void FullyConnectedPart::PreprocessWeightsAsync() const
+{
+    // Start encoding all the possible weight stripe and algorithm combinations that we might need later.
+
+    WeightEncodingRequest request(m_Capabilities);
+    request.m_WeightsTensorInfo      = m_WeightsInfo;
+    request.m_WeightsData            = m_WeightsData;
+    request.m_BiasTensorInfo         = m_BiasInfo;
+    request.m_BiasData               = m_BiasData;
+    request.m_InputQuantizationInfo  = m_InputQuantizationInfo;
+    request.m_OutputQuantizationInfo = m_OutputQuantizationInfo;
+    request.m_StripeDepth            = 0;
+    request.m_StrideY                = m_Stride.m_Y;
+    request.m_StrideX                = m_Stride.m_X;
+    request.m_PaddingTop             = m_PadTop;
+    request.m_PaddingLeft            = m_PadLeft;
+    request.m_IterationSize          = 0;
+    request.m_Operation              = m_Operation;
+    request.m_Algorithm              = CompilerMceAlgorithm::Direct;
+
+    StripeInfos stripeInfos = GenerateStripeInfos();
+    for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
+    {
+        WeightEncodingRequest modifiedRequest = request;
+        modifiedRequest.m_StripeDepth         = GetWeightStripeDepth(m_WeightsInfo, i.m_MceCompute.m_Weight, m_Stride);
+        modifiedRequest.m_IterationSize       = i.m_MceCompute.m_Weight[2];
+        modifiedRequest.m_Algorithm = ResolveMceAlgorithm(i.m_MceCompute.m_BlockConfig, i.m_MceCompute.m_Weight[2]);
+
+        m_WeightEncoderCache.EncodeStage1Async(std::move(modifiedRequest));
+    }
 }
 
 }    // namespace support_library

@@ -15,7 +15,6 @@ namespace support_library
 
 DebuggingContext::DebuggingContext(const CompilationOptions::DebugInfo& debugInfo)
     : m_DebugInfo(debugInfo)
-    , m_TotalWeightCompressionTime(0)
 {}
 
 void DebuggingContext::Save(CompilationOptions::DebugLevel level,

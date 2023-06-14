@@ -109,8 +109,7 @@ RunCascadingResult RunCascading(const Network& network,
 
     duration = std::chrono::high_resolution_clock::now() - startTime;
     g_Logger.Debug("Combiner: %llu ms", duration.count() / (1000ULL * 1000ULL));
-    g_Logger.Debug("Total weight encoder time: %llu ms",
-                   debuggingContext.m_TotalWeightCompressionTime / (1000ULL * 1000ULL));
+    g_Logger.Debug("Weights encoded: stage 1: %u, stage 2: %u", g_NumWeightEncodingsStage1, g_NumWeightEncodingsStage2);
 
     debuggingContext.Save(
         CompilationOptions::DebugLevel::Medium, "BestCombination/1_CombinationBasic.dot",

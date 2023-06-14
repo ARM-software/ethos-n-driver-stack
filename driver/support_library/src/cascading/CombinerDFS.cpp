@@ -12,10 +12,13 @@
 #include "EstimationUtils.hpp"
 #include "Plan.hpp"
 #include "StripeHelper.hpp"
+#include <ThreadPool.hpp>
 
 #include <ethosn_utils/Filesystem.hpp>
 
+#include <algorithm>
 #include <fstream>
+#include <future>
 
 namespace ethosn
 {
@@ -1144,6 +1147,69 @@ void Combiner::Run()
 
     const int numParts = static_cast<int>(m_GraphOfParts.GetParts().size());
 
+    // Kick off all stage 1 weight encoding asynchronously for maximum parallelism.
+    // We can't do this inside ChooseBestLonelyPlan, because that is being run on the worker threads
+    // and we can't queue background work from a worker thread (see ThreadPool implementation).
+    {
+        auto startTime = std::chrono::high_resolution_clock::now();
+
+        for (int partIdx = 0; partIdx < numParts; ++partIdx)
+        {
+            m_GraphOfParts.GetPart(partIdx).PreprocessWeightsAsync();
+        }
+
+        auto duration = std::chrono::high_resolution_clock::now() - startTime;
+        g_Logger.Debug("PreprocessWeightsAsync (kick-off): %llu ms", duration.count() / (1000ULL * 1000ULL));
+    }
+
+    // Find the best lonely plan for each part. This is done up front so can be all done in parallel
+    // with each other, as each part is independent.
+    std::vector<Combination> bestLonely(numParts, Combination{});
+    {
+        auto startTime = std::chrono::high_resolution_clock::now();
+
+        std::vector<std::future<void>> waitHandles(numParts);
+        for (int partIdx = 0; partIdx < numParts; ++partIdx)
+        {
+            waitHandles[partIdx] = g_ThreadPool.AddToQueue(
+                [&](int partIdx) { bestLonely[partIdx] = ChooseBestLonelyPlan(m_GraphOfParts.GetPart(partIdx)); },
+                partIdx);
+        }
+        for (const auto& h : waitHandles)
+        {
+            h.wait();
+        }
+
+        auto duration = std::chrono::high_resolution_clock::now() - startTime;
+        g_Logger.Debug("ChooseBestLonelyPlans: %llu ms", duration.count() / (1000ULL * 1000ULL));
+    }
+
+    // Find the best sections of each length, for each different starting part.
+    // This is done up front so can be all done in parallel with each other, as sections from each starting part are independent
+    // so we can do in parallel
+    std::vector<std::vector<Combination>> sectionsOfAllLengthsForStartingPart(numParts);
+    {
+        auto startTime = std::chrono::high_resolution_clock::now();
+        // Loop until the second to last part as the last will never be the start of a section.
+        std::vector<std::future<void>> waitHandles(numParts - 1);
+        for (int partIdx = 0; partIdx < numParts - 1; ++partIdx)
+        {
+            waitHandles[partIdx] = g_ThreadPool.AddToQueue(
+                [&](int partIdx) {
+                    sectionsOfAllLengthsForStartingPart[partIdx] =
+                        CalculateSectionsOfAllLengths(m_GraphOfParts.GetPart(partIdx));
+                },
+                partIdx);
+        }
+        for (const auto& h : waitHandles)
+        {
+            h.wait();
+        }
+
+        auto duration = std::chrono::high_resolution_clock::now() - startTime;
+        g_Logger.Debug("SectionsOfAllLengthsForStartingPart: %llu ms", duration.count() / (1000ULL * 1000ULL));
+    }
+
     // We iterate through all possible (and valid) combinations of lonely (L), start (S), continue (C) and end (E)
     // sections for every Part, and pick the one with the best performance.
     // This is done in a deliberately non-recursive manner to aid
@@ -1164,14 +1230,13 @@ void Combiner::Run()
 
     // The best combination for the final part can only be lonely, so fill this in immediately.
     assert(numParts >= 1);
-    best[numParts - 1] = ChooseBestLonelyPlan(m_GraphOfParts.GetPart(numParts - 1));
+    best[numParts - 1] = bestLonely[numParts - 1];
 
     // Now consider longer tails, working our way up from the shortest
+    auto startTime = std::chrono::high_resolution_clock::now();
     for (int partIdx = numParts - 2; partIdx >= 0; --partIdx)
     {
-        g_Logger.Debug("Combiner progress: %u/%u", (numParts - partIdx), numParts);
-
-        const BasePart& currentPart = m_GraphOfParts.GetPart(partIdx);
+        g_Logger.Verbose("Combiner progress: %u/%u", (numParts - partIdx), numParts);
 
         // Options for this tail are:
         //   - L followed by the best for the rest of the tail, which we will have just calculated on the previous iteration
@@ -1183,14 +1248,14 @@ void Combiner::Run()
         //
         // We calculate the total metric for each of these, and pick the best
 
-        Combination L = ChooseBestLonelyPlan(currentPart) + best[partIdx + 1];
+        Combination L = bestLonely[partIdx] + best[partIdx + 1];
 
         // Assume for now that L is the best, we'll replace this as necessary
         Combination bestTail = L;
 
-        // Generate the SE, SCE, SCCE, etc., combinations, and check the performance of each of them when combined with
-        // the rest of the tail.
-        std::vector<Combination> sections = CalculateSectionsOfAllLengths(currentPart);
+        // Retrieve the SE, SCE, SCCE, etc., combinations (calculated up-front),
+        // and check the performance of each of them when combined with the rest of the tail.
+        const std::vector<Combination>& sections = sectionsOfAllLengthsForStartingPart[partIdx];
         for (int sectionLength = 2; sectionLength <= numParts - partIdx; ++sectionLength)
         {
             const Combination& section = sections[sectionLength];
@@ -1212,6 +1277,9 @@ void Combiner::Run()
         // Store the best combination from this part onwards - we'll re-use this for all the longer tails.
         best[partIdx] = bestTail;
     }
+
+    auto duration = std::chrono::high_resolution_clock::now() - startTime;
+    g_Logger.Debug("FindingBest: %llu ms", duration.count() / (1000ULL * 1000ULL));
 
     // The best combination for the whole graph is simply the one where the tail is the whole graph.
     m_BestCombination = best[0];
@@ -1330,7 +1398,7 @@ std::vector<Combination> Combiner::CalculateSectionsOfAllLengths(const BasePart&
         }
     }
 
-    g_Logger.Debug("CalculateSectionsOfAllLengths: %u iterations", numIterations);
+    g_Logger.Verbose("CalculateSectionsOfAllLengths: %u iterations", numIterations);
 
     return best;
 }

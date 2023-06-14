@@ -35,7 +35,7 @@ public:
                  DataType m_InputDataType,
                  DataType m_OutputDataType,
                  float alpha,
-                 DebuggingContext& debuggingContext)
+                 DebuggingContext&)
         : BasePart(id, "FusedPlePart", std::forward<Ids>(correspondingOperationIds), estOpt, compOpt, capabilities)
         , m_InputTensorShape(inputTensorShape)
         , m_OutputTensorShape(outputTensorShape)
@@ -58,7 +58,7 @@ public:
                             shapeMultiplier,
                             capabilities,
                             m_StripeConfig)
-        , m_WeightEncoderCache{ capabilities, debuggingContext }
+        , m_WeightEncoderCache{ capabilities }
         , m_InputDataType(m_InputDataType)
         , m_OutputDataType(m_OutputDataType)
         , m_Input0Multiplier(0)
@@ -118,6 +118,7 @@ public:
             m_Input1Shift      = alphaShift;
         }
     }
+    FusedPlePart(FusedPlePart&&) = default;
 
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,
@@ -131,6 +132,8 @@ public:
     std::vector<bool> CanInputsTakePleInputSram() const override;
 
     DotAttributes GetDotAttributes(DetailLevel detail) const override;
+
+    void PreprocessWeightsAsync() const override;
 
 private:
     Plans GenerateContinueSectionPlans(ethosn::command_stream::BlockConfig blockConfig,

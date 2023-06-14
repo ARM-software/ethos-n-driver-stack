@@ -42,8 +42,6 @@ public:
         return 100U;
     }
 
-    uint64_t m_TotalWeightCompressionTime;
-
 private:
     using NodeToCreationSourceContainer = std::unordered_map<const void*, std::string>;
     NodeToCreationSourceContainer m_NodeToCreationSource;
