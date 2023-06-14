@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2020,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <fstream>
+#include <iostream>
 #if defined(__unix__)
 #include <unistd.h>
 #endif
@@ -57,19 +58,27 @@ Inference::~Inference()
 {
     if (profiling::g_CurrentConfiguration.m_EnableProfiling)
     {
-        RecordLifetimeEvent(this, profiling::g_InferenceToLifetimeEventId,
-                            profiling::ProfilingEntry::Type::TimelineEventEnd,
-                            profiling::ProfilingEntry::MetadataCategory::InferenceLifetime);
-
-        // Include profiling entries from the firmware if any.
-        profiling::AppendKernelDriverEntries();
-        // Dumping profiling data at inference destruction is convenient because
-        // this is called frequently enough such that there is a good amount of data dumped
-        // but not frequently enough to cause performance regressions.
-        if (profiling::g_DumpFile.size() > 0)
+        try
         {
-            std::ofstream file(profiling::g_DumpFile.c_str(), std::ios_base::out | std::ofstream::binary);
-            profiling::DumpAllProfilingData(file);
+            RecordLifetimeEvent(this, profiling::g_InferenceToLifetimeEventId,
+                                profiling::ProfilingEntry::Type::TimelineEventEnd,
+                                profiling::ProfilingEntry::MetadataCategory::InferenceLifetime);
+
+            // Include profiling entries from the firmware if any.
+            profiling::AppendKernelDriverEntries();
+            // Dumping profiling data at inference destruction is convenient because
+            // this is called frequently enough such that there is a good amount of data dumped
+            // but not frequently enough to cause performance regressions.
+            if (profiling::g_DumpFile.size() > 0)
+            {
+                std::ofstream file(profiling::g_DumpFile.c_str(), std::ios_base::out | std::ofstream::binary);
+                profiling::DumpAllProfilingData(file);
+            }
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "Exception in ~Inference: " << e.what() << std::endl;
+            return;
         }
     }
 }
