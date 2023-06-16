@@ -13,10 +13,6 @@ namespace ethosn
 namespace support_library
 {
 
-/// Global ThreadPool object that can be shared for all uses in the library.
-/// Uses an automatic number of threads based on environment variable
-ThreadPool g_ThreadPool(-1);
-
 ThreadPool::ThreadPool(int n)
     : m_CreationThreadId(std::this_thread::get_id())
 {

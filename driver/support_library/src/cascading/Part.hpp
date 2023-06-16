@@ -21,6 +21,7 @@ namespace support_library
 
 class Buffer;
 class SramBuffer;
+class ThreadPool;
 
 struct BoundaryRequirements
 {

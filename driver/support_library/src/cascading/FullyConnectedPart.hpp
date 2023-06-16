@@ -17,46 +17,41 @@ namespace support_library
 class FullyConnectedPart : public McePart
 {
 public:
-    template <typename Ids, typename Weights, typename Biases>
-    FullyConnectedPart(PartId id,
-                       const TensorShape& inputTensorShape,
-                       const TensorShape& reinterpretedInputShape,
-                       const TensorShape& outputTensorShape,
-                       const QuantizationInfo& inputQuantizationInfo,
-                       const QuantizationInfo& outputQuantizationInfo,
-                       const TensorInfo& weightsInfo,
-                       Weights&& weightsData,
-                       const TensorInfo& biasInfo,
-                       Biases&& biasData,
-                       const EstimationOptions& estOpt,
-                       const CompilationOptions& compOpt,
-                       const HardwareCapabilities& capabilities,
-                       Ids&& operationIds,
-                       DataType inputDataType,
-                       DataType outputDataType,
-                       DebuggingContext& debuggingContext)
-        : McePart(id,
-                  reinterpretedInputShape,
-                  outputTensorShape,
-                  inputQuantizationInfo,
-                  outputQuantizationInfo,
-                  weightsInfo,
-                  std::forward<Weights>(weightsData),
-                  biasInfo,
-                  std::forward<Biases>(biasData),
-                  Stride{},
-                  0,
-                  0,
-                  command_stream::MceOperation::FULLY_CONNECTED,
-                  estOpt,
-                  compOpt,
-                  capabilities,
-                  std::forward<Ids>(operationIds),
-                  inputDataType,
-                  outputDataType,
-                  debuggingContext)
-        , m_OriginalInputShape(inputTensorShape)
-    {}
+    struct ConstructionParams
+    {
+        ConstructionParams(const EstimationOptions& estOpt,
+                           const CompilationOptions& compOpt,
+                           const HardwareCapabilities& capabilities,
+                           DebuggingContext& debuggingContext,
+                           ThreadPool& threadPool)
+            : m_EstOpt{ estOpt }
+            , m_CompOpt{ compOpt }
+            , m_Capabilities{ capabilities }
+            , m_DebuggingContext(debuggingContext)
+            , m_ThreadPool(threadPool)
+        {}
+
+        PartId m_Id                                 = 0xFFFFFFFF;
+        TensorShape m_InputTensorShape              = {};
+        TensorShape m_ReinterpretedInputTensorShape = {};
+        TensorShape m_OutputTensorShape             = {};
+        QuantizationInfo m_InputQuantizationInfo;
+        QuantizationInfo m_OutputQuantizationInfo;
+        TensorInfo m_WeightsInfo;
+        std::vector<uint8_t> m_WeightsData;
+        TensorInfo m_BiasInfo;
+        std::vector<int32_t> m_BiasData;
+        const EstimationOptions& m_EstOpt;
+        const CompilationOptions& m_CompOpt;
+        const HardwareCapabilities& m_Capabilities;
+        std::set<uint32_t> m_OperationIds;
+        DataType m_InputDataType  = DataType::UINT8_QUANTIZED;
+        DataType m_OutputDataType = DataType::UINT8_QUANTIZED;
+        DebuggingContext& m_DebuggingContext;
+        ThreadPool& m_ThreadPool;
+    };
+
+    FullyConnectedPart(ConstructionParams&& params);
 
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,

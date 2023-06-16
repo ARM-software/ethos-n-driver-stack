@@ -6,6 +6,7 @@
 #include "CapabilitiesInternal.hpp"
 #include "GlobalParameters.hpp"
 #include "TestUtils.hpp"
+#include "ThreadPool.hpp"
 #include "Utils.hpp"
 #include "cascading/Cascading.hpp"
 #include "cascading/McePart.hpp"
@@ -46,9 +47,10 @@ McePart BuildPart(TensorShape inputShape,
                   const CompilationOptions& compOpt,
                   const HardwareCapabilities& caps,
                   const EstimationOptions& estOpts,
-                  DebuggingContext& debuggingContext)
+                  DebuggingContext& debuggingContext,
+                  ThreadPool& threadPool)
 {
-    McePart::ConstructionParams params(estOpts, compOpt, caps, debuggingContext);
+    McePart::ConstructionParams params(estOpts, compOpt, caps, debuggingContext, threadPool);
     params.m_Id                     = 0;
     params.m_InputTensorShape       = inputShape;
     params.m_OutputTensorShape      = outputShape;
@@ -87,10 +89,11 @@ McePart BuildPart(TensorShape inputShape,
                   const CompilationOptions& compOpt,
                   const HardwareCapabilities& caps,
                   const EstimationOptions& estOpts,
-                  DebuggingContext& debuggingContext)
+                  DebuggingContext& debuggingContext,
+                  ThreadPool& threadPool)
 {
     return BuildPart(inputShape, outputShape, weightShape, op, stride, padTop, padLeft, 1, MceUpsampleType::OFF,
-                     compOpt, caps, estOpts, debuggingContext);
+                     compOpt, caps, estOpts, debuggingContext, threadPool);
 }
 
 McePart BuildPart(TensorShape inputShape,
@@ -100,10 +103,11 @@ McePart BuildPart(TensorShape inputShape,
                   const CompilationOptions& compOpt,
                   const HardwareCapabilities& caps,
                   const EstimationOptions& estOpts,
-                  DebuggingContext& debuggingContext)
+                  DebuggingContext& debuggingContext,
+                  ThreadPool& threadPool)
 {
     return BuildPart(inputShape, outputShape, weightShape, op, Stride(1, 1), 0, 0, compOpt, caps, estOpts,
-                     debuggingContext);
+                     debuggingContext, threadPool);
 }
 
 struct PlanDesc
@@ -655,6 +659,7 @@ TEST_CASE("McePart GetPlans structure")
         EstimationOptions estOps;
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
         DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+        ThreadPool threadPool(0);
 
         const PartId partId = 0;
         TensorShape tsIn    = { 1, 32, 16, 3 };
@@ -671,9 +676,30 @@ TEST_CASE("McePart GetPlans structure")
         const Stride stride                     = {};
         const uint32_t padTop                   = 0;
         const uint32_t padLeft                  = 0;
-        McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, std::move(weights),
-                     biasTensorInfo, std::move(bias), stride, padTop, padLeft, csOp, estOps, compOpt, caps,
-                     operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, debuggingContext);
+
+        McePart::ConstructionParams mcePartParams(estOps, compOpt, caps, debuggingContext, threadPool);
+        mcePartParams.m_Id                     = partId;
+        mcePartParams.m_InputTensorShape       = tsIn;
+        mcePartParams.m_OutputTensorShape      = tsOut;
+        mcePartParams.m_InputQuantizationInfo  = inputQuantInfo;
+        mcePartParams.m_OutputQuantizationInfo = outputQuantInfo;
+        mcePartParams.m_WeightsInfo            = weightsTensorInfo;
+        mcePartParams.m_WeightsData            = std::move(weights);
+        mcePartParams.m_BiasInfo               = biasTensorInfo;
+        mcePartParams.m_BiasData               = std::move(bias);
+        mcePartParams.m_Op                     = csOp;
+        mcePartParams.m_OperationIds           = operationIds;
+        mcePartParams.m_Stride                 = stride;
+        mcePartParams.m_PadTop                 = padTop;
+        mcePartParams.m_PadLeft                = padLeft;
+        mcePartParams.m_UpscaleFactor          = 1;
+        mcePartParams.m_UpsampleType           = MceUpsampleType::OFF;
+        mcePartParams.m_InputDataType          = DataType::UINT8_QUANTIZED;
+        mcePartParams.m_OutputDataType         = DataType::UINT8_QUANTIZED;
+        mcePartParams.m_LowerBound             = 0;
+        mcePartParams.m_UpperBound             = 255;
+        McePart part(std::move(mcePartParams));
+
         part.SetOutputRequirements({ BoundaryRequirements{} }, { false });
 
         CheckPlansParams params;
@@ -838,6 +864,7 @@ TEST_CASE("McePart End Cascade full tensor")
         EstimationOptions estOps;
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
         DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+        ThreadPool threadPool(0);
 
         const PartId partId = 0;
         TensorShape tsIn    = { 1, 19, 19, 256 };
@@ -854,9 +881,30 @@ TEST_CASE("McePart End Cascade full tensor")
         const Stride stride                     = {};
         const uint32_t padTop                   = 0;
         const uint32_t padLeft                  = 0;
-        McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, std::move(weights),
-                     biasTensorInfo, std::move(bias), stride, padTop, padLeft, csOp, estOps, compOpt, caps,
-                     operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, debuggingContext);
+
+        McePart::ConstructionParams mcePartParams(estOps, compOpt, caps, debuggingContext, threadPool);
+        mcePartParams.m_Id                     = partId;
+        mcePartParams.m_InputTensorShape       = tsIn;
+        mcePartParams.m_OutputTensorShape      = tsOut;
+        mcePartParams.m_InputQuantizationInfo  = inputQuantInfo;
+        mcePartParams.m_OutputQuantizationInfo = outputQuantInfo;
+        mcePartParams.m_WeightsInfo            = weightsTensorInfo;
+        mcePartParams.m_WeightsData            = std::move(weights);
+        mcePartParams.m_BiasInfo               = biasTensorInfo;
+        mcePartParams.m_BiasData               = std::move(bias);
+        mcePartParams.m_Op                     = csOp;
+        mcePartParams.m_OperationIds           = operationIds;
+        mcePartParams.m_Stride                 = stride;
+        mcePartParams.m_PadTop                 = padTop;
+        mcePartParams.m_PadLeft                = padLeft;
+        mcePartParams.m_UpscaleFactor          = 1;
+        mcePartParams.m_UpsampleType           = MceUpsampleType::OFF;
+        mcePartParams.m_InputDataType          = DataType::UINT8_QUANTIZED;
+        mcePartParams.m_OutputDataType         = DataType::UINT8_QUANTIZED;
+        mcePartParams.m_LowerBound             = 0;
+        mcePartParams.m_UpperBound             = 255;
+        McePart part(std::move(mcePartParams));
+
         part.SetOutputRequirements({ BoundaryRequirements{} }, { false });
 
         CheckPlansParams params;
@@ -925,13 +973,14 @@ TEST_CASE("McePart GetPlans Strategy3", "[slow]")
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
         const EstimationOptions estOpts;
         DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+        ThreadPool threadPool(0);
 
         TensorShape inputShape{ 1, 16, 16, 16 };
         TensorShape outputShape{ 1, 16, 16, 16 };
         TensorShape weightShape{ 1, 1, 16, 16 };
 
         McePart part = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
-                                 compOpt, caps, estOpts, debuggingContext);
+                                 compOpt, caps, estOpts, debuggingContext, threadPool);
 
         WHEN("Asked to generate plans")
         {
@@ -1000,13 +1049,14 @@ TEST_CASE("McePart GetPlans Strategy0", "[slow]")
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
         const EstimationOptions estOpts;
         DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+        ThreadPool threadPool(0);
 
         TensorShape inputShape{ 1, 32, 16, 16 };
         TensorShape outputShape{ 1, 32, 16, 16 };
         TensorShape weightShape{ 1, 1, 16, 16 };
 
         McePart part = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
-                                 compOpt, caps, estOpts, debuggingContext);
+                                 compOpt, caps, estOpts, debuggingContext, threadPool);
 
         WHEN("Asked to generate plans")
         {
@@ -1074,13 +1124,14 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
         const EstimationOptions estOpts;
         DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+        ThreadPool threadPool(0);
 
         TensorShape inputShape{ 1, 16, 16, 16 };
         TensorShape outputShape{ 1, 16, 16, 16 };
         TensorShape weightShape{ 1, 1, 16, 16 };
 
         McePart part = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
-                                 compOpt, caps, estOpts, debuggingContext);
+                                 compOpt, caps, estOpts, debuggingContext, threadPool);
 
         WHEN("Asked to generate plans with a specific block config, Sram Buffer, and the number of weight stripes")
         {
@@ -1185,19 +1236,20 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
         const EstimationOptions estOpts;
         DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+        ThreadPool threadPool(0);
 
         TensorShape inputShape{ 1, 16, 16, 16 };
         TensorShape outputShape{ 1, 16, 16, 16 };
         TensorShape weightShape{ 1, 1, 16, 16 };
 
         McePart part0 = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
-                                  compOpt, caps, estOpts, debuggingContext);
+                                  compOpt, caps, estOpts, debuggingContext, threadPool);
         SramBuffer* part0OutputBuffer = nullptr;
         McePart part1 = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
-                                  compOpt, caps, estOpts, debuggingContext);
+                                  compOpt, caps, estOpts, debuggingContext, threadPool);
         SramBuffer* part1OutputBuffer = nullptr;
         McePart part2 = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
-                                  compOpt, caps, estOpts, debuggingContext);
+                                  compOpt, caps, estOpts, debuggingContext, threadPool);
 
         WHEN("Asked to generate plans for the beginning, middle and end of a cascade")
         {
@@ -1290,13 +1342,14 @@ TEST_CASE("McePart GetPlans Winograd")
         const HardwareCapabilities caps = GetEthosN78HwCapabilities();
         const EstimationOptions estOpts;
         DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+        ThreadPool threadPool(0);
 
         const uint32_t numIfms = 128;
         const uint32_t numOfms = 256;
         TensorShape tsIn       = { 1, 32, 32, numIfms };
         TensorShape tsOut      = { 1, 64, 64, numOfms };
         McePart part = BuildPart(tsIn, tsOut, { 3, 3, numIfms, numOfms }, command_stream::MceOperation::CONVOLUTION,
-                                 Stride{ 1, 1 }, 1, 1, compOpt, caps, estOpts, debuggingContext);
+                                 Stride{ 1, 1 }, 1, 1, compOpt, caps, estOpts, debuggingContext, threadPool);
 
         WHEN("Asked to generate plans")
         {
@@ -1338,6 +1391,7 @@ TEST_CASE("McePart GetPlans Split input in height and width in the case of block
         const HardwareCapabilities caps = GetEthosN78HwCapabilities();
         const EstimationOptions estOpts;
         DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+        ThreadPool threadPool(0);
 
         const uint32_t channels       = 256u;
         const uint32_t widthAndHeight = utils::DivRoundUp(caps.GetTotalSramSize(), 8u * channels);
@@ -1345,7 +1399,7 @@ TEST_CASE("McePart GetPlans Split input in height and width in the case of block
         TensorShape tsIn  = { 1, widthAndHeight, widthAndHeight, channels };
         TensorShape tsOut = { 1, widthAndHeight, widthAndHeight, 64 };
         McePart part      = BuildPart(tsIn, tsOut, { 1, 1, channels, 64 }, command_stream::MceOperation::CONVOLUTION,
-                                 Stride{ 2U, 2U }, 0, 0, compOpt, caps, estOpts, debuggingContext);
+                                 Stride{ 2U, 2U }, 0, 0, compOpt, caps, estOpts, debuggingContext, threadPool);
 
         WHEN("Asked to generate plans")
         {
@@ -1379,6 +1433,7 @@ TEST_CASE("McePart GetPlans Split output in depth")
         const HardwareCapabilities caps = GetEthosN78HwCapabilities();
         const EstimationOptions estOpts;
         DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+        ThreadPool threadPool(0);
 
         const command_stream::BlockConfig blockConfig = { 8u, 8u };
         const uint32_t channels =
@@ -1388,7 +1443,7 @@ TEST_CASE("McePart GetPlans Split output in depth")
         TensorShape outputShape{ 1, 8, 8, channels };
         TensorShape weightShape{ 3, 3, 32, channels };
         McePart part = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
-                                 Stride{ 1, 1 }, 1, 1, compOpt, caps, estOpts, debuggingContext);
+                                 Stride{ 1, 1 }, 1, 1, compOpt, caps, estOpts, debuggingContext, threadPool);
 
         WHEN("Asked to generate plans")
         {
@@ -1450,6 +1505,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
     const CompilationOptions compOpt;
     const EstimationOptions estOpts;
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    ThreadPool threadPool(0);
     SECTION("8TOPS_2PLE_RATIO")
     {
         // Choose the largest variant in order to have the most cascading. In this case, all Parts can be cascaded into a single 'strategy 1' section.
@@ -1473,7 +1529,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             TensorShape outputShape{ 1, 112, 112, 32 };
             TensorShape weightShape{ 3, 3, 3, 32 };
             McePart part = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
-                                     Stride{ 2u, 2u }, 1, 1, compOpt, caps, estOpts, debuggingContext);
+                                     Stride{ 2u, 2u }, 1, 1, compOpt, caps, estOpts, debuggingContext, threadPool);
 
             std::unique_ptr<SramBuffer> prevBuffer =
                 SramBuffer::Build()
@@ -1521,7 +1577,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             TensorShape weightShape{ 3, 3, 32, 1 };
             McePart part =
                 BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
-                          Stride{ 1, 1 }, 1, 1, compOpt, caps, estOpts, debuggingContext);
+                          Stride{ 1, 1 }, 1, 1, compOpt, caps, estOpts, debuggingContext, threadPool);
 
             std::unique_ptr<SramBuffer> prevBuffer =
                 SramBuffer::Build()
@@ -1565,7 +1621,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             TensorShape outputShape{ 1, 112, 112, 64 };
             TensorShape weightShape{ 1, 1, 32, 64 };
             McePart part = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
-                                     Stride{ 1, 1 }, 0, 0, compOpt, caps, estOpts, debuggingContext);
+                                     Stride{ 1, 1 }, 0, 0, compOpt, caps, estOpts, debuggingContext, threadPool);
             part.SetOutputRequirements({ BoundaryRequirements{} }, { true });
 
             std::unique_ptr<SramBuffer> prevBuffer =
@@ -1609,7 +1665,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             TensorShape weightShape{ 3, 3, 64, 1 };
             McePart part =
                 BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
-                          Stride{ 2, 2 }, 1, 1, compOpt, caps, estOpts, debuggingContext);
+                          Stride{ 2, 2 }, 1, 1, compOpt, caps, estOpts, debuggingContext, threadPool);
 
             std::unique_ptr<SramBuffer> prevBuffer =
                 SramBuffer::Build()
@@ -1653,7 +1709,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             TensorShape outputShape{ 1, 56, 56, 128 };
             TensorShape weightShape{ 1, 1, 64, 128 };
             McePart part = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
-                                     Stride{ 1, 1 }, 0, 0, compOpt, caps, estOpts, debuggingContext);
+                                     Stride{ 1, 1 }, 0, 0, compOpt, caps, estOpts, debuggingContext, threadPool);
 
             std::unique_ptr<SramBuffer> prevBuffer =
                 SramBuffer::Build()
@@ -1698,7 +1754,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             TensorShape weightShape{ 3, 3, 128, 1 };
             McePart part =
                 BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
-                          Stride{ 1, 1 }, 1, 1, compOpt, caps, estOpts, debuggingContext);
+                          Stride{ 1, 1 }, 1, 1, compOpt, caps, estOpts, debuggingContext, threadPool);
 
             std::unique_ptr<SramBuffer> prevBuffer =
                 SramBuffer::Build()
@@ -1742,7 +1798,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             TensorShape outputShape{ 1, 56, 56, 128 };
             TensorShape weightShape{ 1, 1, 128, 128 };
             McePart part = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
-                                     Stride{ 1, 1 }, 0, 0, compOpt, caps, estOpts, debuggingContext);
+                                     Stride{ 1, 1 }, 0, 0, compOpt, caps, estOpts, debuggingContext, threadPool);
             part.SetOutputRequirements({ BoundaryRequirements{} }, { true });
 
             std::unique_ptr<SramBuffer> prevBuffer =
@@ -1788,11 +1844,13 @@ TEST_CASE("McePart GetPlans Upsampling")
         const HardwareCapabilities caps = GetEthosN78HwCapabilities();
         const EstimationOptions estOpts;
         DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+        ThreadPool threadPool(0);
 
         TensorShape tsIn  = { 1, 64, 64, 16 };
         TensorShape tsOut = { 1, 128, 128, 16 };
-        McePart part = BuildPart(tsIn, tsOut, { 1, 1, 16, 16 }, command_stream::MceOperation::CONVOLUTION, Stride{}, 0,
-                                 0, 2, MceUpsampleType::NEAREST_NEIGHBOUR, compOpt, caps, estOpts, debuggingContext);
+        McePart part =
+            BuildPart(tsIn, tsOut, { 1, 1, 16, 16 }, command_stream::MceOperation::CONVOLUTION, Stride{}, 0, 0, 2,
+                      MceUpsampleType::NEAREST_NEIGHBOUR, compOpt, caps, estOpts, debuggingContext, threadPool);
 
         WHEN("Asked to generate Lonely plans")
         {
@@ -1870,19 +1928,21 @@ TEST_CASE("McePart/MergeWithChannelSelectorBefore/Fail")
     const HardwareCapabilities caps = GetEthosN78HwCapabilities();
     const EstimationOptions estOpts;
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    ThreadPool threadPool(0);
 
     TensorShape tsIn  = { 1, 64, 64, 16 };
     TensorShape tsOut = { 1, 128, 128, 16 };
     {
-        McePart part = BuildPart(tsIn, tsOut, { 1, 1, 16, 16 }, command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
-                                 Stride{}, 0, 0, 1, MceUpsampleType::OFF, compOpt, caps, estOpts, debuggingContext);
+        McePart part =
+            BuildPart(tsIn, tsOut, { 1, 1, 16, 16 }, command_stream::MceOperation::DEPTHWISE_CONVOLUTION, Stride{}, 0,
+                      0, 1, MceUpsampleType::OFF, compOpt, caps, estOpts, debuggingContext, threadPool);
         // Can't be merged because it's depthwise
         CHECK(part.MergeWithChannelSelectorBefore(ConstTensorData(nullptr, TensorShape())) == false);
     }
 
     {
         McePart part = BuildPart(tsIn, tsOut, { 3, 3, 16, 16 }, command_stream::MceOperation::CONVOLUTION, Stride{}, 0,
-                                 0, 1, MceUpsampleType::OFF, compOpt, caps, estOpts, debuggingContext);
+                                 0, 1, MceUpsampleType::OFF, compOpt, caps, estOpts, debuggingContext, threadPool);
         // Can't be merged because it would be worse performance
         CHECK(part.MergeWithChannelSelectorBefore(ConstTensorData(nullptr, TensorShape{ 1, 1, 100, 16 })) == false);
     }
@@ -1894,11 +1954,12 @@ TEST_CASE("McePart/MergeWithChannelSelectorBefore/Success")
     const HardwareCapabilities caps = GetEthosN78HwCapabilities();
     const EstimationOptions estOpts;
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    ThreadPool threadPool(0);
 
     TensorShape tsIn  = { 1, 16, 16, 3 };
     TensorShape tsOut = { 1, 16, 16, 5 };
 
-    McePart::ConstructionParams params(estOpts, compOpt, caps, debuggingContext);
+    McePart::ConstructionParams params(estOpts, compOpt, caps, debuggingContext, threadPool);
     params.m_Id                             = 0;
     params.m_InputTensorShape               = tsIn;
     params.m_OutputTensorShape              = tsOut;
@@ -1946,10 +2007,10 @@ TEST_CASE("McePart/MergeWithChannelSelectorBefore/Success")
     // Weights have been resized and rearranged
     // clang-format off
     CHECK(part.GetWeightsData() == std::vector<uint8_t>{
-        1,  2,   3,  4,  5,
-        0,  0,   0,  0,  0,
-        0,  0,   0,  0,  0,
-        11, 12, 13, 14, 15,
+        1, 2, 3, 4, 5,
+            0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0,
+            11, 12, 13, 14, 15,
     });
     // clang-format on
 }
@@ -1960,19 +2021,21 @@ TEST_CASE("McePart/MergeWithChannelSelectorAfter/Fail")
     const HardwareCapabilities caps = GetEthosN78HwCapabilities();
     const EstimationOptions estOpts;
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    ThreadPool threadPool(0);
 
     TensorShape tsIn  = { 1, 64, 64, 16 };
     TensorShape tsOut = { 1, 128, 128, 16 };
     {
-        McePart part = BuildPart(tsIn, tsOut, { 1, 1, 16, 16 }, command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
-                                 Stride{}, 0, 0, 1, MceUpsampleType::OFF, compOpt, caps, estOpts, debuggingContext);
+        McePart part =
+            BuildPart(tsIn, tsOut, { 1, 1, 16, 16 }, command_stream::MceOperation::DEPTHWISE_CONVOLUTION, Stride{}, 0,
+                      0, 1, MceUpsampleType::OFF, compOpt, caps, estOpts, debuggingContext, threadPool);
         // Can't be merged because it's depthwise
         CHECK(part.MergeWithChannelSelectorAfter(ConstTensorData(nullptr, TensorShape())) == false);
     }
 
     {
         McePart part = BuildPart(tsIn, tsOut, { 3, 3, 16, 16 }, command_stream::MceOperation::CONVOLUTION, Stride{}, 0,
-                                 0, 1, MceUpsampleType::OFF, compOpt, caps, estOpts, debuggingContext);
+                                 0, 1, MceUpsampleType::OFF, compOpt, caps, estOpts, debuggingContext, threadPool);
         // Can't be merged because it would be worse performance
         CHECK(part.MergeWithChannelSelectorAfter(ConstTensorData(nullptr, TensorShape{ 1, 1, 16, 100 })) == false);
     }
@@ -1984,11 +2047,12 @@ TEST_CASE("McePart/MergeWithChannelSelectorAfter/Success")
     const HardwareCapabilities caps = GetEthosN78HwCapabilities();
     const EstimationOptions estOpts;
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    ThreadPool threadPool(0);
 
     TensorShape tsIn  = { 1, 16, 16, 3 };
     TensorShape tsOut = { 1, 16, 16, 4 };
 
-    McePart::ConstructionParams params(estOpts, compOpt, caps, debuggingContext);
+    McePart::ConstructionParams params(estOpts, compOpt, caps, debuggingContext, threadPool);
     params.m_Id                             = 0;
     params.m_InputTensorShape               = tsIn;
     params.m_OutputTensorShape              = tsOut;

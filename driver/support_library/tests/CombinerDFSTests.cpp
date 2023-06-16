@@ -4,6 +4,7 @@
 
 #include "../src/DebuggingContext.hpp"
 #include "../src/SramAllocator.hpp"
+#include "../src/ThreadPool.hpp"
 #include "../src/cascading/Cascading.hpp"
 #include "../src/cascading/CombinerDFS.hpp"
 #include "../src/cascading/ConcatPart.hpp"
@@ -198,10 +199,11 @@ TEST_CASE("DoubleBufferingTestVariant_PleKernelsOnly", "[CombinerDFS]")
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+    ThreadPool threadPool(0);
 
     FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
     CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
-    combiner.Run();
+    combiner.Run(threadPool);
     Combination comb = combiner.GetBestCombination();
 
     // The network consists of mocked Ple kernels without weights, hence no double buffering should be taking place.
@@ -276,10 +278,11 @@ TEST_CASE("DoubleBufferingTestVariant_SinglePartSection", "[CombinerDFS]")
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+    ThreadPool threadPool(0);
 
     FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
     CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
-    combiner.Run();
+    combiner.Run(threadPool);
     Combination comb = combiner.GetBestCombination();
 
     // The network consists of mocked Mce and Ple kernels with and without weights, hence only the first Mce should be double buffered.
@@ -356,10 +359,11 @@ TEST_CASE("DoubleBufferingTestVariant_McePleMce", "[CombinerDFS]")
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+    ThreadPool threadPool(0);
 
     FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
     CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
-    combiner.Run();
+    combiner.Run(threadPool);
     Combination comb = combiner.GetBestCombination();
 
     // The network consists of mocked Mce and Ple kernels with and without weights, hence only the first Mce should be double buffered.
@@ -434,10 +438,11 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMce", "[CombinerDFS]")
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+    ThreadPool threadPool(0);
 
     FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
     CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
-    combiner.Run();
+    combiner.Run(threadPool);
     Combination comb = combiner.GetBestCombination();
 
     // The network consists of mocked Mce and Ple kernels with and without weights, hence only the first Mce should be double buffered.
@@ -522,10 +527,11 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMcePle", "[CombinerDFS]")
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+    ThreadPool threadPool(0);
 
     FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
     CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
-    combiner.Run();
+    combiner.Run(threadPool);
     Combination comb = combiner.GetBestCombination();
 
     // The network consists of mocked Mce and Ple kernels with and without weights, hence only the first Mce should be double buffered.

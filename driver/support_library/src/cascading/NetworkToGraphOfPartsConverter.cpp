@@ -40,7 +40,7 @@ std::unique_ptr<McePart> NetworkToGraphOfPartsConverter::CreateIdentityMcePart(c
                                                                                const CompilationOptions& compOpt,
                                                                                const HardwareCapabilities& capabilities)
 {
-    McePart::ConstructionParams params(estOpt, compOpt, capabilities, m_DebuggingContext);
+    McePart::ConstructionParams params(estOpt, compOpt, capabilities, m_DebuggingContext, m_ThreadPool);
     params.m_Id                     = m_GraphOfParts.GeneratePartId();
     params.m_InputTensorShape       = shape;
     params.m_OutputTensorShape      = shape;
@@ -78,7 +78,8 @@ std::unique_ptr<McePart>
                                                   const CompilationOptions& compOpt,
                                                   const HardwareCapabilities& capabilities,
                                                   const std::vector<std::pair<uint32_t, uint32_t>>& padAmounts,
-                                                  DebuggingContext& debuggingContext)
+                                                  DebuggingContext& debuggingContext,
+                                                  ThreadPool& threadPool)
 {
     uint32_t numOfm = GetChannels(shape);
     for (size_t i = 0; i < padAmounts.size(); ++i)
@@ -86,7 +87,7 @@ std::unique_ptr<McePart>
         numOfm += padAmounts[i].second;
     }
 
-    McePart::ConstructionParams params(estOpt, compOpt, capabilities, debuggingContext);
+    McePart::ConstructionParams params(estOpt, compOpt, capabilities, debuggingContext, threadPool);
     params.m_Id                     = partId;
     params.m_InputTensorShape       = shape;
     params.m_OutputTensorShape      = { shape[0], shape[1], shape[2], numOfm };
@@ -150,7 +151,8 @@ std::unique_ptr<McePart>
                                                   const CompilationOptions& compOpt,
                                                   const HardwareCapabilities& capabilities,
                                                   const std::vector<std::pair<uint32_t, uint32_t>>& removeAmounts,
-                                                  DebuggingContext& debuggingContext)
+                                                  DebuggingContext& debuggingContext,
+                                                  ThreadPool& threadPool)
 {
     uint32_t numOfm = GetChannels(shape);
     for (size_t i = 0; i < removeAmounts.size(); ++i)
@@ -158,7 +160,7 @@ std::unique_ptr<McePart>
         numOfm -= removeAmounts[i].second;
     }
 
-    McePart::ConstructionParams params(estOpt, compOpt, capabilities, debuggingContext);
+    McePart::ConstructionParams params(estOpt, compOpt, capabilities, debuggingContext, threadPool);
     params.m_Id                     = partId;
     params.m_InputTensorShape       = shape;
     params.m_OutputTensorShape      = { shape[0], shape[1], shape[2], numOfm };
@@ -209,12 +211,14 @@ NetworkToGraphOfPartsConverter::NetworkToGraphOfPartsConverter(const Network& ne
                                                                const HardwareCapabilities& capabilities,
                                                                const EstimationOptions& estimationOptions,
                                                                const CompilationOptions& compilationOptions,
-                                                               DebuggingContext& debuggingContext)
+                                                               DebuggingContext& debuggingContext,
+                                                               ThreadPool& threadPool)
     : m_Capabilities(capabilities)
     , m_EstimationOptions(estimationOptions)
     , m_CompilationOptions(compilationOptions)
     , m_DebuggingContext(debuggingContext)
     , m_Queries(capabilities.GetData(), true)
+    , m_ThreadPool(threadPool)
 {
     network.Accept(*this);
 }
@@ -334,7 +338,7 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
                                         { convInfo.m_Stride.m_X * convInfo.m_Stride.m_Y } },
                 m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
                 std::set<uint32_t>{ depthwise.GetId(), depthwise.GetBias().GetId(), depthwise.GetWeights().GetId() },
-                mceOperationInput.m_DataType, mceOperationOutput.m_DataType, 0.0f, m_DebuggingContext);
+                mceOperationInput.m_DataType, mceOperationOutput.m_DataType, 0.0f, m_DebuggingContext, m_ThreadPool);
 
             parts.push_back(fusedPlePart.get());
             m_GraphOfParts.AddPart(std::move(fusedPlePart));
@@ -353,17 +357,31 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
         }
 
         // We don't use winograd for depthwise convolution
-        auto mcePart = std::make_unique<McePart>(
-            m_GraphOfParts.GeneratePartId(), mceOperationInput.m_Dimensions,
-            depthwise.GetOutput(0).GetTensorInfo().m_Dimensions, mceOperationInput.m_QuantizationInfo,
-            depthwise.GetOutput(0).GetTensorInfo().m_QuantizationInfo, weightsTensorInfo,
-            OverrideWeights(depthwise.GetWeights().GetDataVector(), weightsTensorInfo),
-            depthwise.GetBias().GetTensorInfo(), GetDataVectorAs<int32_t, uint8_t>(depthwise.GetBias().GetDataVector()),
-            depthwise.GetConvolutionInfo().m_Stride, depthwise.GetConvolutionInfo().m_Padding.m_Top,
-            depthwise.GetConvolutionInfo().m_Padding.m_Left, operation, m_EstimationOptions.value(),
-            m_CompilationOptions, m_Capabilities,
-            std::set<uint32_t>{ depthwise.GetId(), depthwise.GetBias().GetId(), depthwise.GetWeights().GetId() },
-            mceOperationInput.m_DataType, mceOperationOutput.m_DataType, m_DebuggingContext);
+        McePart::ConstructionParams params(m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+                                           m_DebuggingContext, m_ThreadPool);
+        params.m_Id                     = m_GraphOfParts.GeneratePartId();
+        params.m_InputTensorShape       = mceOperationInput.m_Dimensions;
+        params.m_OutputTensorShape      = depthwise.GetOutput(0).GetTensorInfo().m_Dimensions;
+        params.m_InputQuantizationInfo  = mceOperationInput.m_QuantizationInfo;
+        params.m_OutputQuantizationInfo = depthwise.GetOutput(0).GetTensorInfo().m_QuantizationInfo;
+        params.m_WeightsInfo            = weightsTensorInfo;
+        params.m_WeightsData            = OverrideWeights(depthwise.GetWeights().GetDataVector(), weightsTensorInfo);
+        params.m_BiasInfo               = depthwise.GetBias().GetTensorInfo();
+        params.m_BiasData               = GetDataVectorAs<int32_t, uint8_t>(depthwise.GetBias().GetDataVector());
+        params.m_Op                     = operation;
+        params.m_OperationIds =
+            std::set<uint32_t>{ depthwise.GetId(), depthwise.GetBias().GetId(), depthwise.GetWeights().GetId() };
+        params.m_Stride            = depthwise.GetConvolutionInfo().m_Stride;
+        params.m_PadTop            = depthwise.GetConvolutionInfo().m_Padding.m_Top;
+        params.m_PadLeft           = depthwise.GetConvolutionInfo().m_Padding.m_Left;
+        params.m_UpscaleFactor     = 1;
+        params.m_UpsampleType      = MceUpsampleType::OFF;
+        params.m_InputDataType     = mceOperationInput.m_DataType;
+        params.m_OutputDataType    = mceOperationOutput.m_DataType;
+        params.m_LowerBound        = mceOperationOutput.m_DataType == DataType::UINT8_QUANTIZED ? 0 : -128;
+        params.m_UpperBound        = mceOperationOutput.m_DataType == DataType::UINT8_QUANTIZED ? 255 : 127;
+        params.m_IsChannelSelector = false;
+        auto mcePart               = std::make_unique<McePart>(std::move(params));
 
         if (convInfo.m_Stride.m_X > 1 || convInfo.m_Stride.m_Y > 1)
         {
@@ -436,7 +454,7 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
                 m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
                 std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(),
                                     convolution.GetWeights().GetId() },
-                mceOperationInput.m_DataType, mceOperationOutput.m_DataType, 0.0f, m_DebuggingContext);
+                mceOperationInput.m_DataType, mceOperationOutput.m_DataType, 0.0f, m_DebuggingContext, m_ThreadPool);
             parts.push_back(fusedPlePart.get());
             m_GraphOfParts.AddPart(std::move(fusedPlePart));
 
@@ -449,18 +467,32 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
             mcePartInputTensor = convolution.GetInput(0).GetTensorInfo();
         }
 
-        auto mcePart = std::make_unique<McePart>(
-            m_GraphOfParts.GeneratePartId(), mcePartInputTensor.m_Dimensions,
-            convolution.GetOutput(0).GetTensorInfo().m_Dimensions, mcePartInputTensor.m_QuantizationInfo,
-            convolution.GetOutput(0).GetTensorInfo().m_QuantizationInfo, convolution.GetWeights().GetTensorInfo(),
-            OverrideWeights(convolution.GetWeights().GetDataVector(), convolution.GetWeights().GetTensorInfo()),
-            convolution.GetBias().GetTensorInfo(),
-            GetDataVectorAs<int32_t, uint8_t>(convolution.GetBias().GetDataVector()),
-            convolution.GetConvolutionInfo().m_Stride, convolution.GetConvolutionInfo().m_Padding.m_Top,
-            convolution.GetConvolutionInfo().m_Padding.m_Left, command_stream::MceOperation::CONVOLUTION,
-            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-            std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(), convolution.GetWeights().GetId() },
-            mceOperationInput.m_DataType, mceOperationOutput.m_DataType, m_DebuggingContext);
+        McePart::ConstructionParams params(m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+                                           m_DebuggingContext, m_ThreadPool);
+        params.m_Id                     = m_GraphOfParts.GeneratePartId();
+        params.m_InputTensorShape       = mcePartInputTensor.m_Dimensions;
+        params.m_OutputTensorShape      = convolution.GetOutput(0).GetTensorInfo().m_Dimensions;
+        params.m_InputQuantizationInfo  = mcePartInputTensor.m_QuantizationInfo;
+        params.m_OutputQuantizationInfo = convolution.GetOutput(0).GetTensorInfo().m_QuantizationInfo;
+        params.m_WeightsInfo            = convolution.GetWeights().GetTensorInfo();
+        params.m_WeightsData =
+            OverrideWeights(convolution.GetWeights().GetDataVector(), convolution.GetWeights().GetTensorInfo());
+        params.m_BiasInfo = convolution.GetBias().GetTensorInfo();
+        params.m_BiasData = GetDataVectorAs<int32_t, uint8_t>(convolution.GetBias().GetDataVector());
+        params.m_Op       = command_stream::MceOperation::CONVOLUTION;
+        params.m_OperationIds =
+            std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(), convolution.GetWeights().GetId() };
+        params.m_Stride            = convolution.GetConvolutionInfo().m_Stride;
+        params.m_PadTop            = convolution.GetConvolutionInfo().m_Padding.m_Top;
+        params.m_PadLeft           = convolution.GetConvolutionInfo().m_Padding.m_Left;
+        params.m_UpscaleFactor     = 1;
+        params.m_UpsampleType      = MceUpsampleType::OFF;
+        params.m_InputDataType     = mceOperationInput.m_DataType;
+        params.m_OutputDataType    = mceOperationOutput.m_DataType;
+        params.m_LowerBound        = mceOperationOutput.m_DataType == DataType::UINT8_QUANTIZED ? 0 : -128;
+        params.m_UpperBound        = mceOperationOutput.m_DataType == DataType::UINT8_QUANTIZED ? 255 : 127;
+        params.m_IsChannelSelector = false;
+        auto mcePart               = std::make_unique<McePart>(std::move(params));
 
         if (convInfo.m_Stride.m_X > 1 || convInfo.m_Stride.m_Y > 1)
         {
@@ -549,15 +581,23 @@ void NetworkToGraphOfPartsConverter::Visit(FullyConnected& fullyConnected)
         paddedWeightsData.resize(TotalSizeBytes(weightsInfo),
                                  static_cast<uint8_t>(weightsInfo.m_QuantizationInfo.GetZeroPoint()));
 
-        auto fcPart = std::make_unique<FullyConnectedPart>(
-            m_GraphOfParts.GeneratePartId(), inputTensorInfo.m_Dimensions, reinterpretedInput,
-            fullyConnected.GetOutput(0).GetTensorInfo().m_Dimensions,
-            fullyConnected.GetInput(0).GetTensorInfo().m_QuantizationInfo,
-            fullyConnected.GetOutput(0).GetTensorInfo().m_QuantizationInfo, weightsInfo, std::move(paddedWeightsData),
-            fullyConnected.GetBias().GetTensorInfo(),
-            GetDataVectorAs<int32_t, uint8_t>(fullyConnected.GetBias().GetDataVector()), m_EstimationOptions.value(),
-            m_CompilationOptions, m_Capabilities, std::move(operationIds), mceOperationInput.m_DataType,
-            mceOperationOutput.m_DataType, m_DebuggingContext);
+        FullyConnectedPart::ConstructionParams params(m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+                                                      m_DebuggingContext, m_ThreadPool);
+        params.m_Id                            = m_GraphOfParts.GeneratePartId();
+        params.m_InputTensorShape              = inputTensorInfo.m_Dimensions;
+        params.m_ReinterpretedInputTensorShape = reinterpretedInput;
+        params.m_OutputTensorShape             = fullyConnected.GetOutput(0).GetTensorInfo().m_Dimensions;
+        params.m_InputQuantizationInfo         = fullyConnected.GetInput(0).GetTensorInfo().m_QuantizationInfo;
+        params.m_OutputQuantizationInfo        = fullyConnected.GetOutput(0).GetTensorInfo().m_QuantizationInfo;
+        params.m_WeightsInfo                   = weightsInfo;
+        params.m_WeightsData                   = std::move(paddedWeightsData);
+        params.m_BiasInfo                      = fullyConnected.GetBias().GetTensorInfo();
+        params.m_BiasData       = GetDataVectorAs<int32_t, uint8_t>(fullyConnected.GetBias().GetDataVector());
+        params.m_OperationIds   = std::move(operationIds);
+        params.m_InputDataType  = mceOperationInput.m_DataType;
+        params.m_OutputDataType = mceOperationOutput.m_DataType;
+        auto fcPart             = std::make_unique<FullyConnectedPart>(std::move(params));
+
         parts.push_back(fcPart.get());
         m_GraphOfParts.AddPart(std::move(fcPart));
     }
@@ -616,7 +656,7 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
                 utils::ShapeMultiplier{ { 1, poolingInfo.m_PoolingStrideY }, { 1, poolingInfo.m_PoolingStrideX }, 1 },
                 m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
                 std::set<uint32_t>{ pooling.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType, 0.0f,
-                m_DebuggingContext);
+                m_DebuggingContext, m_ThreadPool);
             parts.push_back(poolingFusedPlePart.get());
             m_GraphOfParts.AddPart(std::move(poolingFusedPlePart));
         };
@@ -857,7 +897,7 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
             std::unique_ptr<McePart> paddingPart = CreateIdentityMcePartWithRemovedInputChannels(
                 m_GraphOfParts.GeneratePartId(), concatOutputTensorInfo.m_Dimensions, outputQuantInfo, outputQuantInfo,
                 concat.GetId(), outputDataType, outputDataType, m_EstimationOptions.value(), m_CompilationOptions,
-                m_Capabilities, removeAmounts, m_DebuggingContext);
+                m_Capabilities, removeAmounts, m_DebuggingContext, m_ThreadPool);
             parts.push_back(paddingPart.get());
             m_GraphOfParts.AddConnection({ paddingPart->GetPartId(), 0 }, { concatPartRaw->GetPartId(), 0 });
             m_GraphOfParts.AddPart(std::move(paddingPart));
@@ -971,7 +1011,7 @@ void NetworkToGraphOfPartsConverter::Visit(LeakyRelu& leakyRelu)
             leakyRelu.GetOutput(0).GetTensorInfo().m_QuantizationInfo, command_stream::PleOperation::LEAKY_RELU,
             g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
             std::set<uint32_t>{ leakyRelu.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType,
-            leakyRelu.GetLeakyReluInfo().m_Alpha, m_DebuggingContext);
+            leakyRelu.GetLeakyReluInfo().m_Alpha, m_DebuggingContext, m_ThreadPool);
         parts.push_back(leakyReluPart.get());
         m_GraphOfParts.AddPart(std::move(leakyReluPart));
     }
@@ -991,7 +1031,8 @@ void NetworkToGraphOfPartsConverter::Visit(Sigmoid& sigmoid)
         sigmoid.GetOutput(0).GetTensorInfo().m_Dimensions, sigmoid.GetInput(0).GetTensorInfo().m_QuantizationInfo,
         sigmoid.GetOutput(0).GetTensorInfo().m_QuantizationInfo, command_stream::PleOperation::SIGMOID,
         g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-        std::set<uint32_t>{ sigmoid.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType, 0.0f, m_DebuggingContext);
+        std::set<uint32_t>{ sigmoid.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType, 0.0f, m_DebuggingContext,
+        m_ThreadPool);
     parts.push_back(sigmoidPart.get());
     m_GraphOfParts.AddPart(std::move(sigmoidPart));
     ConnectParts(sigmoid, parts);
@@ -1014,7 +1055,8 @@ void NetworkToGraphOfPartsConverter::Visit(Tanh& tanh)
         tanh.GetOutput(0).GetTensorInfo().m_Dimensions, tanh.GetInput(0).GetTensorInfo().m_QuantizationInfo,
         tanh.GetOutput(0).GetTensorInfo().m_QuantizationInfo, command_stream::PleOperation::SIGMOID,
         g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-        std::set<uint32_t>{ tanh.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType, 0.0f, m_DebuggingContext);
+        std::set<uint32_t>{ tanh.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType, 0.0f, m_DebuggingContext,
+        m_ThreadPool);
     parts.push_back(tanhPart.get());
     m_GraphOfParts.AddPart(std::move(tanhPart));
     ConnectParts(tanh, parts);
@@ -1042,7 +1084,7 @@ void NetworkToGraphOfPartsConverter::Visit(MeanXy& meanxy)
         meanxy.GetOutput(0).GetTensorInfo().m_Dimensions, meanxy.GetInput(0).GetTensorInfo().m_QuantizationInfo,
         meanxy.GetOutput(0).GetTensorInfo().m_QuantizationInfo, pleOperation, shapeMultiplier,
         m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ meanxy.GetId() },
-        inputInfo.m_DataType, outputInfo.m_DataType, 0.0f, m_DebuggingContext);
+        inputInfo.m_DataType, outputInfo.m_DataType, 0.0f, m_DebuggingContext, m_ThreadPool);
     parts.push_back(meanxyPart.get());
     m_GraphOfParts.AddPart(std::move(meanxyPart));
     ConnectParts(meanxy, parts);
@@ -1096,7 +1138,7 @@ void NetworkToGraphOfPartsConverter::Visit(Resize& resize)
     assert((upscaleFactorHeight == upscaleFactorWidth) && (upscaleFactorHeight == 2U));
 
     McePart::ConstructionParams params(m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-                                       m_DebuggingContext);
+                                       m_DebuggingContext, m_ThreadPool);
     params.m_Id                     = m_GraphOfParts.GeneratePartId();
     params.m_InputTensorShape       = inputShape;
     params.m_OutputTensorShape      = outputInfo.m_Dimensions;
@@ -1246,7 +1288,7 @@ std::vector<BasePart*> NetworkToGraphOfPartsConverter::CreateTransposeConv(const
         TensorInfo biasInfo{ { 1, 1, 1, numIfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
 
         McePart::ConstructionParams params(m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-                                           m_DebuggingContext);
+                                           m_DebuggingContext, m_ThreadPool);
         params.m_Id                     = m_GraphOfParts.GeneratePartId();
         params.m_InputTensorShape       = inputShape;
         params.m_OutputTensorShape      = intermediateOutputShape;
@@ -1295,7 +1337,7 @@ std::vector<BasePart*> NetworkToGraphOfPartsConverter::CreateTransposeConv(const
     }
 
     McePart::ConstructionParams params(m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-                                       m_DebuggingContext);
+                                       m_DebuggingContext, m_ThreadPool);
     params.m_Id                     = m_GraphOfParts.GeneratePartId();
     params.m_InputTensorShape       = inputShape;
     params.m_OutputTensorShape      = outputInfo.m_Dimensions;
@@ -1426,7 +1468,8 @@ void NetworkToGraphOfPartsConverter::Visit(Split& split)
             std::unique_ptr<McePart> paddingPart = CreateIdentityMcePartWithPaddedOutputChannels(
                 m_GraphOfParts.GeneratePartId(), inputInfo.m_Dimensions, inputInfo.m_QuantizationInfo,
                 inputInfo.m_QuantizationInfo, split.GetId(), inputInfo.m_DataType, inputInfo.m_DataType,
-                m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, padAmounts, m_DebuggingContext);
+                m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, padAmounts, m_DebuggingContext,
+                m_ThreadPool);
             paddingPartRaw = paddingPart.get();
             parts.push_back(paddingPartRaw);
             m_GraphOfParts.AddPart(std::move(paddingPart));

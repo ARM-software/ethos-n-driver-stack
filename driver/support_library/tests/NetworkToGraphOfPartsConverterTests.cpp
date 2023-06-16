@@ -6,6 +6,7 @@
 #include "../include/ethosn_support_library/Support.hpp"
 #include "../src/DebuggingContext.hpp"
 #include "../src/Network.hpp"
+#include "../src/ThreadPool.hpp"
 #include "../src/Utils.hpp"
 #include "../src/cascading/ConcatPart.hpp"
 #include "../src/cascading/ConstantPart.hpp"
@@ -36,12 +37,13 @@ TEST_CASE("CreateIdentityMcePartWithPaddedOutputChannels")
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    ThreadPool threadPool(0);
 
     auto compare = [&](const std::vector<std::pair<uint32_t, uint32_t>>& padAmounts,
                        const std::vector<uint8_t>& expectedWeights) {
         std::unique_ptr<McePart> paddingPart = CreateIdentityMcePartWithPaddedOutputChannels(
             0, TensorShape{ 1, 1, 1, 5 }, QuantizationInfo(), QuantizationInfo(), 0, DataType::UINT8_QUANTIZED,
-            DataType::UINT8_QUANTIZED, estOpt, compOpt, caps, padAmounts, debuggingContext);
+            DataType::UINT8_QUANTIZED, estOpt, compOpt, caps, padAmounts, debuggingContext, threadPool);
 
         CHECK(paddingPart->GetWeightsData() == expectedWeights);
     };
@@ -70,12 +72,13 @@ TEST_CASE("CreateIdentityMcePartWithRemovedInputChannels")
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    ThreadPool threadPool(0);
 
     auto compare = [&](const std::vector<std::pair<uint32_t, uint32_t>>& removeAmounts,
                        const std::vector<uint8_t>& expectedWeights) {
         std::unique_ptr<McePart> paddingPart = CreateIdentityMcePartWithRemovedInputChannels(
             0, TensorShape{ 1, 1, 1, 5 }, QuantizationInfo(), QuantizationInfo(), 0, DataType::UINT8_QUANTIZED,
-            DataType::UINT8_QUANTIZED, estOpt, compOpt, caps, removeAmounts, debuggingContext);
+            DataType::UINT8_QUANTIZED, estOpt, compOpt, caps, removeAmounts, debuggingContext, threadPool);
 
         // Get the weights
         CHECK(paddingPart->GetWeightsData() == expectedWeights);
@@ -182,7 +185,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -269,7 +274,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Requantize Same Quantization")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -331,7 +338,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Requantize")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -397,7 +406,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Requantize EstimateOnly")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -493,7 +504,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     bool dumpGraphOfPartsToFile = false;
@@ -598,7 +611,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat NHWC")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -680,7 +695,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Concat Padding")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -712,37 +729,37 @@ TEST_CASE("NetworkToGraphOfPartsConverter Concat Padding")
     // clang-format off
     CHECK(mcePart->GetWeightsData() == std::vector<uint8_t>{
         2, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 2,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
-        0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 2,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
+            0, 0,
     });
     // clang-format on
 }
@@ -798,7 +815,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat EstimateOnly")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -886,7 +905,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -1043,7 +1064,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest LeakyRelu Sigmoid Tanh")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -1158,7 +1181,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter LeakyRelu EstimateOnly")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -1238,7 +1263,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MaxPool_3X3_2_2")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -1357,7 +1384,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter FullyConnected")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -1445,7 +1474,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter FullyConnected EstimateOnly")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -1531,7 +1562,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Basic Depthwise")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -1608,7 +1641,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Strided Depthwise")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -1702,7 +1737,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Multichannel Depthwise")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -1767,7 +1804,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Depthwise EstimateOnly")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -1828,7 +1867,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -1902,7 +1943,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA EstimateOnly"
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -1968,7 +2011,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -2053,7 +2098,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION_RESCALE")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -2140,7 +2187,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION EstimateOnly")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -2200,7 +2249,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Resize")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -2258,7 +2309,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Relu")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -2342,7 +2395,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Conv Relu")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -2430,7 +2485,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Conv Relu Relu")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -2519,7 +2576,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Conv Relu Branch")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -2620,7 +2679,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Relu Conv")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -2698,7 +2759,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Const as Input EstimateOnly")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -2767,7 +2830,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Conv EstimateOnly")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -2830,7 +2895,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -2893,7 +2960,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution Large Weights")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -2970,7 +3039,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution EstimateOnly")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -3056,7 +3127,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Reinterpret Quantization")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -3113,7 +3186,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Split")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -3183,7 +3258,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Split Padding")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -3206,7 +3283,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Split Padding")
     // clang-format off
     CHECK(mcePart->GetWeightsData() == std::vector<uint8_t>{
         2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     });
     // clang-format on
 
@@ -3252,7 +3329,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Transpose")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -3303,7 +3382,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter SpaceToDepth")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -3358,7 +3439,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Downsample_2x2")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -3428,7 +3511,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter DepthToSpace")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -3485,7 +3570,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter DepthToSpace EstimateOnly")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 
@@ -3546,7 +3633,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter EstimateOnly")
     }
 
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 

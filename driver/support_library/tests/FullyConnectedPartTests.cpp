@@ -6,6 +6,7 @@
 #include "CapabilitiesInternal.hpp"
 #include "GlobalParameters.hpp"
 #include "TestUtils.hpp"
+#include "ThreadPool.hpp"
 #include "Utils.hpp"
 #include "cascading/Cascading.hpp"
 #include "cascading/FullyConnectedPart.hpp"
@@ -601,6 +602,7 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
         EstimationOptions estOps;
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
         DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+        ThreadPool threadPool(0);
 
         const PartId partId  = 0;
         TensorShape tsInOrig = { 1, 1, 1, 2048 };
@@ -614,10 +616,22 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
                                             DataFormat::HWIO, QuantizationInfo(0, 0.9f) };
         const TensorInfo biasTensorInfo({ 1, 1, 1, 1024 });
         const std::set<uint32_t> operationIds = { 1, 2, 3 };
-        FullyConnectedPart part(partId, tsInOrig, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo,
-                                std::move(weights), biasTensorInfo, std::move(bias), estOps, compOpt, caps,
-                                std::move(operationIds), DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED,
-                                debuggingContext);
+
+        FullyConnectedPart::ConstructionParams fcParams(estOps, compOpt, caps, debuggingContext, threadPool);
+        fcParams.m_Id                            = partId;
+        fcParams.m_InputTensorShape              = tsInOrig;
+        fcParams.m_ReinterpretedInputTensorShape = tsIn;
+        fcParams.m_OutputTensorShape             = tsOut;
+        fcParams.m_InputQuantizationInfo         = inputQuantInfo;
+        fcParams.m_OutputQuantizationInfo        = outputQuantInfo;
+        fcParams.m_WeightsInfo                   = weightsTensorInfo;
+        fcParams.m_WeightsData                   = std::move(weights);
+        fcParams.m_BiasInfo                      = biasTensorInfo;
+        fcParams.m_BiasData                      = std::move(bias);
+        fcParams.m_OperationIds                  = std::move(operationIds);
+        fcParams.m_InputDataType                 = DataType::UINT8_QUANTIZED;
+        fcParams.m_OutputDataType                = DataType::UINT8_QUANTIZED;
+        FullyConnectedPart part(std::move(fcParams));
 
         WHEN("Asked to generate plans")
         {

@@ -14,10 +14,11 @@ namespace ethosn
 namespace support_library
 {
 
-WeightEncoderCache::WeightEncoderCache(const HardwareCapabilities& caps)
+WeightEncoderCache::WeightEncoderCache(const HardwareCapabilities& caps, ThreadPool& threadPool)
     : m_Caps(caps)
     , m_MaxUncompressedStripeSize(std::numeric_limits<uint64_t>::max())
     , m_Mutex(std::make_unique<std::mutex>())
+    , m_ThreadPool(threadPool)
 {}
 
 bool WeightEncoderCache::CheckUncompressedSize(const WeightEncodingRequest& request)
@@ -116,7 +117,7 @@ WeightEncoderCache::TCacheMap::iterator WeightEncoderCache::EncodeStage1AsyncImp
     // Make a copy for storing in our map, as we're going to move the original.
     // Profiling has shown that this copy does not take significant time.
     WeightEncodingRequest requestCopy                  = request;
-    std::unique_ptr<IStage1ResultsFuture> stage1Future = EncodeWeightsStage1Async(std::move(request));
+    std::unique_ptr<IStage1ResultsFuture> stage1Future = EncodeWeightsStage1Async(std::move(request), m_ThreadPool);
     it = m_Entries.emplace(requestCopy, CacheEntry{ std::move(stage1Future), {} }).first;
 
     return it;

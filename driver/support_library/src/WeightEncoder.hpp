@@ -20,6 +20,8 @@ namespace ethosn
 namespace support_library
 {
 
+class ThreadPool;
+
 extern uint32_t g_NumWeightEncodingsStage1;
 extern uint32_t g_NumWeightEncodingsStage2;
 
@@ -202,12 +204,12 @@ public:
 /// The stage 1 encoding is done internally in parallel using the thread pool, but this can't be parallelised
 /// with other stage 1 encodings, so you may want to consider using EncodeWeightsStage1Async instead which
 /// doesn't block.
-EncodedWeights EncodeWeights(WeightEncodingRequest&& request);
+EncodedWeights EncodeWeights(WeightEncodingRequest&& request, ThreadPool& threadPool);
 
 /// Begins performing stage 1 encoding asynchronously using the global thread pool.
 /// Call Wait() on the returned future to block and obtain the results, but you can do this after
 /// doing other work, to maximise parallelism.
-std::unique_ptr<IStage1ResultsFuture> EncodeWeightsStage1Async(WeightEncodingRequest&& request);
+std::unique_ptr<IStage1ResultsFuture> EncodeWeightsStage1Async(WeightEncodingRequest&& request, ThreadPool& threadPool);
 
 /// Performs stage 2 encoding, given the results of the stage 1 encoding.
 EncodedWeights EncodeWeightsStage2(std::unique_ptr<IStage1Results> stage1Results);

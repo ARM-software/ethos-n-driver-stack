@@ -1138,7 +1138,7 @@ std::vector<SectionContext>
     return result;
 }
 
-void Combiner::Run()
+void Combiner::Run(ThreadPool& threadPool)
 {
     if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
     {
@@ -1171,7 +1171,7 @@ void Combiner::Run()
         std::vector<std::future<void>> waitHandles(numParts);
         for (int partIdx = 0; partIdx < numParts; ++partIdx)
         {
-            waitHandles[partIdx] = g_ThreadPool.AddToQueue(
+            waitHandles[partIdx] = threadPool.AddToQueue(
                 [&](int partIdx) { bestLonely[partIdx] = ChooseBestLonelyPlan(m_GraphOfParts.GetPart(partIdx)); },
                 partIdx);
         }
@@ -1194,7 +1194,7 @@ void Combiner::Run()
         std::vector<std::future<void>> waitHandles(numParts - 1);
         for (int partIdx = 0; partIdx < numParts - 1; ++partIdx)
         {
-            waitHandles[partIdx] = g_ThreadPool.AddToQueue(
+            waitHandles[partIdx] = threadPool.AddToQueue(
                 [&](int partIdx) {
                     sectionsOfAllLengthsForStartingPart[partIdx] =
                         CalculateSectionsOfAllLengths(m_GraphOfParts.GetPart(partIdx));

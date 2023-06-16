@@ -25,7 +25,7 @@ namespace support_library
 class WeightEncoderCache
 {
 public:
-    WeightEncoderCache(const HardwareCapabilities& caps);
+    WeightEncoderCache(const HardwareCapabilities& caps, ThreadPool& threadPool);
     WeightEncoderCache(WeightEncoderCache&&) = default;
 
     std::shared_ptr<EncodedWeights> Encode(WeightEncodingRequest&& r);
@@ -66,6 +66,8 @@ private:
     /// at the same time).
     /// Inside a unique_ptr so it can be moved
     std::unique_ptr<std::mutex> m_Mutex;
+
+    ThreadPool& m_ThreadPool;
 };
 
 }    // namespace support_library

@@ -11,6 +11,7 @@
 #include "EstimationUtils.hpp"
 #include "NetworkToGraphOfPartsConverter.hpp"
 #include "Part.hpp"
+#include "ThreadPool.hpp"
 
 #include "../include/ethosn_support_library/Optional.hpp"
 #include <ethosn_utils/Filesystem.hpp>
@@ -42,10 +43,11 @@ FrozenGraphOfParts CreateGraphOfParts(const Network& network,
                                       const HardwareCapabilities& capabilities,
                                       const EstimationOptions& estOpt,
                                       const CompilationOptions& compOpt,
-                                      DebuggingContext& debuggingContext)
+                                      DebuggingContext& debuggingContext,
+                                      ThreadPool& threadPool)
 {
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(network, capabilities, estOpt, compOpt,
-                                                                  debuggingContext);
+                                                                  debuggingContext, threadPool);
     GraphOfParts g = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
     // Dump the GraphOfParts both before and after we optimize it.
@@ -94,9 +96,14 @@ RunCascadingResult RunCascading(const Network& network,
         estimationOptions.m_UseWeightCompressionOverride = false;
     }
 
+    // ThreadPool object to be shared for all parallel computation for this compilation.
+    // Uses an automatic number of threads based on environment variable
+    ThreadPool threadPool(-1);
+
     auto startTime = std::chrono::high_resolution_clock::now();
 
-    FrozenGraphOfParts graphOfParts = CreateGraphOfParts(network, caps, estimationOptions, compOpt, debuggingContext);
+    FrozenGraphOfParts graphOfParts =
+        CreateGraphOfParts(network, caps, estimationOptions, compOpt, debuggingContext, threadPool);
 
     auto duration = std::chrono::high_resolution_clock::now() - startTime;
     g_Logger.Debug("CreateGraphOfParts: %llu ms", duration.count() / (1000ULL * 1000ULL));
@@ -104,7 +111,7 @@ RunCascadingResult RunCascading(const Network& network,
     startTime = std::chrono::high_resolution_clock::now();
 
     Combiner combiner(graphOfParts, caps, compOpt, estimationOptions, debuggingContext);
-    combiner.Run();
+    combiner.Run(threadPool);
     OpGraph opGraph = combiner.GetMergedOpGraphForBestCombination();
 
     duration = std::chrono::high_resolution_clock::now() - startTime;

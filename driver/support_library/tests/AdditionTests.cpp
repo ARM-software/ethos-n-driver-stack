@@ -5,6 +5,7 @@
 
 #include "../include/ethosn_support_library/Support.hpp"
 #include "../include/ethosn_support_library/SupportQueries.hpp"
+#include "../src/ThreadPool.hpp"
 #include "../src/cascading/EstimateOnlyPart.hpp"
 #include "../src/cascading/InputPart.hpp"
 #include "../src/cascading/NetworkToGraphOfPartsConverter.hpp"
@@ -178,7 +179,9 @@ TEST_CASE("PleOnlyAddition2Tensors")
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 

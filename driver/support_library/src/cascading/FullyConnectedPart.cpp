@@ -17,6 +17,42 @@ namespace support_library
 using namespace impl;
 using namespace utils;
 
+namespace
+{
+
+McePart::ConstructionParams ConvertConstructionParams(FullyConnectedPart::ConstructionParams&& fcParams)
+{
+    McePart::ConstructionParams mceParams(fcParams.m_EstOpt, fcParams.m_CompOpt, fcParams.m_Capabilities,
+                                          fcParams.m_DebuggingContext, fcParams.m_ThreadPool);
+    mceParams.m_Id = fcParams.m_Id;
+    // Note the input shape as far as the McePart is concerned is the _reinterpreted_ input shape of the FC
+    mceParams.m_InputTensorShape       = std::move(fcParams.m_ReinterpretedInputTensorShape);
+    mceParams.m_OutputTensorShape      = std::move(fcParams.m_OutputTensorShape);
+    mceParams.m_InputQuantizationInfo  = std::move(fcParams.m_InputQuantizationInfo);
+    mceParams.m_OutputQuantizationInfo = std::move(fcParams.m_OutputQuantizationInfo);
+    mceParams.m_WeightsInfo            = std::move(fcParams.m_WeightsInfo);
+    mceParams.m_WeightsData            = std::move(fcParams.m_WeightsData);
+    mceParams.m_BiasInfo               = std::move(fcParams.m_BiasInfo);
+    mceParams.m_BiasData               = std::move(fcParams.m_BiasData);
+    mceParams.m_Stride                 = { 1, 1 };
+    mceParams.m_PadLeft                = 0;
+    mceParams.m_PadTop                 = 0;
+    mceParams.m_Op                     = command_stream::MceOperation::FULLY_CONNECTED;
+    mceParams.m_OperationIds           = std::move(fcParams.m_OperationIds);
+    mceParams.m_InputDataType          = std::move(fcParams.m_InputDataType);
+    mceParams.m_OutputDataType         = std::move(fcParams.m_OutputDataType);
+    mceParams.m_LowerBound             = fcParams.m_OutputDataType == DataType::UINT8_QUANTIZED ? 0 : -128;
+    mceParams.m_UpperBound             = fcParams.m_OutputDataType == DataType::UINT8_QUANTIZED ? 255 : 127;
+    return mceParams;
+}
+
+}    // namespace
+
+FullyConnectedPart::FullyConnectedPart(ConstructionParams&& params)
+    : McePart(ConvertConstructionParams(std::move(params)))
+    , m_OriginalInputShape(params.m_InputTensorShape)
+{}
+
 Plans FullyConnectedPart::GetPlans(CascadeType cascadeType,
                                    BlockConfig blockConfig,
                                    const std::vector<Buffer*>& sramBufferInputs,

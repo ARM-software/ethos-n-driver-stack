@@ -174,7 +174,7 @@ public:
     const Combination& GetBestCombination() const;
     OpGraph GetMergedOpGraphForBestCombination() const;
 
-    void Run();
+    void Run(ThreadPool& threadPool);
 
 protected:
     bool AllocateSram(SectionContext& context,

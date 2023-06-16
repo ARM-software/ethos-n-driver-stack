@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "../BufferManager.hpp"
 #include "McePart.hpp"
+
+#include "../BufferManager.hpp"
 #include "PartUtils.hpp"
 #include "Plan.hpp"
 #include "StripeHelper.hpp"
@@ -236,7 +237,7 @@ McePart::McePart(ConstructionParams&& params)
                params.m_Capabilities)
     , m_InputTensorShape(params.m_InputTensorShape)
     , m_OutputTensorShape(params.m_OutputTensorShape)
-    , m_WeightEncoderCache{ params.m_Capabilities }
+    , m_WeightEncoderCache(params.m_Capabilities, params.m_ThreadPool)
     , m_InputQuantizationInfo(params.m_InputQuantizationInfo)
     , m_OutputQuantizationInfo(params.m_OutputQuantizationInfo)
     , m_WeightsInfo(params.m_WeightsInfo)
@@ -260,7 +261,8 @@ McePart::McePart(ConstructionParams&& params)
                         m_UpscaleFactor,
                         params.m_Op,
                         PleOperation::PASSTHROUGH,
-                        ShapeMultiplier{ m_UpscaleFactor, m_UpscaleFactor, 1 },
+                        utils::ShapeMultiplier{ m_UpscaleFactor, m_UpscaleFactor,
+                                                utils::Fraction(1, params.m_Stride.m_X * params.m_Stride.m_Y) },
                         ShapeMultiplier::Identity,
                         params.m_Capabilities,
                         m_StripeConfig)

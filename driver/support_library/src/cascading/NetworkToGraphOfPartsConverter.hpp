@@ -28,7 +28,8 @@ public:
                                    const HardwareCapabilities& capabilities,
                                    const EstimationOptions& estimationOptions,
                                    const CompilationOptions& compilationOptions,
-                                   DebuggingContext& debuggingContext);
+                                   DebuggingContext& debuggingContext,
+                                   ThreadPool& threadPool);
     ~NetworkToGraphOfPartsConverter();
 
     // Visitor functions for supported operations in the Network
@@ -94,6 +95,7 @@ private:
     SupportQueries m_Queries;
     std::map<const Operand*, BasePart*> m_OperandToPart;
     GraphOfParts m_GraphOfParts;
+    ThreadPool& m_ThreadPool;
 };
 
 /// Creates an McePart that passes through its input mostly unchanged, except it inserts "padding channels"
@@ -117,7 +119,8 @@ std::unique_ptr<McePart>
                                                   const CompilationOptions& compOpt,
                                                   const HardwareCapabilities& capabilities,
                                                   const std::vector<std::pair<uint32_t, uint32_t>>& padAmounts,
-                                                  DebuggingContext& debuggingContext);
+                                                  DebuggingContext& debuggingContext,
+                                                  ThreadPool& threadPool);
 
 /// Creates an McePart that passes through its input mostly unchanged, except it removes specified channels
 /// from the output tensor.
@@ -140,7 +143,8 @@ std::unique_ptr<McePart>
                                                   const CompilationOptions& compOpt,
                                                   const HardwareCapabilities& capabilities,
                                                   const std::vector<std::pair<uint32_t, uint32_t>>& removeAmounts,
-                                                  DebuggingContext& debuggingContext);
+                                                  DebuggingContext& debuggingContext,
+                                                  ThreadPool& threadPool);
 
 }    // namespace support_library
 }    // namespace ethosn

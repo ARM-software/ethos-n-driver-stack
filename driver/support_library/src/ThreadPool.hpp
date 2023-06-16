@@ -65,8 +65,5 @@ private:
     std::thread::id m_CreationThreadId;
 };
 
-/// Global ThreadPool object that can be shared for all uses in the library.
-extern ThreadPool g_ThreadPool;
-
 }    // namespace support_library
 }    // namespace ethosn

@@ -6,9 +6,11 @@
 #include "../include/ethosn_support_library/Support.hpp"
 #include "../include/ethosn_support_library/SupportQueries.hpp"
 #include "../src/Compiler.hpp"
+#include "../src/ThreadPool.hpp"
 #include "../src/cascading/ConstantPart.hpp"
 #include "../src/cascading/NetworkToGraphOfPartsConverter.hpp"
 #include "../src/cascading/OutputPart.hpp"
+
 #include "TestUtils.hpp"
 
 #include <catch.hpp>
@@ -52,7 +54,9 @@ TEST_CASE("Constant used as input to operation compiles succesfully", "[Constant
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 

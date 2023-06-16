@@ -2105,14 +2105,15 @@ uint64_t GetUncompressedWeightStripeSize(const WeightEncodingRequest& r)
     }
 }
 
-EncodedWeights EncodeWeights(WeightEncodingRequest&& request)
+EncodedWeights EncodeWeights(WeightEncodingRequest&& request, ThreadPool& threadPool)
 {
-    std::unique_ptr<IStage1ResultsFuture> future  = EncodeWeightsStage1Async(std::move(request));
+    std::unique_ptr<IStage1ResultsFuture> future  = EncodeWeightsStage1Async(std::move(request), threadPool);
     std::unique_ptr<IStage1Results> stage1Results = future->Wait();
     return EncodeWeightsStage2(std::move(stage1Results));
 }
 
-std::unique_ptr<IStage1ResultsFuture> EncodeWeightsStage1Async(WeightEncodingRequest&& requestIn)
+std::unique_ptr<IStage1ResultsFuture> EncodeWeightsStage1Async(WeightEncodingRequest&& requestIn,
+                                                               ThreadPool& threadPool)
 {
     g_NumWeightEncodingsStage1++;
 
@@ -2203,7 +2204,7 @@ std::unique_ptr<IStage1ResultsFuture> EncodeWeightsStage1Async(WeightEncodingReq
     // Process each OG independently
     for (int og = 0; og < static_cast<int>(results.numOfmInParallel); ++og)
     {
-        future->m_WaitHandles[og] = g_ThreadPool.AddToQueue(
+        future->m_WaitHandles[og] = threadPool.AddToQueue(
             // Note that we copy the shared state (i.e. add reference to the shared_ptr) into the task
             [sharedStateCopy = sharedState, numWeightScales](int og) {
                 Stage1Results& results               = *sharedStateCopy->results;

@@ -6,6 +6,7 @@
 #include "Compiler.hpp"
 #include "ConcreteOperations.hpp"
 #include "TestUtils.hpp"
+#include "ThreadPool.hpp"
 #include "cascading/CascadingCommandStreamGenerator.hpp"
 #include "cascading/CombinerDFS.hpp"
 #include "cascading/ConcatPart.hpp"
@@ -718,6 +719,7 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     const CompilationOptions compOpt;
     const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    ThreadPool threadPool(0);
 
     // Build a simple graph of disconnected parts, to check the details are printed correctly for each one.
     GraphOfParts parts;
@@ -728,11 +730,11 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
         1, TensorShape{ 1, 2, 3, 4 }, TensorShape{ 5, 6, 7, 8 }, QuantizationInfo(9, 10.0f),
         QuantizationInfo(11, 12.0f), PleOperation::DOWNSAMPLE_2X2, support_library::utils::ShapeMultiplier{ 1, 2, 3 },
         estOpt, compOpt, caps, std::set<uint32_t>{ 13, 14, 15 }, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED,
-        0.0f, debuggingContext);
+        0.0f, debuggingContext, threadPool);
     parts.AddPart(std::move(fusedPlePart));
 
     // McePart
-    McePart::ConstructionParams params(estOpt, compOpt, caps, debuggingContext);
+    McePart::ConstructionParams params(estOpt, compOpt, caps, debuggingContext, threadPool);
     params.m_Id                     = 5;
     params.m_InputTensorShape       = TensorShape{ 1, 2, 3, 4 };
     params.m_OutputTensorShape      = TensorShape{ 5, 6, 7, 8 };
@@ -815,7 +817,7 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
 FusedPlePart_1[label = "FusedPlePart 1\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nInputDataType = UINT8_QUANTIZED\nOutputDataType = UINT8_QUANTIZED\nKernelOperation = DOWNSAMPLE_2X2\nShapeMultiplier = [1/1, 2/1, 3/1]\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [1, 2, 3, 4]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 1\nStripeGenerator.KernelWidth = 1\nStripeGenerator.UpscaleFactor = 1\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceShapeMultiplier = [1/1, 1/1, 1/1]\nStripeGenerator.PleShapeMultiplier = [1/1, 2/1, 3/1]\n"]
 ConcatPart_2[label = "ConcatPart 2\nCorrespondingOperationIds = [13, 14, 15]\nPreferNhwc = True\nInputTensorsInfo = [([1, 2, 3, 4], UINT8_QUANTIZED, NHWC, ZeroPoint = 0, Scale = 1.000000)]\nOutputTensorInfo = ([5, 6, 7, 8], UINT8_QUANTIZED, NHWC, ZeroPoint = 9, Scale = 10.000000)\nAxis = 3\nOffsets = [0, 16]\n"]
 InputPart_3[label = "InputPart 3\nCorrespondingOperationIds = [13, 14, 15]\nCompilerDataFormat = NHWCB\nOutputTensorShape = [1, 2, 3, 4]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputDataType = UINT8_QUANTIZED\n"]
-McePart_5[label = "McePart 5\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nInputDataType = UINT8_QUANTIZED\nOutputDataType = UINT8_QUANTIZED\nWeightsInfo = ([9, 10, 11, 12], UINT8_QUANTIZED, NHWC, ZeroPoint = 11, Scale = 12.000000)\nBiasInfo = ([19, 110, 111, 112], UINT8_QUANTIZED, NHWC, ZeroPoint = 111, Scale = 112.000000)\nStride = 2, 2\nUpscaleFactor = 3\nUpsampleType = NEAREST_NEIGHBOUR\nPadTop = 1\nPadLeft = 3\nOperation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 9\nStripeGenerator.KernelWidth = 10\nStripeGenerator.UpscaleFactor = 3\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceShapeMultiplier = [3/1, 3/1, 1/1]\nStripeGenerator.PleShapeMultiplier = [1/1, 1/1, 1/1]\nLowerBound = 0\nUpperBound = 255\nIsChannelSelector = False\n"]
+McePart_5[label = "McePart 5\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nInputDataType = UINT8_QUANTIZED\nOutputDataType = UINT8_QUANTIZED\nWeightsInfo = ([9, 10, 11, 12], UINT8_QUANTIZED, NHWC, ZeroPoint = 11, Scale = 12.000000)\nBiasInfo = ([19, 110, 111, 112], UINT8_QUANTIZED, NHWC, ZeroPoint = 111, Scale = 112.000000)\nStride = 2, 2\nUpscaleFactor = 3\nUpsampleType = NEAREST_NEIGHBOUR\nPadTop = 1\nPadLeft = 3\nOperation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 9\nStripeGenerator.KernelWidth = 10\nStripeGenerator.UpscaleFactor = 3\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceShapeMultiplier = [3/1, 3/1, 1/4]\nStripeGenerator.PleShapeMultiplier = [1/1, 1/1, 1/1]\nLowerBound = 0\nUpperBound = 255\nIsChannelSelector = False\n"]
 OutputPart_6[label = "OutputPart 6\nCorrespondingOperationIds = [13, 14, 15]\nCompilerDataFormat = NHWCB\nInputTensorShape = [1, 2, 3, 4]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nInputDataType = UINT8_QUANTIZED\n"]
 ReshapePart_8[label = "ReshapePart 8\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nDataType = UINT8_QUANTIZED\n"]
 StandalonePlePart_9[label = "StandalonePlePart 9\nCorrespondingOperationIds = [1]\nInputTensorShape = [[1, 2, 3, 4], [1, 2, 3, 4]]\nOutputTensorShape = [1, 2, 3, 4]\nInputQuantizationInfo = [ZeroPoint = 9, Scale = 10.000000, ZeroPoint = 9, Scale = 10.000000]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\n"]

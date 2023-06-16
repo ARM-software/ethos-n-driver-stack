@@ -5,6 +5,7 @@
 
 #include "../include/ethosn_support_library/Support.hpp"
 #include "../include/ethosn_support_library/SupportQueries.hpp"
+#include "../src/ThreadPool.hpp"
 #include "../src/cascading/InputPart.hpp"
 #include "../src/cascading/McePart.hpp"
 #include "../src/cascading/NetworkToGraphOfPartsConverter.hpp"
@@ -203,8 +204,10 @@ TEST_CASE("Compile a network with Requantize layer with different input/output t
     const HardwareCapabilities caps = GetEthosN78HwCapabilities();
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
+    ThreadPool threadPool(0);
     DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
-    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext);
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt, debuggingContext,
+                                                                  threadPool);
     GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
     graph.SortAndCompact();
 

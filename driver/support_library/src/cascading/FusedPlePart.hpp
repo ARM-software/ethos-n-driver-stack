@@ -35,7 +35,8 @@ public:
                  DataType m_InputDataType,
                  DataType m_OutputDataType,
                  float alpha,
-                 DebuggingContext&)
+                 DebuggingContext&,
+                 ThreadPool& threadPool)
         : BasePart(id, "FusedPlePart", std::forward<Ids>(correspondingOperationIds), estOpt, compOpt, capabilities)
         , m_InputTensorShape(inputTensorShape)
         , m_OutputTensorShape(outputTensorShape)
@@ -58,7 +59,7 @@ public:
                             shapeMultiplier,
                             capabilities,
                             m_StripeConfig)
-        , m_WeightEncoderCache{ capabilities }
+        , m_WeightEncoderCache(capabilities, threadPool)
         , m_InputDataType(m_InputDataType)
         , m_OutputDataType(m_OutputDataType)
         , m_Input0Multiplier(0)
