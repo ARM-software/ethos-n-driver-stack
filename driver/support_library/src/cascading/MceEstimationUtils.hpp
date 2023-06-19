@@ -14,6 +14,21 @@ namespace support_library
 
 class HardwareCapabilities;
 
+uint64_t GetMceCycleCountWinograd(const HardwareCapabilities& caps,
+                                  const TensorShape& inputShape,
+                                  const TensorShape& outputShape,
+                                  const uint32_t weightsHeight,
+                                  const uint32_t weightsWidth,
+                                  const ethosn::command_stream::BlockConfig& blockConfig);
+
+uint64_t GetMceCycleCountDirect(const HardwareCapabilities& caps,
+                                const Stride& stride,
+                                const ethosn::command_stream::MceOperation& convtype,
+                                const TensorShape& inputShape,
+                                const TensorShape& outputShape,
+                                const uint32_t weightsHeight,
+                                const uint32_t weightsWidth);
+
 MceStats GetMceStats(const HardwareCapabilities& caps,
                      const Stride& stride,
                      const ethosn::command_stream::MceOperation& convtype,
@@ -31,6 +46,15 @@ WeightsStats GetWeightsStats(const HardwareCapabilities& caps,
                              const TensorShape& inStripeShape);
 
 std::vector<uint8_t> GenerateCompressibleData(size_t numElements, float spaceSavingProportion, int32_t zeroPoint);
+
+CompilerMceAlgorithm FindBestConvAlgorithm(const HardwareCapabilities& caps,
+                                           const Stride& stride,
+                                           const ethosn::command_stream::MceOperation& convtype,
+                                           const TensorShape& inputShape,
+                                           const TensorShape& outputShape,
+                                           const uint32_t weightsHeight,
+                                           const uint32_t weightsWidth,
+                                           const ethosn::command_stream::BlockConfig& blockConfig);
 
 }    //namespace support_library
 }    //namespace ethosn

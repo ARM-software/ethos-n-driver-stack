@@ -6,6 +6,7 @@
 #include "McePart.hpp"
 
 #include "../BufferManager.hpp"
+#include "MceEstimationUtils.hpp"
 #include "PartUtils.hpp"
 #include "Plan.hpp"
 #include "StripeHelper.hpp"
@@ -350,31 +351,17 @@ Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
 CompilerMceAlgorithm McePart::ResolveMceAlgorithm(const ethosn::command_stream::BlockConfig& blockConfig,
                                                   uint32_t inputStripeChannels) const
 {
-    uint32_t kernelHeight   = m_WeightsInfo.m_Dimensions[0];
-    uint32_t kernelWidth    = m_WeightsInfo.m_Dimensions[1];
-    const bool isWinograd2d = (kernelHeight > 1) && (kernelWidth > 1);
-
-    CompilerMceAlgorithm effectiveAlgo = CompilerMceAlgorithm::Direct;
+    CompilerMceAlgorithm result = CompilerMceAlgorithm::Direct;
     // Winograd and upscaling cannot be performed at the same time
-    if (!m_CompilationOptions.m_DisableWinograd && m_Operation == command_stream::MceOperation::CONVOLUTION &&
-        m_Stride == Stride{ 1, 1 } && m_UpsampleType == MceUpsampleType::OFF)
-    {
-        effectiveAlgo =
-            utils::FindBestConvAlgorithm(m_Capabilities, m_WeightsInfo.m_Dimensions[0], m_WeightsInfo.m_Dimensions[1]);
-    }
-
-    std::vector<command_stream::BlockConfig> blockConfigs =
-        FilterAlgoBlockConfigs(effectiveAlgo, isWinograd2d, { blockConfig }, m_Capabilities);
-
-    CompilerMceAlgorithm mceOpAlgo = blockConfigs.empty() ? CompilerMceAlgorithm::Direct : effectiveAlgo;
-
     // Encoder doesn't support multiple iterations with Winograd enabled
-    if (inputStripeChannels < m_WeightsInfo.m_Dimensions[2])
+    if (!m_CompilationOptions.m_DisableWinograd && m_UpsampleType == MceUpsampleType::OFF &&
+        inputStripeChannels >= m_WeightsInfo.m_Dimensions[2])
     {
-        mceOpAlgo = CompilerMceAlgorithm::Direct;
+        result = FindBestConvAlgorithm(m_Capabilities, m_Stride, m_Operation, m_InputTensorShape, m_OutputTensorShape,
+                                       m_WeightsInfo.m_Dimensions[0], m_WeightsInfo.m_Dimensions[1], blockConfig);
     }
 
-    return mceOpAlgo;
+    return result;
 }
 
 std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,

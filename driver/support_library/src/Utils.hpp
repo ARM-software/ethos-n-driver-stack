@@ -713,15 +713,9 @@ inline NeedBoundary GetBoundaryRequirements(const uint32_t padBefore,
     return NeedBoundary{ padBefore > 0, ((ofmStripeSize + weightSize - padBefore - 1U) > ifmStripeSize) };
 }
 
-CompilerMceAlgorithm FindBestConvAlgorithm(const HardwareCapabilities& caps, uint32_t w, uint32_t h);
 std::vector<command_stream::BlockConfig>
     FilterPleBlockConfigs(const command_stream::PleOperation pleOp,
                           const std::vector<command_stream::BlockConfig>& allowedBlockConfigs);
-std::vector<command_stream::BlockConfig>
-    FilterAlgoBlockConfigs(const CompilerMceAlgorithm algorithm,
-                           const bool is2d,
-                           const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
-                           const HardwareCapabilities& capabilities);
 bool PleBlockConfigAllowed(const command_stream::PleOperation pleOp,
                            const command_stream::BlockConfig allowedBlockConfig);
 

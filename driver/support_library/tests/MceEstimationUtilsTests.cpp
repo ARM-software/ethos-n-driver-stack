@@ -120,8 +120,25 @@ TEST_CASE("MceStats winograd", "[Estimation][Mce]")
     const TensorShape weightShape{ 1, 9, 128, 128 };
 
     MceStats stats = GetMceStats(caps, stride, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Winograd, inputShape,
-                                 outputShape, weightShape, BlockConfig{ 8u, 8u });
-    uint32_t cycleCount = 17280;
+                                 outputShape, weightShape, BlockConfig{ 32u, 8u });
+    uint32_t cycleCount = 18432;
 
     REQUIRE(stats.m_CycleCount == cycleCount);
+}
+
+TEST_CASE("FindBestConvAlgorithm")
+{
+    const HardwareCapabilities capabilities = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
+
+    CHECK(FindBestConvAlgorithm(capabilities, { 1u, 1u }, MceOperation::CONVOLUTION, { 1, 16, 16, 16 },
+                                { 1, 16, 16, 16 }, 1, 1, BlockConfig{ 8u, 8u }) == CompilerMceAlgorithm::Direct);
+    CHECK(FindBestConvAlgorithm(capabilities, { 1u, 1u }, MceOperation::CONVOLUTION, { 1, 16, 16, 16 },
+                                { 1, 16, 16, 16 }, 3, 3, BlockConfig{ 8u, 8u }) == CompilerMceAlgorithm::Winograd);
+#if defined(ETHOSN_SUPPORT_LIBRARY_DISABLE_LARGE_WINOGRAD)
+    CHECK(FindBestConvAlgorithm(capabilities, { 1u, 1u }, MceOperation::CONVOLUTION, { 1, 16, 16, 16 },
+                                { 1, 16, 16, 16 }, 7, 7, BlockConfig{ 8u, 8u }) == CompilerMceAlgorithm::Direct);
+#else
+    CHECK(FindBestConvAlgorithm(capabilities, { 1u, 1u }, MceOperation::CONVOLUTION, { 1, 16, 16, 16 },
+                                { 1, 16, 16, 16 }, 7, 7, BlockConfig{ 8u, 8u }) == CompilerMceAlgorithm::Winograd);
+#endif
 }

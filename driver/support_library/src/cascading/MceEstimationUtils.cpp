@@ -16,11 +16,18 @@ uint64_t GetMceCycleCountWinograd(const HardwareCapabilities& caps,
                                   const TensorShape& inputShape,
                                   const TensorShape& outputShape,
                                   const uint32_t weightsHeight,
-                                  const uint32_t weightsWidth)
+                                  const uint32_t weightsWidth,
+                                  const ethosn::command_stream::BlockConfig& blockConfig)
 {
+    ETHOSN_UNUSED(blockConfig);
 
-    const uint32_t ifmConsumed = caps.GetIgsPerEngine() * caps.GetNumberOfEngines();
-    const uint32_t ofmProduced = caps.GetOgsPerEngine() * caps.GetNumberOfEngines();
+    const uint32_t ifmConsumed    = caps.GetIgsPerEngine() * caps.GetNumberOfEngines();
+    const uint32_t ofmProduced    = caps.GetOgsPerEngine() * caps.GetNumberOfEngines();
+    uint32_t numOfms              = outputShape[3];
+    const uint32_t ofmsPerOg      = utils::DivRoundUp(numOfms, ofmProduced);
+    const uint32_t numBlocksPerOg = ofmsPerOg *
+                                    utils::DivRoundUp(utils::GetHeight(outputShape), blockConfig.m_BlockHeight()) *
+                                    utils::DivRoundUp(utils::GetWidth(outputShape), blockConfig.m_BlockWidth());
 
     // Winograd output block size:
     // 1D 1x3 [WxH]filter -> [WxH] 4x2
@@ -39,23 +46,33 @@ uint64_t GetMceCycleCountWinograd(const HardwareCapabilities& caps,
     }
 
     uint32_t numIfms = inputShape[3];
-    uint32_t numOfms = outputShape[3];
 
     const uint32_t numTotIfms = utils::RoundUpToNearestMultiple(numIfms, ifmConsumed);
 
     const uint32_t numWinogradOutputs = utils::DivRoundUp(outputShape[2], winogradOutputShape.m_Width) *
                                         utils::DivRoundUp(outputShape[1], winogradOutputShape.m_Height);
 
-    const uint32_t winogradKernelSize = caps.GetWideKernelSize();
+    const uint32_t winogradKernelWidth  = weightsWidth == 1 ? 1 : caps.GetWideKernelSize();
+    const uint32_t winogradKernelHeight = weightsHeight == 1 ? 1 : caps.GetWideKernelSize();
+    const uint32_t numSubfilters =
+        utils::DivRoundUp(weightsWidth, winogradKernelWidth) * utils::DivRoundUp(weightsHeight, winogradKernelHeight);
     // Always 16 MACs to process either a 2x4, 4x2 or 2x2 winograd block
-    const uint64_t numMacsPerWinogradOutput = static_cast<uint64_t>(caps.GetMacsPerWinogradOutputBlock()) *
-                                              utils::DivRoundUp(weightsWidth, winogradKernelSize) *
-                                              utils::DivRoundUp(weightsHeight, winogradKernelSize);
+    const uint64_t numMacsPerWinogradOutput =
+        static_cast<uint64_t>(caps.GetMacsPerWinogradOutputBlock()) * numSubfilters;
 
     const uint64_t numMacOps       = numWinogradOutputs * numMacsPerWinogradOutput;
     const uint64_t numCyclesPerOfm = (numTotIfms * numMacOps) / (ifmConsumed * caps.GetMacUnitsPerOg());
 
-    return numCyclesPerOfm * utils::DivRoundUp(numOfms, ofmProduced);
+    uint64_t macCycleCount = numCyclesPerOfm * ofmsPerOg;
+
+    // The hardware also needs to perform the winograd transform on the decoded weights, which takes some time.
+    // This is done in parallel with the MACs, so is normally not an issue, however when there are a lot of
+    // weights to process compared to MACs this can become the limiting factor.
+    // This estimation is a heuristic based on observations.
+    constexpr uint32_t cyclesPerWeightTransform = 2;
+    uint64_t weightTransformCycleCount          = numBlocksPerOg * numIfms * numSubfilters * cyclesPerWeightTransform;
+
+    return std::max(macCycleCount, weightTransformCycleCount);
 }
 
 uint64_t GetMceCycleCountDirect(const HardwareCapabilities& caps,
@@ -116,7 +133,7 @@ uint64_t GetMceCycleCount(const HardwareCapabilities& caps,
 
     if (algo == CompilerMceAlgorithm::Winograd)
     {
-        return GetMceCycleCountWinograd(caps, inputShape, outputShape, weightsHeight, weightsWidth);
+        return GetMceCycleCountWinograd(caps, inputShape, outputShape, weightsHeight, weightsWidth, blockConfig);
     }
     else
     {
@@ -266,6 +283,54 @@ WeightsStats GetWeightsStats(const HardwareCapabilities& caps,
                                static_cast<float>(utils::GetNumElements(info.m_Dimensions))));
 
     return data;
+}
+
+CompilerMceAlgorithm FindBestConvAlgorithm(const HardwareCapabilities& caps,
+                                           const Stride& stride,
+                                           const ethosn::command_stream::MceOperation& convtype,
+                                           const TensorShape& inputShape,
+                                           const TensorShape& outputShape,
+                                           const uint32_t weightsHeight,
+                                           const uint32_t weightsWidth,
+                                           const ethosn::command_stream::BlockConfig& blockConfig)
+{
+#if defined(ETHOSN_SUPPORT_LIBRARY_DISABLE_LARGE_WINOGRAD)
+    // Reduce power usage by restricting Winograd to less than 7x7 kernels
+    constexpr uint32_t maximumWinogradArea = 7 * 7;
+    if ((weightsHeight * weightsWidth) >= maximumWinogradArea)
+    {
+        return CompilerMceAlgorithm::Direct;
+    }
+#endif
+
+    // The maximum block size depends on if we are performing a 1D or 2D convolution
+    // We can do twice the number of outputs elements with 1D compared to 2D
+    // See the Block size limitations sections in the 2x2 Winograd Support document for further details
+
+    const bool is2d              = (weightsHeight > 1) && (weightsWidth > 1);
+    const uint32_t maxAllowedWxH = caps.GetTotalAccumulatorsPerOg() / (is2d ? 4U : 2U);
+
+    bool isWinogradAllowed = (convtype == command_stream::MceOperation::CONVOLUTION && stride == Stride{ 1, 1 } &&
+                              (blockConfig.m_BlockWidth() * blockConfig.m_BlockHeight()) <= maxAllowedWxH);
+
+    if (!isWinogradAllowed)
+    {
+        return CompilerMceAlgorithm::Direct;
+    }
+
+    uint64_t cycleCountDirect =
+        GetMceCycleCountDirect(caps, stride, convtype, inputShape, outputShape, weightsHeight, weightsWidth);
+    uint64_t cycleCountWinograd =
+        GetMceCycleCountWinograd(caps, inputShape, outputShape, weightsHeight, weightsWidth, blockConfig);
+
+    if (cycleCountWinograd < cycleCountDirect)
+    {
+        return CompilerMceAlgorithm::Winograd;
+    }
+    else
+    {
+        return CompilerMceAlgorithm::Direct;
+    }
 }
 
 }    // namespace support_library

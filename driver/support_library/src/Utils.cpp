@@ -430,63 +430,6 @@ bool IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat c
     return true;
 }
 
-CompilerMceAlgorithm FindBestConvAlgorithm(const HardwareCapabilities& caps, uint32_t w, uint32_t h)
-{
-#if defined(ETHOSN_SUPPORT_LIBRARY_DISABLE_LARGE_WINOGRAD)
-    // Reduce power usage by restricting Winograd to less than 7x7 kernels
-    constexpr uint32_t maximumWinogradArea = 7 * 7;
-    if ((h * w) >= maximumWinogradArea)
-    {
-        return CompilerMceAlgorithm::Direct;
-    }
-#endif
-    uint32_t numMultsDirect;
-    uint32_t numMultsWinograd;
-
-    // Only chooses WINOGRAD if it reduces the number of
-    // multiplications because it adds some additional overheads
-    // See the 2x2 Winograd Support Specification for further details
-
-    // Decompose kernels with width and height > 3 into multiple 3x3, 3x1 or 1x3 sub-kernels.
-    const uint32_t winogradKernelSize = caps.GetWideKernelSize();
-    if (w == 1 || h == 1)
-    {
-        // 1D convolution kernel dim w x 1 or 1 x h
-        // Assuming 2x4 output half patch
-        // numOfMultiplications = 8 * w or 8 * h                   DIRECT
-        //                      = 16 * CEIL(W/3) or 16 * CEIL(H/3)   WINOGRAD
-
-        // Number of elements in winograd output block is the same for either 1x3 or 3x1 kernels.
-        const WinogradOutputShape winogradOutput1D = caps.Get3x1WinogradOutputSize();
-        // Example: for 3x1 filter => 24 MACs in direct.
-        numMultsDirect = w * h * winogradOutput1D.m_Height * winogradOutput1D.m_Width;
-        // Example: for 3x1 filter => 16 MACs in wingorad.
-        numMultsWinograd = caps.GetMacsPerWinogradOutputBlock() * utils::DivRoundUp(w * h, winogradKernelSize);
-    }
-    else
-    {
-        // 2D convolution kernel dim w x h
-        // Assuming 2x2 output quarter patch
-        // numOfMultiplications = 4 * w * h                    DIRECT
-        //                      = 16 * CEIL(W/3) * CEIL(H/3)   WINOGRAD
-        const WinogradOutputShape winogradOutput2D = caps.Get3x3WinogradOutputSize();
-        // Example: for 3x3 filter => 36 MACs in direct.
-        numMultsDirect = w * h * winogradOutput2D.m_Height * winogradOutput2D.m_Width;
-        // Example: for 3x3 filter => 16 MACs in wingorad.
-        numMultsWinograd = caps.GetMacsPerWinogradOutputBlock() * utils::DivRoundUp(w, winogradKernelSize) *
-                           utils::DivRoundUp(h, winogradKernelSize);
-    }
-
-    if (numMultsWinograd < numMultsDirect)
-    {
-        return CompilerMceAlgorithm::Winograd;
-    }
-    else
-    {
-        return CompilerMceAlgorithm::Direct;
-    }
-}
-
 constexpr bool FilterToSize(const command_stream::BlockConfig& blockConfig, uint32_t width, uint32_t height)
 {
     return blockConfig == command_stream::BlockConfig{ width, height };
@@ -556,32 +499,6 @@ bool PleBlockConfigAllowed(const command_stream::PleOperation pleOp,
     res = FilterPleBlockConfigs(pleOp, { allowedBlockConfig });
 
     return (!res.empty());
-}
-
-std::vector<command_stream::BlockConfig>
-    FilterAlgoBlockConfigs(const CompilerMceAlgorithm algorithm,
-                           const bool is2d,
-                           const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
-                           const HardwareCapabilities& capabilities)
-{
-    std::vector<command_stream::BlockConfig> res = allowedBlockConfigs;
-
-    if (algorithm == CompilerMceAlgorithm::Winograd)
-    {
-        // The maximum block size depends on if we are performing a 1D or 2D convolution
-        // We can do twice the number of outputs elements with 1D compared to 2D
-        // See the Block size limitations sections in the 2x2 Winograd Support document for further details
-
-        const uint32_t maxAllowedWxH = capabilities.GetTotalAccumulatorsPerOg() / (is2d ? 4U : 2U);
-
-        auto FilterMaxSize = [maxAllowedWxH](const command_stream::BlockConfig& blockConfig) {
-            return (blockConfig.m_BlockWidth() * blockConfig.m_BlockHeight()) <= maxAllowedWxH;
-        };
-
-        res = Filter(res, FilterMaxSize);
-    }
-
-    return res;
 }
 
 unsigned CalculateSpaceToDepthSramUsage(uint32_t blockSize, uint32_t s1, uint32_t s2)
