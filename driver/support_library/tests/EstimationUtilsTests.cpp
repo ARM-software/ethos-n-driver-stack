@@ -13,16 +13,6 @@ using namespace ethosn;
 using namespace ethosn::support_library;
 using namespace ethosn::command_stream;
 
-namespace
-{
-
-bool CompareDouble(double a, double b)
-{
-    return std::abs(a - b) < std::numeric_limits<double>::epsilon();
-}
-
-}    // namespace
-
 TEST_CASE("CalculateMetric only parallel dram", "[EstimationUtils]")
 {
     PassPerformanceData pass        = {};
@@ -40,8 +30,7 @@ TEST_CASE("CalculateMetric only parallel dram", "[EstimationUtils]")
     perfData.m_Stream.push_back(pass);
 
     const double metric = CalculateMetric(perfData);
-
-    CHECK(CompareDouble(metric, 10.0));
+    CHECK(metric == Approx(6.0));
 }
 
 /// Test to make sure CalculateMetric accounts for that fact that Dram and Mce cycles can be done in parallel
@@ -63,7 +52,7 @@ TEST_CASE("CalculateMetric mce cycles > parallel dram", "[EstimationUtils]")
 
     const double metric = CalculateMetric(perfData);
 
-    CHECK(CompareDouble(metric, 20.0));
+    CHECK(metric == Approx(20.0));
 }
 
 /// Test to make sure CalculateMetric accounts for that fact that non parallel dram is a bottleneck
@@ -85,7 +74,7 @@ TEST_CASE("CalculateMetric non parallel", "[EstimationUtils]")
 
     const double metric = CalculateMetric(perfData);
 
-    CHECK(CompareDouble(metric, 60.0));
+    CHECK(metric == Approx(44.0));
 }
 
 TEST_CASE("GetMceStats upsampled", "[EstimationUtils]")

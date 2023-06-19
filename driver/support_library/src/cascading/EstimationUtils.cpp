@@ -482,9 +482,8 @@ double CalculateMetric(const PassPerformanceData& passPerfData)
     // This overhead was measured approximately from some profiling traces.
     double parallelOverheadCycles = 10000 * numStripes;
 
-    constexpr double dramBandwidth  = 12000000000;    // bytes/second
-    constexpr double clockFrequency = 1250000000;     // cycles/second
-    constexpr double bytesPerCycle  = dramBandwidth / clockFrequency;
+    // How many bytes the DMA can transfer for each cycle of the MCE/PLE.
+    constexpr double bytesPerCycle = 16.0;
 
     // Non-buffered, multi-stripe DMA transfers can prevent the MCE from executing in parallel with buffered
     // DMA transfers when the MCE is waiting on DMA transfers already, as the MCE and non-buffered transfer
