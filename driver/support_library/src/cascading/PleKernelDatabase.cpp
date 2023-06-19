@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -161,10 +161,10 @@ const PleKernelIdDatabase* GetPleKernelIdDatabase()
 
 using namespace impl;
 
-PleKernelId FindPleKernelIdFromDatabase(BlockConfig blockConfig,
-                                        uint32_t stripeWidth,
-                                        ethosn::command_stream::DataType outputDataType,
-                                        PleOperation op)
+std::pair<PleKernelId, uint32_t> FindPleKernelIdFromDatabase(BlockConfig blockConfig,
+                                                             uint32_t stripeWidth,
+                                                             ethosn::command_stream::DataType outputDataType,
+                                                             PleOperation op)
 {
     PleKernelId id;
 
@@ -264,7 +264,7 @@ PleKernelId FindPleKernelIdFromDatabase(BlockConfig blockConfig,
         throw InternalErrorException("PleKernelID database: invalid PleKernelId");
     }
 
-    return id;
+    return { id, bestValue };
 }
 
 }    // namespace plelib

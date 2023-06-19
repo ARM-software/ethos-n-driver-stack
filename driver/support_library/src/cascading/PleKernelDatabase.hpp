@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -64,10 +64,8 @@ struct PleKernelIdDatabase
 
 }    // namespace impl
 
-command_stream::cascading::PleKernelId FindPleKernelIdFromDatabase(BlockConfig blockConfig,
-                                                                   uint32_t stripeWidth,
-                                                                   ethosn::command_stream::DataType outputDataType,
-                                                                   PleOperation op);
+std::pair<command_stream::cascading::PleKernelId, uint32_t> FindPleKernelIdFromDatabase(
+    BlockConfig blockConfig, uint32_t stripeWidth, ethosn::command_stream::DataType outputDataType, PleOperation op);
 
 }    // namespace plelib
 }    // namespace support_library

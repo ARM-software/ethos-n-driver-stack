@@ -239,6 +239,15 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         includeOp(mceOp);
     }
 
+    Op* frontOp = mceOp ? static_cast<Op*>(mceOp) : pleOp;
+    Op* backOp  = pleOp;
+
+    Buffer* sramOutputBuffer = opGraph.GetOutput(backOp);
+    if (sramOutputBuffer == nullptr)
+    {
+        throw NotSupportedException("Must have an output buffer");
+    }
+
     // Calculate PLE stats if we have a PleOp
     if (pleOp != nullptr)
     {
@@ -248,17 +257,9 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
             inputShapes.push_back(inputBuffer->m_TensorShape);
         }
 
-        result.m_Stats.m_Ple = GetPleStats(capabilities, inputShapes, pleOp->m_Op, pleOp->m_BlockConfig);
+        result.m_Stats.m_Ple = GetPleStats(capabilities, inputShapes, sramOutputBuffer->m_TensorShape, pleOp->m_Op,
+                                           pleOp->m_BlockMultiplier, pleOp->m_BlockConfig);
         includeOp(pleOp);
-    }
-
-    Op* frontOp = mceOp ? static_cast<Op*>(mceOp) : pleOp;
-    Op* backOp  = pleOp;
-
-    Buffer* sramOutputBuffer = opGraph.GetOutput(backOp);
-    if (sramOutputBuffer == nullptr)
-    {
-        throw NotSupportedException("Must have an output buffer");
     }
 
     // Check for a DmaOp beforehand, and use that to calculate input stats

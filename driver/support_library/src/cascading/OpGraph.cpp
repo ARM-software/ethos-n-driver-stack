@@ -561,6 +561,7 @@ PleOp::PleOp()
     , m_InputStripeShapes{}
     , m_OutputStripeShape{ 0, 0, 0, 0 }
     , m_PleKernelId{ command_stream::cascading::PleKernelId::NOT_FOUND }
+    , m_BlockMultiplier(0)
     , m_LoadKernel{ true }
     , m_Input0Multiplier(0)
     , m_Input0Shift(0)
@@ -587,8 +588,8 @@ PleOp::PleOp(PleOperation op,
     , m_Input1Multiplier(0)
     , m_Input1Shift(0)
 {
-    m_PleKernelId = plelib::FindPleKernelIdFromDatabase(blockConfig, (inputStripeShapes.at(0))[2],
-                                                        utils::GetCommandDataType(dataType), op);
+    std::tie(m_PleKernelId, m_BlockMultiplier) = plelib::FindPleKernelIdFromDatabase(
+        blockConfig, (inputStripeShapes.at(0))[2], utils::GetCommandDataType(dataType), op);
 }
 
 DotAttributes PleOp::GetDotAttributes(DetailLevel detail) const

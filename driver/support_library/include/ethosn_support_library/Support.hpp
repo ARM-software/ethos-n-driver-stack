@@ -137,10 +137,12 @@ struct PleStats
     PleStats()
         : m_Operation(0)
         , m_NumOfPatches(0)
+        , m_CycleCount(0)
     {}
 
     uint32_t m_Operation;
     uint32_t m_NumOfPatches;
+    uint64_t m_CycleCount;
 };
 
 struct MemoryStats

@@ -247,6 +247,7 @@ public:
     std::vector<TensorShape> m_InputStripeShapes;
     TensorShape m_OutputStripeShape;
     command_stream::cascading::PleKernelId m_PleKernelId;
+    uint32_t m_BlockMultiplier;
     bool m_LoadKernel;
     utils::Optional<uint32_t> m_Offset;
     uint16_t m_Input0Multiplier;

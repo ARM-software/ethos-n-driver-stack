@@ -230,9 +230,52 @@ OutputStats GetOutputStatsCascading(const SramBuffer& ofmSramBuffer,
     return data;
 }
 
+namespace
+{
+
+uint32_t GetPleCyclesPerPatch(command_stream::PleOperation op)
+{
+    // These numbers were estimated from some internal benchmarks running on the model.
+    switch (op)
+    {
+        case command_stream::PleOperation::ADDITION:
+            return 15;
+        case command_stream::PleOperation::ADDITION_RESCALE:
+            return 35;
+        case command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA:
+            return 97;
+        case command_stream::PleOperation::DOWNSAMPLE_2X2:
+            return 10;
+        case command_stream::PleOperation::INTERLEAVE_2X2_2_2:
+            return 13;
+        case command_stream::PleOperation::LEAKY_RELU:
+            return 37;
+        case command_stream::PleOperation::MAXPOOL_2X2_2_2:
+            return 13;
+        case command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN:    // intentional fallthrough
+        case command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD:
+            return 37;
+        case command_stream::PleOperation::MEAN_XY_7X7:    // intentional fallthrough
+        case command_stream::PleOperation::MEAN_XY_8X8:
+            return 37;
+        case command_stream::PleOperation::PASSTHROUGH:
+            return 6;
+        case command_stream::PleOperation::SIGMOID:
+            return 76;
+        case command_stream::PleOperation::TRANSPOSE_XY:
+            return 14;
+        default:
+            return 0;
+    }
+}
+
+}    // namespace
+
 PleStats GetPleStats(const HardwareCapabilities& caps,
                      const std::vector<TensorShape>& inputShapes,
+                     const TensorShape& outputShape,
                      const command_stream::PleOperation& pleOperation,
+                     uint32_t blockMultiplier,
                      const ethosn::command_stream::BlockConfig& blockConfig)
 {
     using namespace utils;
@@ -268,6 +311,24 @@ PleStats GetPleStats(const HardwareCapabilities& caps,
 
     pleStats.m_NumOfPatches = patchesW * patchesH * patchesC;
     pleStats.m_Operation    = static_cast<uint32_t>(pleOperation);
+
+    // Standalone operations (e.g. Addition) don't use a block config.
+    uint64_t blockOverhead = 0;
+    if (blockConfig.m_BlockWidth() != 0 && blockConfig.m_BlockHeight() != 0)
+    {
+        uint64_t numBlocks =
+            static_cast<uint64_t>(utils::DivRoundUp(utils::GetHeight(outputShape), blockConfig.m_BlockHeight())) *
+            static_cast<uint64_t>(utils::DivRoundUp(utils::GetWidth(outputShape), blockConfig.m_BlockWidth())) *
+            patchesC;
+        uint64_t numMultipliedBlocks = numBlocks / blockMultiplier;
+
+        constexpr uint32_t overheadPerBlock           = 10;
+        constexpr uint32_t overheadPerMultipliedBlock = 100;
+        blockOverhead = overheadPerBlock * numBlocks + overheadPerMultipliedBlock * numMultipliedBlocks;
+    }
+
+    pleStats.m_CycleCount = pleStats.m_NumOfPatches * GetPleCyclesPerPatch(pleOperation) + blockOverhead;
+
     return pleStats;
 }
 
@@ -391,47 +452,6 @@ double CalculateMetric(const NetworkPerformanceData& networkPerfData)
     return totalMetric;
 }
 
-namespace
-{
-
-uint32_t GetPleCyclesPerPatch(command_stream::PleOperation op)
-{
-    // These numbers were estimated from some internal benchmarks running on the model.
-    switch (op)
-    {
-        case command_stream::PleOperation::ADDITION:
-            return 15;
-        case command_stream::PleOperation::ADDITION_RESCALE:
-            return 35;
-        case command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA:
-            return 97;
-        case command_stream::PleOperation::DOWNSAMPLE_2X2:
-            return 10;
-        case command_stream::PleOperation::INTERLEAVE_2X2_2_2:
-            return 13;
-        case command_stream::PleOperation::LEAKY_RELU:
-            return 37;
-        case command_stream::PleOperation::MAXPOOL_2X2_2_2:
-            return 13;
-        case command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN:    // intentional fallthrough
-        case command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD:
-            return 37;
-        case command_stream::PleOperation::MEAN_XY_7X7:    // intentional fallthrough
-        case command_stream::PleOperation::MEAN_XY_8X8:
-            return 37;
-        case command_stream::PleOperation::PASSTHROUGH:
-            return 6;
-        case command_stream::PleOperation::SIGMOID:
-            return 76;
-        case command_stream::PleOperation::TRANSPOSE_XY:
-            return 14;
-        default:
-            return 0;
-    }
-}
-
-}    // namespace
-
 double CalculateMetric(const PassPerformanceData& passPerfData)
 {
     // Casts to double may result in a loss of precision as doubles cannot represent all the values
@@ -446,11 +466,8 @@ double CalculateMetric(const PassPerformanceData& passPerfData)
                              passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramParallel;
     double parallelBytesDouble = static_cast<double>(parallelBytes);
 
-    uint64_t pleCycleCount =
-        passPerfData.m_Stats.m_Ple.m_NumOfPatches *
-        GetPleCyclesPerPatch(static_cast<command_stream::PleOperation>(passPerfData.m_Stats.m_Ple.m_Operation));
-
-    uint64_t mcePleCycleCount     = std::max(passPerfData.m_Stats.m_Mce.m_CycleCount, pleCycleCount);
+    uint64_t mcePleCycleCount =
+        std::max(passPerfData.m_Stats.m_Mce.m_CycleCount, passPerfData.m_Stats.m_Ple.m_CycleCount);
     double mcePleCycleCountDouble = static_cast<double>(mcePleCycleCount);
 
     // Rough approximation for the number of stripes in a pass. This isn't measuring any exact number,
