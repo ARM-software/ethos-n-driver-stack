@@ -6,6 +6,7 @@
 #pragma once
 
 #include "DebuggingContext.hpp"
+#include "Estimation.hpp"
 #include "GraphOfParts.hpp"
 #include "Part.hpp"
 #include "Plan.hpp"
@@ -200,7 +201,15 @@ private:
         std::vector<EstimatedOpGraph> m_EstimatedOpGraphs;
         /// @}
     };
-    BestCombinationResults EstimateAndChooseBestCombination(const Combinations& combs);
+    BestCombinationResults EstimateAndChooseBestCombination(const Combinations& combs) const;
+
+    struct EstimatedCombination
+    {
+        Combination m_CombinationWithTempGlues;
+        OpGraph m_OpGraph;
+        EstimatedOpGraph m_EstimatedOpGraph;
+    };
+    EstimatedCombination EstimateCombination(const Combination& comb) const;
 
     Combination ChooseBestLonelyPlan(const BasePart& part);
 
@@ -214,7 +223,7 @@ private:
 
     // Add glue to input slots and output slots which do not have glue already
     // This is needed so it can estimate partial combinations
-    Combination AddTempGlues(const Combination& combination);
+    Combination AddTempGlues(const Combination& combination) const;
 
     void DumpDebugInfo(const Combinations& combs,
                        const Combiner::BestCombinationResults& bestCombinationResults,

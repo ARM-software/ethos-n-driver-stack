@@ -6,7 +6,7 @@
 #pragma once
 
 #include "../include/ethosn_support_library/Support.hpp"
-#include "CombinerDFS.hpp"
+#include "OpGraph.hpp"
 
 #include <unordered_map>
 #include <unordered_set>

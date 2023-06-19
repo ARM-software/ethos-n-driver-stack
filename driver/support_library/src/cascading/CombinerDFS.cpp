@@ -15,10 +15,13 @@
 #include <ThreadPool.hpp>
 
 #include <ethosn_utils/Filesystem.hpp>
+#include <ethosn_utils/Strings.hpp>
 
 #include <algorithm>
 #include <fstream>
 #include <future>
+
+using namespace ethosn::utils;
 
 namespace ethosn
 {
@@ -134,7 +137,6 @@ void Combiner::DumpDebugInfo(const Combinations& combs,
                              const Combiner::BestCombinationResults& bestCombinationResults,
                              const std::string& folder)
 {
-    using namespace ethosn::utils;
     if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
     {
         MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
@@ -296,7 +298,7 @@ bool Combiner::AllocateSram(SectionContext& context,
     return isSramAllocated;
 }
 
-Combination Combiner::AddTempGlues(const Combination& combination)
+Combination Combiner::AddTempGlues(const Combination& combination) const
 {
     Combination result              = combination;
     const FrozenGraphOfParts& parts = m_GraphOfParts;
@@ -385,7 +387,19 @@ Combination Combiner::AddTempGlues(const Combination& combination)
     return result;
 }
 
-Combiner::BestCombinationResults Combiner::EstimateAndChooseBestCombination(const Combinations& combs)
+Combiner::EstimatedCombination Combiner::EstimateCombination(const Combination& comb) const
+{
+    // Add temporary glues to partial combinations so we can estimate performance
+    Combination combinationWithTempGlues = AddTempGlues(comb);
+    OpGraph combiOpGraph                 = GetOpGraphForCombination(combinationWithTempGlues, m_GraphOfParts);
+
+    // Estimate the combination we're considering
+    EstimatedOpGraph estimatedOpGraph = ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Caps, m_EstOpt);
+
+    return { combinationWithTempGlues, combiOpGraph, estimatedOpGraph };
+}
+
+Combiner::BestCombinationResults Combiner::EstimateAndChooseBestCombination(const Combinations& combs) const
 {
     assert(combs.size() > 0);
 
@@ -394,25 +408,20 @@ Combiner::BestCombinationResults Combiner::EstimateAndChooseBestCombination(cons
     utils::Optional<double> bestMetric;
     for (size_t i = 0; i < combs.size(); ++i)
     {
-        const Combination& combination = combs[i];
-        // Add temporary glues to partial combinations so we can estimate performance
-        Combination comb     = AddTempGlues(combination);
-        OpGraph combiOpGraph = GetOpGraphForCombination(comb, m_GraphOfParts);
-
-        // Estimate the combination we're considering
-        EstimatedOpGraph estimatedOpGraph = ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Caps, m_EstOpt);
+        const Combination& combination            = combs[i];
+        EstimatedCombination estimatedCombination = EstimateCombination(combination);
 
         if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
         {
-            result.m_EstimatedOpGraphs.push_back(estimatedOpGraph);
-            result.m_OpGraphs.push_back(combiOpGraph);
-            result.m_CompletedCombinations.push_back(comb);
+            result.m_EstimatedOpGraphs.push_back(estimatedCombination.m_EstimatedOpGraph);
+            result.m_OpGraphs.push_back(estimatedCombination.m_OpGraph);
+            result.m_CompletedCombinations.push_back(estimatedCombination.m_CombinationWithTempGlues);
         }
 
-        if (!bestIdx.has_value() || estimatedOpGraph.m_Metric < bestMetric.value())
+        if (!bestIdx.has_value() || estimatedCombination.m_EstimatedOpGraph.m_Metric < bestMetric.value())
         {
             bestIdx    = i;
-            bestMetric = estimatedOpGraph.m_Metric;
+            bestMetric = estimatedCombination.m_EstimatedOpGraph.m_Metric;
         }
     }
     result.m_BestIdx    = bestIdx.value();
@@ -1123,12 +1132,8 @@ std::vector<SectionContext>
             // Once a section is finished, we can estimate performance for it
             if (isEnd)
             {
-                // Add temporary glues to partial combinations so we can estimate performance
-                Combination resultWithGlues = AddTempGlues(tempContext.comb);
-                OpGraph combiOpGraph        = GetOpGraphForCombination(resultWithGlues, m_GraphOfParts);
-                EstimatedOpGraph estimatedOpGraph =
-                    ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Caps, m_EstOpt);
-                tempContext.comb.SetMetric(estimatedOpGraph.m_Metric);
+                EstimatedCombination estimatedCombination = EstimateCombination(tempContext.comb);
+                tempContext.comb.SetMetric(estimatedCombination.m_EstimatedOpGraph.m_Metric);
             }
 
             result.push_back(tempContext);
@@ -1204,6 +1209,38 @@ void Combiner::Run(ThreadPool& threadPool)
         for (const auto& h : waitHandles)
         {
             h.wait();
+        }
+
+        // Dump best section if debug enabled
+        const char* env = std::getenv("ETHOSN_SUPPORT_LIBRARY_DEBUG_PART_IDS");
+        if (env && strlen(env) > 0)
+        {
+            for (std::string partIdString : ethosn::utils::Split(env, ","))
+            {
+                PartId partId = std::stoi(ethosn::utils::Trim(partIdString));
+
+                std::string folder = "Sections";
+                MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
+                folder += "/" + std::to_string(partId);
+                MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
+
+                for (uint32_t sectionLength = 0; sectionLength < sectionsOfAllLengthsForStartingPart[partId].size();
+                     ++sectionLength)
+                {
+                    if (!sectionsOfAllLengthsForStartingPart[partId][sectionLength].IsEmpty())
+                    {
+                        EstimatedCombination estimatedCombination =
+                            EstimateCombination(sectionsOfAllLengthsForStartingPart[partId][sectionLength]);
+                        m_DebuggingContext.Save(CompilationOptions::DebugLevel::None,
+                                                folder + "/Length" + std::to_string(sectionLength) + ".dot",
+                                                [&](std::ofstream& s) {
+                                                    SaveEstimatedOpGraphToDot(estimatedCombination.m_OpGraph,
+                                                                              estimatedCombination.m_EstimatedOpGraph,
+                                                                              s, DetailLevel::High, {}, {}, {});
+                                                });
+                    }
+                }
+            }
         }
 
         auto duration = std::chrono::high_resolution_clock::now() - startTime;
