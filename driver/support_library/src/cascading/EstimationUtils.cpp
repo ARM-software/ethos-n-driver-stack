@@ -232,11 +232,12 @@ OutputStats GetOutputStatsCascading(const SramBuffer& ofmSramBuffer,
 
 PleStats GetPleStats(const HardwareCapabilities& caps,
                      const std::vector<TensorShape>& inputShapes,
-                     const command_stream::PleOperation& pleOperation)
+                     const command_stream::PleOperation& pleOperation,
+                     const ethosn::command_stream::BlockConfig& blockConfig)
 {
     using namespace utils;
 
-    PleStats pleststs;
+    PleStats pleStats;
 
     // Number of patches that need to be post processed by the Ple kernel
     uint32_t patchesH = 0;
@@ -245,16 +246,29 @@ PleStats GetPleStats(const HardwareCapabilities& caps,
 
     for (auto& inputShape : inputShapes)
     {
-        patchesH = std::max(utils::DivRoundUp(GetHeight(inputShape), GetHeight(g_PatchShape)), patchesH);
-        patchesW = std::max(utils::DivRoundUp(GetWidth(inputShape), GetWidth(g_PatchShape)), patchesW);
+        uint32_t effectiveHeight = GetHeight(inputShape);
+        uint32_t effectiveWidth  = GetWidth(inputShape);
+
+        // Note that we round up to the block config, because the PLE always processes an entire block,
+        // even if it is only partial.
+        // Standalone operations (e.g. Addition) don't use a block config.
+        if (blockConfig.m_BlockWidth() != 0 && blockConfig.m_BlockHeight() != 0)
+        {
+            effectiveHeight = utils::RoundUpToNearestMultiple(GetHeight(inputShape), blockConfig.m_BlockHeight());
+            effectiveWidth  = utils::RoundUpToNearestMultiple(GetWidth(inputShape), blockConfig.m_BlockWidth());
+        }
+
+        patchesH = std::max(utils::DivRoundUp(effectiveHeight, GetHeight(g_PatchShape)), patchesH);
+        patchesW = std::max(utils::DivRoundUp(effectiveWidth, GetWidth(g_PatchShape)), patchesW);
+
         patchesC =
             std::max(utils::DivRoundUp(GetChannels(inputShape), caps.GetNumberOfEngines() * caps.GetNumberOfPleLanes()),
                      patchesC);
     }
 
-    pleststs.m_NumOfPatches = patchesW * patchesH * patchesC;
-    pleststs.m_Operation    = static_cast<uint32_t>(pleOperation);
-    return pleststs;
+    pleStats.m_NumOfPatches = patchesW * patchesH * patchesC;
+    pleStats.m_Operation    = static_cast<uint32_t>(pleOperation);
+    return pleStats;
 }
 
 PassStats GetConversionStats(const ConversionData& input, const ConversionData& output, bool isDramToDram)

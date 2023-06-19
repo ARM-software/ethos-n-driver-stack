@@ -29,7 +29,8 @@ PassStats GetConversionStats(const ConversionData& input, const ConversionData& 
 
 PleStats GetPleStats(const HardwareCapabilities& caps,
                      const std::vector<TensorShape>& inputShapes,
-                     const command_stream::PleOperation& pleoperation);
+                     const command_stream::PleOperation& pleoperation,
+                     const ethosn::command_stream::BlockConfig& blockConfig);
 
 InputStats GetInputStatsCascading(const SramBuffer& ifmBuffer,
                                   const TensorShape& weightsShape,

@@ -204,7 +204,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
 
         result.m_Stats.m_Mce =
             GetMceStats(capabilities, mceOp->m_Stride, mceOp->m_Op, mceOp->m_Algo, inputBuffer->m_TensorShape,
-                        mceOutputBuffer->m_TensorShape, weightsSram->m_TensorShape);
+                        mceOutputBuffer->m_TensorShape, weightsSram->m_TensorShape, mceOp->m_BlockConfig);
 
         if (weightsSram->m_Location != Location::Sram)
         {
@@ -248,7 +248,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
             inputShapes.push_back(inputBuffer->m_TensorShape);
         }
 
-        result.m_Stats.m_Ple = GetPleStats(capabilities, inputShapes, pleOp->m_Op);
+        result.m_Stats.m_Ple = GetPleStats(capabilities, inputShapes, pleOp->m_Op, pleOp->m_BlockConfig);
         includeOp(pleOp);
     }
 

@@ -20,7 +20,8 @@ MceStats GetMceStats(const HardwareCapabilities& caps,
                      const CompilerMceAlgorithm& algo,
                      const TensorShape& inputShape,
                      const TensorShape& outputShape,
-                     const TensorShape& weightsShape);
+                     const TensorShape& weightsShape,
+                     const ethosn::command_stream::BlockConfig& blockConfig);
 
 WeightsStats GetWeightsStats(const HardwareCapabilities& caps,
                              const EncodedWeights& encodedWeights,

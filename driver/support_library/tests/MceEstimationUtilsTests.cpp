@@ -63,7 +63,7 @@ TEST_CASE("MceStats DepthwiseConvolution", "[Estimation][Mce]")
     const TensorShape weightShape{ 3, 3, 32, 1 };
 
     MceStats stats = GetMceStats(caps, stride, MceOperation::DEPTHWISE_CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                 inputShape, outputShape, weightShape);
+                                 inputShape, outputShape, weightShape, BlockConfig{ 8u, 8u });
 
     uint32_t cycleCount = weightShape[0] * weightShape[1] * DivRoundUp(outputShape[1], halfPatchHeight) *
                           DivRoundUp(outputShape[2], halfPatchWidth) * DivRoundUp(outputShape[3], numTotIfm);
@@ -93,7 +93,7 @@ TEST_CASE("MceStats Convolution", "[Estimation][Mce]")
     const TensorShape weightShape{ 3, 3, 3, 32 };
 
     MceStats stats = GetMceStats(caps, stride, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, inputShape,
-                                 outputShape, weightShape);
+                                 outputShape, weightShape, BlockConfig{ 8u, 8u });
 
     uint32_t cycleCount = weightShape[0] * weightShape[1] * DivRoundUp(inputShape[3], numTotIfm) *
                           DivRoundUp(outputShape[3], numTotOfm) * DivRoundUp(outputShape[1], halfPatchHeight) *
@@ -120,7 +120,7 @@ TEST_CASE("MceStats winograd", "[Estimation][Mce]")
     const TensorShape weightShape{ 1, 9, 128, 128 };
 
     MceStats stats = GetMceStats(caps, stride, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Winograd, inputShape,
-                                 outputShape, weightShape);
+                                 outputShape, weightShape, BlockConfig{ 8u, 8u });
     uint32_t cycleCount = 17280;
 
     REQUIRE(stats.m_CycleCount == cycleCount);

@@ -108,8 +108,12 @@ uint64_t GetMceCycleCount(const HardwareCapabilities& caps,
                           const TensorShape& inputShape,
                           const TensorShape& outputShape,
                           const uint32_t weightsHeight,
-                          const uint32_t weightsWidth)
+                          const uint32_t weightsWidth,
+                          const ethosn::command_stream::BlockConfig& blockConfig)
 {
+    // Block config doesn't impact the MCE performance.
+    ETHOSN_UNUSED(blockConfig);
+
     if (algo == CompilerMceAlgorithm::Winograd)
     {
         return GetMceCycleCountWinograd(caps, inputShape, outputShape, weightsHeight, weightsWidth);
@@ -166,14 +170,15 @@ MceStats GetMceStats(const HardwareCapabilities& caps,
                      const CompilerMceAlgorithm& algo,
                      const TensorShape& inputShape,
                      const TensorShape& outputShape,
-                     const TensorShape& weightsShape)
+                     const TensorShape& weightsShape,
+                     const ethosn::command_stream::BlockConfig& blockConfig)
 {
     MceStats data;
     const uint32_t weightsHeight = weightsShape[0];
     const uint32_t weightsWidth  = weightsShape[1];
 
-    data.m_CycleCount =
-        GetMceCycleCount(caps, stride, convtype, algo, inputShape, outputShape, weightsHeight, weightsWidth);
+    data.m_CycleCount = GetMceCycleCount(caps, stride, convtype, algo, inputShape, outputShape, weightsHeight,
+                                         weightsWidth, blockConfig);
 
     data.m_Operations = GetNumOperations(caps, stride, convtype, inputShape, outputShape, weightsHeight, weightsWidth);
 
