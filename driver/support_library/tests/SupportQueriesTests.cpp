@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -362,5 +362,139 @@ TEST_CASE("Unsupported Tensor Depth", "[IsSupported][TVM]")
         CHECK_UNSUPPORTED(
             queries.IsSpaceToDepthSupported(spaceToDepthInputInfo, info, &outputs[0], reason, sizeof(reason)), reason);
         CHECK_UNSUPPORTED_TENSOR_DEPTH_REASON(reason);
+    }
+}
+
+constexpr const uint32_t MAX_SUPPORTED_16_8_OUTPUT_DEPTH   = 64 * 256;
+constexpr const uint32_t MIN_UNSUPPORTED_16_8_OUTPUT_DEPTH = MAX_SUPPORTED_16_8_OUTPUT_DEPTH + 1;
+
+TEST_CASE("Unsupported Tensor Depth - Glue", "[IsSupported]")
+{
+    // Test that the glue sram buffer works with what the depth that IsSupported() says it should support.
+
+    char reason[1024] = {
+        0,
+    };
+
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, TOTAL_SRAM));
+
+    // Setup a network that use MakeGlueIntermediateSramBuffer() and test it with a depth as big as possible by IsSuported() to make sure it works
+    // and one more thest with a sligtly bigger depth to make sure it fails.
+
+    CompilationOptions compOpt;
+
+    uint32_t depthOK = MAX_SUPPORTED_16_8_OUTPUT_DEPTH;
+
+    TensorInfo inputInfoOK{
+        { { 1, 16, 8, depthOK } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo biasInfo{
+        { { 1, 1, 1, 16 } },
+        DataType::INT32_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+    const std::vector<uint8_t> biasData(utils::TotalSizeBytes(biasInfo));
+
+    TensorInfo weightsInfoOK{
+        { { 1, 1, depthOK, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::HWIO,
+        { 0, 1.f },
+    };
+    const std::vector<uint8_t> weightsDataOK(utils::TotalSizeBytes(weightsInfoOK));
+
+    ConvolutionInfo convInfo{
+        { 0, 0, 0, 0 },
+        { 1, 1 },
+        { 0, 1.f },
+    };
+
+    std::vector<TensorInfo> outputs(2);
+
+    SECTION("Convolution with glue sram fits")
+    {
+        // Create the network
+        // Input -> Conv -> Output
+        std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
+
+        std::shared_ptr<Operand> input = AddInput(network, inputInfoOK).tensor;
+
+        std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;
+        std::shared_ptr<Constant> weights = AddConstant(network, weightsInfoOK, weightsDataOK.data()).tensor;
+        std::shared_ptr<Operand> conv     = AddConvolution(network, *input, *bias, *weights, convInfo).tensor;
+
+        std::shared_ptr<Output> output = AddOutput(network, *conv).tensor;
+
+        CompilationOptions options;
+        std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
+            ethosn::support_library::Compile(*network, options);
+
+        REQUIRE(compiledNetwork.size() > 0);
+    }
+
+    uint32_t depthNOK = MIN_UNSUPPORTED_16_8_OUTPUT_DEPTH;
+
+    TensorInfo inputInfoNOK{
+        { { 1, 16, 8, depthNOK } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo weightsInfoNOK{
+        { { 1, 1, depthNOK, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::HWIO,
+        { 0, 1.f },
+    };
+    const std::vector<uint8_t> weightsDataNOK(utils::TotalSizeBytes(weightsInfoNOK));
+
+    SECTION("Input")
+    {
+        CHECK_UNSUPPORTED(queries.IsInputSupported(inputInfoNOK, &outputs[0], reason, sizeof(reason)), reason);
+        CHECK_UNSUPPORTED_TENSOR_DEPTH_REASON(reason);
+    }
+
+    SECTION("Convolution")
+    {
+        CHECK_UNSUPPORTED(queries.IsConvolutionSupported(biasInfo, weightsInfoNOK, convInfo, inputInfoNOK, nullptr,
+                                                         reason, sizeof(reason)),
+                          reason);
+    }
+
+    SECTION("Convolution with glue sram do not fit")
+    {
+        // Create the network
+        // Input -> Conv -> Output
+        CompilationOptions options;
+        std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork;
+        bool failed                      = false;
+        std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
+
+        try
+        {
+            std::shared_ptr<Operand> input = AddInput(network, inputInfoNOK).tensor;
+
+            std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;
+            std::shared_ptr<Constant> weights = AddConstant(network, weightsInfoNOK, weightsDataNOK.data()).tensor;
+            std::shared_ptr<Operand> conv     = AddConvolution(network, *input, *bias, *weights, convInfo).tensor;
+
+            std::shared_ptr<Output> output = AddOutput(network, *conv).tensor;
+
+            compiledNetwork = ethosn::support_library::Compile(*network, options);
+        }
+        catch (const NotSupportedException& e)
+        {
+            failed = true;
+            CHECK_UNSUPPORTED_TENSOR_DEPTH_REASON(e.what());
+        }
+
+        REQUIRE(failed);
+        REQUIRE(compiledNetwork.size() == 0);
     }
 }
