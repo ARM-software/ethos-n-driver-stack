@@ -117,7 +117,7 @@ WeightEncoderCache::TCacheMap::iterator WeightEncoderCache::EncodeStage1AsyncImp
     // Profiling has shown that this copy does not take significant time.
     WeightEncodingRequest requestCopy                  = request;
     std::unique_ptr<IStage1ResultsFuture> stage1Future = EncodeWeightsStage1Async(std::move(request));
-    it = m_Entries.insert({ requestCopy, CacheEntry{ std::move(stage1Future), {} } }).first;
+    it = m_Entries.emplace(requestCopy, CacheEntry{ std::move(stage1Future), {} }).first;
 
     return it;
 }
