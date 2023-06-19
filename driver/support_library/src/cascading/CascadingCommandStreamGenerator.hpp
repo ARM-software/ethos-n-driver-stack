@@ -42,6 +42,7 @@ class CascadingCommandStreamGenerator
 {
 public:
     CascadingCommandStreamGenerator(const OpGraph& mergedOpGraph,
+                                    const EstimatedOpGraph& estimatedOpGraph,
                                     const std::set<uint32_t>& operationIds,
                                     const HardwareCapabilities& capabilities,
                                     const CompilationOptions& compilationOptions,
@@ -130,6 +131,7 @@ private:
 
     // Merged OpGraph used to generate the command stream, set at creation time.
     const OpGraph m_MergedOpGraph;
+    EstimatedOpGraph m_EstimatedOpGraph;
     const std::set<uint32_t> m_OperationIds;
 
     // Compilation parameters, set at creation time.

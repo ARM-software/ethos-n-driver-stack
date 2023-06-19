@@ -25,17 +25,18 @@ namespace support_library
 namespace cascading_compiler
 {
 CascadingCommandStreamGenerator::CascadingCommandStreamGenerator(const OpGraph& mergedOpGraph,
+                                                                 const EstimatedOpGraph& estimatedOpGraph,
                                                                  const std::set<uint32_t>& operationIds,
                                                                  const HardwareCapabilities& capabilities,
                                                                  const CompilationOptions& compilationOptions,
                                                                  const DebuggingContext& debuggingContext)
     : m_MergedOpGraph{ mergedOpGraph }
+    , m_EstimatedOpGraph(estimatedOpGraph)
     , m_OperationIds{ operationIds }
     , m_Capabilities{ capabilities }
     , m_CompilationOptions{ compilationOptions }
     , m_DebuggingContext(debuggingContext)
 {
-
     m_CommandStreamAgents.reserve(m_MergedOpGraph.GetOps().size());
 }
 
@@ -172,7 +173,7 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
     m_BufferManager.Allocate(m_DebuggingContext);
 
     CompiledOpGraph result;
-    result.m_EstimatedOpGraph = EstimateOpGraph(m_MergedOpGraph, m_Capabilities, EstimationOptions());
+    result.m_EstimatedOpGraph = m_EstimatedOpGraph;
 
     // Create the compiled network using the updated BufferManager instance
     result.m_CompiledNetwork    = std::make_unique<CompiledNetworkImpl>(m_BufferManager.GetConstantDmaData(),

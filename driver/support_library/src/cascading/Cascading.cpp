@@ -171,8 +171,8 @@ RunCascadingResult RunCascading(const Network& network,
 
     startTime = std::chrono::high_resolution_clock::now();
 
-    cascading_compiler::CascadingCommandStreamGenerator commandStreamGenerator(opGraph, operationIds, caps, compOpt,
-                                                                               debuggingContext);
+    cascading_compiler::CascadingCommandStreamGenerator commandStreamGenerator(opGraph, estimatedOpGraph, operationIds,
+                                                                               caps, compOpt, debuggingContext);
     cascading_compiler::CompiledOpGraph compiledOpGraph = commandStreamGenerator.Generate();
 
     duration = std::chrono::high_resolution_clock::now() - startTime;
