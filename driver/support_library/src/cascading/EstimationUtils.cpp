@@ -101,99 +101,6 @@ uint32_t GetInputTotalBytes(const HardwareCapabilities& caps,
     return (reloads + 1U) * shape[0] * effectiveHeight * effectiveWidth * shape[3];
 }
 
-InputStats GetInputStatsLegacy(const HardwareCapabilities& caps,
-                               const TensorShape& shape,
-                               const TensorShape& stripeShape,
-                               const Location location,
-                               const uint32_t tileSize,
-                               const TensorInfo& weights,
-                               const uint32_t numOutStripesC)
-{
-    InputStats data;
-
-    if (location != Location::Sram)
-    {
-        const TensorShape stripeShapeValid = {
-            std::min(stripeShape[0], shape[0]),
-            std::min(stripeShape[1], shape[1]),
-            std::min(stripeShape[2], shape[2]),
-            std::min(stripeShape[3], shape[3]),
-        };
-        const uint32_t stripeSize = stripeShape[0] * stripeShape[1] * stripeShape[2] * stripeShape[3];
-        assert(stripeSize != 0U);
-
-        const uint32_t numStripesH = utils::GetNumStripesH(shape, stripeShape);
-        const uint32_t numStripesW = utils::GetNumStripesW(shape, stripeShape);
-        const uint32_t numStripesC = utils::GetNumStripesC(shape, stripeShape);
-
-        const bool needNeighbourStripeH = weights.m_Dimensions[0] > 1U;
-        const bool needNeighbourStripeW = weights.m_Dimensions[1] > 1U;
-
-        // Number of ofm produced per iteration
-        const uint32_t ofmProduced = caps.GetOgsPerEngine() * caps.GetNumberOfEngines();
-
-        // This might change, it doesn't always need all the boundary slots.
-        const uint32_t numBoundarySlots = caps.GetNumBoundarySlots();
-
-        const bool isStreamingH = numStripesH > 1U;
-        const bool isStreamingW = numStripesW > 1U;
-        const bool isStreamingC = numStripesC > 1U;
-
-        data.m_StripesStats.m_NumReloads =
-            GetInputNumReloads(isStreamingH, isStreamingW, isStreamingC, weights, ofmProduced, numOutStripesC);
-
-        // Calculate the total amount of input data to be transferred included reloading.
-        const uint32_t total =
-            GetInputTotalBytes(caps, shape, stripeShape, isStreamingH, isStreamingW, isStreamingC, needNeighbourStripeH,
-                               needNeighbourStripeW, data.m_StripesStats.m_NumReloads);
-
-        // Calculate the minimum amount of data required to start processing.
-        uint32_t borderWidth  = 0;
-        uint32_t borderHeight = 0;
-
-        if (needNeighbourStripeH && isStreamingH)
-        {
-            borderHeight = (isStreamingC || isStreamingW) ? caps.GetBoundaryStripeHeight() : stripeShapeValid[1];
-        }
-
-        if (needNeighbourStripeW && isStreamingW)
-        {
-            borderWidth = stripeShapeValid[2];
-        }
-
-        const bool isUsingBoundarySlots = needNeighbourStripeH && isStreamingH && isStreamingW && !isStreamingC;
-        const uint32_t boundarySize     = isUsingBoundarySlots ? borderHeight * stripeShape[2] * stripeShape[3] : 0;
-        const uint32_t numStripesInTile = utils::DivRoundUp(tileSize - (boundarySize * numBoundarySlots), stripeSize);
-
-        data.m_MemoryStats.m_DramNonParallel =
-            (stripeShapeValid[1] + borderHeight) * (stripeShapeValid[2] + borderWidth) * stripeShapeValid[3];
-        // Determine how much data can be transferred in parallel.
-        const uint32_t minNumSlotsForBuffering =
-            GetInputMinNumSlotsForBuffering(isStreamingH, isStreamingW, isStreamingC, needNeighbourStripeH,
-                                            needNeighbourStripeW, numStripesH, numStripesW);
-
-        const bool buffering = numStripesInTile >= minNumSlotsForBuffering;
-
-        if (buffering)
-        {
-            data.m_MemoryStats.m_DramParallel = total - data.m_MemoryStats.m_DramNonParallel;
-        }
-        else
-        {
-            data.m_MemoryStats.m_DramNonParallel = total;
-        }
-
-        data.m_StripesStats.m_NumCentralStripes  = utils::GetNumStripesTotal(shape, stripeShape);
-        data.m_StripesStats.m_NumBoundaryStripes = isUsingBoundarySlots ? (numStripesH - 1) * numStripesW : 0;
-    }
-    else
-    {
-        data.m_MemoryStats.m_Sram = shape[0] * shape[1] * shape[2] * shape[3];
-    }
-
-    return data;
-}
-
 InputStats GetInputStatsCascading(const SramBuffer& ifmBuffer,
                                   const TensorShape& weightsShape,
                                   utils::Optional<CascadingBufferFormat> dramBufferFormat)
@@ -205,7 +112,7 @@ InputStats GetInputStatsCascading(const SramBuffer& ifmBuffer,
         const uint32_t numStripes        = utils::GetNumStripesTotal(ifmBuffer.m_TensorShape, ifmBuffer.m_StripeShape);
         data.m_StripesStats.m_NumReloads = ifmBuffer.m_NumLoads - 1;
 
-        // Calculate the total amount of input data to be transferred, included reloading and any packed boundary data.
+        // Calculate the total amount of input data to be transferred, including reloading and any packed boundary data.
         // Note that a simpler calculation of numStripes * m_SlotSizeInBytes is not accurate in cases where there
         // are partial stripes (in any of the three dimensions), because the slot size will be for the full stripe
         // shape and so this would overestimate.
@@ -223,6 +130,24 @@ InputStats GetInputStatsCascading(const SramBuffer& ifmBuffer,
         const uint32_t total = ifmBuffer.m_NumLoads * ifmBuffer.m_TensorShape[0] * effectiveHeight * effectiveWidth *
                                ifmBuffer.m_TensorShape[3];
 
+        // Calculate the amount of input data to be transferred for a single stripe, including any packed boundary data.
+        // Note that this is subtly different to m_SlotSizeInBytes because that is the amount of SRAM needed
+        // to store the data, not the amount of data actually transferred. These can be different in cases of
+        // partial stripes (in any of the three dimensions), because the slot size will be for the full stripe
+        // shape and so this would overestimate.
+        uint32_t effectiveStripeHeight =
+            std::min(utils::GetHeight(ifmBuffer.m_TensorShape), utils::GetHeight(ifmBuffer.m_StripeShape));
+        uint32_t effectiveStripeWidth =
+            std::min(utils::GetWidth(ifmBuffer.m_TensorShape), utils::GetWidth(ifmBuffer.m_StripeShape));
+        uint32_t effectiveStripeChannels =
+            std::min(utils::GetChannels(ifmBuffer.m_TensorShape), utils::GetChannels(ifmBuffer.m_StripeShape));
+        if (dramBufferFormat != CascadingBufferFormat::NHWC)
+        {
+            effectiveStripeHeight = utils::RoundUpToNearestMultiple(effectiveStripeHeight, 8);
+            effectiveStripeWidth  = utils::RoundUpToNearestMultiple(effectiveStripeWidth, 8);
+        }
+        const uint32_t stripeBytes = effectiveStripeHeight * effectiveStripeWidth * effectiveStripeChannels;
+
         const bool boundaryStripesNeeded =
             ((weightsShape[0] > 1 && ifmBuffer.m_StripeShape[1] < ifmBuffer.m_TensorShape[1]) ||
              (weightsShape[1] > 1 && ifmBuffer.m_StripeShape[2] < ifmBuffer.m_TensorShape[2]));
@@ -230,8 +155,7 @@ InputStats GetInputStatsCascading(const SramBuffer& ifmBuffer,
         // This is a conservative approximation (i.e. an overestimate).
         // For example we assume that the stripes needed are non-partial.
         const uint32_t numStripesNeededToStartProcessing = boundaryStripesNeeded ? 2 : 1;
-        const uint32_t bytesNeededToStartProcessing =
-            std::min(numStripesNeededToStartProcessing * ifmBuffer.m_SlotSizeInBytes, total);
+        const uint32_t bytesNeededToStartProcessing = std::min(numStripesNeededToStartProcessing * stripeBytes, total);
 
         // Determine how much data can be transferred in parallel.
         const uint32_t numStripesNeededPerOfmStripe = boundaryStripesNeeded ? 3 : 1;
@@ -259,32 +183,6 @@ InputStats GetInputStatsCascading(const SramBuffer& ifmBuffer,
                                     ifmBuffer.m_TensorShape[2] * ifmBuffer.m_TensorShape[3];
     }
 
-    return data;
-}
-
-OutputStats GetOutputStatsLegacy(const TensorShape& shape, const TensorShape& stripeShape, const Location location)
-{
-    OutputStats data;
-
-    const TensorShape& stripeShapeValid = { std::min(stripeShape[0], shape[0]), std::min(stripeShape[1], shape[1]),
-                                            std::min(stripeShape[2], shape[2]), std::min(stripeShape[3], shape[3]) };
-    const uint32_t stripeSize = stripeShapeValid[0] * stripeShapeValid[1] * stripeShapeValid[2] * stripeShapeValid[3];
-
-    // Total amount of data.
-    const uint32_t total = shape[0] * shape[1] * shape[2] * shape[3];
-
-    // Consider the output data transfer only if it is not already in Sram.
-    if (location != Location::Sram)
-    {
-        // Wait to the final stripe to be copied out if required.
-        data.m_MemoryStats.m_DramNonParallel    = stripeSize;
-        data.m_MemoryStats.m_DramParallel       = total - data.m_MemoryStats.m_DramNonParallel;
-        data.m_StripesStats.m_NumCentralStripes = utils::GetNumStripesTotal(shape, stripeShape);
-    }
-    else
-    {
-        data.m_MemoryStats.m_Sram = total;
-    }
     return data;
 }
 
