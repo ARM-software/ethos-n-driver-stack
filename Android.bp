@@ -79,6 +79,7 @@ cc_library {
         "driver/support_library/src/SubmapFilter.cpp",
         "driver/support_library/src/SramAllocator.cpp",
         "driver/support_library/src/Utils.cpp",
+        "driver/support_library/src/ThreadPool.cpp",
         "driver/support_library/src/DebuggingContext.cpp",
         "driver/support_library/src/PerformanceData.cpp",
         "driver/support_library/src/cascading/Cascading.cpp",
