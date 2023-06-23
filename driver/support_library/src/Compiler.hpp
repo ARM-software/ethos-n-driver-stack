@@ -49,7 +49,7 @@ private:
     /// Compilation parameters, set at creation time.
     /// @{
     const HardwareCapabilities m_Capabilities;
-    const CompilationOptions& m_CompilationOptions;
+    CompilationOptions m_CompilationOptions;
     DebuggingContext m_DebuggingContext;
     /// @}
 

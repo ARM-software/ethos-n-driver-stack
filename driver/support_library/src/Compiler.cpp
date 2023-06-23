@@ -70,7 +70,15 @@ Compiler::Compiler(const Network& network,
     , m_CompilationOptions(compilationOptions)
     , m_DebuggingContext(compilationOptions.m_DebugInfo)
     , m_EstimationOptions(estimationOptions)
-{}
+{
+    if (m_Capabilities.GetNumberOfSrams() < 16)
+    {
+        // The FCAF channel rounding (SetStripeChannelsInfo in CascadingCommandStreamGeneratorUtils.hpp)
+        // causes problems with small HW configs. We don't support these anyway, so disable FCAF so that
+        // tests pass.
+        m_CompilationOptions.m_EnableIntermediateCompression = false;
+    }
+}
 
 Compiler::~Compiler()
 {}
