@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2020,2023 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -35,7 +35,14 @@ public:
     ///    * read - Can be used to retrieve the status of the inference. Reading will always return a value of type
     ///             InferenceResult.
     ///    * release - Can be used to abort the inference.
-    int GetFileDescriptor();
+    int GetFileDescriptor() const;
+
+    /// Once an inference is complete, this can be used to get the number of NPU cycles
+    /// that the inference took to complete, as measured by the NPU firmware.
+    /// Note that this only includes time spent actually running the inference on the NPU, and not any
+    /// time spent waiting for previously scheduled inferences to finish.
+    /// If this is called before an inference has finished running, this will return zero.
+    uint64_t GetCycleCount() const;
 
 private:
     class InferenceImpl;

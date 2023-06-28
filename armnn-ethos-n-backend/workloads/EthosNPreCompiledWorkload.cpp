@@ -342,6 +342,7 @@ void EthosNPreCompiledWorkload::Execute() const
 
     WaitStatus result = WaitForInference(inference->GetFileDescriptor(), m_PreCompiledObject->GetInferenceTimeout());
 
+    ARMNN_LOG(debug) << "Ethos-N cycle count: " << inference->GetCycleCount();
     if (EthosNBackendProfilingService::Instance().IsProfilingEnabled())
     {
         SendProfilingEvents();

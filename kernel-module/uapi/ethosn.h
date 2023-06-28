@@ -280,6 +280,8 @@ enum ethosn_poll_counter_name {
 	ETHOSN_IO(0x0d)
 #define ETHOSN_IOCTL_CREATE_PROC_MEM_ALLOCATOR \
 	ETHOSN_IOW(0x0e, struct ethosn_proc_mem_allocator_req)
+#define ETHOSN_IOCTL_GET_CYCLE_COUNT \
+	ETHOSN_IOW(0x0f, __u64 *)
 
 /*
  * Results from reading an inference file descriptor.
@@ -297,7 +299,7 @@ enum ethosn_poll_counter_name {
 
 /* Version information */
 #define ETHOSN_KERNEL_MODULE_VERSION_MAJOR 6
-#define ETHOSN_KERNEL_MODULE_VERSION_MINOR 0
+#define ETHOSN_KERNEL_MODULE_VERSION_MINOR 1
 #define ETHOSN_KERNEL_MODULE_VERSION_PATCH 0
 
 /**

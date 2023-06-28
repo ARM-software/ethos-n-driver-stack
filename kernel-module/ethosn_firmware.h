@@ -47,7 +47,7 @@
  * This is common for the fat binary (ethosn.bin) and the individual
  * firmware binaries (sub-components of the fat binary).
  */
-#define ETHOSN_FIRMWARE_VERSION_MAJOR 11
+#define ETHOSN_FIRMWARE_VERSION_MAJOR 12
 #define ETHOSN_FIRMWARE_VERSION_MINOR 0
 #define ETHOSN_FIRMWARE_VERSION_PATCH 0
 
@@ -385,12 +385,15 @@ struct ethosn_message_inference_request {
  * struct ethosn_message_inference_response - Inference response message
  * @var user_argument:	User argument.
  * @var status:		Inference status.
+ * @var cycle_count:	Number of cycles taken for the inference
+ *			(as measured by the firmware).
  *
  * Following a ethosn_message_header.
  */
 struct ethosn_message_inference_response {
 	uint64_t user_argument;
 	uint32_t status;
+	uint64_t cycle_count;
 };
 
 /******************************************************************************

@@ -65,6 +65,7 @@ struct ethosn_inference {
 	struct ethosn_buffer  **outputs;
 
 	u32                   status;
+	u64                   cycle_count;
 
 	wait_queue_head_t     poll_wqh;
 };
@@ -78,7 +79,8 @@ int ethosn_network_register(struct ethosn_device *ethosn,
 
 void ethosn_set_inference_done(struct ethosn_core *core,
 			       struct ethosn_inference *inference,
-			       int new_status);
+			       int new_status,
+			       u64 cycle_count);
 
 void ethosn_schedule_queued_inference(struct ethosn_core *core);
 

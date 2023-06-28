@@ -335,14 +335,15 @@ static int handle_message(struct ethosn_core *core)
 		int status;
 
 		dev_dbg(core->dev,
-			"<- Inference. user_arg=0x%llx, status=%u\n",
-			rsp->user_argument, rsp->status);
+			"<- Inference. user_arg=0x%llx, status=%u, cycle_count=%llu\n",
+			rsp->user_argument, rsp->status, rsp->cycle_count);
 
 		status = rsp->status == ETHOSN_INFERENCE_STATUS_OK ?
 			 ETHOSN_INFERENCE_COMPLETED : ETHOSN_INFERENCE_ERROR;
 
 		update_busy_core(core);
-		ethosn_set_inference_done(core, inference, status);
+		ethosn_set_inference_done(core, inference, status,
+					  rsp->cycle_count);
 		break;
 	}
 	case ETHOSN_MESSAGE_PONG: {
@@ -483,7 +484,8 @@ static void ethosn_irq_bottom(struct work_struct *work)
 			if (core->current_inference)
 				ethosn_set_inference_done(core,
 							  core->current_inference,
-							  ETHOSN_INFERENCE_ERROR);
+							  ETHOSN_INFERENCE_ERROR,
+							  0);
 		}
 	}
 

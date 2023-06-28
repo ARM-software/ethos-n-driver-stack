@@ -631,7 +631,7 @@ static int inference_release(struct inode *inode,
 		(void)ethosn_reset_and_start_ethosn(core,
 						    core->set_alloc_id);
 		ethosn_set_inference_done(core, inference,
-					  ETHOSN_INFERENCE_ERROR);
+					  ETHOSN_INFERENCE_ERROR, 0);
 	}
 
 	mutex_unlock(&core->mutex);
@@ -681,6 +681,42 @@ static ssize_t inference_read(struct file *file,
 }
 
 /**
+ * inference_ioctl() - Take inference command from user space
+ * @filep: File struct
+ * @cmd: User command
+ * * ETHOSN_IOCTL_GET_CYCLE_COUNT
+ *
+ * Return:
+ * * Zero on success
+ * * Negative error code on failure
+ */
+static long inference_ioctl(struct file *filep,
+			    unsigned int cmd,
+			    unsigned long arg)
+{
+	struct ethosn_inference *inference = filep->private_data;
+	void __user *udata = (void __user *)arg;
+	int ret;
+
+	switch (cmd) {
+	case ETHOSN_IOCTL_GET_CYCLE_COUNT: {
+		if (copy_to_user(udata, &inference->cycle_count,
+				 sizeof(inference->cycle_count)))
+			return -EFAULT;
+
+		ret = 0;
+
+		break;
+	}
+	default: {
+		ret = -EINVAL;
+	}
+	}
+
+	return ret;
+}
+
+/**
  * ethosn_inference_register() - Create an inference job
  *
  * Return: File descriptor on success, else error code.
@@ -689,10 +725,14 @@ static int ethosn_inference_register(struct ethosn_network *network,
 				     struct ethosn_inference_req *req)
 {
 	static const struct file_operations inference_fops = {
-		.owner   = THIS_MODULE,
-		.release = &inference_release,
-		.poll    = &inference_poll,
-		.read    = &inference_read,
+		.owner          = THIS_MODULE,
+		.release        = &inference_release,
+		.poll           = &inference_poll,
+		.read           = &inference_read,
+		.unlocked_ioctl = &inference_ioctl,
+#ifdef CONFIG_COMPAT
+		.compat_ioctl   = &inference_ioctl,
+#endif
 	};
 	int i = 0;
 	bool found = false;
@@ -814,6 +854,7 @@ err_free_inference:
  * @filep: File struct
  * @cmd: User command
  * * ETHOSN_IOCTL_SCHEDULE_INFERENCE
+ * * ETHOSN_IOCTL_GET_INTERMEDIATE_BUFFER
  *
  * Return:
  * * Inference file descriptor on success
@@ -1540,7 +1581,8 @@ int ethosn_network_register(struct ethosn_device *ethosn,
 
 void ethosn_set_inference_done(struct ethosn_core *core,
 			       struct ethosn_inference *inference,
-			       int new_status)
+			       int new_status,
+			       u64 cycle_count)
 {
 	WARN_ON(new_status != ETHOSN_INFERENCE_COMPLETED &&
 		new_status != ETHOSN_INFERENCE_ERROR);
@@ -1563,6 +1605,7 @@ void ethosn_set_inference_done(struct ethosn_core *core,
 	}
 
 	inference->status = new_status;
+	inference->cycle_count = cycle_count;
 
 	wake_up_poll(&inference->poll_wqh, EPOLLIN);
 
