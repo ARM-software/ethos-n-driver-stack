@@ -391,6 +391,47 @@ double CalculateMetric(const NetworkPerformanceData& networkPerfData)
     return totalMetric;
 }
 
+namespace
+{
+
+uint32_t GetPleCyclesPerPatch(command_stream::PleOperation op)
+{
+    // These numbers were estimated from some internal benchmarks running on the model.
+    switch (op)
+    {
+        case command_stream::PleOperation::ADDITION:
+            return 15;
+        case command_stream::PleOperation::ADDITION_RESCALE:
+            return 35;
+        case command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA:
+            return 97;
+        case command_stream::PleOperation::DOWNSAMPLE_2X2:
+            return 10;
+        case command_stream::PleOperation::INTERLEAVE_2X2_2_2:
+            return 13;
+        case command_stream::PleOperation::LEAKY_RELU:
+            return 37;
+        case command_stream::PleOperation::MAXPOOL_2X2_2_2:
+            return 13;
+        case command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN:    // intentional fallthrough
+        case command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD:
+            return 37;
+        case command_stream::PleOperation::MEAN_XY_7X7:    // intentional fallthrough
+        case command_stream::PleOperation::MEAN_XY_8X8:
+            return 37;
+        case command_stream::PleOperation::PASSTHROUGH:
+            return 6;
+        case command_stream::PleOperation::SIGMOID:
+            return 76;
+        case command_stream::PleOperation::TRANSPOSE_XY:
+            return 14;
+        default:
+            return 0;
+    }
+}
+
+}    // namespace
+
 double CalculateMetric(const PassPerformanceData& passPerfData)
 {
     // Casts to double may result in a loss of precision as doubles cannot represent all the values
@@ -405,8 +446,12 @@ double CalculateMetric(const PassPerformanceData& passPerfData)
                              passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramParallel;
     double parallelBytesDouble = static_cast<double>(parallelBytes);
 
-    uint64_t mceCycleCount     = passPerfData.m_Stats.m_Mce.m_CycleCount;
-    double mceCycleCountDouble = static_cast<double>(mceCycleCount);
+    uint64_t pleCycleCount =
+        passPerfData.m_Stats.m_Ple.m_NumOfPatches *
+        GetPleCyclesPerPatch(static_cast<command_stream::PleOperation>(passPerfData.m_Stats.m_Ple.m_Operation));
+
+    uint64_t mcePleCycleCount     = std::max(passPerfData.m_Stats.m_Mce.m_CycleCount, pleCycleCount);
+    double mcePleCycleCountDouble = static_cast<double>(mcePleCycleCount);
 
     // Rough approximation for the number of stripes in a pass. This isn't measuring any exact number,
     // as the number of stripes may be different for the MCE, PLE, DMA etc., just a rough idea.
@@ -438,11 +483,11 @@ double CalculateMetric(const PassPerformanceData& passPerfData)
                                       IsDmaBlocking(passPerfData.m_Stats.m_Weights);
 
     const bool dmaBlockingMce =
-        ((parallelBytesDouble / bytesPerCycle) > std::max({ mceCycleCountDouble, parallelOverheadCycles })) &&
+        ((parallelBytesDouble / bytesPerCycle) > std::max({ mcePleCycleCountDouble, parallelOverheadCycles })) &&
         blockingDmaTransfers;
 
-    double metric = (nonParallelBytesDouble / bytesPerCycle) + (dmaBlockingMce ? mceCycleCountDouble : 0) +
-                    std::max({ parallelBytesDouble / bytesPerCycle, dmaBlockingMce ? 0 : mceCycleCountDouble,
+    double metric = (nonParallelBytesDouble / bytesPerCycle) + (dmaBlockingMce ? mcePleCycleCountDouble : 0) +
+                    std::max({ parallelBytesDouble / bytesPerCycle, dmaBlockingMce ? 0 : mcePleCycleCountDouble,
                                parallelOverheadCycles }) +
                     nonparallelOverheadCycles;
     return metric;
