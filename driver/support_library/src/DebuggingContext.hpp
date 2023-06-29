@@ -6,6 +6,7 @@
 #pragma once
 
 #include "../include/ethosn_support_library/Support.hpp"
+#include "cascading/Part.hpp"
 #include "cascading/Visualisation.hpp"
 
 #include <memory>
@@ -37,14 +38,13 @@ public:
 
     std::string GetAbsolutePathOutputFileName(const std::string& fileName) const;
 
-    uint32_t GetMaxNumDumps() const
-    {
-        return 100U;
-    }
+    utils::Optional<CascadingBufferFormat> GetPreferredDramFormat(const std::set<PartId>& partIds) const;
 
 private:
-    using NodeToCreationSourceContainer = std::unordered_map<const void*, std::string>;
-    NodeToCreationSourceContainer m_NodeToCreationSource;
+    /// For debugging, this can be used to store the preferred DRAM format (e.g. NHWCB, FCAF_WIDE)
+    /// for a glue buffer which connects a particular set of parts.
+    /// The key is a string with the part IDs joined together, e.g. "1,10,12"
+    std::unordered_map<std::string, CascadingBufferFormat> m_PreferredDramFormats;
 };
 
 }    // namespace support_library

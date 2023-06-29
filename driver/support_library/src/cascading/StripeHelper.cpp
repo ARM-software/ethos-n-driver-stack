@@ -469,7 +469,9 @@ bool IsSramBufferCompatibleWithDramBuffer(const TensorShape& sramTensorShape,
 }
 
 CascadingBufferFormat GetBestDramBufferFormat(const std::vector<const SramBuffer*>& sramBuffers,
-                                              const CompilationOptions& compilationOptions)
+                                              const CompilationOptions& compilationOptions,
+                                              const std::set<PartId>& debugPartIds,
+                                              const DebuggingContext& debuggingContext)
 {
     // cppcheck-suppress duplicateAssignExpression
     bool fcafDeep = compilationOptions.m_EnableIntermediateCompression;
@@ -482,6 +484,14 @@ CascadingBufferFormat GetBestDramBufferFormat(const std::vector<const SramBuffer
     {
         assert(b->m_TensorShape == tensorShape);
         ETHOSN_UNUSED(b);
+    }
+
+    // If a debug preferred dram format has been set, use that regardless of whether it is compatible or not
+    // (intended for debugging only)
+    utils::Optional<CascadingBufferFormat> preferred = debuggingContext.GetPreferredDramFormat(debugPartIds);
+    if (preferred.has_value())
+    {
+        return preferred.value();
     }
 
     for (const SramBuffer* b : sramBuffers)

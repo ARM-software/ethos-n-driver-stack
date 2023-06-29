@@ -9,12 +9,16 @@
 #include "Plan.hpp"
 #include "Utils.hpp"
 
+#include <set>
 #include <vector>
 
 namespace ethosn
 {
 namespace support_library
 {
+
+struct DebuggingContext;
+
 namespace impl
 {
 
@@ -497,7 +501,9 @@ bool IsSramBufferCompatibleWithDramBuffer(const TensorShape& sramTensorShape,
 /// the given set of SRAM buffers. Assumes that the full tensor is going to be copied (i.e. no subtensors)
 /// and no reshaping.
 CascadingBufferFormat GetBestDramBufferFormat(const std::vector<const SramBuffer*>& sramBuffers,
-                                              const CompilationOptions& compilationOptions);
+                                              const CompilationOptions& compilationOptions,
+                                              const std::set<PartId>& debugPartIds,
+                                              const DebuggingContext& debuggingContext);
 
 /// Creates an SRAM buffer for use in a glue (or similar) which DMAs stuff into and out of SRAM.
 /// The stripe shape is chosen (somewhat) optimally.

@@ -324,8 +324,8 @@ Combination Combiner::AddTempGlues(const Combination& combination) const
                     // users of this buffer will require. We could simply assume NHWCB which would be the most
                     // conservative in terms of performance and compatibility, but this might lead to pessimistic
                     // performance estimates due to chunking.
-                    CascadingBufferFormat dramFormat =
-                        impl::GetBestDramBufferFormat({ buffer->Sram() }, m_CompilationOptions);
+                    CascadingBufferFormat dramFormat = impl::GetBestDramBufferFormat(
+                        { buffer->Sram() }, m_CompilationOptions, { partId }, m_DebuggingContext);
 
                     std::unique_ptr<DramBuffer> dramBuffer = DramBuffer::Build()
                                                                  .AddFormat(dramFormat)
@@ -362,8 +362,8 @@ Combination Combiner::AddTempGlues(const Combination& combination) const
                     // users of this buffer will require. We could simply assume NHWCB which would be the most
                     // conservative in terms of performance and compatibility, but this might lead to pessimistic
                     // performance estimates due to chunking.
-                    CascadingBufferFormat dramFormat =
-                        impl::GetBestDramBufferFormat({ buffer->Sram() }, m_CompilationOptions);
+                    CascadingBufferFormat dramFormat = impl::GetBestDramBufferFormat(
+                        { buffer->Sram() }, m_CompilationOptions, { partId }, m_DebuggingContext);
 
                     std::unique_ptr<DramBuffer> dramBuffer = DramBuffer::Build()
                                                                  .AddFormat(dramFormat)
@@ -523,6 +523,7 @@ Combination
     assert(producedBuffer != nullptr);
 
     // Find the input buffers in the destination plans
+    std::set<PartId> debugPartIds = { sPart.GetPartId() };
     std::vector<std::pair<PartInputSlot, Buffer*>> consumerBuffers;
     for (const PartInputSlot& inputSlot : m_GraphOfParts.GetConnectedInputSlots(outputSlot))
     {
@@ -531,6 +532,7 @@ Combination
         Buffer* consumerBuffer = plan.GetInputBuffer(inputSlot);
         assert(consumerBuffer != nullptr);
         consumerBuffers.push_back(std::make_pair(inputSlot, consumerBuffer));
+        debugPartIds.insert(part.GetPartId());
     }
 
     // Sort the consumers so that DRAM consumers are processed first. This is because these buffers could be re-used
@@ -592,8 +594,9 @@ Combination
             }
         }
         // Need to add a new buffer of a compatible format.
-        CascadingBufferFormat format = impl::GetBestDramBufferFormat(sramBuffers, m_CompilationOptions);
-        DramBuffer* newBuffer        = addNewBuffer(format, producedBuffer);
+        CascadingBufferFormat format =
+            impl::GetBestDramBufferFormat(sramBuffers, m_CompilationOptions, debugPartIds, m_DebuggingContext);
+        DramBuffer* newBuffer = addNewBuffer(format, producedBuffer);
         return newBuffer;
     };
 
