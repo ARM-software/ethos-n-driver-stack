@@ -141,6 +141,10 @@ inline void SetStripeChannelsInfo(FmSDesc& streamerData,
         // for example Split or Concat with the padding channels optimisation, we will read or write partial depth cells
         // partway through a (super)tensor, and this could cause problems. To avoid this, we always round up the stripe
         // size to a full cell when we're partway through a (super)tensor.
+        //
+        // Note that this rounding does cause problems with HW configs that have < 16 SRAMs (e.g. 4 TOPs), because the layout
+        // in SRAM of an (e.g.) 8-channel tensor will not match what the HW expects, but this is handled by disabling
+        // FCAF for those variants in the top level Compiler class.
         const uint32_t channelEnd             = utils::GetChannels(supertensorOffset) + utils::GetChannels(tensorShape);
         const bool isEndOfSupertensorChannels = channelEnd == utils::GetChannels(supertensorShape);
         if (!isEndOfSupertensorChannels)
