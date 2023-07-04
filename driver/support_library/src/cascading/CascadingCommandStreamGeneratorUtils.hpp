@@ -447,9 +447,9 @@ inline void SetMcesConvolutionData(MceSDesc& mceS, const OpGraph& opGraph, MceOp
                 mceS.filterShape[s].height = 1;
             }
 
-            // When using wide filter, the filter shape needs to be rounded up to be a whole multiple
+            // When using wide filter or winograd, the filter shape needs to be rounded up to be a whole multiple
             // of the base filter size (3). Except for the value 1, which doesn't round.
-            if (isWideFilter)
+            if (isWideFilter || mceOp->m_Algo == CompilerMceAlgorithm::Winograd)
             {
                 if (mceS.filterShape[s].height > 1)
                 {
