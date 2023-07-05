@@ -76,7 +76,7 @@ struct PassDesc
     Buffer* m_Output     = nullptr;    ///< Either an SRAM or DRAM buffer
 };
 
-double CalculateMetric(const PassStats& legacyPerfData, const PassDesc& passDesc);
+double CalculateMetric(const PassStats& legacyPerfData, const PassDesc& passDesc, std::string* outDebugInfo = nullptr);
 
 }    //namespace support_library
 }    //namespace ethosn

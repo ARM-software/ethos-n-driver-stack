@@ -13,61 +13,6 @@ using namespace ethosn;
 using namespace ethosn::support_library;
 using namespace ethosn::command_stream;
 
-TEST_CASE("CalculateMetric only parallel dram", "[EstimationUtils]")
-{
-    PassPerformanceData pass = {};
-
-    // Make numbers large enough so metric is simple to reason about
-    pass.m_Stats.m_Input.m_MemoryStats.m_DramParallel      = 30UL;
-    pass.m_Stats.m_Weights.m_MemoryStats.m_DramParallel    = 36UL;
-    pass.m_Stats.m_Output.m_MemoryStats.m_DramParallel     = 30UL;
-    pass.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel   = 0UL;
-    pass.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel = 0UL;
-    pass.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel  = 0UL;
-    pass.m_Stats.m_Mce.m_CycleCount                        = 0UL;
-
-    const double metric = CalculateMetric(pass.m_Stats, PassDesc{});
-    CHECK(metric == Approx(6.0));
-}
-
-/// Test to make sure CalculateMetric accounts for that fact that Dram and Mce cycles can be done in parallel
-TEST_CASE("CalculateMetric mce cycles > parallel dram", "[EstimationUtils]")
-{
-    PassPerformanceData pass = {};
-
-    // Make numbers large enough so metric is simple to reason about
-    pass.m_Stats.m_Input.m_MemoryStats.m_DramParallel      = 30UL;
-    pass.m_Stats.m_Weights.m_MemoryStats.m_DramParallel    = 36UL;
-    pass.m_Stats.m_Output.m_MemoryStats.m_DramParallel     = 30UL;
-    pass.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel   = 0UL;
-    pass.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel = 0UL;
-    pass.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel  = 0UL;
-    pass.m_Stats.m_Mce.m_CycleCount                        = 20UL;
-
-    const double metric = CalculateMetric(pass.m_Stats, PassDesc{});
-
-    CHECK(metric == Approx(20.0));
-}
-
-/// Test to make sure CalculateMetric accounts for that fact that non parallel dram is a bottleneck
-TEST_CASE("CalculateMetric non parallel", "[EstimationUtils]")
-{
-    PassPerformanceData pass = {};
-
-    // Make numbers large enough so metric is simple to reason about
-    pass.m_Stats.m_Input.m_MemoryStats.m_DramParallel      = 30UL;
-    pass.m_Stats.m_Weights.m_MemoryStats.m_DramParallel    = 36UL;
-    pass.m_Stats.m_Output.m_MemoryStats.m_DramParallel     = 30UL;
-    pass.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel   = 120UL;
-    pass.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel = 144L;
-    pass.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel  = 120UL;
-    pass.m_Stats.m_Mce.m_CycleCount                        = 20UL;
-
-    const double metric = CalculateMetric(pass.m_Stats, PassDesc{});
-
-    CHECK(metric == Approx(44.0));
-}
-
 TEST_CASE("GetMceStats upsampled", "[EstimationUtils]")
 {
     HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);

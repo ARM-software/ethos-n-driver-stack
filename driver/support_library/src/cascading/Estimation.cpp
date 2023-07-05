@@ -136,7 +136,7 @@ EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
     passDesc.m_OutputDma  = secondDmaOp;
     passDesc.m_OutputDram = outputBuffer;
     passDesc.m_Output     = outputBuffer;
-    result.m_Metric       = CalculateMetric(result.m_LegacyStats, passDesc);
+    result.m_Metric       = CalculateMetric(result.m_LegacyStats, passDesc, &result.m_DebugInfo);
 
     return result;
 }
@@ -388,7 +388,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
 
     passDesc.m_Mce  = mceOp;
     passDesc.m_Ple  = pleOp;
-    result.m_Metric = CalculateMetric(result.m_LegacyStats, passDesc);
+    result.m_Metric = CalculateMetric(result.m_LegacyStats, passDesc, &result.m_DebugInfo);
 
     return result;
 }

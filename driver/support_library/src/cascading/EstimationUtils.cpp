@@ -441,62 +441,145 @@ StripesStats AccountForDmaChunking(StripesStats stats,
     return result;
 }
 
-double CalculateMetric(const PassStats& legacyPerfData, const PassDesc& passDesc)
+double CalculateMetric(const PassStats& legacyPerfData, const PassDesc& passDesc, std::string* outDebugInfo)
 {
-    ETHOSN_UNUSED(passDesc);
-
     using namespace utils;
 
-    // Casts to double may result in a loss of precision as doubles cannot represent all the values
-    // in a uint64_t, however it is unlikely to occur and is fine anyway as the metric is an estimation.
-    uint64_t nonParallelBytes = static_cast<uint64_t>(legacyPerfData.m_Input.m_MemoryStats.m_DramNonParallel) +
-                                legacyPerfData.m_Output.m_MemoryStats.m_DramNonParallel +
-                                legacyPerfData.m_Weights.m_MemoryStats.m_DramNonParallel;
-    double nonParallelBytesDouble = static_cast<double>(nonParallelBytes);
+    // Model each of the four HW units (DMA read, DMA write, MCE, PLE) as running in parallel with each other,
+    // with some of the DMAs potentially needing to run not in parallel due to dependencies.
 
-    uint64_t parallelBytes = static_cast<uint64_t>(legacyPerfData.m_Input.m_MemoryStats.m_DramParallel) +
-                             legacyPerfData.m_Output.m_MemoryStats.m_DramParallel +
-                             legacyPerfData.m_Weights.m_MemoryStats.m_DramParallel;
-    double parallelBytesDouble = static_cast<double>(parallelBytes);
-
-    uint64_t mcePleCycleCount     = std::max(legacyPerfData.m_Mce.m_CycleCount, legacyPerfData.m_Ple.m_CycleCount);
-    double mcePleCycleCountDouble = static_cast<double>(mcePleCycleCount);
-
-    // Rough approximation for the number of stripes in a pass. This isn't measuring any exact number,
-    // as the number of stripes may be different for the MCE, PLE, DMA etc., just a rough idea.
-    uint32_t numStripes              = std::max({ legacyPerfData.m_Input.m_StripesStats.m_NumCentralStripes *
-                                         (legacyPerfData.m_Input.m_StripesStats.m_NumReloads + 1),
-                                     legacyPerfData.m_Weights.m_StripesStats.m_NumCentralStripes *
-                                         (legacyPerfData.m_Weights.m_StripesStats.m_NumReloads + 1),
-                                     legacyPerfData.m_Output.m_StripesStats.m_NumCentralStripes *
-                                         (legacyPerfData.m_Output.m_StripesStats.m_NumReloads + 1) });
-    double nonparallelOverheadCycles = 0 * numStripes;
-    // This overhead was measured approximately from some profiling traces.
-    double parallelOverheadCycles = 10000 * numStripes;
+    constexpr double perStripeOverheadCycles = 100;
+    constexpr double perStripeMinimumCycles  = 2500;
 
     // How many bytes the DMA can transfer for each cycle of the MCE/PLE.
-    constexpr double bytesPerCycle = 16.0;
+    constexpr double dmaBytesPerCycle = 16.0;
 
-    // Non-buffered, multi-stripe DMA transfers can prevent the MCE from executing in parallel with buffered
-    // DMA transfers when the MCE is waiting on DMA transfers already, as the MCE and non-buffered transfer
-    // will end up waiting on each other, as they are unable to use the tile at the same time.
-    // e.g. Non-buffered IFM stripe cannot load while the MCE is using the tile slot and vice versa.
-    auto IsDmaBlocking = [](const InputStats& stats) {
-        return (stats.m_MemoryStats.m_DramNonParallel > 0) && (stats.m_StripesStats.m_NumCentralStripes > 1) &&
-               (stats.m_MemoryStats.m_DramParallel == 0);
-    };
+    // Dma Read
+    uint32_t numInputStripes = legacyPerfData.m_Input.m_StripesStats.m_NumCentralStripes *
+                               (legacyPerfData.m_Input.m_StripesStats.m_NumReloads + 1);
+    double inputBytes = static_cast<double>(legacyPerfData.m_Input.m_MemoryStats.m_DramParallel) +
+                        legacyPerfData.m_Input.m_MemoryStats.m_DramNonParallel;
+    double inputCycles         = std::max(inputBytes / dmaBytesPerCycle + numInputStripes * perStripeOverheadCycles,
+                                  perStripeMinimumCycles * numInputStripes);
+    double inputParallelCycles = inputBytes == 0
+                                     ? 0
+                                     : (inputCycles * (legacyPerfData.m_Input.m_MemoryStats.m_DramParallel /
+                                                       ((double)legacyPerfData.m_Input.m_MemoryStats.m_DramParallel +
+                                                        legacyPerfData.m_Input.m_MemoryStats.m_DramNonParallel)));
+    double inputNonParallelCycles = inputCycles - inputParallelCycles;
 
-    const bool blockingDmaTransfers = IsDmaBlocking(legacyPerfData.m_Input) || IsDmaBlocking(legacyPerfData.m_Output) ||
-                                      IsDmaBlocking(legacyPerfData.m_Weights);
+    uint32_t numWeightStripes = legacyPerfData.m_Weights.m_StripesStats.m_NumCentralStripes *
+                                (legacyPerfData.m_Weights.m_StripesStats.m_NumReloads + 1);
+    double weightBytes = static_cast<double>(legacyPerfData.m_Weights.m_MemoryStats.m_DramParallel) +
+                         legacyPerfData.m_Weights.m_MemoryStats.m_DramNonParallel;
+    double weightCycles = std::max(weightBytes / dmaBytesPerCycle + numWeightStripes * perStripeOverheadCycles,
+                                   perStripeMinimumCycles * numWeightStripes);
+    double weightParallelCycles =
+        weightBytes == 0 ? 0
+                         : (weightCycles * (legacyPerfData.m_Weights.m_MemoryStats.m_DramParallel /
+                                            ((double)legacyPerfData.m_Weights.m_MemoryStats.m_DramParallel +
+                                             legacyPerfData.m_Weights.m_MemoryStats.m_DramNonParallel)));
+    double weightNonParallelCycles = weightCycles - weightParallelCycles;
 
-    const bool dmaBlockingMce =
-        ((parallelBytesDouble / bytesPerCycle) > std::max({ mcePleCycleCountDouble, parallelOverheadCycles })) &&
-        blockingDmaTransfers;
+    double dmaReadParallelCycles    = inputParallelCycles + weightParallelCycles;
+    double dmaReadNonParallelCycles = inputNonParallelCycles + weightNonParallelCycles;
 
-    double metric = (nonParallelBytesDouble / bytesPerCycle) + (dmaBlockingMce ? mcePleCycleCountDouble : 0) +
-                    std::max({ parallelBytesDouble / bytesPerCycle, dmaBlockingMce ? 0 : mcePleCycleCountDouble,
-                               parallelOverheadCycles }) +
-                    nonparallelOverheadCycles;
+    // Dma Write
+    uint32_t numOutputStripes = legacyPerfData.m_Output.m_StripesStats.m_NumCentralStripes *
+                                (legacyPerfData.m_Output.m_StripesStats.m_NumReloads + 1);
+    double outputBytes = static_cast<double>(legacyPerfData.m_Output.m_MemoryStats.m_DramParallel) +
+                         legacyPerfData.m_Output.m_MemoryStats.m_DramNonParallel;
+    double outputCycles         = std::max(outputBytes / dmaBytesPerCycle + numOutputStripes * perStripeOverheadCycles,
+                                   perStripeMinimumCycles * numOutputStripes);
+    double outputParallelCycles = outputBytes == 0
+                                      ? 0
+                                      : (outputCycles * (legacyPerfData.m_Output.m_MemoryStats.m_DramParallel /
+                                                         ((double)legacyPerfData.m_Output.m_MemoryStats.m_DramParallel +
+                                                          legacyPerfData.m_Output.m_MemoryStats.m_DramNonParallel)));
+    double outputNonParallelCycles = outputCycles - outputParallelCycles;
+
+    double dmaWriteParallelCycles    = outputParallelCycles;
+    double dmaWriteNonParallelCycles = outputNonParallelCycles;
+
+    // MCE
+    double mceCycles       = 0.0;
+    uint32_t numMceStripes = 0;
+    if (passDesc.m_Mce != nullptr)
+    {
+        numMceStripes = (passDesc.m_Mce->m_Op == command_stream::MceOperation::DEPTHWISE_CONVOLUTION
+                             ? 1
+                             : DivRoundUp(GetChannels(passDesc.m_Input0Sram->m_TensorShape),
+                                          GetChannels(passDesc.m_Mce->m_InputStripeShape))) *
+                        DivRoundUp(GetChannels(passDesc.m_PleInputSram->m_TensorShape),
+                                   GetChannels(passDesc.m_Mce->m_OutputStripeShape)) *
+                        DivRoundUp(GetWidth(passDesc.m_PleInputSram->m_TensorShape),
+                                   GetWidth(passDesc.m_Mce->m_OutputStripeShape)) *
+                        DivRoundUp(GetHeight(passDesc.m_PleInputSram->m_TensorShape),
+                                   GetHeight(passDesc.m_Mce->m_OutputStripeShape));
+
+        mceCycles =
+            std::max(static_cast<double>(legacyPerfData.m_Mce.m_CycleCount) + numMceStripes * perStripeOverheadCycles,
+                     perStripeMinimumCycles * numMceStripes);
+    }
+
+    // PLE
+    double pleCycles       = 0.0;
+    uint32_t numPleStripes = 0;
+    if (passDesc.m_Ple != nullptr)
+    {
+        numPleStripes =
+            DivRoundUp(GetChannels(passDesc.m_OutputSram->m_TensorShape),
+                       GetChannels(passDesc.m_Ple->m_OutputStripeShape)) *
+            DivRoundUp(GetWidth(passDesc.m_OutputSram->m_TensorShape), GetWidth(passDesc.m_Ple->m_OutputStripeShape)) *
+            DivRoundUp(GetHeight(passDesc.m_OutputSram->m_TensorShape), GetHeight(passDesc.m_Ple->m_OutputStripeShape));
+
+        pleCycles =
+            std::max(static_cast<double>(legacyPerfData.m_Ple.m_CycleCount) + numPleStripes * perStripeOverheadCycles,
+                     perStripeMinimumCycles * numPleStripes);
+    }
+
+    double metric = dmaReadNonParallelCycles + dmaWriteNonParallelCycles +
+                    std::max({ dmaReadParallelCycles, dmaWriteParallelCycles, mceCycles, pleCycles });
+
+    if (outDebugInfo != nullptr)
+    {
+        std::stringstream ss;
+        ss << "Dma Read:" << std::endl;
+        ss << "    numInputStripes = " << numInputStripes << std::endl;
+        ss << "    inputBytes = " << inputBytes << std::endl;
+        ss << "    inputCycles = " << inputCycles << std::endl;
+        ss << "    inputParallelCycles = " << inputParallelCycles << std::endl;
+        ss << "    inputNonParallelCycles = " << inputNonParallelCycles << std::endl;
+        ss << "    numWeightStripes = " << numWeightStripes << std::endl;
+        ss << "    weightBytes = " << weightBytes << std::endl;
+        ss << "    weightCycles = " << weightCycles << std::endl;
+        ss << "    weightParallelCycles = " << weightParallelCycles << std::endl;
+        ss << "    weightNonParallelCycles = " << weightNonParallelCycles << std::endl;
+
+        ss << "Dma Write:" << std::endl;
+        ss << "    numOutputStripes = " << numOutputStripes << std::endl;
+        ss << "    outputBytes = " << outputBytes << std::endl;
+        ss << "    outputCycles = " << outputCycles << std::endl;
+        ss << "    outputParallelCycles = " << outputParallelCycles << std::endl;
+        ss << "    outputNonParallelCycles = " << outputNonParallelCycles << std::endl;
+
+        ss << "MCE:" << std::endl;
+        ss << "    numMceStripes = " << numMceStripes << std::endl;
+
+        ss << "PLE:" << std::endl;
+        ss << "    numPleStripes = " << numPleStripes << std::endl;
+
+        ss << "Metric:" << std::endl;
+        ss << "    dmaReadNonParallelCycles = " << dmaReadNonParallelCycles << std::endl;
+        ss << "    dmaWriteNonParallelCycles = " << dmaWriteNonParallelCycles << std::endl;
+        ss << "    max(dmaRead, dmaWrite, mce, ple) = "
+           << std::max({ dmaReadParallelCycles, dmaWriteParallelCycles, mceCycles, pleCycles }) << "("
+           << dmaReadParallelCycles << ", " << dmaWriteParallelCycles << ", " << mceCycles << ", " << pleCycles << ")"
+           << std::endl;
+
+        *outDebugInfo = ss.str();
+    }
+
     return metric;
 }
 
