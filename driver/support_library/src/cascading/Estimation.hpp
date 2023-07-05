@@ -19,9 +19,15 @@ namespace support_library
 
 struct EstimatedPass
 {
-    PassStats m_Stats;
+    /// The estimated cycle count for this pass.
+    double m_Metric;
+    /// Additional information helpful for debugging the performance estimation, shown in dot files.
+    std::string m_DebugInfo;
     /// The Ops included in this pass.
     std::vector<Op*> m_Ops;
+
+    /// Performance data in a format consumable by SPA, which is deprecated.
+    PassStats m_LegacyStats;
 };
 
 EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
@@ -38,9 +44,12 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
 /// Result of estimating the performance of an OpGraph.
 struct EstimatedOpGraph
 {
+    /// The total estimated cycle count for the entire OpGraph.
     double m_Metric;
-    NetworkPerformanceData m_PerfData;
-    /// For each Op in the OpGraph that was estimated, which Pass in the NetworkPerformanceData it was included in.
+    std::vector<EstimatedPass> m_Passes;
+    /// Performance data in a format consumable by SPA, which is deprecated.
+    NetworkPerformanceData m_LegacyPerfData;
+    /// For each Op in the OpGraph that was estimated, which Pass in the m_Passes/m_LegacyPerfData it was included in.
     std::unordered_map<Op*, uint32_t> m_OpToPass;
 };
 

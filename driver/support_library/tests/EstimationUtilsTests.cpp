@@ -15,8 +15,7 @@ using namespace ethosn::command_stream;
 
 TEST_CASE("CalculateMetric only parallel dram", "[EstimationUtils]")
 {
-    PassPerformanceData pass        = {};
-    NetworkPerformanceData perfData = {};
+    PassPerformanceData pass = {};
 
     // Make numbers large enough so metric is simple to reason about
     pass.m_Stats.m_Input.m_MemoryStats.m_DramParallel      = 30UL;
@@ -27,17 +26,14 @@ TEST_CASE("CalculateMetric only parallel dram", "[EstimationUtils]")
     pass.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel  = 0UL;
     pass.m_Stats.m_Mce.m_CycleCount                        = 0UL;
 
-    perfData.m_Stream.push_back(pass);
-
-    const double metric = CalculateMetric(perfData);
+    const double metric = CalculateMetric(pass.m_Stats, PassDesc{});
     CHECK(metric == Approx(6.0));
 }
 
 /// Test to make sure CalculateMetric accounts for that fact that Dram and Mce cycles can be done in parallel
 TEST_CASE("CalculateMetric mce cycles > parallel dram", "[EstimationUtils]")
 {
-    PassPerformanceData pass        = {};
-    NetworkPerformanceData perfData = {};
+    PassPerformanceData pass = {};
 
     // Make numbers large enough so metric is simple to reason about
     pass.m_Stats.m_Input.m_MemoryStats.m_DramParallel      = 30UL;
@@ -48,9 +44,7 @@ TEST_CASE("CalculateMetric mce cycles > parallel dram", "[EstimationUtils]")
     pass.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel  = 0UL;
     pass.m_Stats.m_Mce.m_CycleCount                        = 20UL;
 
-    perfData.m_Stream.push_back(pass);
-
-    const double metric = CalculateMetric(perfData);
+    const double metric = CalculateMetric(pass.m_Stats, PassDesc{});
 
     CHECK(metric == Approx(20.0));
 }
@@ -58,8 +52,7 @@ TEST_CASE("CalculateMetric mce cycles > parallel dram", "[EstimationUtils]")
 /// Test to make sure CalculateMetric accounts for that fact that non parallel dram is a bottleneck
 TEST_CASE("CalculateMetric non parallel", "[EstimationUtils]")
 {
-    PassPerformanceData pass        = {};
-    NetworkPerformanceData perfData = {};
+    PassPerformanceData pass = {};
 
     // Make numbers large enough so metric is simple to reason about
     pass.m_Stats.m_Input.m_MemoryStats.m_DramParallel      = 30UL;
@@ -70,9 +63,7 @@ TEST_CASE("CalculateMetric non parallel", "[EstimationUtils]")
     pass.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel  = 120UL;
     pass.m_Stats.m_Mce.m_CycleCount                        = 20UL;
 
-    perfData.m_Stream.push_back(pass);
-
-    const double metric = CalculateMetric(perfData);
+    const double metric = CalculateMetric(pass.m_Stats, PassDesc{});
 
     CHECK(metric == Approx(44.0));
 }

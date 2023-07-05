@@ -478,12 +478,27 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     // with some dummy figures
     EstimatedOpGraph estimatedOpGraph;
     estimatedOpGraph.m_Metric = 57.2;
-    PassPerformanceData pass1;
-    pass1.m_Stats.m_Ple.m_NumOfPatches = 10;
-    estimatedOpGraph.m_PerfData.m_Stream.push_back(pass1);
-    PassPerformanceData pass2;
-    pass2.m_Stats.m_Ple.m_NumOfPatches = 20;
-    estimatedOpGraph.m_PerfData.m_Stream.push_back(pass2);
+
+    PassPerformanceData legacyPass1;
+    legacyPass1.m_Stats.m_Ple.m_NumOfPatches = 10;
+    estimatedOpGraph.m_LegacyPerfData.m_Stream.push_back(legacyPass1);
+    EstimatedPass pass1;
+    pass1.m_Metric      = 30.0;
+    pass1.m_DebugInfo   = "Some calculations";
+    pass1.m_LegacyStats = legacyPass1.m_Stats;
+    pass1.m_Ops         = { &ple1 };
+    estimatedOpGraph.m_Passes.push_back(pass1);
+
+    PassPerformanceData legacyPass2;
+    legacyPass2.m_Stats.m_Ple.m_NumOfPatches = 20;
+    estimatedOpGraph.m_LegacyPerfData.m_Stream.push_back(legacyPass2);
+    EstimatedPass pass2;
+    pass2.m_Metric      = 27.2;
+    pass2.m_DebugInfo   = "Some more calculations";
+    pass2.m_LegacyStats = legacyPass2.m_Stats;
+    pass2.m_Ops         = { &ple2 };
+    estimatedOpGraph.m_Passes.push_back(pass2);
+
     estimatedOpGraph.m_OpToPass[&ple1] = 0;
     estimatedOpGraph.m_OpToPass[&ple2] = 1;
 
@@ -517,7 +532,7 @@ labeljust=l
 fontsize = 56
 Ple1[label = "Ple1", shape = oval]
 InputBuffer[label = "InputBuffer", shape = box, color = blue]
-Pass0_Perf[label = "Metric = 0\l\l{\l    \"OperationIds\": [ ],\l    \"ParentIds\": [],\l    \"Input\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Output\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Weights\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0,\l        \"CompressionSavings\": 0\l    },\l    \"Mce\":\l    {\l        \"Operations\": 0,\l        \"CycleCount\": 0\l    },\l    \"Ple\":\l    {\l        \"NumOfPatches\": 10,\l        \"Operation\": 0\l    }\l}\l", shape = note]
+Pass0_Perf[label = "Metric = 30\l\lSome calculations\l\l{\l    \"OperationIds\": [ ],\l    \"ParentIds\": [],\l    \"Input\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Output\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Weights\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0,\l        \"CompressionSavings\": 0\l    },\l    \"Mce\":\l    {\l        \"Operations\": 0,\l        \"CycleCount\": 0\l    },\l    \"Ple\":\l    {\l        \"NumOfPatches\": 10,\l        \"Operation\": 0\l    }\l}\l", shape = note]
 }
 subgraph clusterPass1
 {
@@ -525,7 +540,7 @@ label="Pass1"
 labeljust=l
 fontsize = 56
 Ple2[label = "Ple2", shape = oval]
-Pass1_Perf[label = "Metric = 0\l\l{\l    \"OperationIds\": [ ],\l    \"ParentIds\": [],\l    \"Input\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Output\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Weights\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0,\l        \"CompressionSavings\": 0\l    },\l    \"Mce\":\l    {\l        \"Operations\": 0,\l        \"CycleCount\": 0\l    },\l    \"Ple\":\l    {\l        \"NumOfPatches\": 20,\l        \"Operation\": 0\l    }\l}\l", shape = note]
+Pass1_Perf[label = "Metric = 27.2\l\lSome more calculations\l\l{\l    \"OperationIds\": [ ],\l    \"ParentIds\": [],\l    \"Input\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Output\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Weights\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0,\l        \"CompressionSavings\": 0\l    },\l    \"Mce\":\l    {\l        \"Operations\": 0,\l        \"CycleCount\": 0\l    },\l    \"Ple\":\l    {\l        \"NumOfPatches\": 20,\l        \"Operation\": 0\l    }\l}\l", shape = note]
 }
 EstimateOnly[label = "EstimateOnly", shape = oval]
 IntermediateBuffer[label = "IntermediateBuffer", shape = box, color = blue]
@@ -577,8 +592,12 @@ TEST_CASE("SaveCompiledOpGraphToDot", "[Visualisation]")
 
     // Create CompiledOpGraph describing this graph
     cascading_compiler::CompiledOpGraph compiledOpGraph;
-    PassPerformanceData pass1;
-    compiledOpGraph.m_EstimatedOpGraph.m_PerfData.m_Stream.push_back(pass1);
+    PassPerformanceData legacyPass1;
+    compiledOpGraph.m_EstimatedOpGraph.m_LegacyPerfData.m_Stream.push_back(legacyPass1);
+    EstimatedPass pass1;
+    pass1.m_LegacyStats = legacyPass1.m_Stats;
+    pass1.m_Ops         = { &ple1, &ple2 };
+    compiledOpGraph.m_EstimatedOpGraph.m_Passes.push_back(pass1);
     compiledOpGraph.m_EstimatedOpGraph.m_OpToPass[&ple1] = 0;
     compiledOpGraph.m_EstimatedOpGraph.m_OpToPass[&ple2] = 0;
     compiledOpGraph.m_OpToAgentIdMapping                 = { { &ple1, 4 }, { &ple2, 5 } };

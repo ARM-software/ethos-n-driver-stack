@@ -27,9 +27,9 @@ struct RunCascadingResult
     /// Some fields of this will be empty/null if estimation was requested.
     cascading_compiler::CompiledOpGraph compiledOpGraph;
 
-    const NetworkPerformanceData& GetNetworkPerformanceData() const
+    const NetworkPerformanceData& GetLegacyNetworkPerformanceData() const
     {
-        return compiledOpGraph.m_EstimatedOpGraph.m_PerfData;
+        return compiledOpGraph.m_EstimatedOpGraph.m_LegacyPerfData;
     }
 };
 

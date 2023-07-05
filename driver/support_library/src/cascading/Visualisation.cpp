@@ -1195,7 +1195,7 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
 
     // Write a subgraph for each pass, containing just the nodes for now.
     // We'll add the edges later as we can do them all together (including edges between passes).
-    size_t numPasses = estimationDetails.m_PerfData.m_Stream.size();
+    size_t numPasses = estimationDetails.m_Passes.size();
     for (uint32_t passIdx = 0; passIdx < numPasses; ++passIdx)
     {
         std::string passId = "Pass" + std::to_string(passIdx);
@@ -1238,11 +1238,13 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
 
         ApplyOpGraphRankHeuristic(graph, ops, nodeIds, stream);
 
-        // Add a "dummy" node showing the perf data JSON and the metric for this pass
-        std::stringstream perfJson;
-        perfJson << "Metric = " << CalculateMetric(estimationDetails.m_PerfData.m_Stream[passIdx]) << "\n\n";
-        PrintPassPerformanceData(perfJson, ethosn::utils::Indent(0), estimationDetails.m_PerfData.m_Stream[passIdx]);
-        DotAttributes perfAttr(passId + "_Perf", perfJson.str(), "");
+        // Add a "dummy" node showing the metric and debug info for this pass
+        std::stringstream perfDetails;
+        perfDetails << "Metric = " << estimationDetails.m_Passes[passIdx].m_Metric << "\n\n";
+        perfDetails << estimationDetails.m_Passes[passIdx].m_DebugInfo << "\n\n";
+        PrintPassPerformanceData(perfDetails, ethosn::utils::Indent(0),
+                                 estimationDetails.m_LegacyPerfData.m_Stream[passIdx]);
+        DotAttributes perfAttr(passId + "_Perf", perfDetails.str(), "");
         perfAttr.m_Shape              = "note";
         perfAttr.m_LabelAlignmentChar = 'l';
         DumpNodeToDotFormat(perfAttr, stream);

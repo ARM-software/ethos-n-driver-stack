@@ -441,43 +441,35 @@ StripesStats AccountForDmaChunking(StripesStats stats,
     return result;
 }
 
-double CalculateMetric(const NetworkPerformanceData& networkPerfData)
+double CalculateMetric(const PassStats& legacyPerfData, const PassDesc& passDesc)
 {
-    double totalMetric = 0;
-    for (PassPerformanceData passPerfData : networkPerfData.m_Stream)
-    {
-        double metric = CalculateMetric(passPerfData);
-        totalMetric += metric;
-    }
-    return totalMetric;
-}
+    ETHOSN_UNUSED(passDesc);
 
-double CalculateMetric(const PassPerformanceData& passPerfData)
-{
+    using namespace utils;
+
     // Casts to double may result in a loss of precision as doubles cannot represent all the values
     // in a uint64_t, however it is unlikely to occur and is fine anyway as the metric is an estimation.
-    uint64_t nonParallelBytes = static_cast<uint64_t>(passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel) +
-                                passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel +
-                                passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel;
+    uint64_t nonParallelBytes = static_cast<uint64_t>(legacyPerfData.m_Input.m_MemoryStats.m_DramNonParallel) +
+                                legacyPerfData.m_Output.m_MemoryStats.m_DramNonParallel +
+                                legacyPerfData.m_Weights.m_MemoryStats.m_DramNonParallel;
     double nonParallelBytesDouble = static_cast<double>(nonParallelBytes);
 
-    uint64_t parallelBytes = static_cast<uint64_t>(passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramParallel) +
-                             passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramParallel +
-                             passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramParallel;
+    uint64_t parallelBytes = static_cast<uint64_t>(legacyPerfData.m_Input.m_MemoryStats.m_DramParallel) +
+                             legacyPerfData.m_Output.m_MemoryStats.m_DramParallel +
+                             legacyPerfData.m_Weights.m_MemoryStats.m_DramParallel;
     double parallelBytesDouble = static_cast<double>(parallelBytes);
 
-    uint64_t mcePleCycleCount =
-        std::max(passPerfData.m_Stats.m_Mce.m_CycleCount, passPerfData.m_Stats.m_Ple.m_CycleCount);
+    uint64_t mcePleCycleCount     = std::max(legacyPerfData.m_Mce.m_CycleCount, legacyPerfData.m_Ple.m_CycleCount);
     double mcePleCycleCountDouble = static_cast<double>(mcePleCycleCount);
 
     // Rough approximation for the number of stripes in a pass. This isn't measuring any exact number,
     // as the number of stripes may be different for the MCE, PLE, DMA etc., just a rough idea.
-    uint32_t numStripes              = std::max({ passPerfData.m_Stats.m_Input.m_StripesStats.m_NumCentralStripes *
-                                         (passPerfData.m_Stats.m_Input.m_StripesStats.m_NumReloads + 1),
-                                     passPerfData.m_Stats.m_Weights.m_StripesStats.m_NumCentralStripes *
-                                         (passPerfData.m_Stats.m_Weights.m_StripesStats.m_NumReloads + 1),
-                                     passPerfData.m_Stats.m_Output.m_StripesStats.m_NumCentralStripes *
-                                         (passPerfData.m_Stats.m_Output.m_StripesStats.m_NumReloads + 1) });
+    uint32_t numStripes              = std::max({ legacyPerfData.m_Input.m_StripesStats.m_NumCentralStripes *
+                                         (legacyPerfData.m_Input.m_StripesStats.m_NumReloads + 1),
+                                     legacyPerfData.m_Weights.m_StripesStats.m_NumCentralStripes *
+                                         (legacyPerfData.m_Weights.m_StripesStats.m_NumReloads + 1),
+                                     legacyPerfData.m_Output.m_StripesStats.m_NumCentralStripes *
+                                         (legacyPerfData.m_Output.m_StripesStats.m_NumReloads + 1) });
     double nonparallelOverheadCycles = 0 * numStripes;
     // This overhead was measured approximately from some profiling traces.
     double parallelOverheadCycles = 10000 * numStripes;
@@ -494,9 +486,8 @@ double CalculateMetric(const PassPerformanceData& passPerfData)
                (stats.m_MemoryStats.m_DramParallel == 0);
     };
 
-    const bool blockingDmaTransfers = IsDmaBlocking(passPerfData.m_Stats.m_Input) ||
-                                      IsDmaBlocking(passPerfData.m_Stats.m_Output) ||
-                                      IsDmaBlocking(passPerfData.m_Stats.m_Weights);
+    const bool blockingDmaTransfers = IsDmaBlocking(legacyPerfData.m_Input) || IsDmaBlocking(legacyPerfData.m_Output) ||
+                                      IsDmaBlocking(legacyPerfData.m_Weights);
 
     const bool dmaBlockingMce =
         ((parallelBytesDouble / bytesPerCycle) > std::max({ mcePleCycleCountDouble, parallelOverheadCycles })) &&

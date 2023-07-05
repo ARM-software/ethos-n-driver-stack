@@ -109,23 +109,35 @@ EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
     outputConversionData.stripeShape = sramBuffer->Sram()->m_StripeShape;
     outputConversionData.isNhwc      = outputBuffer->m_Format == CascadingBufferFormat::NHWC;
 
-    result.m_Stats = GetConversionStats(inputConversionData, outputConversionData, isDramToDram);
+    result.m_LegacyStats = GetConversionStats(inputConversionData, outputConversionData, isDramToDram);
 
-    result.m_Stats.m_Input.m_StripesStats =
-        AccountForDmaChunking(result.m_Stats.m_Input.m_StripesStats, *sramBuffer->Sram(), *inputBuffer->Dram(), false);
-    result.m_Stats.m_Output.m_StripesStats =
-        AccountForDmaChunking(result.m_Stats.m_Output.m_StripesStats, *sramBuffer->Sram(), *outputBuffer->Dram(), true);
+    result.m_LegacyStats.m_Input.m_StripesStats = AccountForDmaChunking(
+        result.m_LegacyStats.m_Input.m_StripesStats, *sramBuffer->Sram(), *inputBuffer->Dram(), false);
+    result.m_LegacyStats.m_Output.m_StripesStats = AccountForDmaChunking(
+        result.m_LegacyStats.m_Output.m_StripesStats, *sramBuffer->Sram(), *outputBuffer->Dram(), true);
 
     if (isInputCompressed)
     {
-        result.m_Stats.m_Input =
-            AccountForActivationCompression(result.m_Stats.m_Input, estimationOpts.m_ActivationCompressionSaving);
+        result.m_LegacyStats.m_Input =
+            AccountForActivationCompression(result.m_LegacyStats.m_Input, estimationOpts.m_ActivationCompressionSaving);
     }
     if (isOutputCompressed)
     {
-        result.m_Stats.m_Output =
-            AccountForActivationCompression(result.m_Stats.m_Output, estimationOpts.m_ActivationCompressionSaving);
+        result.m_LegacyStats.m_Output = AccountForActivationCompression(result.m_LegacyStats.m_Output,
+                                                                        estimationOpts.m_ActivationCompressionSaving);
     }
+
+    PassDesc passDesc;
+    passDesc.m_Input0     = inputBuffer;
+    passDesc.m_Input0Dram = inputBuffer;
+    passDesc.m_Input0Dma  = dmaOp;
+    passDesc.m_Input0Sram = sramBuffer;
+    passDesc.m_OutputSram = sramBuffer;
+    passDesc.m_OutputDma  = secondDmaOp;
+    passDesc.m_OutputDram = outputBuffer;
+    passDesc.m_Output     = outputBuffer;
+    result.m_Metric       = CalculateMetric(result.m_LegacyStats, passDesc);
+
     return result;
 }
 
@@ -149,6 +161,8 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
     PleOp* pleOp = GetObjectAs<PleOp>(op);
     assert(mceOp != nullptr || pleOp != nullptr);
 
+    PassDesc passDesc;
+
     if (mceOp != nullptr)
     {
         // We require a PleOp immediately after
@@ -157,6 +171,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         {
             throw NotSupportedException("MceOp must have an output buffer in PleInputSram");
         }
+        passDesc.m_PleInputSram = mceOutput;
         if (opGraph.GetConsumers(mceOutput).size() != 1)
         {
             throw NotSupportedException("MceOp output buffer must be consumed by exactly one Op");
@@ -173,8 +188,9 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         // We may have an MceOp before us
         if (opGraph.GetInputs(pleOp).size() == 1)
         {
-            Buffer* pleInput = opGraph.GetInputs(pleOp)[0];
-            mceOp            = GetObjectAs<MceOp>(opGraph.GetSingleProducer(pleInput));
+            Buffer* pleInput        = opGraph.GetInputs(pleOp)[0];
+            passDesc.m_PleInputSram = pleInput;
+            mceOp                   = GetObjectAs<MceOp>(opGraph.GetSingleProducer(pleInput));
             if (mceOp != nullptr && unprocessed.count(mceOp) == 0)
             {
                 throw NotSupportedException(
@@ -202,7 +218,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         Buffer* weightsSram     = opGraph.GetInputs(mceOp)[1];
         Buffer* mceOutputBuffer = opGraph.GetOutput(mceOp);    // Validated above that this is non-null
 
-        result.m_Stats.m_Mce =
+        result.m_LegacyStats.m_Mce =
             GetMceStats(capabilities, mceOp->m_Stride, mceOp->m_Op, mceOp->m_Algo, inputBuffer->m_TensorShape,
                         mceOutputBuffer->m_TensorShape, weightsSram->m_TensorShape, mceOp->m_BlockConfig);
 
@@ -231,12 +247,17 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
 
         weightsTensorInfo = TensorInfo(weightsDram->m_TensorShape, DataType::UINT8_QUANTIZED, GetWeightsFormat(*mceOp),
                                        weightsDram->m_QuantizationInfo);
-        result.m_Stats.m_Weights =
+        result.m_LegacyStats.m_Weights =
             GetWeightsStats(capabilities, *weightsDram->Dram()->m_EncodedWeights, weightsTensorInfo,
                             weightsSram->m_SizeInBytes, inputBuffer->m_TensorShape, inputBuffer->Sram()->m_StripeShape);
 
         includeOp(dmaOp);
         includeOp(mceOp);
+
+        passDesc.m_Input1     = weightsDram;
+        passDesc.m_Input1Dram = weightsDram;
+        passDesc.m_Input1Dma  = dmaOp;
+        passDesc.m_Input1Sram = weightsSram;
     }
 
     Op* frontOp = mceOp ? static_cast<Op*>(mceOp) : pleOp;
@@ -257,8 +278,8 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
             inputShapes.push_back(inputBuffer->m_TensorShape);
         }
 
-        result.m_Stats.m_Ple = GetPleStats(capabilities, inputShapes, sramOutputBuffer->m_TensorShape, pleOp->m_Op,
-                                           pleOp->m_BlockMultiplier, pleOp->m_BlockConfig);
+        result.m_LegacyStats.m_Ple = GetPleStats(capabilities, inputShapes, sramOutputBuffer->m_TensorShape,
+                                                 pleOp->m_Op, pleOp->m_BlockMultiplier, pleOp->m_BlockConfig);
         includeOp(pleOp);
     }
 
@@ -291,6 +312,25 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
             includeOp(dmaOp);
         }
 
+        if (inputIdx == 0)
+        {
+            passDesc.m_Input0     = dmaOp ? dramBuffer : sramInputBuffer;
+            passDesc.m_Input0Dram = dramBuffer;
+            passDesc.m_Input0Dma  = dmaOp;
+            passDesc.m_Input0Sram = sramInputBuffer;
+        }
+        else if (inputIdx == 1)
+        {
+            passDesc.m_Input1     = dmaOp ? dramBuffer : sramInputBuffer;
+            passDesc.m_Input1Dram = dramBuffer;
+            passDesc.m_Input1Dma  = dmaOp;
+            passDesc.m_Input1Sram = sramInputBuffer;
+        }
+        else
+        {
+            throw NotSupportedException("More than 2 inputs to an Op is not supported");
+        }
+
         InputStats stats = GetInputStatsCascading(*sramInputBuffer->Sram(), weightsTensorInfo.m_Dimensions,
                                                   dramBuffer != nullptr ? dramBuffer->m_Format
                                                                         : utils::Optional<CascadingBufferFormat>{});
@@ -303,7 +343,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
                 stats = AccountForActivationCompression(stats, estimationOpts.m_ActivationCompressionSaving);
             }
         }
-        result.m_Stats.m_Input += stats;
+        result.m_LegacyStats.m_Input += stats;
     }
 
     // Check for a DmaOp afterwards, and use that to calculate output stats
@@ -312,7 +352,8 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         {
             throw NotSupportedException("Output buffer from PleOp must be in Sram");
         }
-        Buffer* dramBuffer = nullptr;
+        passDesc.m_OutputSram = sramOutputBuffer;
+        Buffer* dramBuffer    = nullptr;
         for (uint32_t i = 0; i < uint32_t(opGraph.GetConsumers(sramOutputBuffer).size()); i++)
         {
             DmaOp* dmaOp = GetObjectAs<DmaOp>(opGraph.GetConsumers(sramOutputBuffer)[i].first);
@@ -325,7 +366,10 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
                 }
                 includeOp(dmaOp);
             }
+
+            passDesc.m_OutputDram = dramBuffer;
         }
+        passDesc.m_Output = passDesc.m_OutputDma ? dramBuffer : sramOutputBuffer;
 
         OutputStats stats = GetOutputStatsCascading(*sramOutputBuffer->Sram(),
                                                     dramBuffer != nullptr ? dramBuffer->m_Format
@@ -339,8 +383,12 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
                 stats = AccountForActivationCompression(stats, estimationOpts.m_ActivationCompressionSaving);
             }
         }
-        result.m_Stats.m_Output = stats;
+        result.m_LegacyStats.m_Output = stats;
     }
+
+    passDesc.m_Mce  = mceOp;
+    passDesc.m_Ple  = pleOp;
+    result.m_Metric = CalculateMetric(result.m_LegacyStats, passDesc);
 
     return result;
 }
@@ -490,7 +538,8 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
     }
 
     EstimatedOpGraph result;
-    result.m_PerfData.m_OperationIdFailureReasons = operationIdFailureReasons;
+    result.m_Metric                                     = 0.0;
+    result.m_LegacyPerfData.m_OperationIdFailureReasons = operationIdFailureReasons;
     // The Ops in the OpGraph should already be sorted into execution order, so go through this order
     // to determine the order of the passes
     std::unordered_set<uint32_t> unsortedPassIdxsAdded;    // Tracks the passes already added
@@ -511,10 +560,10 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
 
         // Create the PassPerformanceData for this pass and it to the result
         PassPerformanceData passData;
-        const uint32_t sortedPassIdx       = static_cast<uint32_t>(result.m_PerfData.m_Stream.size());
+        const uint32_t sortedPassIdx       = static_cast<uint32_t>(result.m_LegacyPerfData.m_Stream.size());
         const EstimatedPass& estimatedPass = unsortedPasses[unsortedPassIdxIt->second];
         passData.m_ParentIds               = GetParentIds(estimatedPass.m_Ops, result, opGraph);
-        passData.m_Stats                   = estimatedPass.m_Stats;
+        passData.m_Stats                   = estimatedPass.m_LegacyStats;
 
         for (Op* op : estimatedPass.m_Ops)
         {
@@ -522,7 +571,9 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
             result.m_OpToPass[op] = sortedPassIdx;
         }
 
-        result.m_PerfData.m_Stream.push_back(passData);
+        result.m_LegacyPerfData.m_Stream.push_back(passData);
+        result.m_Passes.push_back(estimatedPass);
+        result.m_Metric += estimatedPass.m_Metric;
 
         // Record that we processed this pass, to prevent doing so again.
         unsortedPassIdxsAdded.insert(unsortedPassIdxIt->second);
@@ -533,8 +584,6 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
     {
         throw NotSupportedException("Not all Ops could be estimated");
     }
-
-    result.m_Metric = CalculateMetric(result.m_PerfData);
 
     return result;
 }

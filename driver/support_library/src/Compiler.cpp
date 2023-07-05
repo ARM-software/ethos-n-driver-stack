@@ -117,7 +117,7 @@ NetworkPerformanceData Compiler::EstimatePerformance()
     {
         performance =
             RunCascading(m_Network, m_EstimationOptions, m_CompilationOptions, m_Capabilities, m_DebuggingContext)
-                .GetNetworkPerformanceData();
+                .GetLegacyNetworkPerformanceData();
     }
     catch (const std::exception& e)
     {
