@@ -81,6 +81,22 @@ struct StripeConfig
                                                                       },
                                                                       { 8u, 32u } };
 
+    struct
+    {
+        uint32_t min = 1;
+        uint32_t max = std::numeric_limits<uint32_t>::max();
+    } ifmNumStripes;
+    struct
+    {
+        uint32_t min = 1;
+        uint32_t max = std::numeric_limits<uint32_t>::max();
+    } weightNumStripes;
+    struct
+    {
+        uint32_t min = 1;
+        uint32_t max = std::numeric_limits<uint32_t>::max();
+    } ofmNumStripes;
+
     /// Disables all splitting strategies and block configs.
     /// After calling this you will most likely want to re-enable some, otherwise no
     /// plans will be generated!

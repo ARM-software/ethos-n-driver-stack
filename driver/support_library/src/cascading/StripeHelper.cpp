@@ -320,6 +320,30 @@ StripeConfig GetDefaultStripeConfig(const CompilationOptions& compilationOptions
                         {
                             result.planTypes.lonely = valueBool();
                         }
+                        else if (name == "IfmNumStripes.Min")
+                        {
+                            result.ifmNumStripes.min = valueUInt();
+                        }
+                        else if (name == "IfmNumStripes.Max")
+                        {
+                            result.ifmNumStripes.max = valueUInt();
+                        }
+                        else if (name == "WeightNumStripes.Min")
+                        {
+                            result.weightNumStripes.min = valueUInt();
+                        }
+                        else if (name == "WeightNumStripes.Max")
+                        {
+                            result.weightNumStripes.max = valueUInt();
+                        }
+                        else if (name == "OfmNumStripes.Min")
+                        {
+                            result.ofmNumStripes.min = valueUInt();
+                        }
+                        else if (name == "OfmNumStripes.Max")
+                        {
+                            result.ofmNumStripes.max = valueUInt();
+                        }
                         else
                         {
                             reportError("Unknown name in assignment: " + name);
@@ -830,12 +854,20 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                                           DivRoundUp(GetChannels(inputShape), GetChannels(memoryInputStripe)));
         inputCopy.m_Min = std::min(inputCopy.m_Min, inputCopy.m_Max);
 
+        // Apply any stripe config overrides
+        inputCopy.m_Min = std::max(inputCopy.m_Min, stripeConfig.ifmNumStripes.min);
+        inputCopy.m_Max = std::min(inputCopy.m_Max, stripeConfig.ifmNumStripes.max);
+
         NumStripes outputCopy = outputRange;
         outputCopy.m_Max =
             std::min(outputCopy.m_Max, DivRoundUp(GetHeight(outputShape), GetHeight(memoryOutputStripe)) *
                                            DivRoundUp(GetWidth(outputShape), GetWidth(memoryOutputStripe)) *
                                            DivRoundUp(GetChannels(outputShape), GetChannels(memoryOutputStripe)));
         outputCopy.m_Min = std::min(outputCopy.m_Min, outputCopy.m_Max);
+
+        // Apply any stripe config overrides
+        outputCopy.m_Min = std::max(outputCopy.m_Min, stripeConfig.ofmNumStripes.min);
+        outputCopy.m_Max = std::min(outputCopy.m_Max, stripeConfig.ofmNumStripes.max);
 
         // Prevent unsupported splits for max pooling due to limitations of the PLE kernel
         if (m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
@@ -883,13 +915,19 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             }
         }
 
+        // Apply any stripe config overrides
+        weightCopy.m_Min = std::max(weightCopy.m_Min, stripeConfig.weightNumStripes.min);
+        weightCopy.m_Max = std::min(weightCopy.m_Max, stripeConfig.weightNumStripes.max);
+
         const NeedBoundary needBoundaryY = utils::GetBoundaryRequirements(
             m_PadTop, GetHeight(inputShape), GetHeight(mceInputStripe), GetHeight(mceOutputStripe), m_KernelHeight);
         const NeedBoundary needBoundaryX = utils::GetBoundaryRequirements(
             m_PadLeft, GetWidth(inputShape), GetWidth(mceInputStripe), GetWidth(mceOutputStripe), m_KernelWidth);
-        const bool packBoundaryVertical = (GetWidth(mceInputStripe) < GetWidth(inputShape)) ||
-                                          (GetChannels(mceInputStripe) < GetChannels(inputShape));
-        const bool packBoundaryHorizontal = (GetChannels(mceInputStripe) < GetChannels(inputShape));
+        const bool needMultipleIfmDepths = !isDepthwise && GetChannels(mceInputStripe) < GetChannels(inputShape);
+        // Packed boundary is needed only if that dimension is not the fastest iterating
+        const bool packBoundaryVertical = (GetHeight(mceInputStripe) < GetHeight(inputShape)) &&
+                                          (needMultipleIfmDepths || GetWidth(mceInputStripe) < GetWidth(inputShape));
+        const bool packBoundaryHorizontal = (GetWidth(mceInputStripe) < GetWidth(inputShape)) && needMultipleIfmDepths;
 
         PackedBoundaryThickness packedBoundaryThickness;
         // We set the packed boundary on the left and right to 16, so that it can work with FCAF_WIDE.
