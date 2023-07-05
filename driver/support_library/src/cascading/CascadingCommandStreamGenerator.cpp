@@ -1487,9 +1487,9 @@ bool CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                 consumerAgentDependency.outerRatio.self  = consumerAgentNumStripes;
 
                 // Inner ratio based on the stripe heights
-                consumerAgentDependency.innerRatio.other =
-                    ethosn::utils::NumericCast<uint16_t>(consumerAgentData.ofm.fmData.defaultStripeSize.height /
-                                                         producerAgentData.pleS.defaultStripeSize.height);
+                consumerAgentDependency.innerRatio.other = ethosn::utils::NumericCast<uint16_t>(
+                    utils::DivRoundUp(consumerAgentData.ofm.fmData.defaultStripeSize.height,
+                                      producerAgentData.pleS.defaultStripeSize.height));
                 consumerAgentDependency.innerRatio.self = 1;
 
                 command_stream::PleOperation pleOperation = static_cast<const PleOp*>(producerOp)->m_Op;
