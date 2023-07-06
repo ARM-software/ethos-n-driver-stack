@@ -792,6 +792,18 @@ void CalculateIfmSMceSOuterRatio(const AgentDesc& mce,
         outMceRatio =
             ethosn::utils::NumericCast<uint16_t>(mce.mce.numStripes.ofmWidth * mce.mce.numStripes.ifmChannels);
     }
+    else if (ifm.ifm.fmData.numStripes.width > 1 && mce.mce.numStripes.ofmChannels > 1)
+    {
+        // Splitting width and output depth => outer ratio is for each row which will need reloading multiple times
+        outIfmRatio = ethosn::utils::NumericCast<uint16_t>(ifm.ifm.fmData.numStripes.width);
+        outMceRatio = ethosn::utils::NumericCast<uint16_t>(mce.mce.numStripes.ofmWidth);
+    }
+    else if (ifm.ifm.fmData.numStripes.height > 1 && mce.mce.numStripes.ofmChannels > 1)
+    {
+        // Splitting height and output depth => outer ratio is for each column which will need reloading multiple times
+        outIfmRatio = ethosn::utils::NumericCast<uint16_t>(ifm.ifm.fmData.numStripes.height);
+        outMceRatio = ethosn::utils::NumericCast<uint16_t>(mce.mce.numStripes.ofmHeight);
+    }
     else
     {
         // Outer ratio is not needed (set to max)

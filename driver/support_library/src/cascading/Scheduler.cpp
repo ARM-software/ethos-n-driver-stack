@@ -9,11 +9,13 @@
 #include "../Utils.hpp"
 #include "DmaRegisters.hpp"
 
+#include <ethosn_utils/Strings.hpp>
+
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <fstream>
-#include <stack>
+#include <vector>
 
 using namespace ethosn::command_stream::cascading;
 using CommandVariant = ethosn::command_stream::CommandVariant;
@@ -728,7 +730,7 @@ void Scheduler::Schedule()
         uint32_t agentId;
     };
 
-    auto EvaluateDependencies = [&](uint32_t agentId, std::stack<Context>& stack) {
+    auto EvaluateDependencies = [&](uint32_t agentId, std::vector<Context>& stack) {
         for (const auto& dep : m_Agents[agentId].deps)
         {
             // Not all dependencies are used for scheduling (some are just for the command stream)
@@ -760,7 +762,7 @@ void Scheduler::Schedule()
 
             if (static_cast<int>(m_AgentProgress[dep.otherAgentId]) <= largestNeededStripeId)
             {
-                stack.push(Context{ dep.otherAgentId });
+                stack.push_back(Context{ dep.otherAgentId });
                 return true;
             }
         }
@@ -776,19 +778,22 @@ void Scheduler::Schedule()
             while (m_AgentProgress[a] < m_Agents[a].agent.numStripesTotal)
             {
                 // Store the stripes we want to schedule on a stack
-                std::stack<Context> stack;
+                std::vector<Context> stack;
 
                 Context context{ a };
-                stack.push(context);
+                stack.push_back(context);
 
                 while (!stack.empty())
                 {
                     if (stack.size() > m_Agents.size())
                     {
-                        throw InternalErrorException("Dependency cycle detected");
+                        throw InternalErrorException(
+                            ("Dependency cycle detected with agent IDs: " +
+                             ethosn::utils::Join(" -> ", stack, [](Context x) { return std::to_string(x.agentId); }))
+                                .c_str());
                     }
 
-                    Context current = stack.top();
+                    Context current = stack.back();
 
                     bool hasDependencies = EvaluateDependencies(current.agentId, stack);
                     if (hasDependencies)
@@ -797,7 +802,7 @@ void Scheduler::Schedule()
                     }
 
                     ScheduleOneStripe(current.agentId);
-                    stack.pop();
+                    stack.pop_back();
                 }
             }
         }
