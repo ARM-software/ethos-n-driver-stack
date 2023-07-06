@@ -766,14 +766,20 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(DmaOp
     StreamersUtils::SetStripeChannelsInfo(ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
                                           inputSramBuffer->m_StripeShape, ptrOp->m_Offset, supertensorShape);
 
+    // When there is an additional IFM stripe at the right / bottom edge due to
+    // valid(zero) padding, but this stripe is never actually loaded because
+    // it is packed into the previous stripe, the IFM streamer has one less stripe to load
+    // in that dimension, so retroactively update the appropriate fields.
     if (isExtraIfmStripeAtRightEdge && inputSramBuffer->m_PackedBoundaryThickness.right > 0)
     {
         ifmStreamerData.fmData.numStripes.width = static_cast<uint16_t>(ifmStreamerData.fmData.numStripes.width - 1);
+        ifmStreamerData.fmData.edgeStripeSize.width          = ifmStreamerData.fmData.defaultStripeSize.width;
         ifmStreamerData.isExtraPackedBoundaryDataOnRightEdge = true;
     }
     if (isExtraIfmStripeAtBottomEdge && inputSramBuffer->m_PackedBoundaryThickness.bottom > 0)
     {
         ifmStreamerData.fmData.numStripes.height = static_cast<uint16_t>(ifmStreamerData.fmData.numStripes.height - 1);
+        ifmStreamerData.fmData.edgeStripeSize.height          = ifmStreamerData.fmData.defaultStripeSize.height;
         ifmStreamerData.isExtraPackedBoundaryDataOnBottomEdge = true;
     }
 
