@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -319,49 +319,62 @@ TEST_CASE("ConvolutionSupported")
         }
     }
 
+    SECTION("Check max padding")
+    {
+        TensorInfo weightsInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO, QuantizationInfo(0, 1.0f));
+        TensorInfo inputInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        TensorInfo biasInfo({ 1, 1, 1, 1 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        ConvolutionInfo convInfo_pad_max({ 7, 7, 7, 7 }, { 1, 1 });
+        ConvolutionInfo convInfo_pad_too_big({ 8, 8, 8, 8 }, { 1, 1 });
+        REQUIRE(queries.IsConvolutionSupported(biasInfo, weightsInfo, convInfo_pad_max, inputInfo, nullptr, reason,
+                                               sizeof(reason)) == SupportedLevel::Supported);
+
+        REQUIRE(queries.IsConvolutionSupported(biasInfo, weightsInfo, convInfo_pad_too_big, inputInfo, nullptr, reason,
+                                               sizeof(reason)) == SupportedLevel::EstimateOnly);
+        INFO(reason);
+        REQUIRE(Contains(reason, "Unsupported padding"));
+    }
+
     // A configuration we should never need to support but could potentially estimate
     REQUIRE(IsConvolutionSupportedImpl(queries, 5, 5, 1, 77, 99, 16, 16) == SupportedLevel::EstimateOnly);
 
     // 1x1/(1,1)
     REQUIRE(IsConvolutionSupportedImpl(queries, 1, 1, 16, 1, 1, 16, 16, { 0, 0, 0, 0 }) == SupportedLevel::Supported);
     REQUIRE(IsConvolutionSupportedImpl(queries, 1, 1, 1, 1, 1, 16, 16, { 0, 0, 0, 0 }) == SupportedLevel::Supported);
-    REQUIRE(IsConvolutionSupportedImpl(queries, 1, 1, 1, 1, 1, 16, 16, { 1, 1, 0, 0 }) == SupportedLevel::EstimateOnly);
+    REQUIRE(IsConvolutionSupportedImpl(queries, 1, 1, 1, 1, 1, 16, 16, { 1, 1, 0, 0 }) == SupportedLevel::Supported);
 
     // 1x1/(2,2)
     REQUIRE(IsConvolutionSupportedImpl(queries, 1, 1, 1, 2, 2, 16, 16, { 0, 0, 0, 0 }) == SupportedLevel::Supported);
-    REQUIRE(IsConvolutionSupportedImpl(queries, 1, 1, 1, 2, 2, 16, 16, { 0, 0, 1, 1 }) == SupportedLevel::EstimateOnly);
+    REQUIRE(IsConvolutionSupportedImpl(queries, 1, 1, 1, 2, 2, 16, 16, { 0, 0, 1, 1 }) == SupportedLevel::Supported);
 
     // 3x3/(1,1)
     REQUIRE(IsConvolutionSupportedImpl(queries, 3, 3, 1, 1, 1, 16, 16, { 0, 0, 0, 0 }) == SupportedLevel::Supported);
     REQUIRE(IsConvolutionSupportedImpl(queries, 3, 3, 1, 1, 1, 16, 16, { 1, 1, 1, 1 }) == SupportedLevel::Supported);
-    REQUIRE(IsConvolutionSupportedImpl(queries, 3, 3, 1, 1, 1, 16, 16, { 0, 1, 0, 1 }) == SupportedLevel::EstimateOnly);
+    REQUIRE(IsConvolutionSupportedImpl(queries, 3, 3, 1, 1, 1, 16, 16, { 0, 1, 0, 1 }) == SupportedLevel::Supported);
 
     // 3x3/(2,2)
     REQUIRE(IsConvolutionSupportedImpl(queries, 3, 3, 16, 2, 2, 16, 16, { 0, 0, 0, 0 }) == SupportedLevel::Supported);
     REQUIRE(IsConvolutionSupportedImpl(queries, 3, 3, 16, 2, 2, 16, 16, { 0, 1, 0, 1 }) == SupportedLevel::Supported);
     REQUIRE(IsConvolutionSupportedImpl(queries, 3, 3, 16, 2, 2, 16, 16, { 1, 0, 1, 0 }) == SupportedLevel::Supported);
     REQUIRE(IsConvolutionSupportedImpl(queries, 3, 3, 16, 2, 2, 16, 16, { 1, 1, 1, 1 }) == SupportedLevel::Supported);
-    REQUIRE(IsConvolutionSupportedImpl(queries, 3, 3, 16, 2, 2, 15, 15, { 2, 1, 2, 1 }) ==
-            SupportedLevel::EstimateOnly);
-    REQUIRE(IsConvolutionSupportedImpl(queries, 3, 3, 16, 2, 2, 15, 15, { 1, 2, 1, 2 }) ==
-            SupportedLevel::EstimateOnly);
+    REQUIRE(IsConvolutionSupportedImpl(queries, 3, 3, 16, 2, 2, 15, 15, { 2, 1, 2, 1 }) == SupportedLevel::Supported);
+    REQUIRE(IsConvolutionSupportedImpl(queries, 3, 3, 16, 2, 2, 15, 15, { 1, 2, 1, 2 }) == SupportedLevel::Supported);
 
     REQUIRE(IsConvolutionSupportedImpl(queries, 3, 3, 16, 2, 2, 15, 15, { 0, 0, 0, 0 }) == SupportedLevel::Supported);
     REQUIRE(IsConvolutionSupportedImpl(queries, 3, 3, 16, 2, 2, 15, 15, { 1, 1, 1, 1 }) == SupportedLevel::Supported);
-    REQUIRE(IsConvolutionSupportedImpl(queries, 3, 3, 16, 2, 2, 15, 15, { 0, 1, 0, 1 }) ==
-            SupportedLevel::EstimateOnly);
+    REQUIRE(IsConvolutionSupportedImpl(queries, 3, 3, 16, 2, 2, 15, 15, { 0, 1, 0, 1 }) == SupportedLevel::Supported);
 
     // 5x5/(1,1)
     REQUIRE(IsConvolutionSupportedImpl(queries, 5, 5, 1, 1, 1, 16, 16, { 0, 0, 0, 0 }) == SupportedLevel::Supported);
     REQUIRE(IsConvolutionSupportedImpl(queries, 5, 5, 1, 1, 1, 16, 16, { 2, 2, 2, 2 }) == SupportedLevel::Supported);
-    REQUIRE(IsConvolutionSupportedImpl(queries, 5, 5, 1, 1, 1, 16, 16, { 1, 2, 1, 2 }) == SupportedLevel::EstimateOnly);
+    REQUIRE(IsConvolutionSupportedImpl(queries, 5, 5, 1, 1, 1, 16, 16, { 1, 2, 1, 2 }) == SupportedLevel::Supported);
 
     // 7x7/(2,2)
     REQUIRE(IsConvolutionSupportedImpl(queries, 7, 7, 1, 2, 2, 16, 16, { 0, 0, 0, 0 }) == SupportedLevel::Supported);
     REQUIRE(IsConvolutionSupportedImpl(queries, 7, 7, 1, 2, 2, 16, 16, { 2, 3, 2, 3 }) == SupportedLevel::Supported);
     REQUIRE(IsConvolutionSupportedImpl(queries, 7, 7, 1, 2, 2, 16, 16, { 3, 3, 3, 3 }) == SupportedLevel::Supported);
-    REQUIRE(IsConvolutionSupportedImpl(queries, 7, 7, 1, 2, 2, 16, 16, { 3, 4, 3, 4 }) == SupportedLevel::EstimateOnly);
-    REQUIRE(IsConvolutionSupportedImpl(queries, 7, 7, 1, 2, 2, 16, 16, { 4, 3, 4, 3 }) == SupportedLevel::EstimateOnly);
+    REQUIRE(IsConvolutionSupportedImpl(queries, 7, 7, 1, 2, 2, 16, 16, { 3, 4, 3, 4 }) == SupportedLevel::Supported);
+    REQUIRE(IsConvolutionSupportedImpl(queries, 7, 7, 1, 2, 2, 16, 16, { 4, 3, 4, 3 }) == SupportedLevel::Supported);
 
     // 9x9/(2,2)
     REQUIRE(IsConvolutionSupportedImpl(queries, 9, 9, 1, 2, 2, 16, 16, { 0, 0, 0, 0 }) == SupportedLevel::EstimateOnly);
@@ -369,27 +382,27 @@ TEST_CASE("ConvolutionSupported")
     // 1x3/(1,1)
     REQUIRE(IsConvolutionSupportedImpl(queries, 1, 3, 1, 1, 1, 16, 16, { 0, 0, 0, 0 }) == SupportedLevel::Supported);
     REQUIRE(IsConvolutionSupportedImpl(queries, 1, 3, 1, 1, 1, 16, 16, { 1, 1, 0, 0 }) == SupportedLevel::Supported);
-    REQUIRE(IsConvolutionSupportedImpl(queries, 1, 3, 1, 1, 1, 16, 16, { 1, 1, 1, 1 }) == SupportedLevel::EstimateOnly);
+    REQUIRE(IsConvolutionSupportedImpl(queries, 1, 3, 1, 1, 1, 16, 16, { 1, 1, 1, 1 }) == SupportedLevel::Supported);
 
     // 3x1/(1,1)
     REQUIRE(IsConvolutionSupportedImpl(queries, 3, 1, 1, 1, 1, 16, 16, { 0, 0, 0, 0 }) == SupportedLevel::Supported);
     REQUIRE(IsConvolutionSupportedImpl(queries, 3, 1, 1, 1, 1, 16, 16, { 0, 0, 1, 1 }) == SupportedLevel::Supported);
-    REQUIRE(IsConvolutionSupportedImpl(queries, 3, 1, 1, 1, 1, 16, 16, { 1, 1, 1, 1 }) == SupportedLevel::EstimateOnly);
+    REQUIRE(IsConvolutionSupportedImpl(queries, 3, 1, 1, 1, 1, 16, 16, { 1, 1, 1, 1 }) == SupportedLevel::Supported);
 
     // 1x7/(1,1)
     REQUIRE(IsConvolutionSupportedImpl(queries, 1, 7, 1, 1, 1, 16, 16, { 0, 0, 0, 0 }) == SupportedLevel::Supported);
     REQUIRE(IsConvolutionSupportedImpl(queries, 1, 7, 1, 1, 1, 16, 16, { 3, 3, 0, 0 }) == SupportedLevel::Supported);
-    REQUIRE(IsConvolutionSupportedImpl(queries, 1, 7, 1, 1, 1, 16, 16, { 3, 3, 1, 1 }) == SupportedLevel::EstimateOnly);
+    REQUIRE(IsConvolutionSupportedImpl(queries, 1, 7, 1, 1, 1, 16, 16, { 3, 3, 1, 1 }) == SupportedLevel::Supported);
 
     // 7x1/(1,1)
     REQUIRE(IsConvolutionSupportedImpl(queries, 7, 1, 1, 1, 1, 16, 16, { 0, 0, 0, 0 }) == SupportedLevel::Supported);
     REQUIRE(IsConvolutionSupportedImpl(queries, 7, 1, 1, 1, 1, 16, 16, { 0, 0, 3, 3 }) == SupportedLevel::Supported);
-    REQUIRE(IsConvolutionSupportedImpl(queries, 7, 1, 1, 1, 1, 16, 16, { 1, 1, 3, 3 }) == SupportedLevel::EstimateOnly);
+    REQUIRE(IsConvolutionSupportedImpl(queries, 7, 1, 1, 1, 1, 16, 16, { 1, 1, 3, 3 }) == SupportedLevel::Supported);
 
     // 9x9/(1,1)
     REQUIRE(IsConvolutionSupportedImpl(queries, 9, 9, 1, 1, 1, 16, 16, { 0, 0, 0, 0 }) == SupportedLevel::Supported);
     REQUIRE(IsConvolutionSupportedImpl(queries, 9, 9, 1, 1, 1, 16, 16, { 4, 4, 4, 4 }) == SupportedLevel::Supported);
-    REQUIRE(IsConvolutionSupportedImpl(queries, 9, 9, 1, 1, 1, 16, 16, { 4, 1, 4, 4 }) == SupportedLevel::EstimateOnly);
+    REQUIRE(IsConvolutionSupportedImpl(queries, 9, 9, 1, 1, 1, 16, 16, { 4, 1, 4, 4 }) == SupportedLevel::Supported);
 }
 
 TEST_CASE("DepthwiseConvolutionSupported")
@@ -670,5 +683,22 @@ TEST_CASE("DepthwiseConvolutionSupported")
             INFO(reason);
             REQUIRE(Contains(reason, "Zero point out of range for convInfo"));
         }
+    }
+
+    SECTION("Check max padding")
+    {
+        TensorInfo inputInfo({ 1, 16, 16, 1 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC);
+        TensorInfo biasInfo({ 1, 1, 1, 32 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
+        TensorInfo weightsInfo({ 1, 1, 1, 32 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM);
+        ConvolutionInfo convInfo_pad_max     = ConvolutionInfo({ 7, 7, 7, 7 }, { 1, 1 }, { 0, 1.1f });
+        ConvolutionInfo convInfo_pad_too_big = ConvolutionInfo({ 8, 8, 8, 8 }, { 1, 1 }, { 0, 1.1f });
+
+        REQUIRE(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo_pad_max, inputInfo, nullptr,
+                                                        reason, sizeof(reason)) == SupportedLevel::Supported);
+
+        REQUIRE(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo_pad_too_big, inputInfo, nullptr,
+                                                        reason, sizeof(reason)) == SupportedLevel::EstimateOnly);
+        INFO(reason);
+        REQUIRE(Contains(reason, "Unsupported padding"));
     }
 }

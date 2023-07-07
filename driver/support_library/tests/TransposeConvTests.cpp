@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -224,11 +224,11 @@ TEST_CASE("TransposeConvSupported")
         REQUIRE(Contains(reason, "Unsupported stride. Stride X and Y must be equal to 2"));
     }
 
-    // Unsupported padding
+    // Unsupported padding, larger then max padding
     {
         TensorInfo biasInfo({ 1, 1, 1, 10 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 8.0f));
         TensorInfo weightsInfo({ 3, 3, 5, 10 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO, QuantizationInfo(0, 2.0f));
-        ConvolutionInfo convInfo(Padding(1, 2, 3, 4), Stride(2, 2), QuantizationInfo(0, 1.0f));
+        ConvolutionInfo convInfo(Padding(8, 8, 8, 8), Stride(2, 2), QuantizationInfo(0, 1.0f));
         TensorInfo inputInfo({ 1, 10, 10, 5 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 4.0f));
         REQUIRE(queries.IsTransposeConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
                                                         sizeof(reason)) == SupportedLevel::EstimateOnly);
@@ -305,6 +305,17 @@ TEST_CASE("TransposeConvSupported")
                                                             reason, sizeof(reason)) == SupportedLevel::Supported);
             REQUIRE(outputInfo == TensorInfo({ 1, 4, 4, 10 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC,
                                              QuantizationInfo(0, 8.1f)));
+        }
+
+        // Max padding
+        {
+            TensorInfo inputInfoLarger({ 1, 32, 32, 5 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC,
+                                       QuantizationInfo(0, 4.0f));
+            convInfo.m_Padding = Padding(7, 7, 7, 7);
+            TensorInfo outputInfo;
+            REQUIRE(queries.IsTransposeConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfoLarger,
+                                                            &outputInfo, reason,
+                                                            sizeof(reason)) == SupportedLevel::Supported);
         }
 
         // Same padding (prefer before)

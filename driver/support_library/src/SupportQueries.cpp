@@ -101,11 +101,15 @@ bool IsPaddingSupported(const TensorInfo& inputInfo,
                         const Stride& stride,
                         const Padding& padInfo)
 {
-
-    return ((padInfo == Padding{ 0, 0, 0, 0 }) ||
-            (padInfo == CalcSamePadding(inputInfo, weightsInfo, stride, PadMode::Symmetric)) ||
-            (padInfo == CalcSamePadding(inputInfo, weightsInfo, stride, PadMode::PreferBefore)) ||
-            (padInfo == CalcSamePadding(inputInfo, weightsInfo, stride, PadMode::PreferAfter)));
+    // HW Padding Top and Left supports 3 bits, Bottom & Right is baked into stripe width/height delta field,
+    // that field is 5 bits (signed) but is not only padding lets stick with values 0-7 for all padding.
+    if (padInfo.m_Top > 7 || padInfo.m_Left > 7 || padInfo.m_Bottom > 7 || padInfo.m_Right > 7)
+    {
+        return ((padInfo == CalcSamePadding(inputInfo, weightsInfo, stride, PadMode::Symmetric)) ||
+                (padInfo == CalcSamePadding(inputInfo, weightsInfo, stride, PadMode::PreferBefore)) ||
+                (padInfo == CalcSamePadding(inputInfo, weightsInfo, stride, PadMode::PreferAfter)));
+    }
+    return true;
 }
 
 using PossibleTypeList = std::initializer_list<DataType>;
