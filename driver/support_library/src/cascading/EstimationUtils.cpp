@@ -269,6 +269,41 @@ uint32_t GetPleCyclesPerPatch(command_stream::PleOperation op)
     }
 }
 
+uint32_t GetPleStripeOverhead(command_stream::PleOperation op)
+{
+    switch (op)
+    {
+        case command_stream::PleOperation::ADDITION:
+            return 1500;
+        case command_stream::PleOperation::ADDITION_RESCALE:
+            return 1500;
+        case command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA:
+            return 100;
+        case command_stream::PleOperation::DOWNSAMPLE_2X2:
+            return 100;
+        case command_stream::PleOperation::INTERLEAVE_2X2_2_2:
+            return 100;
+        case command_stream::PleOperation::LEAKY_RELU:
+            return 100;
+        case command_stream::PleOperation::MAXPOOL_2X2_2_2:
+            return 100;
+        case command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN:    // intentional fallthrough
+        case command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD:
+            return 100;
+        case command_stream::PleOperation::MEAN_XY_7X7:    // intentional fallthrough
+        case command_stream::PleOperation::MEAN_XY_8X8:
+            return 100;
+        case command_stream::PleOperation::PASSTHROUGH:
+            return 100;
+        case command_stream::PleOperation::SIGMOID:
+            return 100;
+        case command_stream::PleOperation::TRANSPOSE_XY:
+            return 100;
+        default:
+            return 0;
+    }
+}
+
 }    // namespace
 
 PleStats GetPleStats(const HardwareCapabilities& caps,
@@ -448,8 +483,9 @@ double CalculateMetric(const PassStats& legacyPerfData, const PassDesc& passDesc
     // Model each of the four HW units (DMA read, DMA write, MCE, PLE) as running in parallel with each other,
     // with some of the DMAs potentially needing to run not in parallel due to dependencies.
 
-    constexpr double perStripeOverheadCycles = 100;
-    constexpr double perStripeMinimumCycles  = 2500;
+    constexpr double perStripeOverheadCycles   = 100;
+    constexpr double perStripeMinimumCycles    = 2500;
+    constexpr double perDmaStripeMinimumCycles = 2500;
 
     // How many bytes the DMA can transfer for each cycle of the MCE/PLE.
     constexpr double dmaBytesPerCycle = 16.0;
@@ -460,7 +496,7 @@ double CalculateMetric(const PassStats& legacyPerfData, const PassDesc& passDesc
     double inputBytes = static_cast<double>(legacyPerfData.m_Input.m_MemoryStats.m_DramParallel) +
                         legacyPerfData.m_Input.m_MemoryStats.m_DramNonParallel;
     double inputCycles         = std::max(inputBytes / dmaBytesPerCycle + numInputStripes * perStripeOverheadCycles,
-                                  perStripeMinimumCycles * numInputStripes);
+                                  perDmaStripeMinimumCycles * numInputStripes);
     double inputParallelCycles = inputBytes == 0
                                      ? 0
                                      : (inputCycles * (legacyPerfData.m_Input.m_MemoryStats.m_DramParallel /
@@ -473,7 +509,7 @@ double CalculateMetric(const PassStats& legacyPerfData, const PassDesc& passDesc
     double weightBytes = static_cast<double>(legacyPerfData.m_Weights.m_MemoryStats.m_DramParallel) +
                          legacyPerfData.m_Weights.m_MemoryStats.m_DramNonParallel;
     double weightCycles = std::max(weightBytes / dmaBytesPerCycle + numWeightStripes * perStripeOverheadCycles,
-                                   perStripeMinimumCycles * numWeightStripes);
+                                   perDmaStripeMinimumCycles * numWeightStripes);
     double weightParallelCycles =
         weightBytes == 0 ? 0
                          : (weightCycles * (legacyPerfData.m_Weights.m_MemoryStats.m_DramParallel /
@@ -490,7 +526,7 @@ double CalculateMetric(const PassStats& legacyPerfData, const PassDesc& passDesc
     double outputBytes = static_cast<double>(legacyPerfData.m_Output.m_MemoryStats.m_DramParallel) +
                          legacyPerfData.m_Output.m_MemoryStats.m_DramNonParallel;
     double outputCycles         = std::max(outputBytes / dmaBytesPerCycle + numOutputStripes * perStripeOverheadCycles,
-                                   perStripeMinimumCycles * numOutputStripes);
+                                   perDmaStripeMinimumCycles * numOutputStripes);
     double outputParallelCycles = outputBytes == 0
                                       ? 0
                                       : (outputCycles * (legacyPerfData.m_Output.m_MemoryStats.m_DramParallel /
@@ -523,19 +559,21 @@ double CalculateMetric(const PassStats& legacyPerfData, const PassDesc& passDesc
     }
 
     // PLE
-    double pleCycles       = 0.0;
-    uint32_t numPleStripes = 0;
+    double perPleStripeOverheadCycles = 0.0;
+    double pleCycles                  = 0.0;
+    uint32_t numPleStripes            = 0;
     if (passDesc.m_Ple != nullptr)
     {
+        perPleStripeOverheadCycles = static_cast<double>(GetPleStripeOverhead(passDesc.m_Ple->m_Op));
         numPleStripes =
             DivRoundUp(GetChannels(passDesc.m_OutputSram->m_TensorShape),
                        GetChannels(passDesc.m_Ple->m_OutputStripeShape)) *
             DivRoundUp(GetWidth(passDesc.m_OutputSram->m_TensorShape), GetWidth(passDesc.m_Ple->m_OutputStripeShape)) *
             DivRoundUp(GetHeight(passDesc.m_OutputSram->m_TensorShape), GetHeight(passDesc.m_Ple->m_OutputStripeShape));
 
-        pleCycles =
-            std::max(static_cast<double>(legacyPerfData.m_Ple.m_CycleCount) + numPleStripes * perStripeOverheadCycles,
-                     perStripeMinimumCycles * numPleStripes);
+        pleCycles = std::max(static_cast<double>(legacyPerfData.m_Ple.m_CycleCount) +
+                                 numPleStripes * perPleStripeOverheadCycles,
+                             perStripeMinimumCycles * numPleStripes);
     }
 
     double metric = dmaReadNonParallelCycles + dmaWriteNonParallelCycles +
