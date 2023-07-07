@@ -13,6 +13,7 @@
 #include "Scheduler.hpp"
 #include "Visualisation.hpp"
 
+#include <fstream>
 #include <iomanip>
 #include <memory>
 
@@ -87,6 +88,15 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
         g_Logger.Error("Error: %s", e.what());
         return {};
     }
+
+    // Dump out the agent ID <> Op mapping, which is useful if a compilation failure
+    // happens before we dump out the final CompiledOpGraph
+    m_DebuggingContext.Save(CompilationOptions::DebugLevel::Medium, "OpsToAgentIds.txt", [&](std::ofstream& s) {
+        for (const std::pair<const Op*, AgentIdType>& p : m_OpToAgentIdMapping)
+        {
+            s << p.first->m_DebugTag << ": " << p.second << std::endl;
+        }
+    });
 
     // Add the lifetime information of the intermediate DRAM buffers so the memory required to store these
     // buffers is reduced
