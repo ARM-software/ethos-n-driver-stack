@@ -23,13 +23,6 @@ namespace cascading_compiler
 using AgentIdType         = std::vector<command_stream::cascading::Agent>::size_type;
 using RelativeAgentIdType = uint8_t;
 
-constexpr uint8_t g_MaxRelativeAgentPosition = 255;
-constexpr uint8_t g_DmaInputBufferIndex      = 0;
-constexpr uint8_t g_MceIfmBufferIndex        = 0;
-constexpr uint8_t g_MceWeightBufferIndex     = 1;
-constexpr uint8_t g_PleInputBuffer0Index     = 0;
-constexpr uint8_t g_PleInputBuffer1Index     = 1;
-
 struct CompiledOpGraph
 {
     EstimatedOpGraph m_EstimatedOpGraph;

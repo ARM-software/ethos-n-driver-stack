@@ -403,17 +403,6 @@ inline ethosn::support_library::TensorShape
     return roundUp;
 }
 
-inline uint32_t MaxTileSize(const ethosn::support_library::TensorShape& shape,
-                            const HardwareCapabilities& capabilities,
-                            uint32_t widthMultiple,
-                            uint32_t heightMultiple)
-{
-    const uint32_t numSrams = capabilities.GetNumberOfSrams();
-    return TotalSizeBytes(TensorShape{ 1, RoundUpToNearestMultiple(shape[1], heightMultiple),
-                                       RoundUpToNearestMultiple(shape[2], widthMultiple),
-                                       RoundUpToNearestMultiple(shape[3], numSrams) });
-}
-
 inline uint32_t TotalSizeBytesNHWCB(const ethosn::support_library::TensorInfo& info)
 {
     return GetElementSizeBytes(info.m_DataType) * info.m_Dimensions[0] *
@@ -701,16 +690,12 @@ struct NeedBoundary
 };
 
 inline NeedBoundary GetBoundaryRequirements(const uint32_t padBefore,
-                                            const uint32_t ifmSize,
                                             const uint32_t ifmStripeSize,
                                             const uint32_t ofmStripeSize,
-                                            const uint32_t weightSize)
+                                            const uint32_t weightSize,
+                                            bool isUpscale)
 {
-    if (ifmSize <= ifmStripeSize)
-    {
-        return {};
-    }
-    return NeedBoundary{ padBefore > 0, ((ofmStripeSize + weightSize - padBefore - 1U) > ifmStripeSize) };
+    return NeedBoundary{ padBefore > 0, ((ofmStripeSize + weightSize - padBefore - 1U) > ifmStripeSize) || isUpscale };
 }
 
 std::vector<command_stream::BlockConfig>

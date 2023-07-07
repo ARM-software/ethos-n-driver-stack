@@ -30,7 +30,7 @@ TileSizeCalculation CalculateTileSize(const HardwareCapabilities& caps,
                                       const TensorShape& inputTensorShape,
                                       const TensorShape& inputStripeShape,
                                       PackedBoundaryThickness packedBoundaryThickness,
-                                      uint32_t numStripes,
+                                      uint32_t numStripesInTile,
                                       bool couldSourceBeFcaf);
 
 }    // namespace impl

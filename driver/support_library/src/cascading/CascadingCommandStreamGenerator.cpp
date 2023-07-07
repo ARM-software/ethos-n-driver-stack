@@ -1277,7 +1277,8 @@ bool CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                     ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio);
                 consumerAgentDependency.innerRatio.self = 1;
 
-                consumerAgentDependency.boundary = DependencyUtils::CalculateMceSBoundary(consumerAgentData.mce);
+                consumerAgentDependency.boundary =
+                    DependencyUtils::CalculateMceSBoundary(consumerAgentData.mce).m_After;
             }
             // Read After Write Dependency for [MceScheduler][WeightStreamer]
             else if (producerAgentType == AgentType::WGT_STREAMER)
@@ -1338,7 +1339,8 @@ bool CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                     consumerAgentDependency.innerRatio.self = 1;
                 }
 
-                consumerAgentDependency.boundary = DependencyUtils::CalculateMceSBoundary(consumerAgentData.mce);
+                consumerAgentDependency.boundary =
+                    DependencyUtils::CalculateMceSBoundary(consumerAgentData.mce).m_After;
             }
             else
             {
@@ -1613,7 +1615,8 @@ bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
                 producerAgentDependency.innerRatio.self =
                     ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio);
 
-                producerAgentDependency.boundary = DependencyUtils::CalculateMceSBoundary(consumerAgentData.mce);
+                producerAgentDependency.boundary =
+                    DependencyUtils::CalculateMceSBoundary(consumerAgentData.mce).m_Before;
             }
             // Write After Read Dependency for [WeightStreamer][MceScheduler] or
             else if (producerAgentType == AgentType::WGT_STREAMER)
@@ -1697,7 +1700,8 @@ bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
                     producerAgentDependency.innerRatio.other = 1;
                 }
 
-                producerAgentDependency.boundary = DependencyUtils::CalculateMceSBoundary(consumerAgentData.mce);
+                producerAgentDependency.boundary =
+                    DependencyUtils::CalculateMceSBoundary(consumerAgentData.mce).m_Before;
             }
             else
             {

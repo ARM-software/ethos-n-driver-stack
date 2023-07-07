@@ -6,6 +6,7 @@
 #include "PartUtils.hpp"
 
 #include "../Utils.hpp"
+#include "CascadingCommandStreamGeneratorUtils.hpp"
 
 using namespace ethosn::support_library::utils;
 
@@ -58,9 +59,11 @@ TileSizeCalculation CalculateTileSize(const HardwareCapabilities& caps,
                                       const TensorShape& inputTensorShape,
                                       const TensorShape& inputStripeShape,
                                       PackedBoundaryThickness packedBoundaryThickness,
-                                      uint32_t numStripes,
+                                      uint32_t numStripesInTile,
                                       bool couldSourceBeFcaf)
 {
+    using namespace utils;
+
     TileSizeCalculation result = { 0, 0, false };
 
     // Calculate the size needed for each slot. This is based on the space needed for one stripe,
@@ -106,7 +109,7 @@ TileSizeCalculation CalculateTileSize(const HardwareCapabilities& caps,
     }
 
     result.slotSizeInBytes = TotalSizeBytes(stripeShapeRoundedUpFcaf);
-    result.sizeInBytes     = result.slotSizeInBytes * numStripes;
+    result.sizeInBytes     = result.slotSizeInBytes * numStripesInTile;
 
     // If the tensor doesn't have many stripes in it, then it's possible that we would allocate
     // more space in the tile than will actually be used (e.g. tensor is 65 high, stripes are 64 high,
@@ -120,15 +123,35 @@ TileSizeCalculation CalculateTileSize(const HardwareCapabilities& caps,
         return result;
     }
 
-    uint32_t widthMultiple  = GetWidth(g_BrickGroupShape);
-    uint32_t heightMultiple = GetHeight(g_BrickGroupShape);
-    if (couldSourceBeFcafWide)
+    // Figure out if the last slot in the tile will only be partially filled
+    uint32_t numStripesInTensor = utils::GetNumStripesTotal(inputTensorShape, inputStripeShape);
+    if (numStripesInTensor <= numStripesInTile)
     {
-        widthMultiple = std::max(widthMultiple, GetWidth(g_FcafWideCellShape));
+        uint32_t widthMultiple  = GetWidth(g_BrickGroupShape);
+        uint32_t heightMultiple = GetHeight(g_BrickGroupShape);
+        if (couldSourceBeFcafWide)
+        {
+            widthMultiple = std::max(widthMultiple, GetWidth(g_FcafWideCellShape));
+        }
+
+        TensorShape lastStripeShape = {
+            1,
+            RoundUpToNearestMultiple(cascading_compiler::CommonUtils::CalculateEdgeSize(GetHeight(inputTensorShape),
+                                                                                        GetHeight(inputStripeShape)),
+                                     heightMultiple),
+            RoundUpToNearestMultiple(cascading_compiler::CommonUtils::CalculateEdgeSize(GetWidth(inputTensorShape),
+                                                                                        GetWidth(inputStripeShape)),
+                                     widthMultiple),
+            RoundUpToNearestMultiple(cascading_compiler::CommonUtils::CalculateEdgeSize(GetChannels(inputTensorShape),
+                                                                                        GetChannels(inputStripeShape)),
+                                     caps.GetNumberOfSrams()),
+        };
+
+        uint32_t lastStripeBytes = GetNumElements(lastStripeShape);
+
+        result.sizeInBytes = result.slotSizeInBytes * (numStripesInTensor - 1) + lastStripeBytes;
     }
 
-    const uint32_t inputTileSize = utils::MaxTileSize(inputTensorShape, caps, widthMultiple, heightMultiple);
-    result.sizeInBytes           = std::min(inputTileSize, result.sizeInBytes);
     return result;
 }
 

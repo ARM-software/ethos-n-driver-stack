@@ -8,6 +8,7 @@
 #include "MceRegisters.hpp"
 #include "Plan.hpp"
 #include "PleRegisters.hpp"
+#include "Scheduler.hpp"
 #include "SubmapFilter.hpp"
 #include "Utils.hpp"
 
@@ -23,6 +24,12 @@ namespace support_library
 namespace cascading_compiler
 {
 
+constexpr uint8_t g_DmaInputBufferIndex  = 0;
+constexpr uint8_t g_MceIfmBufferIndex    = 0;
+constexpr uint8_t g_MceWeightBufferIndex = 1;
+constexpr uint8_t g_PleInputBuffer0Index = 0;
+constexpr uint8_t g_PleInputBuffer1Index = 1;
+
 namespace CommonUtils
 {
 inline void SetTileInfoForBuffer(const HardwareCapabilities& hwCap, Tile& tile, const SramBuffer* const buffer)
@@ -35,10 +42,10 @@ inline void SetTileInfoForBuffer(const HardwareCapabilities& hwCap, Tile& tile, 
         ethosn::utils::NumericCast<uint32_t>(utils::DivRoundUp(buffer->m_SlotSizeInBytes, hwCap.GetNumberOfSrams()));
 }
 
-inline uint16_t CalculateEdgeSize(uint32_t tensorSize, uint32_t defaultStripeSize)
+inline uint32_t CalculateEdgeSize(uint32_t tensorSize, uint32_t defaultStripeSize)
 {
-    uint16_t edge = ethosn::utils::NumericCast<uint16_t>(tensorSize % defaultStripeSize);
-    return edge != 0 ? edge : ethosn::utils::NumericCast<uint16_t>(defaultStripeSize);
+    uint32_t edge = tensorSize % defaultStripeSize;
+    return edge != 0 ? edge : defaultStripeSize;
 }
 
 }    // namespace CommonUtils
@@ -738,27 +745,60 @@ inline void CalculateRemainingAgentDependencies(Dependency& agentDependency)
     }
 }
 
-int8_t CalculateMceSBoundary(const MceSDesc& mce)
+inline utils::NeedBoundary CalculateMceSBoundary(const MceSDesc& mce)
 {
     // MceS needs to wait for two IfmS stripes at the start of each outer ratio if neighbouring data
     // is needed. This is not applicable if the boundary data is packed in the direction of traversal though.
-    uint8_t maxFilterWidth  = utils::Max<uint8_t>(mce.filterShape, [](const FilterShape& s) { return s.width; });
-    uint8_t maxFilterHeight = utils::Max<uint8_t>(mce.filterShape, [](const FilterShape& s) { return s.height; });
+    utils::NeedBoundary boundaryX = { false, false };
+    utils::NeedBoundary boundaryY = { false, false };
+
+    for (uint32_t subfilterIdx = 0; subfilterIdx < mce.padding.size(); ++subfilterIdx)
+    {
+        utils::NeedBoundary subfilterBoundaryX = utils::GetBoundaryRequirements(
+            mce.padding[subfilterIdx].left, mce.ifmStripeShapeDefault.width, mce.defaultStripeSize.ofmWidth,
+            mce.filterShape[subfilterIdx].width, mce.upsampleType != MceUpsampleType::OFF);
+
+        boundaryX.m_Before |= subfilterBoundaryX.m_Before;
+        boundaryX.m_After |= subfilterBoundaryX.m_After;
+    }
+
+    for (uint32_t subfilterIdx = 0; subfilterIdx < mce.padding.size(); ++subfilterIdx)
+    {
+        utils::NeedBoundary subfilterBoundaryY = utils::GetBoundaryRequirements(
+            mce.padding[subfilterIdx].top, mce.ifmStripeShapeDefault.height, mce.defaultStripeSize.ofmHeight,
+            mce.filterShape[subfilterIdx].height, mce.upsampleType != MceUpsampleType::OFF);
+
+        boundaryY.m_Before |= subfilterBoundaryY.m_Before;
+        boundaryY.m_After |= subfilterBoundaryY.m_After;
+    }
 
     bool multiIfmStripeX = mce.numStripes.ofmWidth > 1 || mce.isExtraIfmStripeAtRightEdge;
     bool multiIfmStripeY = mce.numStripes.ofmHeight > 1 || mce.isExtraIfmStripeAtBottomEdge;
 
-    bool needsBoundaryBeforeX =
-        multiIfmStripeX && !mce.isPackedBoundaryX && (maxFilterWidth >= 2 || mce.upsampleType != MceUpsampleType::OFF);
-    bool needsBoundaryBeforeY =
-        multiIfmStripeY && !mce.isPackedBoundaryY && (maxFilterHeight >= 2 || mce.upsampleType != MceUpsampleType::OFF);
-    return needsBoundaryBeforeX || needsBoundaryBeforeY;
+    // IFM is traversed ZXY order (XYZ for depthwise though).
+    // If the first dimension with more than one stripe needs boundary data, we need to account for in the inner ratio boundary field
+    utils::NeedBoundary result = { false, false };
+    if (mce.mceOpMode == MceOperation::DEPTHWISE_CONVOLUTION || mce.numStripes.ifmChannels == 1)
+    {
+        // X first?
+        if (multiIfmStripeX && !mce.isPackedBoundaryX)
+        {
+            result = boundaryX;
+        }
+        // Y first?
+        else if (multiIfmStripeY && !mce.isPackedBoundaryY)
+        {
+            result = boundaryY;
+        }
+    }
+
+    return result;
 }
 
-void CalculateIfmSMceSOuterRatio(const AgentDesc& mce,
-                                 const AgentDesc& ifm,
-                                 uint16_t& outMceRatio,
-                                 uint16_t& outIfmRatio)
+inline void CalculateIfmSMceSOuterRatio(const AgentDesc& mce,
+                                        const AgentDesc& ifm,
+                                        uint16_t& outMceRatio,
+                                        uint16_t& outIfmRatio)
 {
     // Determine which dimension (if any) should correspond to the "outer ratio" in the dependency
     if (ifm.ifm.fmData.numStripes.channels > 1 && mce.mce.mceOpMode != MceOperation::DEPTHWISE_CONVOLUTION)

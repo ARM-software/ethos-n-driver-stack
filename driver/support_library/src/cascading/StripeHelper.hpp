@@ -457,7 +457,7 @@ public:
                                 utils::Optional<PlanPriority> priorityFilter) const;
 
     void CreateNumStripes(CascadeType cascadeType,
-                          bool inputRequiresBoundaryData,
+                          uint32_t minStripesInIfmTile,
                           BoundaryRequirements outputBoundaryRequirements,
                           NumStripes& numStripesInput,
                           NumStripes& numStripesOutput,

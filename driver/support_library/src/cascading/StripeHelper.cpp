@@ -690,7 +690,7 @@ StripeGenerator::StripeGenerator(const TensorShape& mceInput,
 {}
 
 void StripeGenerator::CreateNumStripes(CascadeType cascadeType,
-                                       bool inputRequiresBoundaryData,
+                                       uint32_t minStripesInIfmTile,
                                        BoundaryRequirements outputBoundaryRequirements,
                                        NumStripes& numStripesInput,
                                        NumStripes& numStripesOutput,
@@ -705,14 +705,7 @@ void StripeGenerator::CreateNumStripes(CascadeType cascadeType,
     {
         case CascadeType::Beginning:
         {
-            if (!inputRequiresBoundaryData)
-            {
-                numStripesInput = { 1, 2 };
-            }
-            else
-            {
-                numStripesInput = { 3, 4 };
-            }
+            numStripesInput = { minStripesInIfmTile, minStripesInIfmTile + 1 };
             // Multiple output stripes may needed because the follow layers may require multiple buffers due to boundary data.
             if ((outputBoundaryRequirements.m_NeedsBeforeX || outputBoundaryRequirements.m_NeedsBeforeY) &&
                 (outputBoundaryRequirements.m_NeedsAfterX || outputBoundaryRequirements.m_NeedsAfterY))
@@ -734,14 +727,7 @@ void StripeGenerator::CreateNumStripes(CascadeType cascadeType,
         }
         case CascadeType::Lonely:
         {
-            if (!inputRequiresBoundaryData)
-            {
-                numStripesInput = { 1, 2 };
-            }
-            else
-            {
-                numStripesInput = { 3, 4 };
-            }
+            numStripesInput    = { minStripesInIfmTile, minStripesInIfmTile + 1 };
             numStripesOutput   = { 1, 2 };
             numStripesWeights  = { 1, 2 };
             numStripesPleInput = { 0, 0 };
@@ -837,12 +823,35 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         NumStripes outputRange;
         NumStripes weightRange;
         NumStripes pleInputRange;
-        const bool requiresBoundaryData =
-            (m_KernelHeight > 1 && GetHeight(mceInputStripe) < GetHeight(m_MceInputTensorShape)) ||
-            (m_KernelWidth > 1 && GetWidth(mceInputStripe) < GetWidth(m_MceInputTensorShape)) || m_UpscaleFactor > 1 ||
-            m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
-            m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD;
-        CreateNumStripes(cascadeType, requiresBoundaryData, outputBoundaryRequirements, inputRange, outputRange,
+
+        const NeedBoundary needBoundaryY = utils::GetBoundaryRequirements(
+            m_PadTop, GetHeight(mceInputStripe), GetHeight(mceOutputStripe), m_KernelHeight, m_UpscaleFactor > 1);
+        const NeedBoundary needBoundaryX = utils::GetBoundaryRequirements(
+            m_PadLeft, GetWidth(mceInputStripe), GetWidth(mceOutputStripe), m_KernelWidth, m_UpscaleFactor > 1);
+        // IFM is traversed ZXY order (XYZ for depthwise though).
+        // If the first dimension with more than one stripe needs boundary data, we need at least this many stripes in the tile.
+        uint32_t minStripesInTile = 1;
+        if (isDepthwise || GetChannels(mceInputStripe) >= GetChannels(inputShape))
+        {
+            // X first?
+            if (GetWidth(mceInputStripe) < GetWidth(inputShape))
+            {
+                minStripesInTile = 1 + (needBoundaryX.m_Before ? 1 : 0) + (needBoundaryX.m_After ? 1 : 0);
+                // If there is only 2 stripes in X, then we don't need 3 in the tile
+                minStripesInTile =
+                    std::min(minStripesInTile, utils::DivRoundUp(GetWidth(inputShape), GetWidth(mceInputStripe)));
+            }
+            // Y first?
+            else if (GetHeight(mceInputStripe) < GetHeight(inputShape))
+            {
+                minStripesInTile = 1 + (needBoundaryY.m_Before ? 1 : 0) + (needBoundaryY.m_After ? 1 : 0);
+                // If there is only 2 stripes in Y, then we don't need 3 in the tile
+                minStripesInTile =
+                    std::min(minStripesInTile, utils::DivRoundUp(GetHeight(inputShape), GetHeight(mceInputStripe)));
+            }
+        }
+
+        CreateNumStripes(cascadeType, minStripesInTile, outputBoundaryRequirements, inputRange, outputRange,
                          weightRange, pleInputRange);
 
         // Limit the max number of stripes based on the size of the tensor - there is no point considering plans where
@@ -919,10 +928,6 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         weightCopy.m_Min = std::max(weightCopy.m_Min, stripeConfig.weightNumStripes.min);
         weightCopy.m_Max = std::min(weightCopy.m_Max, stripeConfig.weightNumStripes.max);
 
-        const NeedBoundary needBoundaryY = utils::GetBoundaryRequirements(
-            m_PadTop, GetHeight(inputShape), GetHeight(mceInputStripe), GetHeight(mceOutputStripe), m_KernelHeight);
-        const NeedBoundary needBoundaryX = utils::GetBoundaryRequirements(
-            m_PadLeft, GetWidth(inputShape), GetWidth(mceInputStripe), GetWidth(mceOutputStripe), m_KernelWidth);
         const bool needMultipleIfmDepths = !isDepthwise && GetChannels(mceInputStripe) < GetChannels(inputShape);
         // Packed boundary is needed only if that dimension is not the fastest iterating
         const bool packBoundaryVertical = (GetHeight(mceInputStripe) < GetHeight(inputShape)) &&
