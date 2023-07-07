@@ -136,6 +136,7 @@ RunCascadingResult RunCascading(const Network& network,
     // These optimisations would not have affected the choice of combination as they would apply equally
     // to all combinations, and so it is much more efficient to perform them after the Combiner has finished.
     opGraph.RemoveRedundantCopies();
+    opGraph.ReducePackedBoundaryData();
 
     duration = std::chrono::high_resolution_clock::now() - startTime;
     g_Logger.Debug("RemoveRedundantCopies: %llu ms", duration.count() / (1000ULL * 1000ULL));

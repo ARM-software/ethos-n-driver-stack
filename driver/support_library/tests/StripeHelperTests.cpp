@@ -258,12 +258,12 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
         CHECK(impl::IsSramBufferCompatibleWithDramBuffer(*sram.get(), *dram.get(), dramOffset) == true);
     }
 
-    SECTION("PackedBoundaryData only for NHWCB")
+    SECTION("PackedBoundaryData only for NHWCB and FCAF")
     {
         sram->m_PackedBoundaryThickness = { 8, 0, 8, 0 };
         sram->m_TensorShape             = { 1, 16, 16, 32 };
         sram->m_StripeShape             = { 1, 8, 8, 32 };
-        dram->m_Format                  = CascadingBufferFormat::FCAF_DEEP;
+        dram->m_Format                  = CascadingBufferFormat::NHWC;
         dram->m_TensorShape             = { 1, 16, 16, 32 };
         TensorShape dramOffset          = { 0, 0, 0, 0 };
         CHECK(impl::IsSramBufferCompatibleWithDramBuffer(*sram.get(), *dram.get(), dramOffset) == false);

@@ -762,7 +762,7 @@ SramBufferBuilder& SramBufferBuilder::AddNumLoads(uint32_t loads)
     return *this;
 }
 
-SramBufferBuilder& SramBufferBuilder::ForbidFcaf(bool forbid)
+SramBufferBuilder& SramBufferBuilder::ForbidFcafWide(bool forbid)
 {
     m_Buffer->m_ForbidFcafWide = forbid;
     return *this;
@@ -1575,6 +1575,41 @@ void OpGraph::RemoveRedundantCopiesDramToSram()
             }
 
             break;    // Chain successfully replaced, move on to the next
+        }
+    }
+}
+
+void OpGraph::ReducePackedBoundaryData()
+{
+    for (Buffer* b : m_Buffers)
+    {
+        // Find all the SRAM buffers using packed boundary data, with more 8 on the left or right.
+        // This will have been chosen because we thought the buffer might be copied from FCAF_WIDE,
+        // where we need more packed boundary data (because of cell alignment).
+        if (b->m_Location == Location::Sram &&
+            (b->Sram()->m_PackedBoundaryThickness.left > 8 || b->Sram()->m_PackedBoundaryThickness.right > 8))
+        {
+            Op* producer = GetSingleProducer(b);
+            if (producer == nullptr)
+            {
+                throw InternalErrorException("Expected a producer");
+            }
+            Buffer* dramBuffer = GetInputs(producer).at(0);
+            if (dramBuffer->m_Location != Location::Dram)
+            {
+                throw InternalErrorException("Expected a DRAM buffer");
+            }
+
+            // If it turned out that we didn't use FCAF_WIDE, we can reduce the amount of packed
+            // boundary data. This won't break any of the combiner decisions, because
+            // we are reducing the amount of SRAM needed, not increasing it.
+            if (dramBuffer->m_Format != CascadingBufferFormat::FCAF_WIDE)
+            {
+                b->Sram()->m_PackedBoundaryThickness.left =
+                    std::min<uint8_t>(8, b->Sram()->m_PackedBoundaryThickness.left);
+                b->Sram()->m_PackedBoundaryThickness.right =
+                    std::min<uint8_t>(8, b->Sram()->m_PackedBoundaryThickness.right);
+            }
         }
     }
 }

@@ -342,7 +342,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
                                               .AddTraversalOrder(TraversalOrder::Zxy)
                                               .AddDebugTag("Buffer2")
                                               .AddSlotSize(5 * 6 * 7 * 8)
-                                              .ForbidFcaf(true);
+                                              .ForbidFcafWide(true);
 
     graph.AddBuffer(buffer2.get());
 

@@ -13,6 +13,7 @@
 
 using namespace ethosn::command_stream::cascading;
 using namespace ethosn::support_library;
+using namespace ethosn::support_library::utils;
 using namespace ethosn::support_library::registers;
 
 namespace ethosn
@@ -140,10 +141,10 @@ struct DmaCmdState
 
     /// A region can be split into multiple chunks. This field stores which chunk we should transfer next.
     uint32_t chunkId;
-    /// SRAM stride between adjacent chunks in the X-direction.
-    uint32_t sramStridePerChunkCol;
-    /// SRAM stride between adjacent chunks in the Y-direction.
-    uint32_t sramStridePerChunkRow;
+    /// SRAM stride between adjacent groups (8x8) in the X-direction.
+    uint32_t sramStridePerGroupCol;
+    /// SRAM stride between adjacent groups (8x8) in the Y-direction.
+    uint32_t sramStridePerGroupRow;
     uint8_t isSramChannelStrided;
     bool dramStride;
     TensorSize chunkSize;
@@ -163,7 +164,7 @@ struct FmsDmaRegParams
     uint32_t emcMask;
 };
 
-constexpr TensorSize GetCellSize(FmsDataType fmsDataType)
+constexpr TensorShape GetCellSize(FmsDataType fmsDataType)
 {
     using namespace command_stream::cascading;
 
@@ -171,42 +172,28 @@ constexpr TensorSize GetCellSize(FmsDataType fmsDataType)
     {
         case FmsDataType::FCAF_DEEP:
         {
-            return {
-                .height   = 8U,
-                .width    = 8U,
-                .channels = 32U,
-            };
+            return g_FcafDeepCellShape;
         }
         case FmsDataType::FCAF_WIDE:
         {
-            return {
-                .height   = 8U,
-                .width    = 16U,
-                .channels = 16U,
-            };
+            return g_FcafWideCellShape;
         }
         case FmsDataType::NHWCB:
         {
-            return {
-                .height   = 8U,
-                .width    = 8U,
-                .channels = 16U,
-            };
+            return g_BrickGroupShape;
         }
         case FmsDataType::NHWC:
         default:
         {
-            return {
-                .height   = 1U,
-                .width    = 1U,
-                .channels = 1U,
-            };
+            return { 1, 1, 1 };
         }
     }
 }
 
-FmsDmaRegParams
-    GetDmaParamsFcaf(TensorSize& stripeSize, const FmSDesc& fmData, uint32_t stripeId, const HardwareCapabilities& caps)
+FmsDmaRegParams GetDmaParamsFcaf(const FmSDesc& fmData,
+                                 uint32_t stripeId,
+                                 const HardwareCapabilities& caps,
+                                 const DmaCmdState& chunkState)
 {
     // FCAF specific registers are programmed as required:
     // Stripe=(h,w,c), Tensor=(H,W,C)
@@ -223,54 +210,33 @@ FmsDmaRegParams
 
     FmsDmaRegParams fmsDmaParams = {};
 
-    const TensorSize fcafCellShape = GetCellSize(fmData.dataType);
+    const TensorShape fcafCellShape = GetCellSize(fmData.dataType);
 
     {
-        TensorSize stripeCoord;
-        stripeCoord.width = (static_cast<uint32_t>(stripeId) / fmData.stripeIdStrides.width) % fmData.numStripes.width;
-        stripeCoord.height =
-            (static_cast<uint32_t>(stripeId) / fmData.stripeIdStrides.height) % fmData.numStripes.height;
-        stripeCoord.channels =
-            (static_cast<uint32_t>(stripeId) / fmData.stripeIdStrides.channels) % fmData.numStripes.channels;
-
-        TensorSize defaultStripeSizeInCells;
-        defaultStripeSizeInCells.width    = fmData.defaultStripeSize.width / fcafCellShape.width;
-        defaultStripeSizeInCells.height   = fmData.defaultStripeSize.height / fcafCellShape.height;
-        defaultStripeSizeInCells.channels = fmData.defaultStripeSize.channels / fcafCellShape.channels;
-
-        // See FCAF specification, section 4.3.1
-        const TensorSize cellStride{
-            .height   = 2112U * fmData.supertensorSizeInCells.width * fmData.supertensorSizeInCells.channels,
-            .width    = 2112U * fmData.supertensorSizeInCells.channels,
-            .channels = 2112U,
-        };
-
-        fmsDmaParams.dramOffset = fmData.dramOffset +
-                                  stripeCoord.width * defaultStripeSizeInCells.width * cellStride.width +
-                                  stripeCoord.height * defaultStripeSizeInCells.height * cellStride.height +
-                                  stripeCoord.channels * defaultStripeSizeInCells.channels * cellStride.channels;
+        fmsDmaParams.dramOffset = chunkState.dramBufferOffsetForFirstChunk;
     }
     {
-        fmsDmaParams.stride0 = stripeSize.width;
+        fmsDmaParams.stride0 = chunkState.chunkSize.width;
     }
     {
-        fmsDmaParams.sramAddr = SramAddr(fmData.tile, stripeId);
+        fmsDmaParams.sramAddr = SramAddr(fmData.tile, stripeId) + chunkState.sramSlotOffsetForFirstChunk;
 
-        fmsDmaParams.sramGroupStride =
-            DEFAULT_SRAM_GROUP_STRIDE * utils::DivRoundUp(stripeSize.channels, caps.GetNumberOfSrams());
-        fmsDmaParams.sramRowStride = fmsDmaParams.sramGroupStride * utils::DivRoundUp(stripeSize.width, 8U);
+        // These strides are in terms of 128-bit (16-byte) words
+        fmsDmaParams.sramGroupStride = chunkState.sramStridePerGroupCol / 16;
+        fmsDmaParams.sramRowStride   = chunkState.sramStridePerGroupRow / 16;
     }
     {
-        fmsDmaParams.stride3 = stripeSize.height;
+        fmsDmaParams.stride3 = chunkState.chunkSize.height;
     }
     {
         // See FCAF Specification, section 3.4.1.1
-        fmsDmaParams.totalBytes = (utils::RoundUpToNearestMultiple(stripeSize.height, fcafCellShape.height) *
-                                   utils::RoundUpToNearestMultiple(stripeSize.width, fcafCellShape.width) *
-                                   utils::RoundUpToNearestMultiple(stripeSize.channels, fcafCellShape.channels));
+        fmsDmaParams.totalBytes =
+            (utils::RoundUpToNearestMultiple(chunkState.chunkSize.height, GetHeight(fcafCellShape)) *
+             utils::RoundUpToNearestMultiple(chunkState.chunkSize.width, GetWidth(fcafCellShape)) *
+             utils::RoundUpToNearestMultiple(chunkState.chunkSize.channels, GetChannels(fcafCellShape)));
     }
 
-    fmsDmaParams.channels        = stripeSize.channels;
+    fmsDmaParams.channels        = chunkState.chunkSize.channels;
     const uint32_t numActiveEmcs = std::min(fmsDmaParams.channels, +caps.GetNumberOfSrams());
     fmsDmaParams.emcMask         = (1U << numActiveEmcs) - 1U;
 
@@ -294,22 +260,7 @@ FmsDmaRegParams GetDmaParamsNhwcb(const FmSDesc& fmData,
 
     FmsDmaRegParams fmsDmaParams = {};
 
-    constexpr TensorSize nhwcbBrickGroupShape = GetCellSize(FmsDataType::NHWCB);
-
-    TensorSize stripeCoord;
-    stripeCoord.width  = (static_cast<uint32_t>(stripeId) / fmData.stripeIdStrides.width) % fmData.numStripes.width;
-    stripeCoord.height = (static_cast<uint32_t>(stripeId) / fmData.stripeIdStrides.height) % fmData.numStripes.height;
-    stripeCoord.channels =
-        (static_cast<uint32_t>(stripeId) / fmData.stripeIdStrides.channels) % fmData.numStripes.channels;
-
-    TensorSize stripeSize;
-    stripeSize.width = (stripeCoord.width == (fmData.numStripes.width - 1U)) ? fmData.edgeStripeSize.width
-                                                                             : fmData.defaultStripeSize.width;
-    stripeSize.height = (stripeCoord.height == (fmData.numStripes.height - 1U)) ? fmData.edgeStripeSize.height
-                                                                                : fmData.defaultStripeSize.height;
-    stripeSize.channels = (stripeCoord.channels == (fmData.numStripes.channels - 1U))
-                              ? fmData.edgeStripeSize.channels
-                              : fmData.defaultStripeSize.channels;
+    constexpr TensorShape nhwcbBrickGroupShape = GetCellSize(FmsDataType::NHWCB);
 
     {
         const TensorSize brickGroupStride{
@@ -320,7 +271,7 @@ FmsDmaRegParams GetDmaParamsNhwcb(const FmSDesc& fmData,
 
         TensorSize chunkCoords;
 
-        uint32_t numActiveEmcs = std::min(stripeSize.channels, caps.GetNumberOfSrams());
+        uint32_t numActiveEmcs = std::min(chunkState.chunkSize.channels, caps.GetNumberOfSrams());
 
         if (chunkState.isSramChannelStrided)
         {
@@ -446,12 +397,12 @@ FmsDmaRegParams GetDmaParamsNhwcb(const FmSDesc& fmData,
 
         // Offset within the tile slot for individual chunks
         fmsDmaParams.sramAddr = SramAddr(fmData.tile, stripeId) + chunkState.sramSlotOffsetForFirstChunk +
-                                chunkState.sramStridePerChunkRow * chunkCoords.height +
-                                chunkState.sramStridePerChunkCol * chunkCoords.width;
+                                chunkState.sramStridePerGroupRow * chunkCoords.height +
+                                chunkState.sramStridePerGroupCol * chunkCoords.width;
 
         if (chunkState.isSramChannelStrided)
         {
-            if (std::min(stripeSize.channels, +caps.GetNumberOfSrams()) == 8U)
+            if (std::min(chunkState.chunkSize.channels, +caps.GetNumberOfSrams()) == 8U)
             {
                 // In case of 8 EMCs high byte address always remains the same as all EMCs stay active.
                 //
@@ -471,13 +422,14 @@ FmsDmaRegParams GetDmaParamsNhwcb(const FmSDesc& fmData,
 
     {
         fmsDmaParams.totalBytes =
-            utils::RoundUpToNearestMultiple(chunkState.chunkSize.height, nhwcbBrickGroupShape.height) *
-            utils::RoundUpToNearestMultiple(chunkState.chunkSize.width, nhwcbBrickGroupShape.width);
+            utils::RoundUpToNearestMultiple(chunkState.chunkSize.height, GetHeight(nhwcbBrickGroupShape)) *
+            utils::RoundUpToNearestMultiple(chunkState.chunkSize.width, GetWidth(nhwcbBrickGroupShape));
 
         fmsDmaParams.totalBytes *= chunkState.chunkSize.channels;
     }
     {
-        fmsDmaParams.channels = chunkState.isSramChannelStrided ? chunkState.chunkSize.channels : stripeSize.channels;
+        fmsDmaParams.channels =
+            chunkState.isSramChannelStrided ? chunkState.chunkSize.channels : chunkState.chunkSize.channels;
     }
     return fmsDmaParams;
 }
@@ -556,7 +508,7 @@ FmsDmaRegParams GetDmaParams(TensorSize& stripeSize,
             return GetDmaParamsNhwc(stripeSize, fmData, stripeId, caps);
         case FmsDataType::FCAF_WIDE:
         case FmsDataType::FCAF_DEEP:
-            return GetDmaParamsFcaf(stripeSize, fmData, stripeId, caps);
+            return GetDmaParamsFcaf(fmData, stripeId, caps, chunkState);
         case FmsDataType::NHWCB:
             return GetDmaParamsNhwcb(fmData, stripeId, input, caps, chunkState);
         default:
@@ -644,6 +596,7 @@ void GenerateDmaCommandCommon(const FmSDesc& fmData,
 
 /// Updates `state` with chunking information derived from the given parameters.
 void ConfigureChunks(DmaCmdState& state,
+                     FmsDataType format,
                      TensorSize& stripeSize,
                      const SupertensorSize& supertensorSizeInCells,
                      uint32_t dramOffset,
@@ -656,81 +609,113 @@ void ConfigureChunks(DmaCmdState& state,
 {
     using namespace command_stream::cascading;
 
-    assert((stripeSize.height % 8U) == 0 && "Stripe height must be a multiple of the brickgroup height");
-    assert((stripeSize.width % 8U) == 0 && "Stripe width must be a multiple of the brickgroup width");
-    assert((dramPosition.height % 8U) == 0 && "dramPosition must be a multiple of the brickgroup height");
-    assert((dramPosition.width % 8U) == 0 && "dramPosition must be a multiple of the brickgroup width");
-    if (dramPosition.channels % 16U > 0)
+    TensorShape cellShape = GetCellSize(format);
+
+    if ((dramPosition.height % GetHeight(cellShape)) != 0)
     {
-        assert((stripeSize.channels <= (16 - dramPosition.channels % 16U)) && "Can't go through boundary of 16");
+        throw InternalErrorException("dramPosition must be a multiple of the brickgroup height");
     }
-    assert((sramWidthSkipPerRow % 8U) == 0 && "sramWidthSkipPerRow must be a multiple of the brickgroup width");
-
-    // Consistent non-zero DRAM stride needed for output streaming to use DRAM striding
-    const bool canDramStride =
-        dramStridingAllowed && utils::DivRoundUp(stripeSize.channels, 16U) == 1U && supertensorSizeInCells.channels > 1;
-
-    state.dramStride = canDramStride;
-    state.chunkSize  = stripeSize;
-    state.numChunks  = TensorSize{ .height = 1U, .width = 1U, .channels = 1U };
-
-    const bool partialDepth = utils::DivRoundUp(stripeSize.channels, 16U) < supertensorSizeInCells.channels;
-    const bool partialWidth = utils::DivRoundUp(stripeSize.width, 8U) < supertensorSizeInCells.width;
-
-    // Input NHWCB cannot DRAM stride, output NHWCB can only dram stride with stripes
-    // one brick group in depth.
-
-    // DRAM striding can be used for as much of the stripe that has a consistent stride
-    // i.e. can cover the full stripe if it is full width, or each row if it is partial
-
-    // Stride between X chunks if partial depth
-    if (partialDepth && !canDramStride)
+    if ((dramPosition.width % GetWidth(cellShape)) != 0)
     {
-        state.chunkSize.width = 8U;
-        state.numChunks.width = utils::DivRoundUp(stripeSize.width, 8U);
+        throw InternalErrorException("dramPosition must be a multiple of the brickgroup width");
+    }
+    if (dramPosition.channels % GetChannels(cellShape) > 0)
+    {
+        if (format == FmsDataType::NHWCB)
+        {
+            if (!(stripeSize.channels <= (GetChannels(cellShape) - dramPosition.channels % GetChannels(cellShape))))
+            {
+                throw InternalErrorException("Can't go through boundary of 16 with NHWCB");
+            }
+        }
+        else
+        {
+            throw InternalErrorException("For formats other than NHWCB, the DRAM offset must be aligned to a cell.");
+        }
+    }
+    if ((sramWidthSkipPerRow % 8U) != 0)
+    {
+        throw InternalErrorException("sramWidthSkipPerRow must be a multiple of the brickgroup width");
     }
 
-    // Stride between Y chunks if partial width or partial depth
-    if ((partialDepth && !canDramStride) || partialWidth)
+    state.chunkSize = stripeSize;
+    state.numChunks = TensorSize{ .height = 1U, .width = 1U, .channels = 1U };
+
+    if (format == FmsDataType::NHWCB)
     {
-        state.chunkSize.height = 8U;
-        state.numChunks.height = utils::DivRoundUp(stripeSize.height, 8U);
+        // Consistent non-zero DRAM stride needed for output streaming to use DRAM striding
+        const bool canDramStride = dramStridingAllowed && utils::DivRoundUp(stripeSize.channels, 16U) == 1U &&
+                                   supertensorSizeInCells.channels > 1;
+
+        state.dramStride = canDramStride;
+
+        const bool partialDepth = utils::DivRoundUp(stripeSize.channels, 16U) < supertensorSizeInCells.channels;
+        const bool partialWidth = utils::DivRoundUp(stripeSize.width, 8U) < supertensorSizeInCells.width;
+
+        // Input NHWCB cannot DRAM stride, output NHWCB can only dram stride with stripes
+        // one brick group in depth.
+
+        // DRAM striding can be used for as much of the stripe that has a consistent stride
+        // i.e. can cover the full stripe if it is full width, or each row if it is partial
+
+        // Stride between X chunks if partial depth
+        if (partialDepth && !canDramStride)
+        {
+            state.chunkSize.width = 8U;
+            state.numChunks.width = utils::DivRoundUp(stripeSize.width, 8U);
+        }
+
+        // Stride between Y chunks if partial width or partial depth
+        if ((partialDepth && !canDramStride) || partialWidth)
+        {
+            state.chunkSize.height = 8U;
+            state.numChunks.height = utils::DivRoundUp(stripeSize.height, 8U);
+        }
+
+        if (partialDepth && stripeSize.channels % 8U == 0U && isChunkingStartingMidBrick)
+        {
+            state.numChunks.channels   = utils::DivRoundUp(stripeSize.channels, 8U);
+            state.chunkSize.channels   = 8U;
+            state.isSramChannelStrided = true;
+        }
     }
 
-    if (partialDepth && stripeSize.channels % 8U == 0U && isChunkingStartingMidBrick)
-    {
-        state.numChunks.channels   = utils::DivRoundUp(stripeSize.channels, 8U);
-        state.chunkSize.channels   = 8U;
-        state.isSramChannelStrided = true;
-    }
-
-    state.sramStridePerChunkCol = state.chunkSize.width * 8U * utils::DivRoundUp(state.chunkSize.channels, numEmcs);
-    state.sramStridePerChunkRow = state.numChunks.width * state.sramStridePerChunkCol +
+    state.sramStridePerGroupCol = 8 * 8U * utils::DivRoundUp(state.chunkSize.channels, numEmcs);
+    state.sramStridePerGroupRow = utils::DivRoundUp(stripeSize.width, 8U) * state.sramStridePerGroupCol +
                                   sramWidthSkipPerRow * 8U * utils::DivRoundUp(state.chunkSize.channels, numEmcs);
 
-    const TensorSize brickGroupStride{
-        .height   = 1024U * supertensorSizeInCells.width * supertensorSizeInCells.channels,
-        .width    = 1024U * supertensorSizeInCells.channels,
-        .channels = 1024U,
+    uint32_t dramCellSize = format == FmsDataType::NHWCB ? 1024U : 2112U;
+    const TensorSize cellStride{
+        .height   = dramCellSize * supertensorSizeInCells.width * supertensorSizeInCells.channels,
+        .width    = dramCellSize * supertensorSizeInCells.channels,
+        .channels = dramCellSize,
     };
 
-    constexpr TensorSize nhwcbBrickGroupShape = GetCellSize(FmsDataType::NHWCB);
-
     state.dramBufferOffsetForFirstChunk = dramOffset;
-    state.dramBufferOffsetForFirstChunk +=
-        dramPosition.width / nhwcbBrickGroupShape.width * brickGroupStride.width +
-        dramPosition.height / nhwcbBrickGroupShape.height * brickGroupStride.height +
-        dramPosition.channels / nhwcbBrickGroupShape.channels * brickGroupStride.channels +
-        (dramPosition.channels % 16) * 16;
+    state.dramBufferOffsetForFirstChunk += dramPosition.width / GetWidth(cellShape) * cellStride.width +
+                                           dramPosition.height / GetHeight(cellShape) * cellStride.height +
+                                           dramPosition.channels / GetChannels(cellShape) * cellStride.channels;
+    if (format == FmsDataType::NHWCB)
+    {
+        // NHWCB can have transfers partway through a brick group in DRAM
+        state.dramBufferOffsetForFirstChunk += (dramPosition.channels % 16) * 16;
+    }
 
     state.sramSlotOffsetForFirstChunk = sramOffset;
 }
 
-uint32_t CalculateNumChunksInShape(const TensorSize& stripeSize,
+uint32_t CalculateNumChunksInShape(FmsDataType format,
+                                   const TensorSize& stripeSize,
                                    const SupertensorSize& supertensorSizeInCells,
                                    bool dramStridingAllowed,
                                    bool isChunkingStartingMidBrick = false)
 {
+    if (format != FmsDataType::NHWCB)
+    {
+        // Chunking is only relevant for NHWCB
+        return 1;
+    }
+
     // Consistent non-zero DRAM stride needed for output streaming to use DRAM striding
     const bool canDramStride =
         dramStridingAllowed && utils::DivRoundUp(stripeSize.channels, 16U) == 1U && supertensorSizeInCells.channels > 1;
@@ -874,7 +859,7 @@ uint32_t CalculateNumChunksInRegion(DmaCmdState::Region region,
             assert(false);
     }
 
-    return CalculateNumChunksInShape(stripeSize, fmData.supertensorSizeInCells, dramStridingAllowed,
+    return CalculateNumChunksInShape(fmData.dataType, stripeSize, fmData.supertensorSizeInCells, dramStridingAllowed,
                                      isChunkingStartingMidBrick);
 }
 
@@ -1050,15 +1035,16 @@ DmaCmdState GetStateForChunkIfm(uint32_t chunkId, uint32_t stripeId, const IfmSD
                           .sramSlotOffsetForFirstChunk   = 0,
                           .dramBufferOffsetForFirstChunk = 0,
                           .chunkId                       = chunkId,
-                          .sramStridePerChunkCol         = 0,
-                          .sramStridePerChunkRow         = 0,
+                          .sramStridePerGroupCol         = 0,
+                          .sramStridePerGroupRow         = 0,
                           .isSramChannelStrided          = 0,
                           .dramStride                    = 0,
                           .chunkSize                     = { .height = 0U, .width = 0U, .channels = 0U },
                           .numChunks                     = { .height = 0U, .width = 0U, .channels = 0U } };
 
-    ConfigureChunks(state, stripeSize, ifmS.fmData.supertensorSizeInCells, ifmS.fmData.dramOffset, dramPosition,
-                    sramOffset, sramWidthSkipPerRow, dramStridingAllowed, numEmcs, isChunkingStartingMidBrick);
+    ConfigureChunks(state, ifmS.fmData.dataType, stripeSize, ifmS.fmData.supertensorSizeInCells, ifmS.fmData.dramOffset,
+                    dramPosition, sramOffset, sramWidthSkipPerRow, dramStridingAllowed, numEmcs,
+                    isChunkingStartingMidBrick);
 
     return state;
 }
@@ -1098,15 +1084,16 @@ DmaCmdState GetStateForChunkOfm(uint32_t chunkId, uint32_t stripeId, const OfmSD
                            .sramSlotOffsetForFirstChunk   = 0,
                            .dramBufferOffsetForFirstChunk = 0,
                            .chunkId                       = chunkId,
-                           .sramStridePerChunkCol         = 0,
-                           .sramStridePerChunkRow         = 0,
+                           .sramStridePerGroupCol         = 0,
+                           .sramStridePerGroupRow         = 0,
                            .isSramChannelStrided          = 0,
                            .dramStride                    = 0,
                            .chunkSize                     = { .height = 0U, .width = 0U, .channels = 0U },
                            .numChunks                     = { .height = 0U, .width = 0U, .channels = 0U } };
 
-    ConfigureChunks(result, stripeSize, ofmS.fmData.supertensorSizeInCells, ofmS.fmData.dramOffset, dramPosition, 0, 0,
-                    dramStridingAllowed, numEmcs, isChunkingStartingMidBrick);
+    ConfigureChunks(result, ofmS.fmData.dataType, stripeSize, ofmS.fmData.supertensorSizeInCells,
+                    ofmS.fmData.dramOffset, dramPosition, 0, 0, dramStridingAllowed, numEmcs,
+                    isChunkingStartingMidBrick);
 
     return result;
 }
@@ -1115,14 +1102,6 @@ DmaCmdState GetStateForChunkOfm(uint32_t chunkId, uint32_t stripeId, const OfmSD
 
 uint32_t CalculateNumChunks(const IfmSDesc& ifmS, uint32_t stripeId)
 {
-    const FmSDesc& fmData = ifmS.fmData;
-
-    if (fmData.dataType != FmsDataType::NHWCB)
-    {
-        // Chunking is only relevant for NHWCB
-        return 1;
-    }
-
     uint32_t numChunks             = 0;
     const bool dramStridingAllowed = false;    // No DRAM striding for DMA read commands
     for (DmaCmdState::Region region = DmaCmdState::Region::Centre; region <= DmaCmdState::Region::BottomRight;
@@ -1138,12 +1117,6 @@ uint32_t CalculateNumChunks(const IfmSDesc& ifmS, uint32_t stripeId)
 uint32_t CalculateNumChunks(const OfmSDesc& ofmS, uint32_t stripeId)
 {
     const FmSDesc& fmData = ofmS.fmData;
-
-    if (fmData.dataType != FmsDataType::NHWCB)
-    {
-        // Chunking is only relevant for NHWCB
-        return 1;
-    }
 
     const bool dramStridingAllowed = true;    // DRAM striding is allowed for DMA write commands
     // Only one region (Centre) for OfmS - no packed boundary data
@@ -1163,18 +1136,21 @@ command_stream::cascading::DmaCommand GenerateDmaCommandForLoadIfmStripe(const I
     result.type       = CommandType::LoadIfmStripe;
     result.agentId    = agentId;
 
-    DmaCmdState chunkState = {};
-    chunkState.numChunks   = { 1, 1, 1 };
-    if (ifmS.fmData.dataType == FmsDataType::NHWCB)
+    if (ifmS.fmData.dataType != FmsDataType::NHWCB && ifmS.fmData.dataType != FmsDataType::FCAF_DEEP &&
+        ifmS.fmData.dataType != FmsDataType::FCAF_WIDE)
     {
-        chunkState = GetStateForChunkIfm(chunkId, stripeId, ifmS, caps.GetNumberOfSrams());
+        if (ifmS.packedBoundaryThickness.AnyNonZero())
+        {
+            throw InternalErrorException("Packed boundary not supported for this format");
+        }
     }
 
-    if (ifmS.fmData.dataType != FmsDataType::NHWCB)
+    DmaCmdState chunkState = {};
+    chunkState.numChunks   = { 1, 1, 1 };
+    if (ifmS.fmData.dataType == FmsDataType::NHWCB || ifmS.fmData.dataType == FmsDataType::FCAF_DEEP ||
+        ifmS.fmData.dataType == FmsDataType::FCAF_WIDE)
     {
-        assert(ifmS.packedBoundaryThickness.left == 0 && ifmS.packedBoundaryThickness.top == 0 &&
-               ifmS.packedBoundaryThickness.right == 0 && ifmS.packedBoundaryThickness.bottom == 0 &&
-               "Packed boundary not supported for this format");
+        chunkState = GetStateForChunkIfm(chunkId, stripeId, ifmS, caps.GetNumberOfSrams());
     }
 
     // Write dma registers using common method
@@ -1327,7 +1303,8 @@ command_stream::cascading::DmaCommand GenerateDmaCommandForStoreOfmStripe(const 
 
     DmaCmdState chunkState = {};
     chunkState.numChunks   = { 1, 1, 1 };
-    if (ofmS.fmData.dataType == FmsDataType::NHWCB)
+    if (ofmS.fmData.dataType == FmsDataType::NHWCB || ofmS.fmData.dataType == FmsDataType::FCAF_DEEP ||
+        ofmS.fmData.dataType == FmsDataType::FCAF_WIDE)
     {
         chunkState = GetStateForChunkOfm(chunkId, stripeId, ofmS, caps.GetNumberOfSrams());
     }
@@ -1400,9 +1377,9 @@ uint32_t GetDmaStride1(const FmSDesc& fmDesc)
     dma_stride1_r stride1;
     if (fmDesc.dataType == FmsDataType::FCAF_DEEP || fmDesc.dataType == FmsDataType::FCAF_WIDE)
     {
-        const TensorSize fcafCellShape = GetCellSize(fmDesc.dataType);
+        const TensorShape fcafCellShape = GetCellSize(fmDesc.dataType);
         stride1.set_outer_stride(
-            static_cast<uint32_t>(fmDesc.supertensorSizeInCells.channels * fcafCellShape.channels));
+            static_cast<uint32_t>(fmDesc.supertensorSizeInCells.channels * GetChannels(fcafCellShape)));
     }
     else if (fmDesc.dataType == FmsDataType::NHWC)
     {
@@ -1416,9 +1393,9 @@ uint32_t GetDmaStride2(const FmSDesc& fmDesc)
     dma_stride2_r stride2;
     if (fmDesc.dataType == FmsDataType::FCAF_DEEP || fmDesc.dataType == FmsDataType::FCAF_WIDE)
     {
-        const TensorSize fcafCellShape = GetCellSize(fmDesc.dataType);
-        stride2.set_extra_stride(static_cast<uint32_t>(fmDesc.supertensorSizeInCells.width * fcafCellShape.width) *
-                                 fmDesc.supertensorSizeInCells.channels * fcafCellShape.channels);
+        const TensorShape fcafCellShape = GetCellSize(fmDesc.dataType);
+        stride2.set_extra_stride(static_cast<uint32_t>(fmDesc.supertensorSizeInCells.width * GetWidth(fcafCellShape)) *
+                                 fmDesc.supertensorSizeInCells.channels * GetChannels(fcafCellShape));
     }
     return stride2.word;
 }

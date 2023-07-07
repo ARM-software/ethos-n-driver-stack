@@ -453,8 +453,9 @@ bool IsSramBufferCompatibleWithDramBuffer(const TensorShape& sramTensorShape,
         return false;
     }
 
-    // Packed boundary data only supported with NHWCB
-    if (dramFormat != CascadingBufferFormat::NHWCB && packedBoundaryThickness.AnyNonZero())
+    // Packed boundary data only supported with NHWCB and FCAF
+    if (dramFormat != CascadingBufferFormat::NHWCB && dramFormat != CascadingBufferFormat::FCAF_DEEP &&
+        dramFormat != CascadingBufferFormat::FCAF_WIDE && packedBoundaryThickness.AnyNonZero())
     {
         return false;
     }
@@ -891,9 +892,12 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         const bool packBoundaryHorizontal = (GetChannels(mceInputStripe) < GetChannels(inputShape));
 
         PackedBoundaryThickness packedBoundaryThickness;
-        packedBoundaryThickness.left   = (packBoundaryHorizontal && needBoundaryX.m_Before) ? 8 : 0;
+        // We set the packed boundary on the left and right to 16, so that it can work with FCAF_WIDE.
+        // We don't yet know what DRAM format will be used, so we have to be conservative.
+        // Later on, we will reduce this down to 8 if we don't end up using FCAF_WIDE
+        packedBoundaryThickness.left   = (packBoundaryHorizontal && needBoundaryX.m_Before) ? 16 : 0;
         packedBoundaryThickness.top    = (packBoundaryVertical && needBoundaryY.m_Before) ? 8 : 0;
-        packedBoundaryThickness.right  = (packBoundaryHorizontal && needBoundaryX.m_After) ? 8 : 0;
+        packedBoundaryThickness.right  = (packBoundaryHorizontal && needBoundaryX.m_After) ? 16 : 0;
         packedBoundaryThickness.bottom = (packBoundaryVertical && needBoundaryY.m_After) ? 8 : 0;
 
         // OFM is always traversed in XYZ order and IFM always in ZXY. Therefore IFM data needs multiple loads if there

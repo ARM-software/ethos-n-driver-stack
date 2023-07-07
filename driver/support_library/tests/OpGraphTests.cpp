@@ -1017,7 +1017,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Linear")
     //  k (Sram)
 
     OpGraph graph;
-    DmaOp B(CascadingBufferFormat::FCAF_DEEP);
+    DmaOp B(CascadingBufferFormat::FCAF_WIDE);
     DmaOp D(CascadingBufferFormat::NHWCB);
     DmaOp F(CascadingBufferFormat::NHWCB);
     // This is a bit of a hack to prevent the Sram -> Dram optimisation from kicking in first, before we have a chance for
@@ -1027,7 +1027,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Linear")
     DmaOp J(CascadingBufferFormat::NHWCB);
 
     std::unique_ptr<DramBuffer> a =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::FCAF_DEEP).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+        DramBuffer::Build().AddFormat(CascadingBufferFormat::FCAF_WIDE).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
 
     std::unique_ptr<SramBuffer> c = SramBuffer::Build()
                                         .AddFormat(CascadingBufferFormat::NHWCB)
@@ -1119,10 +1119,10 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Linear")
 
     SECTION("Chain shortened due to incompatible DMA")
     {
-        // Change the last SRAM to use packed boundary data, which is then incompatible with the
-        // starting DRAM buffer as it FCAF and we don't support packed boundary data with FCAF.
+        // Change the last SRAM to forbid FCAF_WIDE, which is then incompatible with the
+        // starting DRAM buffer.
         // This means the chain will be shortened to the next SRAM buffer.
-        k->m_PackedBoundaryThickness = { 1, 1, 1, 1 };
+        k->m_ForbidFcafWide = true;
 
         graph.RemoveRedundantCopies();
 

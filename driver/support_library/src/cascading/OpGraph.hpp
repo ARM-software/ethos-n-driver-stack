@@ -117,11 +117,16 @@ public:
 
     /// Optimization step which removes sequences of Ops and Buffers which copy data into and out of SRAM
     /// multiple times and can be shortened to just a single copy.
+    ///
     /// Such sequences can arise as a result of combining multiple plans together
     /// (in particular Reshape, Concat and Split) and lead to worse performance.
     /// By eliminating/simplifying these sequences, the NPU will have less work to do
     /// and so performance will be better.
     void RemoveRedundantCopies();
+
+    /// Optimization step which reduces the amount of packed boundary data for cases where
+    /// the DRAM format is now known to not be FCAF_WIDE.
+    void ReducePackedBoundaryData();
 
 protected:
     void RemoveRedundantCopiesSramToDram();
@@ -493,7 +498,7 @@ public:
     SramBufferBuilder& AddTraversalOrder(TraversalOrder order);
     SramBufferBuilder& AddPackedBoundaryThickness(const PackedBoundaryThickness& boundary);
     SramBufferBuilder& AddNumLoads(uint32_t loads);
-    SramBufferBuilder& ForbidFcaf(bool forbid);
+    SramBufferBuilder& ForbidFcafWide(bool forbid);
     SramBufferBuilder& AddSlotSize(uint32_t slotSize);
     SramBufferBuilder& AddNumStripes(uint32_t numStripes);
 
