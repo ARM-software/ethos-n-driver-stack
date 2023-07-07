@@ -1047,72 +1047,80 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     const StripeShapeLoop mceOfmLoopIncl =
         StripeShapeLoop::Inclusive(GetChannels(m_MceOutputTensorShape), baseMceIfm, stripeConfig.ofmDepthMultiplier.min,
                                    stripeConfig.ofmDepthMultiplier.max);
-    ETHOSN_UNUSED(mceInputWidthLoopExcl);    // Unused but kept above for consistency and potential future use.
-    ETHOSN_UNUSED(mceInputHeightLoopExcl);
     ETHOSN_UNUSED(mceOfmLoopIncl);
 
     const TensorShape& outputShape = m_PleOutputTensorShape;
 
-    // Use the minimum stripe size possible to minimize the time before processing.
-    // Try splitting height first.
     if (stripeConfig.splits.mceAndPleOutputHeight)
     {
-        TensorShape mceInputEncoding  = { 0, baseMceInputHeight, 0, 0 };
-        const TensorShape& inputShape = m_MceInputTensorShape;
-        TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);
+        // Exclusive loop as we already have a no-split plan further down
+        for (uint32_t mceInputStripeHeight : mceInputHeightLoopExcl)
+        {
+            TensorShape mceInputEncoding  = { 0, mceInputStripeHeight, 0, 0 };
+            const TensorShape& inputShape = m_MceInputTensorShape;
+            TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);
 
-        TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
-        TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, channelRounding);
+            TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
+            TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, channelRounding);
 
-        TensorShape pleInputStripe    = mceOutputStripe;
-        TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
-        TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, channelRounding);
+            TensorShape pleInputStripe    = mceOutputStripe;
+            TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
+            TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, channelRounding);
 
-        TensorShape memoryOutputStripe = CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, channelRounding);
+            TensorShape memoryOutputStripe = CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, channelRounding);
 
-        AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, mceInputStripe,
-                       memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
+            AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, mceInputStripe,
+                           memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
+        }
     }
 
     // Split only input in height while the output is full tensor.
     if (stripeConfig.splits.mceOutputHeightOnly)
     {
-        TensorShape mceInputEncoding  = { 0, baseMceInputHeight, 0, 0 };
-        const TensorShape& inputShape = m_MceInputTensorShape;
-        TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);
+        // Exclusive loop as we already have a no-split plan further down
+        for (uint32_t mceInputStripeHeight : mceInputHeightLoopExcl)
+        {
+            TensorShape mceInputEncoding  = { 0, mceInputStripeHeight, 0, 0 };
+            const TensorShape& inputShape = m_MceInputTensorShape;
+            TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);
 
-        TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
-        TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, channelRounding);
+            TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
+            TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, channelRounding);
 
-        TensorShape pleInputStripe    = mceOutputStripe;
-        TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
-        TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, channelRounding);
+            TensorShape pleInputStripe    = mceOutputStripe;
+            TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
+            TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, channelRounding);
 
-        TensorShape memoryOutputEncoding = { 0, 0, 0, 0 };
-        TensorShape memoryOutputStripe   = CreateStripe(outputShape, memoryOutputEncoding, channelRounding);
+            TensorShape memoryOutputEncoding = { 0, 0, 0, 0 };
+            TensorShape memoryOutputStripe   = CreateStripe(outputShape, memoryOutputEncoding, channelRounding);
 
-        AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, mceInputStripe,
-                       memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
+            AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, mceInputStripe,
+                           memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
+        }
     }
 
     // Try splitting width.
     if (stripeConfig.splits.widthOnly)
     {
-        TensorShape mceInputEncoding  = { 0, 0, baseMceInputWidth, 0 };
-        const TensorShape& inputShape = m_MceInputTensorShape;
-        TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);
+        // Exclusive loop as we already have a no-split plan further down
+        for (uint32_t mceInputStripeWidth : mceInputWidthLoopExcl)
+        {
+            TensorShape mceInputEncoding  = { 0, 0, mceInputStripeWidth, 0 };
+            const TensorShape& inputShape = m_MceInputTensorShape;
+            TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);
 
-        TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
-        TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, channelRounding);
+            TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
+            TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, channelRounding);
 
-        TensorShape pleInputStripe    = mceOutputStripe;
-        TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
-        TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, channelRounding);
+            TensorShape pleInputStripe    = mceOutputStripe;
+            TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
+            TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, channelRounding);
 
-        TensorShape memoryOutputStripe = CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, channelRounding);
+            TensorShape memoryOutputStripe = CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, channelRounding);
 
-        AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, mceInputStripe,
-                       memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
+            AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, mceInputStripe,
+                           memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
+        }
     }
 
     if (cascadeType == CascadeType::Lonely)
@@ -1149,8 +1157,6 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
 
     if (isDepthwise)
     {
-        // Note use of numSrams rather than numOgs, as when doing depthwise only one OG is active or something like that
-
         if (cascadeType == CascadeType::Lonely)
         {
             // Try split output depth and input depth.
@@ -1159,7 +1165,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                 // Exclusive loop as we already have a no-split plan further down
                 for (uint32_t mceIfmStripeDepth : mceIfmLoopExcl)
                 {
-                    // With depthwise each only OFM needs 1 IFM.
+                    // With depthwise each OFM only needs 1 IFM.
                     TensorShape mceInputEncoding  = { 0, 0, 0, mceIfmStripeDepth };
                     const TensorShape& inputShape = m_MceInputTensorShape;
                     TensorShape mceInputStripe = CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);
@@ -1220,21 +1226,25 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         // e.g. strategy 1 cascading.
         if (stripeConfig.splits.outputDepthInputDepth)
         {
-            TensorShape mceInputEncoding  = { 0, 0, 0, baseMceIfm };
-            const TensorShape& inputShape = m_MceInputTensorShape;
-            TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);
+            // Exclusive loop as we already have a no-split plan further down
+            for (uint32_t mceIfmStripeDepth : mceIfmLoopExcl)
+            {
+                TensorShape mceInputEncoding  = { 0, 0, 0, mceIfmStripeDepth };
+                const TensorShape& inputShape = m_MceInputTensorShape;
+                TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);
 
-            TensorShape mceOutputEncoding = TensorShape{ 0, 0, 0, baseMceOfm };
-            TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, baseMceOfm);
+                TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
+                TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, baseMceOfm);
 
-            // PLE stripe is the full tensor, as it accumulates the full output depth
-            TensorShape pleInputStripe  = CreateStripe(mceOutputShape, { 0, 0, 0, 0 }, baseMceOfm);
-            TensorShape pleOutputStripe = CreateStripe(m_PleOutputTensorShape, { 0, 0, 0, 0 }, baseMceOfm);
+                // PLE stripe is the full tensor, as it accumulates the full output depth
+                TensorShape pleInputStripe  = CreateStripe(mceOutputShape, { 0, 0, 0, 0 }, baseMceOfm);
+                TensorShape pleOutputStripe = CreateStripe(m_PleOutputTensorShape, { 0, 0, 0, 0 }, baseMceOfm);
 
-            TensorShape memoryOutputEncoding = { 0, 0, 0, 0 };
-            TensorShape memoryOutputStripe   = CreateStripe(outputShape, memoryOutputEncoding, baseMceOfm);
-            AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, mceInputStripe,
-                           memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
+                TensorShape memoryOutputEncoding = { 0, 0, 0, 0 };
+                TensorShape memoryOutputStripe   = CreateStripe(outputShape, memoryOutputEncoding, baseMceOfm);
+                AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, mceInputStripe,
+                               memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
+            }
         }
     }
     else    // Convolution or Fully Connected
@@ -1341,21 +1351,25 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         // e.g. strategy 1 cascading.
         if (stripeConfig.splits.mceOutputDepthOnly)
         {
-            TensorShape mceInputEncoding  = { 0, 0, 0, 0 };
-            const TensorShape& inputShape = m_MceInputTensorShape;
-            TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);
+            // Exclusive loop as we already have a no-split plan further down
+            for (uint32_t mceOfmStripeDepth : mceOfmLoopExcl)
+            {
+                TensorShape mceInputEncoding  = { 0, 0, 0, 0 };
+                const TensorShape& inputShape = m_MceInputTensorShape;
+                TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);
 
-            TensorShape mceOutputEncoding = TensorShape{ 0, 0, 0, baseMceOfm };
-            TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, baseMceOfm);
+                TensorShape mceOutputEncoding = TensorShape{ 0, 0, 0, mceOfmStripeDepth };
+                TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, baseMceOfm);
 
-            // PLE stripe is the full tensor, as it accumulates the full output depth
-            TensorShape pleInputStripe  = CreateStripe(mceOutputShape, { 0, 0, 0, 0 }, baseMceOfm);
-            TensorShape pleOutputStripe = CreateStripe(m_PleOutputTensorShape, { 0, 0, 0, 0 }, baseMceOfm);
+                // PLE stripe is the full tensor, as it accumulates the full output depth
+                TensorShape pleInputStripe  = CreateStripe(mceOutputShape, { 0, 0, 0, 0 }, baseMceOfm);
+                TensorShape pleOutputStripe = CreateStripe(m_PleOutputTensorShape, { 0, 0, 0, 0 }, baseMceOfm);
 
-            TensorShape memoryOutputEncoding = { 0, 0, 0, 0 };
-            TensorShape memoryOutputStripe   = CreateStripe(outputShape, memoryOutputEncoding, baseMceOfm);
-            AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, mceInputStripe,
-                           memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
+                TensorShape memoryOutputEncoding = { 0, 0, 0, 0 };
+                TensorShape memoryOutputStripe   = CreateStripe(outputShape, memoryOutputEncoding, baseMceOfm);
+                AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, mceInputStripe,
+                               memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
+            }
         }
     }
 
