@@ -807,19 +807,18 @@ inline void CalculateIfmSMceSOuterRatio(const AgentDesc& mce,
         outIfmRatio = ethosn::utils::NumericCast<uint16_t>(ifm.ifm.fmData.numStripes.channels);
         outMceRatio = ethosn::utils::NumericCast<uint16_t>(mce.mce.numStripes.ifmChannels);
     }
+    else if (mce.mce.mceOpMode == MceOperation::DEPTHWISE_CONVOLUTION && ifm.ifm.fmData.numStripes.width > 1)
+    {
+        // Depthwise with splitting width => outer ratio is for each row
+        outIfmRatio = ethosn::utils::NumericCast<uint16_t>(ifm.ifm.fmData.numStripes.width);
+        outMceRatio = ethosn::utils::NumericCast<uint16_t>(mce.mce.numStripes.ofmWidth);
+    }
     else if (mce.mce.mceOpMode == MceOperation::DEPTHWISE_CONVOLUTION && ifm.ifm.fmData.numStripes.height > 1 &&
              ifm.ifm.fmData.numStripes.channels > 1)
     {
         // Depthwise with splitting height and channels => outer ratio is for each column
         outIfmRatio = ethosn::utils::NumericCast<uint16_t>(ifm.ifm.fmData.numStripes.height);
         outMceRatio = ethosn::utils::NumericCast<uint16_t>(mce.mce.numStripes.ofmHeight);
-    }
-    else if (mce.mce.mceOpMode == MceOperation::DEPTHWISE_CONVOLUTION && ifm.ifm.fmData.numStripes.width > 1 &&
-             ifm.ifm.fmData.numStripes.channels > 1)
-    {
-        // Depthwise with splitting width and channels => outer ratio is for each row
-        outIfmRatio = ethosn::utils::NumericCast<uint16_t>(ifm.ifm.fmData.numStripes.width);
-        outMceRatio = ethosn::utils::NumericCast<uint16_t>(mce.mce.numStripes.ofmWidth);
     }
     else if (ifm.ifm.fmData.numStripes.height > 1 && ifm.ifm.fmData.numStripes.width > 1)
     {
