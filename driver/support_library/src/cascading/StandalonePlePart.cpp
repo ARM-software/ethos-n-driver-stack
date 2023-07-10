@@ -100,80 +100,90 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
         }
 
         // Multiple output stripes might be needed because the following layers may require multiple buffers due to boundary data.
-        uint32_t numOutputStripes;
+        uint32_t minNumOutputStripes;
         BoundaryRequirements outputBoundaryRequirements = m_OutputBoundaryRequirements.at(0);
         if ((outputBoundaryRequirements.m_NeedsBeforeX || outputBoundaryRequirements.m_NeedsBeforeY) &&
             (outputBoundaryRequirements.m_NeedsAfterX || outputBoundaryRequirements.m_NeedsAfterY))
         {
-            numOutputStripes = 3;
+            minNumOutputStripes = 3;
         }
         else if (outputBoundaryRequirements.m_NeedsBeforeX || outputBoundaryRequirements.m_NeedsBeforeY ||
                  outputBoundaryRequirements.m_NeedsAfterX || outputBoundaryRequirements.m_NeedsAfterY)
         {
-            numOutputStripes = 2;
+            minNumOutputStripes = 2;
         }
         else
         {
-            numOutputStripes = 1;
+            minNumOutputStripes = 1;
+        }
+        uint32_t maxNumOutputStripes = minNumOutputStripes;
+        if (cascadeType == CascadeType::Lonely || cascadeType == CascadeType::End)
+        {
+            maxNumOutputStripes = minNumOutputStripes + 1;    // For double-buffering.
         }
         // Limit the max number of stripes based on the size of the tensor - there is no point considering plans where
         // we can store more stripes in the tile than there are in the tensor!
-        numOutputStripes = std::min(numOutputStripes,
-                                    DivRoundUp(GetHeight(m_OutputTensorShape), GetHeight(outputStripeShape)) *
-                                        DivRoundUp(GetWidth(m_OutputTensorShape), GetWidth(outputStripeShape)) *
-                                        DivRoundUp(GetChannels(m_OutputTensorShape), GetChannels(outputStripeShape)));
+        maxNumOutputStripes = std::min(
+            maxNumOutputStripes, DivRoundUp(GetHeight(m_OutputTensorShape), GetHeight(outputStripeShape)) *
+                                     DivRoundUp(GetWidth(m_OutputTensorShape), GetWidth(outputStripeShape)) *
+                                     DivRoundUp(GetChannels(m_OutputTensorShape), GetChannels(outputStripeShape)));
+        minNumOutputStripes = std::min(minNumOutputStripes, maxNumOutputStripes);
 
-        NumMemoryStripes numMemoryStripes;
-        numMemoryStripes.m_Output = numOutputStripes;
-
-        auto op =
-            std::make_unique<PleOp>(m_KernelOperation, blkConfig, static_cast<uint32_t>(m_InputTensorShapes.size()),
-                                    inputStripes, outputStripeShape, m_DataType, true);
-        op->m_Input0Multiplier = m_Input0Multiplier;
-        op->m_Input0Shift      = m_Input0Shift;
-        op->m_Input1Multiplier = m_Input1Multiplier;
-        op->m_Input1Shift      = m_Input1Shift;
-
-        OwnedOpGraph opGraph;
-        PartInputMapping inputMappings;
-        PartOutputMapping outputMappings;
-
-        std::vector<Buffer*> pleInputBuffers;
-        pleInputBuffers.resize(m_InputTensorShapes.size());
-
-        // PLE input buffers
-        for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)
+        for (uint32_t numOutputStripes = minNumOutputStripes; numOutputStripes <= maxNumOutputStripes;
+             ++numOutputStripes)
         {
-            TileSizeCalculation tileSize =
-                impl::CalculateTileSize(m_Capabilities, m_InputTensorShapes.at(i), outputStripeShape,
-                                        PackedBoundaryThickness{ 0, 0, 0, 0 }, 2u, true);
+            NumMemoryStripes numMemoryStripes;
+            numMemoryStripes.m_Output = numOutputStripes;
 
-            std::unique_ptr<SramBuffer> buffer = SramBufferBuilder()
-                                                     .AddFormat(CascadingBufferFormat::NHWCB)
-                                                     .AddDataType(m_DataType)
-                                                     .AddTensorShape(m_InputTensorShapes.at(i))
-                                                     .AddQuantization(m_InputQuantizationInfos.at(i))
-                                                     .AddStripeShape(outputStripeShape)
-                                                     .AddNumStripes(2)
-                                                     .AddFromTileSize(tileSize);
+            auto op =
+                std::make_unique<PleOp>(m_KernelOperation, blkConfig, static_cast<uint32_t>(m_InputTensorShapes.size()),
+                                        inputStripes, outputStripeShape, m_DataType, true);
+            op->m_Input0Multiplier = m_Input0Multiplier;
+            op->m_Input0Shift      = m_Input0Shift;
+            op->m_Input1Multiplier = m_Input1Multiplier;
+            op->m_Input1Shift      = m_Input1Shift;
 
-            SramBuffer* bufferRaw = opGraph.AddBuffer(std::move(buffer));
-            pleInputBuffers[i]    = bufferRaw;
+            OwnedOpGraph opGraph;
+            PartInputMapping inputMappings;
+            PartOutputMapping outputMappings;
+
+            std::vector<Buffer*> pleInputBuffers;
+            pleInputBuffers.resize(m_InputTensorShapes.size());
+
+            // PLE input buffers
+            for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)
+            {
+                TileSizeCalculation tileSize =
+                    impl::CalculateTileSize(m_Capabilities, m_InputTensorShapes.at(i), outputStripeShape,
+                                            PackedBoundaryThickness{ 0, 0, 0, 0 }, 2u, true);
+
+                std::unique_ptr<SramBuffer> buffer = SramBufferBuilder()
+                                                         .AddFormat(CascadingBufferFormat::NHWCB)
+                                                         .AddDataType(m_DataType)
+                                                         .AddTensorShape(m_InputTensorShapes.at(i))
+                                                         .AddQuantization(m_InputQuantizationInfos.at(i))
+                                                         .AddStripeShape(outputStripeShape)
+                                                         .AddNumStripes(2)
+                                                         .AddFromTileSize(tileSize);
+
+                SramBuffer* bufferRaw = opGraph.AddBuffer(std::move(buffer));
+                pleInputBuffers[i]    = bufferRaw;
+            }
+
+            // Output buffer
+            auto outBufferAndPleOp =
+                AddPleToOpGraph(opGraph, outputStripeShape, numMemoryStripes, std::move(op), m_OutputTensorShape,
+                                m_OutputQuantizationInfo, m_DataType, m_CorrespondingOperationIds);
+
+            for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)
+            {
+                opGraph.AddConsumer(pleInputBuffers[i], outBufferAndPleOp.second, static_cast<uint32_t>(i));
+                inputMappings[pleInputBuffers[i]] = PartInputSlot{ m_PartId, static_cast<uint32_t>(i) };
+            }
+
+            outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
+            AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), {}, plans);
         }
-
-        // Output buffer
-        auto outBufferAndPleOp =
-            AddPleToOpGraph(opGraph, outputStripeShape, numMemoryStripes, std::move(op), m_OutputTensorShape,
-                            m_OutputQuantizationInfo, m_DataType, m_CorrespondingOperationIds);
-
-        for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)
-        {
-            opGraph.AddConsumer(pleInputBuffers[i], outBufferAndPleOp.second, static_cast<uint32_t>(i));
-            inputMappings[pleInputBuffers[i]] = PartInputSlot{ m_PartId, static_cast<uint32_t>(i) };
-        }
-
-        outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
-        AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), {}, plans);
     };
 
     if (cascadeType == CascadeType::Middle || cascadeType == CascadeType::End)
