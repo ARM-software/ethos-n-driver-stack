@@ -1,0 +1,8 @@
+//
+// Copyright © 2022-2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+input layer, name data, top data, shape 1, 26, 26, 1024
+conv layer, name conv1, bottom data, top conv1, num output 512, kernel h 3, kernel w 3, stride 2, pad 0, bias_enable 0
+relu layer, name relu1, bottom conv1, top conv1

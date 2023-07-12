@@ -1,0 +1,10 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+#Input_Precision: i8
+# Simple requantize test, using signed activations
+input layer, name data, top data, shape 1, 16, 16, 16
+conv layer, name conv1, bottom data, top conv1, num output 16, kernel size 1, stride 1, pad 1
+requantize layer, name requantize1, bottom conv1, top requantize1, zeroPoint -10, scale 0.005f

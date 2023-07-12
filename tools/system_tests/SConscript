@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright © 2018-2023 Arm Limited.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+import os
+import common
+
+Import("env")
+common.setup_common_env(env)
+
+# Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on the install target
+# where the install target is also provided via CPATH.
+env.PrependUnique(
+    CPPPATH=[
+        os.path.join(env["command_stream_dir"], "include"),
+        os.path.join(env["driver_library_dir"], "include"),
+        os.path.join(env["utils_dir"], "include"),
+        os.path.join(env["support_library_dir"], "include"),
+        os.path.join(env["armnn_dir"], "include"),
+        os.path.join(env["armnn_dir"], "profiling"),
+        env["kernel_module_dir"],
+    ]
+)
+
+# The TZMP1 test kernel module is only available in a TZMP1 build
+if env["npu_security"] == "tzmp1":
+    env.PrependUnique(
+        CPPPATH=[
+            os.path.join(env["tzmp1_test_kernel_module_dir"]),
+        ]
+    )
+
+# Add RPATH entries so that the executable can be ran from any directory.
+env.AppendUnique(
+    RPATH=[
+        common.get_armnn_build_dir(env),
+        common.get_driver_library_build_dir(env),
+        common.get_support_library_build_dir(env),
+    ]
+)
+
+# Set the appropriate CPP define for the target.
+env.AppendUnique(CPPDEFINES=["TARGET_" + env["target"].upper()])
+
+common.setup_toolchain(env, env["platform"])
+
+libs = [
+    File(os.path.join(common.get_support_library_build_dir(env), "libEthosNSupport.so")),
+    File(os.path.join(common.get_driver_library_build_dir(env), "libEthosNDriver.so")),
+    File(os.path.join(common.get_armnn_build_dir(env), "libarmnn.so")),
+    File(os.path.join(common.get_armnn_build_dir(env), "libarmnnTfLiteParser.so")),
+    "pthread",
+]
+
+# Create a static library so that other components (e.g. unit tests) can re-use it.
+lib_srcs = [
+    "GgfParser.cpp",
+    "LayerData.cpp",
+    "ArmnnParseRunner.cpp",
+    "EthosNParseRunner.cpp",
+    "SystemTestsUtils.cpp",
+    "Tensor.cpp",
+    "ArmnnUtils.cpp",
+    "GlobalParameters.cpp",
+    "ProtectedAllocator.cpp",  # Protected memory is only available in a TZMP1 build, but included to simplify Arm NN testing
+]
+
+system_tests_lib = env.StaticLibrary("libSystemTests", lib_srcs)
+
+# Create the executable, linking in the static library
+srcs = [
+    "main.cpp",
+    "GgfRunner.cpp",
+    "GgfEstimator.cpp",
+    "TfLiteRunner.cpp",
+    "PleOnly.cpp",
+    "Convolution.cpp",
+    "TransposeConv.cpp",
+    "Concatenation.cpp",
+    "Miscellaneous.cpp",
+    "MultipleInferences.cpp",
+    "Requantize.cpp",
+    "ZeroCopy.cpp",
+    "CustomAllocator.cpp",
+]
+
+internal_dir = os.path.join(
+    env["system_tests_dir"],
+    "..",
+    "..",
+    "internal",
+    "tools",
+    "system_tests",
+)
+internal_srcs = []
+
+# Add internal tests only if the directory exists.
+if os.path.isdir(internal_dir) and env["target"] == "model":
+    # Compile internal-only unit tests files, which are stored outside of this component's folder.
+    # Use scons 'Repository' method to locate a build the additional files.
+    # (see Building From Code Repositories in scons documentation).
+    # Extend CPPPATH to allow to include headers from the current working directory.
+    # Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on
+    # the install target where the install target is also provided via CPATH.
+    # (see Finding #include files in repositories in scons documentation).
+    env.PrependUnique(
+        CPPPATH=[
+            env["system_tests_dir"],
+            internal_dir,
+            os.path.join(env["control_unit_dir"], "include"),
+        ]
+    )
+    print(env["system_tests_dir"])
+    internal_srcs = [
+        os.path.join(internal_dir, f) for f in os.listdir(internal_dir) if f.endswith("cpp")
+    ]
+# Add internal unit tests
+srcs.extend(internal_srcs)
+
+# Protected memory is only available in a TZMP1 build
+if env["npu_security"] == "tzmp1":
+    srcs.extend(["ProtectedCustomAllocatorTest.cpp"])
+
+libs.insert(0, system_tests_lib)
+system_tests = env.Program("system-tests", srcs, LIBS=libs)
+
+testAlias = env.Alias("system-tests", [system_tests], system_tests[0].abspath)
+AlwaysBuild(testAlias)
+
+# Build unit tests, if requested.
+if env["tests"]:
+    SConscript(dirs="tests", duplicate=False, exports=["env", "libs"])

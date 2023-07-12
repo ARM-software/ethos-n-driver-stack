@@ -1,0 +1,8 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+#NPU_Input_Tensor_Format: NHWCB
+input layer, name data0, top data0, shape 1, 1, 1, 4096
+fc layer, name fc0, bottom data0, top fc0, num output 1000

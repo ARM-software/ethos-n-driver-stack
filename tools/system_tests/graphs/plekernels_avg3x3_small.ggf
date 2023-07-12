@@ -1,0 +1,8 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+# Average pooling 3x3 with stride 1,1.
+input layer, name data, top data, shape 1, 16, 16, 16
+pooling layer, name pool1, bottom data, top pool1, pool avg, kernel size 3, stride 1, pad 1

@@ -1,0 +1,9 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+# Even input and padding after for the Avg pooling operation.
+#Input_Precision: i8
+input layer, name data0, top data0, shape 1, 16, 16, 1
+pooling layer, name pool0, bottom data0, top pool0, pool avg, kernel size 3, stride 1

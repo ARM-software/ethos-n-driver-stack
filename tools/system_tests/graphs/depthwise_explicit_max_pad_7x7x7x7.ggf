@@ -1,0 +1,8 @@
+//
+// Copyright © 2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+# depthwise conv with max supported padding.
+input layer, name data0, top data0, shape 1, 32, 32, 3
+depthwise layer, name depthwise0, bottom data0, top depthwise0, channel multiplier 1, kernel h 3, kernel w 3, stride h 2, stride w 2, pad top 7, pad bottom 7, pad left 7, pad right 7,  bias_enable 1

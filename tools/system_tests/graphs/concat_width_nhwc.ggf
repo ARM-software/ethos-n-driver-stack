@@ -1,0 +1,12 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+# The simplest possible concat network with the concatenation happening along the width dimension
+# with width values such that NHWC concatenation must be used.
+input layer, name data0, top data0, shape 1, 16, 10, 16
+conv layer, name conv0, bottom data0, top conv0, num output 12, kernel h 1, kernel w 1, stride h 1, stride w 1, pad 1, bias_enable 1
+input layer, name data1, top data1, shape 1, 16, 15, 16
+conv layer, name conv1, bottom data1, top conv1, num output 12, kernel h 1, kernel w 1, stride h 1, stride w 1, pad 1, bias_enable 1
+concat layer, name concat0, bottom conv0_conv1, top concat0, axis 2

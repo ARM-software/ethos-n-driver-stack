@@ -1,0 +1,13 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+# Simple split along the channels dimension, with split values such that NHWCB can be used.
+#   - Small and "easy" tensor sizes (multiples of 16)
+#   - Inputs are in NHWCB and do not require any conversion.
+#   - There are convs on each output of the split so no identity depthwise nodes need adding.
+input layer, name data, top data, shape 1, 16, 16, 48
+split layer, name split1, bottom data, axis 3, sizes 16, 32
+conv layer, name conv1, bottom split1_0, top conv1, num output 1, kernel h 1, kernel w 1, stride 1, pad 0, bias_enable 0
+conv layer, name conv2, bottom split1_1, top conv2, num output 2, kernel h 1, kernel w 1, stride 1, pad 0, bias_enable 0

@@ -1,0 +1,7 @@
+//
+// Copyright © 2022-2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+input layer, name data0, top data0, shape 1, 18, 32, 160
+upsample layer, name upsample1, bottom data0, top upsample1, new height 36, new width 64, scale_algo 2

@@ -1,0 +1,7 @@
+//
+// Copyright © 2021,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+const layer, name const0, top const0, shape 1, 2, 2, 10
+conv layer, name conv1, bottom const0, top conv1, num output 16, kernel size 1, stride 1, pad 1

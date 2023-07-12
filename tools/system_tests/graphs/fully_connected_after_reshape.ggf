@@ -1,0 +1,11 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+input layer, name data0, top data0, shape 1, 16, 16, 1
+conv layer, name conv0, bottom data0, top conv0, num output 64, kernel h 3, kernel w 3, stride h 1, stride w 1, pad 1, bias_enable 0
+relu layer, name activation0, bottom conv0, top conv0
+pooling layer, name pool0, bottom conv0, top pool0, pool max, kernel size 2, stride 2, pad 1
+reshape layer, name reshape0, bottom pool0, top reshape0, shape 1, 1, 1, 4096
+fc layer, name fc0, bottom reshape0, top fc0, num output 16

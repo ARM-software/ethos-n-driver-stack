@@ -1,0 +1,23 @@
+//
+// Copyright © 2022-2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+input layer, name input1, top data1, shape 1, 16, 16, 1
+input layer, name input2, top data2, shape 1, 16, 16, 2
+input layer, name input3, top data3, shape 1, 16, 16, 3
+input layer, name input4, top data4, shape 1, 16, 16, 4
+input layer, name input5, top data5, shape 1, 16, 16, 5
+input layer, name input6, top data6, shape 1, 16, 16, 6
+input layer, name input7, top data7, shape 1, 16, 16, 7
+input layer, name input8, top data8, shape 1, 16, 16, 8
+input layer, name input9, top data9, shape 1, 16, 16, 9
+input layer, name input10, top data10, shape 1, 16, 16, 10
+input layer, name input11, top data11, shape 1, 16, 16, 12
+input layer, name input12, top data12, shape 1, 16, 16, 19
+input layer, name input13, top data13, shape 1, 16, 16, 31
+input layer, name input14, top data14, shape 1, 16, 16, 33
+input layer, name input15, top data15, shape 1, 16, 16, 55
+input layer, name input16, top data16, shape 1, 16, 16, 75
+
+concat layer, name concat0, bottom input1_input2_input3_input4_input5_input6_input7_input8_input9_input10_input11_input12_input13_input14_input15_input16, top concat0, axis 3

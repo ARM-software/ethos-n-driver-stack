@@ -74,6 +74,12 @@ var.AddVariables(
         "",
         PathVariable.PathAccept,
     ),
+    PathVariable(
+        "armnn_dir",
+        "Directory of the Arm NN source code to use for full-stack testing and system tests.",
+        "",
+        PathVariable.PathAccept,
+    ),
 )
 
 env = Environment(variables=var)
@@ -88,6 +94,7 @@ env["support_library_dir"] = "support_library"
 env["command_stream_dir"] = os.path.join(env["support_library_dir"], "command_stream")
 env["utils_dir"] = "utils"
 env["lib_xml_to_binary_dir"] = os.path.join(env["command_stream_dir"], "xml_to_binary")
+env["system_tests_dir"] = os.path.join("..", "tools", "system_tests")
 
 # These can be overridden by developer options, if applicable
 env["kernel_module_dir"] = os.path.join("..", "kernel-module")
@@ -105,8 +112,12 @@ common.abs_path(
         "utils_dir",
         "lib_xml_to_binary_dir",
         "kernel_module_dir",
+        "system_tests_dir",
     ],
 )
+
+if env["armnn_dir"]:
+    common.abs_path(env, ["armnn_dir"])
 
 # Avoid building extra components by default, e.g. libXmlToBinary
 Default(
@@ -162,6 +173,16 @@ SConscript(
     duplicate=False,
     exports="env",
 )
+
+if env["tests"]:
+    # System Test uses Catch2 framework. If tests has been disabled, dont build system tests
+    env = env_backup.Clone()
+    SConscript(
+        dirs=env["system_tests_dir"],
+        variant_dir=common.get_system_tests_build_dir(env),
+        duplicate=False,
+        exports="env",
+    )
 
 aliases = default_ans.keys()
 env.Help("\n")

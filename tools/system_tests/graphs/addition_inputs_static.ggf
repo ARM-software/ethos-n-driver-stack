@@ -1,0 +1,11 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+# The inputs data are in Sram.
+input layer, name data, top data, shape 1, 16, 16, 3
+conv layer, name conv0, bottom data, top conv0, num output 3, kernel h 1, kernel w 1, stride 1, pad 0, bias_enable 0
+conv layer, name conv1, bottom data, top conv1, num output 3, kernel h 1, kernel w 1, stride 1, pad 0, bias_enable 0
+add layer, name add0, bottom conv0_conv1, top add0
+conv layer, name conv3, bottom add0, top conv3, num output 3, kernel h 1, kernel w 1, stride 1, pad 0, bias_enable 0

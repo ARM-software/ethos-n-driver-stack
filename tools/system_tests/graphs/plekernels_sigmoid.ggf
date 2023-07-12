@@ -1,0 +1,10 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+#InputMin: -5
+#InputMax:  5
+
+input layer, name data, top data, shape 1, 16, 16, 1
+sigmoid layer, name sigmoid1, bottom data, top data

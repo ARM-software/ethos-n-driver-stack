@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright © 2018-2023 Arm Limited.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+import os
+
+Import("env", "libs")
+
+# Some unit tests require implementation details of the support library, so allow includes of its src/ folder
+# Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on the install
+# target where the install target is also provided via CPATH.
+env.PrependUnique(CPPPATH=[os.path.join(env["support_library_dir"], "src")])
+# Add RPATH entries so that the executable can be ran from any directory.
+# Note: The first lib is the system test lib
+system_tests_lib = libs[0]
+env.AppendUnique(RPATH=[system_tests_lib[0].dir])
+
+srcs = [
+    "Main.cpp",
+    "ArmnnParseRunnerTests.cpp",
+    "EthosNParseRunnerTests.cpp",
+    "GgfParserTests.cpp",
+    "SystemTestsUtilsTests.cpp",
+]
+
+if env["npu_security"] == "tzmp1":
+    srcs.extend(["ProtectedAllocatorTests.cpp"])
+
+unitTests = env.Program("UnitTests", srcs, LIBS=libs)
+testAlias = env.Alias("tools-unit-tests", [unitTests], unitTests[0].abspath)
+env.Alias("unit-tests", testAlias)
+AlwaysBuild(testAlias)

@@ -1,0 +1,12 @@
+//
+// Copyright © 2021,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+# NPU_Output_Tensor_Format: NHWC
+# InputMin: 1
+# InputMax: 127.5
+# AutoFrozen = 1
+input layer, name data0, top data0, shape 1, 32, 32, 4
+const layer, name const0, top const0, constant_max 2.0, constant_min 1.0, shape 1, 1, 1, 4
+mul layer, name mull, bottom data0_const0, top mull

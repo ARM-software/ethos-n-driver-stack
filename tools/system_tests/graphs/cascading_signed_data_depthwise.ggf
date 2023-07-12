@@ -1,0 +1,10 @@
+//
+// Copyright © 2022-2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+#Input_Precision: i8
+#Weight_Precision: i8
+input layer, name data0, top data0, shape 1, 16, 16, 32
+depthwise layer, name depthwise0, bottom data0, top depthwise0, channel multiplier 1, kernel h 1, kernel w 1, stride h 1, stride w 1, pad 1, bias_enable 1
+relu layer, name relu0, bottom depthwise0, top depthwise0

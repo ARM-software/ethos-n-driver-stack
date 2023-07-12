@@ -1,0 +1,9 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+# Input_Precision: i8
+input layer, name data, top data, shape 1, 16, 16, 16
+conv layer, name conv, bottom data, top conv, num output 16, kernel size 1, stride 1, pad 1
+leakyrelu layer, name leakyrelu, bottom conv, top conv, alpha 0.1

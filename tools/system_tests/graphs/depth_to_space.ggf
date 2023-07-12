@@ -1,0 +1,9 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+# 8 channels so that there is more than one set of 4 to re-distribute.
+# This ensures that we have the correct layout when there are multiple blocks along depth.
+input layer, name data, top data, shape 1, 5, 5, 8
+depthtospace layer, name depthy, bottom data, top depthy, block_size 2

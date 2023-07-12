@@ -1,0 +1,11 @@
+//
+// Copyright © 2021,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+#InputMin: -1
+#InputMax:  1
+#Input_Precision: i8
+
+input layer, name data, top data, shape 1, 32, 16, 1
+tanh layer, name tanh, bottom data, top data

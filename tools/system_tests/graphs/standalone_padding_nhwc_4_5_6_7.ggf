@@ -1,0 +1,9 @@
+//
+// Copyright © 2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+#NPU_Input_Tensor_Format: NHWC
+input layer, name data, top data, shape 1, 16, 16, 11
+conv layer, name conv1, bottom data, top conv1, num output 1, kernel size 1, stride 1, pad 1
+padding layer, name pad1, bottom conv1, top pad1, pad_top 4, pad_bottom 5, pad_left 6, pad_right 7

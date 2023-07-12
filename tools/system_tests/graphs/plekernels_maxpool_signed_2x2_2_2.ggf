@@ -1,0 +1,9 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+# Even input and padding after for the Max pooling operation.
+#Input_Precision: i8
+input layer, name data0, top data0, shape 1, 32, 32, 1
+pooling layer, name pool0, bottom data0, top pool0, pool max, kernel size 2, stride 2

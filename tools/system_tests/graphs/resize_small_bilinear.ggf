@@ -1,0 +1,8 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+# Resize layer test with even input and output, upscale algorithm used is bilinear.
+input layer, name data0, top data0, shape 1, 16, 16, 32
+upsample layer, name upsample1, bottom data0, top upsample1, upsample scale height ratio 2.0, upsample scale width ratio 2.0, upsample mode height 1, upsample mode width 1, scale_algo 2

@@ -1,0 +1,8 @@
+//
+// Copyright © 2021,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+# Convolution with explicit symmetric padding.
+input layer, name data0, top data0, shape 1, 32, 32, 3
+conv layer, name conv1, bottom data0, top conv1, num output 64, kernel size 7, stride w 2, stride h 2, pad top 3, pad bottom 3, pad left 3, pad right 3

@@ -400,6 +400,72 @@ There are multiple ways to exercise the Ethos-N NPU driver:
     LD_LIBRARY_PATH=<path_to_ethosn_libraries>:<path_to_armnn_libs> ./tests/ExecuteNetwork -f tflite-binary -i input -y qasymmu8 -o MobilenetV1/Predictions/Reshape_1 -z qasymmu8 -d input_data.txt -m mobilenet_v1_0.25_224_default_minmax.tflite -c EthosNAcc -c CpuRef
     ```
 
+5. Run the Ethos-N NPU System Tests. This program supports the running of TensorFlow Lite models, networks described in Ggf format, and contains a suite of built-in tests.
+
+    To build the `system-tests` executable, use the following command:
+
+        ```sh
+        cd <path_to>/driver_stack/ethos-n-driver-stack/driver
+        scons tests=1 ../tools/system_tests
+        ```
+
+    * If you are cross compiling the system tests, add `platform=aarch64` to the scons command.
+    * Make sure your CPATH scons variable, which is specified on the command-line, points to `<path_to_catch>/Catch2/single_include/catch2/`.
+    * Make sure that your armnn_dir scons variable, which is specified on the command line, points to `<path_to>/driver_stack/armnn_build/source/armnn/`.
+    * Make sure that your unit_test_kernel_dir scons variable, which is specified on the command-line, points to the Linux kernel source tree used to build the Ethos-N NPU Linux kernel module. The Linux kernel's user-space headers will be used when building and running the unit tests to determine what features are supported and should be tested.
+    _Note: In order to support all the unit tests, the Linux kernel source tree used must be version 5.6 or higher. The Linux kernel source tree should be the same as the one used to compile the Linux kernel module._
+    _Note: If the Linux kernel source tree does not contain the Linux kernel's generated user-space headers, scons will generate them using the Linux kernel's `headers_install` make target._
+
+    This generates an executable for system tests and system test unit tests:
+    * `system-tests` in `<path_to>/driver_stack/ethos-n-driver-stack/tools/system_tests/build/release_<platform>/`
+    * `UnitTests` in `<path_to>/driver_stack/ethos-n-driver-stack/tools/system_tests/build/release_<platform>/tests`
+
+    If you have cross compiled the driver, you must copy the following files onto the target platform:
+    * All `*.so*` files built from Arm NN.
+    * `system-tests` and `UnitTests` from the Ethos-N NPU driver mentioned above.
+    * `libEthosNSupport.so` built from the Ethos-N NPU driver inside `<install_directory>/lib/`.
+    * `libEthosNDriver.so` built from the Ethos-N NPU driver inside `<install_directory>/lib/`.
+
+    The `system-tests` program requires parameters passed in. To find details about these parameters, enter the following command:
+
+    ```sh
+    LD_LIBRARY_PATH=<path_to_ethosn_libraries>:<path_to_armnn_libs> ./system-tests -?
+    ```
+
+    _Note: As system tests is built using the Catch2 framework, this will also display the built-in options for the Catch2 framework._
+
+    To run networks using system tests, you can use `TfLiteRunner` which accepts TensorFlow Lite models, or `GgfRunner` which accepts networks described in a text format. For examples of how `.ggf` files are laid out, see `<path_to>/driver_stack/ethos-n-driver-stack/tools/system_tests/graphs`. For more information, check `GgfParser.cpp`.
+
+    An example of using `TfLiteRunner` to run **mobilenet_v1_0.25_224_default_minmax.tflite** in system tests is:
+
+    ```sh
+    LD_LIBRARY_PATH=<path_to_ethosn_libraries>:<path_to_armnn_libs> ./system-tests TfLiteRunner --tflite-file mobilenet_v1_0.25_224_default_minmax.tflite
+    ```
+
+    An example of using `GgfRunner` to run  **conv1x1_nhwc.ggf** in system tests is:
+
+    ```
+    LD_LIBRARY_PATH=<path_to_ethosn_libraries>:<path_to_armnn_libs> ./system-tests GgfRunner --ggf-file conv1x1_nhwc.ggf
+    ```
+
+    _Note: `TfLiteRunner` and `GgfRunner` compare the inference result against a reference result generated using Arm NN with the CpuRef backend. To skip this check, use the `--skip-ref` option._
+
+    To run other tests within system tests, use the following command:
+
+    ```
+    LD_LIBRARY_PATH=<path_to_ethosn_libraries>:<path_to_armnn_libs> ./system-tests <test_case>
+    ```
+
+    If `<test_case>` is empty, system tests will run every test.
+
+    _Note: Some test cases are dependant on specific Ethos-N NPU configurations to run successfully._
+
+    To run the unit tests for system tests, use the following command:
+
+    ```
+    LD_LIBRARY_PATH=<path_to_ethosn_libraries>:<path_to_armnn_libs> ./UnitTests <test_case>
+    ```
+
 ## Power Management
 
 To allow efficient power usage, the Ethos-N NPU supports the following power management features:

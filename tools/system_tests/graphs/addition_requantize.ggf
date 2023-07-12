@@ -1,0 +1,10 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+# The addition saturates if the incorrect quantization scale is chosen from the inputs.
+input layer, name data, top data, shape 1, 16, 16, 16
+requantize layer, name requantize1, bottom data, top requantize1, zeroPoint 120, scale 0.00019f
+requantize layer, name requantize2, bottom data, top requantize2, zeroPoint 120, scale 0.009f
+add layer, name add1, bottom requantize1_requantize2, top add1

@@ -1,0 +1,10 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+# Even input and padding after for the mean8x8 operation.
+# Mean is a special case of avg. When the input tensor is Nx8x8xC mean is used
+#Input_Precision: i8
+input layer, name data0, top data0, shape 1, 8, 8, 16
+pooling layer, name pool0, bottom data0, top pool0, pool avg, kernel size 8, stride 1, pad 0

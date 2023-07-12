@@ -1,0 +1,7 @@
+//
+// Copyright © 2020-2021,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+input layer, name data, top data, shape 1, 5, 5, 1
+tconv layer, name tconv1, bottom data, top tconv1, num output 1, kernel h 2, kernel w 2, stride w 2, stride h 2, pad 1

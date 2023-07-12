@@ -1,0 +1,9 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+#Input_Precision: i8
+input layer, name data, top data, shape 1, 16, 16, 16
+add layer, name add, bottom data_data, top add
+

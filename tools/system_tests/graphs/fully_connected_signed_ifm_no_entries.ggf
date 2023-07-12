@@ -1,0 +1,14 @@
+//
+// Copyright © 2020,2023 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+#AutoFrozen: 1
+#InputMin:-1
+#InputMax: 1
+#Input_Precision: i8
+#Weight_Precision: i8
+#Input_Zero_Percentage: 0.5
+#Input_No_Entries: 5
+input layer, name data0, top data0, shape 1, 1, 1, 4096
+fc layer, name fc0, bottom data0, top fc0, num output 1000
