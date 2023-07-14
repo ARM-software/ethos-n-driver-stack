@@ -1510,6 +1510,9 @@ bool CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                                       producerAgentData.pleS.defaultStripeSize.height));
                 consumerAgentDependency.innerRatio.self = 1;
 
+                // If splitting in height, maxpool data can't be written out until the stripe after has been finished,
+                // because the pooling windows overlap the stripe boundary so it doesn't have enough input data
+                // until the next stripe.
                 command_stream::PleOperation pleOperation = static_cast<const PleOp*>(producerOp)->m_Op;
                 if ((pleOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
                      pleOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD) &&

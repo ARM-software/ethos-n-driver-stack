@@ -874,6 +874,18 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                                            DivRoundUp(GetChannels(outputShape), GetChannels(memoryOutputStripe)));
         outputCopy.m_Min = std::min(outputCopy.m_Min, outputCopy.m_Max);
 
+        // If splitting in height, maxpool requires at least two slots in the OFM tile because it can't
+        // write a full stripe of output data until it starts the next output stripe (due to pooling windows
+        // overlapping the stripe boundary).
+        if (m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+            m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD)
+        {
+            if (GetHeight(pleInputStripe) < GetHeight(m_MceOutputTensorShape))
+            {
+                outputCopy.m_Min = std::max(outputCopy.m_Min, 2u);
+            }
+        }
+
         // Apply any stripe config overrides
         outputCopy.m_Min = std::max(outputCopy.m_Min, stripeConfig.ofmNumStripes.min);
         outputCopy.m_Max = std::min(outputCopy.m_Max, stripeConfig.ofmNumStripes.max);
