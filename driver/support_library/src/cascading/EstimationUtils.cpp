@@ -261,7 +261,7 @@ uint32_t GetPleCyclesPerPatch(command_stream::PleOperation op)
         case command_stream::PleOperation::PASSTHROUGH:
             return 6;
         case command_stream::PleOperation::SIGMOID:
-            return 76;
+            return 41;
         case command_stream::PleOperation::TRANSPOSE_XY:
             return 14;
         default:
