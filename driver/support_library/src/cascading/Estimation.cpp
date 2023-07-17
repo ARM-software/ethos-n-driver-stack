@@ -367,6 +367,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
                 includeOp(dmaOp);
             }
 
+            passDesc.m_OutputDma  = dmaOp;
             passDesc.m_OutputDram = dramBuffer;
         }
         passDesc.m_Output = passDesc.m_OutputDma ? dramBuffer : sramOutputBuffer;
