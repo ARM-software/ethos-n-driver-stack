@@ -57,9 +57,9 @@ struct Dependency
     ///            +            +
     int8_t boundary = 0;
 
-    /// Specifies if this dependency uses GetLastReaderOfEvictedStripeId to calculate stripe IDs,
-    /// otherwise GetLargestNeededStripeId.
-    bool writesToTile = false;
+    /// If >= 0, specifies that this dependency uses GetLastReaderOfEvictedStripeId to calculate stripe IDs
+    /// (using the value here as the tile size), rather than GetLargestNeededStripeId.
+    int32_t writesToTileSize = -1;
 
     /// Specifies if this dependency will be used when walking the dependency graph when scheduling stripes.
     /// This affects the *order* of stripes in the command queues, but doesn't gate them from running straight after
@@ -225,7 +225,6 @@ private:
     void AddWaitForCounterCommands(const std::vector<Dependency>& dependencies,
                                    const uint32_t agentId,
                                    const uint32_t stripeId,
-                                   const uint16_t tileSize,
                                    CommandQueue& commands);
 
     void ScheduleIfmStreamerStripe(const uint32_t agentId, uint32_t stripeId);

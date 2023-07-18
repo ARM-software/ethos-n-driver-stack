@@ -76,7 +76,7 @@ void DumpDependency(std::ofstream& f, const Dependency& d, const char* type)
     f << "      <INNER_RATIO><OTHER>" << d.innerRatio.other << "</OTHER><SELF>" << d.innerRatio.self
       << "</SELF></INNER_RATIO>\n";
     f << "      <BOUNDARY>" << static_cast<uint32_t>(d.boundary) << "</BOUNDARY>\n";
-    f << "      <WRITES_TO_TILE>" << static_cast<uint32_t>(d.writesToTile) << "</WRITES_TO_TILE>\n";
+    f << "      <WRITES_TO_TILE_SIZE>" << d.writesToTileSize << "</WRITES_TO_TILE_SIZE>\n";
     f << "      <USE_FOR_SCHEDULING>" << static_cast<uint32_t>(d.useForScheduling) << "</USE_FOR_SCHEDULING>\n";
     f << "      <USE_FOR_COMMAND_STREAM>" << static_cast<uint32_t>(d.useForCommandStream)
       << "</USE_FOR_COMMAND_STREAM>\n";
@@ -339,7 +339,6 @@ void Scheduler::PushWaitForCounterCommand(AgentType otherAgentType,
 void Scheduler::AddWaitForCounterCommands(const std::vector<Dependency>& dependencies,
                                           const uint32_t agentId,
                                           const uint32_t stripeId,
-                                          const uint16_t tileSize,
                                           CommandQueue& commands)
 {
     for (const auto& dep : dependencies)
@@ -352,8 +351,10 @@ void Scheduler::AddWaitForCounterCommands(const std::vector<Dependency>& depende
 
         const uint32_t otherAgentId = dep.otherAgentId;
 
-        const int stripeToWaitFor = dep.writesToTile ? GetLastReaderOfEvictedStripeId(dep, stripeId, tileSize)
-                                                     : GetLargestNeededStripeId(dep, stripeId);
+        const int stripeToWaitFor =
+            dep.writesToTileSize >= 0
+                ? GetLastReaderOfEvictedStripeId(dep, stripeId, static_cast<uint32_t>(dep.writesToTileSize))
+                : GetLargestNeededStripeId(dep, stripeId);
         if (stripeToWaitFor >= m_Agents[otherAgentId].agent.numStripesTotal)
         {
             throw InternalErrorException(
@@ -391,8 +392,7 @@ void Scheduler::ScheduleIfmStreamerStripe(const uint32_t agentId, uint32_t strip
 
     g_Logger.Verbose("Schedule IfmStreamerStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
-    const uint16_t tileSize = agentAndDeps.agent.ifm.fmData.tile.numSlots;
-    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, tileSize, m_DmaRdCommands);
+    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, m_DmaRdCommands);
 
     const uint32_t numChunks = CalculateNumChunks(agentAndDeps.agent.ifm, stripeId);
     for (uint32_t chunkId = 0; chunkId < numChunks; ++chunkId)
@@ -420,8 +420,7 @@ void Scheduler::ScheduleWgtStreamerStripe(const uint32_t agentId, uint32_t strip
 
     g_Logger.Verbose("Schedule WgtStreamerStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
-    const uint16_t tileSize = agentAndDeps.agent.wgt.tile.numSlots;
-    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, tileSize, m_DmaRdCommands);
+    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, m_DmaRdCommands);
 
     DmaCommand cmd = GenerateDmaCommandForLoadWgtStripe(m_Agents[agentId].agent.wgt, agentId, stripeId, m_Capabilities,
                                                         m_NextRdDmaCmdId);
@@ -448,7 +447,7 @@ void Scheduler::ScheduleMceSchedulerStripe(const uint32_t agentId, uint32_t stri
     auto cmd = GenerateProgramMceStripeCommand(agentAndDeps.agent.mce, agentId, stripeId, m_Capabilities);
     m_MceCommands.Push(CommandVariant(cmd));
 
-    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, 0, m_MceCommands);
+    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, m_MceCommands);
 
     // Reconfigure the MCEIF if necessary. This will be if this is the first MCE stripe in the whole inference,
     // or if the MCEIF configuration was changed due to a different PLE kernel being loaded.
@@ -509,8 +508,7 @@ void Scheduler::SchedulePleLoaderStripe(const uint32_t agentId, uint32_t stripeI
 
     g_Logger.Verbose("Schedule PleLoaderStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
-    constexpr uint16_t tileSize = 1;    // There isn't a tile for PleLoaderStripes
-    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, tileSize, m_DmaRdCommands);
+    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, m_DmaRdCommands);
 
     auto cmd =
         GenerateDmaCommandForLoadPleCode(m_Agents[agentId].agent.pleL, agentId, m_Capabilities, m_NextRdDmaCmdId);
@@ -534,8 +532,7 @@ void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stri
 
     g_Logger.Verbose("Schedule PleSchedulerStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
-    const uint16_t tileSize = agentAndDeps.agent.pleS.ofmTile.numSlots;
-    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, tileSize, m_PleCommands);
+    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, m_PleCommands);
 
     // Load new PLE code if necessary
     if (m_LastLoadedPleKernel != agentAndDeps.agent.pleS.pleKernelId)
@@ -603,7 +600,7 @@ void Scheduler::ScheduleOfmStreamerStripe(const uint32_t agentId, uint32_t strip
 
     g_Logger.Verbose("Schedule OfmStreamerStripe { .agentId = %u, .stripeId = %d }", agentId, stripeId);
 
-    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, {}, m_DmaWrCommands);
+    AddWaitForCounterCommands(agentAndDeps.deps, agentId, stripeId, m_DmaWrCommands);
 
     const uint32_t numChunks = CalculateNumChunks(agentAndDeps.agent.ofm, stripeId);
     for (uint32_t chunkId = 0; chunkId < numChunks; ++chunkId)
@@ -739,26 +736,10 @@ void Scheduler::Schedule()
                 continue;
             }
 
-            uint16_t tileSize;
-            switch (m_Agents[agentId].agent.type)
-            {
-                case AgentType::IFM_STREAMER:
-                    tileSize = m_Agents[agentId].agent.ifm.fmData.tile.numSlots;
-                    break;
-                case AgentType::WGT_STREAMER:
-                    tileSize = m_Agents[agentId].agent.wgt.tile.numSlots;
-                    break;
-                case AgentType::PLE_SCHEDULER:
-                    tileSize = m_Agents[agentId].agent.pleS.ofmTile.numSlots;
-                    break;
-                default:
-                    tileSize = 1;
-                    break;
-            }
-
             const int largestNeededStripeId =
-                dep.writesToTile ? GetLastReaderOfEvictedStripeId(dep, m_AgentProgress[agentId], tileSize)
-                                 : GetLargestNeededStripeId(dep, m_AgentProgress[agentId]);
+                dep.writesToTileSize >= 0 ? GetLastReaderOfEvictedStripeId(dep, m_AgentProgress[agentId],
+                                                                           static_cast<uint32_t>(dep.writesToTileSize))
+                                          : GetLargestNeededStripeId(dep, m_AgentProgress[agentId]);
 
             if (static_cast<int>(m_AgentProgress[dep.otherAgentId]) <= largestNeededStripeId)
             {

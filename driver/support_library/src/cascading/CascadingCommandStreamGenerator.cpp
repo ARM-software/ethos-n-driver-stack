@@ -322,7 +322,7 @@ void CascadingCommandStreamGenerator::AddSramOverlapDependencies(uint32_t newDat
             dep.useForCommandStream = true;
             dep.useForScheduling    = false;
             dep.otherAgentId        = otherAgentId;
-            dep.writesToTile        = false;
+            dep.writesToTileSize    = -1;
 
             dep.outerRatio.other = m_CommandStreamAgents[otherAgentId].agent.numStripesTotal;
             dep.outerRatio.self  = m_CommandStreamAgents[agentId].agent.numStripesTotal;
@@ -569,7 +569,7 @@ void CascadingCommandStreamGenerator::ProcessMceOp(MceOp* const ptrMceOp, uint32
             dep.useForCommandStream = false;
             dep.useForScheduling    = true;
             dep.otherAgentId        = static_cast<uint32_t>(pleLoaderAgentId);
-            dep.writesToTile        = false;
+            dep.writesToTileSize    = -1;
 
             dep.outerRatio.other = 1;
             dep.outerRatio.self  = m_CommandStreamAgents[m_OpToAgentIdMapping[op]].agent.numStripesTotal;
@@ -1064,8 +1064,8 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
         pleS.ifmInfo1.zeroPoint = ethosn::utils::NumericCast<int16_t>(inputBuffer1->m_QuantizationInfo.GetZeroPoint());
     }
 
-    uint16_t numStripesTotal = ethosn::utils::NumericCast<uint16_t>(
-        utils::GetNumStripesTotal(outputBuffer->m_TensorShape, ptrPleOp->m_OutputStripeShape));
+    uint16_t numStripesTotal =
+        ethosn::utils::NumericCast<uint16_t>(pleS.numStripes.width * pleS.numStripes.height * pleS.numStripes.channels);
 
     AgentDesc pleSchedulerAgent(numStripesTotal, pleS);
 
@@ -1184,7 +1184,7 @@ bool CascadingCommandStreamGenerator::FillConsumerAgentDependency(
 {
     consumerAgentDependency.useForScheduling    = true;
     consumerAgentDependency.useForCommandStream = true;
-    consumerAgentDependency.writesToTile        = false;
+    consumerAgentDependency.writesToTileSize    = -1;
 
     const AgentDescAndDeps& consumerAgentAndDeps = m_CommandStreamAgents[consumerAgentId];
     const AgentDesc& consumerAgentData           = consumerAgentAndDeps.agent;
@@ -1563,7 +1563,6 @@ bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
 
     producerAgentDependency.useForScheduling    = true;
     producerAgentDependency.useForCommandStream = true;
-    producerAgentDependency.writesToTile        = true;
 
     const AgentDescAndDeps& consumerAgentAndDeps = m_CommandStreamAgents[consumerAgentId];
     const AgentDesc& consumerAgentData           = consumerAgentAndDeps.agent;
@@ -1573,14 +1572,16 @@ bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
     const uint16_t producerAgentNumStripes       = producerAgentAndDeps.agent.numStripesTotal;
     bool isValid                                 = true;
 
-    // Add a new 'Write After Read' dependency or
+    // Add a new 'Write After Read' dependency
     switch (consumerAgentType)
     {
         case AgentType::IFM_STREAMER:
         {
-            // Write After Read Dependency for [OfmStreamer][IfmStreamer] or
+            // Write After Read Dependency for [OfmStreamer][IfmStreamer]
             if (producerAgentType == AgentType::OFM_STREAMER)
             {
+                producerAgentDependency.writesToTileSize = producerAgentData.ifm.fmData.tile.numSlots;
+
                 // The last OFM stripe is needed by the first IFM stripe
                 producerAgentDependency.outerRatio.other = consumerAgentNumStripes;
                 producerAgentDependency.outerRatio.self  = producerAgentNumStripes;
@@ -1601,9 +1602,11 @@ bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
 
         case AgentType::MCE_SCHEDULER:
         {
-            // Write After Read Dependency for [IfmStreamer][MceScheduler] or
+            // Write After Read Dependency for [IfmStreamer][MceScheduler]
             if (producerAgentType == AgentType::IFM_STREAMER)
             {
+                producerAgentDependency.writesToTileSize = producerAgentData.ifm.fmData.tile.numSlots;
+
                 DependencyUtils::CalculateIfmSMceSOuterRatio(consumerAgentAndDeps.agent, producerAgentAndDeps.agent,
                                                              producerAgentDependency.outerRatio.other,
                                                              producerAgentDependency.outerRatio.self);
@@ -1631,9 +1634,11 @@ bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
                 producerAgentDependency.boundary =
                     DependencyUtils::CalculateMceSBoundary(consumerAgentData.mce).m_Before;
             }
-            // Write After Read Dependency for [WeightStreamer][MceScheduler] or
+            // Write After Read Dependency for [WeightStreamer][MceScheduler]
             else if (producerAgentType == AgentType::WGT_STREAMER)
             {
+                producerAgentDependency.writesToTileSize = producerAgentData.wgt.tile.numSlots;
+
                 // MCE always traverses in IXYO order. Each MCE stripe needs a new weight stripe, unless a weight stripe
                 // can be re-used which can only happen if we are not IFM splitting and we are moving in XY.
 
@@ -1660,6 +1665,8 @@ bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
             // Write After Read Dependency for [PleLoader][MceScheduler]
             else if (producerAgentType == AgentType::PLE_LOADER)
             {
+                producerAgentDependency.writesToTileSize = 1;
+
                 producerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
                     consumerAgentData.mce.numStripes.ofmHeight * consumerAgentData.mce.numStripes.ofmWidth *
                     consumerAgentData.mce.numStripes.ifmChannels);
@@ -1683,6 +1690,8 @@ bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
                     isValid = false;
                     break;
                 }
+
+                producerAgentDependency.writesToTileSize = producerAgentData.pleS.ofmTile.numSlots;
 
                 producerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
                     consumerAgentData.mce.numStripes.ofmHeight * consumerAgentData.mce.numStripes.ofmWidth *
@@ -1735,6 +1744,8 @@ bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
             // Write After Read Dependency for [IfmStreamer][PleScheduler] or
             if (producerAgentType == AgentType::IFM_STREAMER)
             {
+                producerAgentDependency.writesToTileSize = producerAgentData.ifm.fmData.tile.numSlots;
+
                 // Calculate outer ratios using number of stripes.
                 producerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
                     consumerAgentData.pleS.numStripes.height * consumerAgentData.pleS.numStripes.width *
@@ -1746,6 +1757,8 @@ bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
             // Write After Read Dependency for [MceScheduler][PleScheduler]
             else if (producerAgentType == AgentType::MCE_SCHEDULER)
             {
+                producerAgentDependency.writesToTileSize = 0;
+
                 // Outer ratio not used (set to max)
                 producerAgentDependency.outerRatio.other = consumerAgentNumStripes;
                 producerAgentDependency.outerRatio.self  = producerAgentNumStripes;
@@ -1781,6 +1794,8 @@ bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
             // Write After Read Dependency for [PleLoader][PleScheduler]
             else if (producerAgentType == AgentType::PLE_LOADER)
             {
+                producerAgentDependency.writesToTileSize = 1;
+
                 producerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
                     consumerAgentData.pleS.numStripes.height * consumerAgentData.pleS.numStripes.width *
                     consumerAgentData.pleS.numStripes.channels);
@@ -1789,6 +1804,8 @@ bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
             // Write After Read Dependency for [PleScheduler][PleScheduler]
             else if (producerAgentType == AgentType::PLE_SCHEDULER)
             {
+                producerAgentDependency.writesToTileSize = producerAgentData.pleS.ofmTile.numSlots;
+
                 // Calculate outer ratios using number of stripes
                 producerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
                     consumerAgentData.pleS.numStripes.height * consumerAgentData.pleS.numStripes.width *
@@ -1821,6 +1838,8 @@ bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
             // Write After Read Dependency for [IfmStreamer][OfmStreamer] or
             if (producerAgentType == AgentType::IFM_STREAMER)
             {
+                producerAgentDependency.writesToTileSize = producerAgentData.ifm.fmData.tile.numSlots;
+
                 // Simple 1:1 dependency
                 producerAgentDependency.outerRatio.other = 1;
                 producerAgentDependency.outerRatio.self  = 1;
@@ -1833,6 +1852,8 @@ bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
             // Write After Read Dependency for [PleScheduler][OfmStreamer] or
             else if (producerAgentType == AgentType::PLE_SCHEDULER)
             {
+                producerAgentDependency.writesToTileSize = producerAgentData.pleS.ofmTile.numSlots;
+
                 // Normally this is a simple 1:1 dependency, but in some cases the PLE can have multiple stripes
                 // for each OFM stripe (strategies where OfmS does the full height but PLE does partial height)
                 producerAgentDependency.outerRatio.other = consumerAgentNumStripes;

@@ -202,29 +202,22 @@ TEST_CASE("Cascading/Scheduler/ComplexSingleLayer")
     //   |          |/                         |          |/             |          |/
     //   +----------+                          +----------+              +----------+
     //
-    IfmSDesc ifms             = MakeIfmSDesc();
-    ifms.fmData.tile.numSlots = 4;
-
-    WgtSDesc wgts      = MakeWgtSDesc();
-    wgts.tile.numSlots = 2;
-
-    PleSDesc ples         = MakePleSDesc();
-    ples.ofmTile.numSlots = 2;
-
-    OfmSDesc ofms             = MakeOfmSDesc();
-    ofms.fmData.tile.numSlots = 2;
+    IfmSDesc ifms = MakeIfmSDesc();
+    WgtSDesc wgts = MakeWgtSDesc();
+    PleSDesc ples = MakePleSDesc();
+    OfmSDesc ofms = MakeOfmSDesc();
 
     std::vector<AgentDescAndDeps> complexSingleLayerCmdStream{
         AgentDescAndDeps{
             AgentDesc(18, ifms),
             {
-                { { 3, { 3, 6 }, { 1, 2 }, 1, true, true, true } },
+                { { 3, { 3, 6 }, { 1, 2 }, 1, 4, true, true } },
             },
         },
         AgentDescAndDeps{
             AgentDesc(3, wgts),
             {
-                { { 3, { 3, 1 }, { 3, 1 }, 0, true, true, true } },
+                { { 3, { 3, 1 }, { 3, 1 }, 0, 2, true, true } },
             },
         },
         AgentDescAndDeps{
@@ -235,8 +228,8 @@ TEST_CASE("Cascading/Scheduler/ComplexSingleLayer")
             AgentDesc(9, MakeMceSDesc()),
             {
                 {
-                    { 0, { 6, 3 }, { 2, 1 }, 1, false, true, true },
-                    { 1, { 1, 3 }, { 1, 3 }, 0, false, true, true },
+                    { 0, { 6, 3 }, { 2, 1 }, 1, -1, true, true },
+                    { 1, { 1, 3 }, { 1, 3 }, 0, -1, true, true },
                 },
             },
         },
@@ -244,15 +237,15 @@ TEST_CASE("Cascading/Scheduler/ComplexSingleLayer")
             AgentDesc(1, ples),
             {
                 {
-                    { 3, { 9, 1 }, { 9, 1 }, 0, false, true, false },
-                    { 2, { 1, 1 }, { 1, 1 }, 0, false, true, true },
+                    { 3, { 9, 1 }, { 9, 1 }, 0, -1, true, false },
+                    { 2, { 1, 1 }, { 1, 1 }, 0, -1, true, true },
                 },
             },
         },
         AgentDescAndDeps{
             AgentDesc(1, ofms),
             {
-                { { 4, { 1, 1 }, { 1, 1 }, 0, false, true, true } },
+                { { 4, { 1, 1 }, { 1, 1 }, 0, -1, true, true } },
             },
         },
     };
