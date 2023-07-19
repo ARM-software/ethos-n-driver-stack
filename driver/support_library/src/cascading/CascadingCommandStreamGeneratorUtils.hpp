@@ -566,28 +566,36 @@ inline void SetPlesTileInfo(const HardwareCapabilities& hwCap, PleSDesc& pleS, c
         hwCap.GetNumberOfSrams()));
 }
 
-inline void
-    SetPlesHeightStripeInfo(PleSDesc& pleSchedulerData, const TensorShape& ofmShape, const TensorShape& ofmStripeShape)
+inline void SetPlesHeightStripeInfo(PleSDesc& pleSchedulerData, const TensorShape& ofmShape, const PleOp& pleOp)
 {
     uint16_t ofmHeight       = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(ofmShape));
-    uint16_t ofmStripeHeight = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(ofmStripeShape));
+    uint16_t ofmStripeHeight = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(pleOp.m_OutputStripeShape));
 
     pleSchedulerData.defaultStripeSize.height = ofmStripeHeight;
     pleSchedulerData.numStripes.height =
-        ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesH(ofmShape, ofmStripeShape));
+        ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesH(ofmShape, pleOp.m_OutputStripeShape));
 
     pleSchedulerData.edgeStripeSize.height = CommonUtils::CalculateEdgeSize(ofmHeight, ofmStripeHeight);
+
+    // For max pooling (odd), we may need to schedule an additional "zero size" stripe at the end so that
+    // the PLE kernel can receive the final row of elements from the MCE and use this to complete the pooling
+    // for the previous stripe.
+    if (pleOp.m_Op == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD &&
+        utils::GetHeight(pleOp.m_InputStripeShapes[0]) == 2 * ofmStripeHeight && ofmHeight % ofmStripeHeight == 0)
+    {
+        pleSchedulerData.numStripes.height += 1;
+        pleSchedulerData.edgeStripeSize.height = 0;
+    }
 }
 
-inline void
-    SetPlesWidthStripeInfo(PleSDesc& pleSchedulerData, const TensorShape& ofmShape, const TensorShape& ofmStripeShape)
+inline void SetPlesWidthStripeInfo(PleSDesc& pleSchedulerData, const TensorShape& ofmShape, const PleOp& pleOp)
 {
     uint16_t ofmWidth       = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(ofmShape));
-    uint16_t ofmStripeWidth = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(ofmStripeShape));
+    uint16_t ofmStripeWidth = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(pleOp.m_OutputStripeShape));
 
     pleSchedulerData.defaultStripeSize.width = ofmStripeWidth;
     pleSchedulerData.numStripes.width =
-        ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesW(ofmShape, ofmStripeShape));
+        ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesW(ofmShape, pleOp.m_OutputStripeShape));
 
     pleSchedulerData.edgeStripeSize.width = CommonUtils::CalculateEdgeSize(ofmWidth, ofmStripeWidth);
 }

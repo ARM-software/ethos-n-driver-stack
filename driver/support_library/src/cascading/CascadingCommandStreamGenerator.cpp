@@ -1006,8 +1006,8 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
 
     pleS.ofmZeroPoint = ethosn::utils::NumericCast<int16_t>(outputBuffer->m_QuantizationInfo.GetZeroPoint());
 
-    PleSUtils::SetPlesHeightStripeInfo(pleS, outputBuffer->m_TensorShape, ptrPleOp->m_OutputStripeShape);
-    PleSUtils::SetPlesWidthStripeInfo(pleS, outputBuffer->m_TensorShape, ptrPleOp->m_OutputStripeShape);
+    PleSUtils::SetPlesHeightStripeInfo(pleS, outputBuffer->m_TensorShape, *ptrPleOp);
+    PleSUtils::SetPlesWidthStripeInfo(pleS, outputBuffer->m_TensorShape, *ptrPleOp);
     PleSUtils::SetPlesChannelsStripeInfo(pleS, outputBuffer->m_TensorShape, ptrPleOp->m_OutputStripeShape);
 
     PleSUtils::SetStripeIdStrides(pleS, outputBuffer);
@@ -1519,6 +1519,17 @@ bool CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                     producerAgentData.pleS.numStripes.height > 1)
                 {
                     consumerAgentDependency.boundary = 1;
+
+                    // It gets more complicated for the odd pooling case where we have an additional
+                    // "zero size" stripe at the end, to allow the PLE kernel to receive the final row
+                    // of elements from the MCE and use this to complete the pooling for the previous stripe.
+                    if (producerAgentData.pleS.edgeStripeSize.height == 0)
+                    {
+                        consumerAgentDependency.outerRatio.other =
+                            ethosn::utils::NumericCast<uint16_t>(producerAgentData.pleS.numStripes.height);
+                        consumerAgentDependency.outerRatio.self =
+                            ethosn::utils::NumericCast<uint16_t>(consumerAgentData.ofm.fmData.numStripes.height);
+                    }
                 }
                 else
                 {
@@ -1864,7 +1875,29 @@ bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
                                                          consumerAgentData.ofm.fmData.defaultStripeSize.height);
                 producerAgentDependency.innerRatio.self = 1;
 
-                producerAgentDependency.boundary = 0;
+                // If splitting in height, maxpool data can't be written out until the stripe after has been finished,
+                // because the pooling windows overlap the stripe boundary so it doesn't have enough input data
+                // until the next stripe.
+                command_stream::PleOperation pleOperation = static_cast<const PleOp*>(producerOp)->m_Op;
+                if ((pleOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+                     pleOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD) &&
+                    producerAgentData.pleS.numStripes.height > 1)
+                {
+                    // It gets more complicated for the odd pooling case where we have an additional
+                    // "zero size" stripe at the end, to allow the PLE kernel to receive the final row
+                    // of elements from the MCE and use this to complete the pooling for the previous stripe.
+                    if (producerAgentData.pleS.edgeStripeSize.height == 0)
+                    {
+                        producerAgentDependency.outerRatio.other =
+                            ethosn::utils::NumericCast<uint16_t>(consumerAgentData.ofm.fmData.numStripes.height);
+                        producerAgentDependency.outerRatio.self =
+                            ethosn::utils::NumericCast<uint16_t>(producerAgentData.pleS.numStripes.height);
+                    }
+                }
+                else
+                {
+                    producerAgentDependency.boundary = 0;
+                }
             }
             else
             {

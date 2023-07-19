@@ -5,6 +5,8 @@
 
 #include "PleRegisters.hpp"
 
+#include "../Utils.hpp"
+
 using namespace ethosn::command_stream::cascading;
 
 namespace ethosn
@@ -113,6 +115,17 @@ command_stream::cascading::StartPleStripeCommand
     pleInfo.stripeDepth  = static_cast<uint16_t>(stripeSize.channels);
 
     pleInfo.output.dfcAddr = PleDfcAddr(pleS.ofmTile, stripeId);
+
+    // For max pooling (odd), we may need to schedule an additional "zero size" stripe at the end so that
+    // the PLE kernel can receive the final row of elements from the MCE and use this to complete the pooling
+    // for the previous stripe. This messes up the SRAM addresses for PLE outputs, so we ignore these zero size
+    // stripes for the purposes of SRAM offsets.
+    if (pleS.edgeStripeSize.height == 0)
+    {
+        uint32_t adjustedStripeId = (stripeId / pleS.numStripes.height) * (pleS.numStripes.height - 1) +
+                                    std::min(stripeId % pleS.numStripes.height, pleS.numStripes.height - 2);
+        pleInfo.output.dfcAddr = PleDfcAddr(pleS.ofmTile, adjustedStripeId);
+    }
 
     // specific work according to PLE input: either from SRAM or from MCE
     if (pleS.inputMode == PleInputMode::SRAM_ONE_INPUT || pleS.inputMode == PleInputMode::SRAM_TWO_INPUTS)

@@ -1225,7 +1225,6 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                                 CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, baseMceOfm);
 
                             AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe,
-
                                            mceInputStripe, memoryOutputStripe, mceOutputStripe, inputShape,
                                            outputShape);
                         }
