@@ -619,8 +619,8 @@ static int ethosn_core_reset(struct ethosn_core *core,
 	if (hard_reset)
 		sysctlr0.bits.hard_rstreq = 1;
 	else
-		/* Soft reset, block new AXI requests */
-		sysctlr0.bits.soft_rstreq = 3;
+		/* Soft reset, allow new AXI requests DRAIN_DFC_ALLOW_AXI=1 */
+		sysctlr0.bits.soft_rstreq = 1;
 
 	ethosn_write_top_reg(core, DL1_RP, DL1_SYSCTLR0, sysctlr0.word);
 
