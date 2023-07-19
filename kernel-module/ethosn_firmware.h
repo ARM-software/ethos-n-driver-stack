@@ -47,7 +47,7 @@
  * This is common for the fat binary (ethosn.bin) and the individual
  * firmware binaries (sub-components of the fat binary).
  */
-#define ETHOSN_FIRMWARE_VERSION_MAJOR 12
+#define ETHOSN_FIRMWARE_VERSION_MAJOR 13
 #define ETHOSN_FIRMWARE_VERSION_MINOR 0
 #define ETHOSN_FIRMWARE_VERSION_PATCH 0
 
@@ -529,6 +529,164 @@ struct ethosn_message_error_response {
 #define GP_DEBUG_MONITOR_CHANNEL        DL1_GP4
 #define GP_MAILBOX_SIZE                 DL1_GP5
 #define GP_COMMAND_STREAM_SIZE          DL1_GP6
+
+/*
+ * Struct used for reporting faults from the firmware to the
+ * kernel driver. This is passed in the GP registers
+ * and so is limited to 8x4 = 32 bytes. Therefore the data has been packed
+ * quite tightly to eliminate unused bits. Note that the order of the fields
+ * is such that no fields straddle across the base type boundaries (8 bytes),
+ * as the behaviour of this is compiler-dependent.
+ */
+struct ethosn_firmware_dump {
+	/* Must be set to ETHOSN_FIRMWARE_DUMP_MAGIC, to indicate this struct
+	 * has been filled in by the firmware.
+	 */
+	uint64_t magic : 32;
+
+	/* ISR field of the IPSR register. This is the exception number
+	 * currently being handled. *
+	 * We only have one additional interrupt, for a total of 17, so 5 bits
+	 * is sufficient
+	 */
+	uint64_t ISR : 5;
+
+	/* Non-reserved bits from the MemManage Fault Status Register,
+	 * which is part of the Configurable Fault Status Register
+	 */
+	uint64_t CFSR_MMFSR_MMARVALID : 1;
+	uint64_t CFSR_MMFSR_MSTKERR : 1;
+	uint64_t CFSR_MMFSR_MUNSTKERR : 1;
+	uint64_t CFSR_MMFSR_DACCVIOL : 1;
+	uint64_t CFSR_MMFSR_IACCVIOL : 1;
+
+	/* Non-reserved bits from the BusFault Status Register,
+	 * which is part of the Configurable Fault Status Register
+	 */
+	uint64_t CFSR_BFSR_BFARVALID : 1;
+	uint64_t CFSR_BFSR_STKERR : 1;
+	uint64_t CFSR_BFSR_UNSTKERR : 1;
+	uint64_t CFSR_BFSR_IMPRECISERR : 1;
+	uint64_t CFSR_BFSR_PRECISERR : 1;
+	uint64_t CFSR_BFSR_IBUSERR : 1;
+
+	/* Non-reserved bits from the UsageFault Status Register,
+	 * which is part of the Configurable Fault Status Register
+	 */
+	uint64_t CFSR_UFSR_DIVBYZERO : 1;
+	uint64_t CFSR_UFSR_UNALIGNED : 1;
+	uint64_t CFSR_UFSR_NOCP : 1;
+	uint64_t CFSR_UFSR_INVPC : 1;
+	uint64_t CFSR_UFSR_INVSTATE : 1;
+	uint64_t CFSR_UFSR_UNDEFINSTR : 1;
+
+	/* Non-reserved bits from the HardFault Status Register */
+	uint64_t HFSR_FORCED : 1;
+	uint64_t HFSR_VECTTBL : 1;
+
+	uint64_t unused : 8;
+
+	/* The entire MemManage Fault Address Register */
+	uint64_t MMFAR : 32;
+	/* The entire BusFault Address Register */
+	uint64_t BFAR : 32;
+
+	/* The 21 Non-reserved bits from the TOP_ERR_CAUSE register */
+	uint64_t TOP_ERR_CAUSE_ENGINE_RAM_CORRECTABLE_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_ENGINE_RAM_UNCORRECTABLE_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_TOP_TOLERABLE_RAM_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_TOP_RECOVERABLE_RAM_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_MCU_LOCKUP_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_MCU_INSTR_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_MCU_DATA_READ_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_MCU_DATA_WRITE_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_DMA_READ_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_DMA_WRITE_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_STASH_TRANSLATION_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_DMA_QUEUE_PROGRAMMING_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_PWRCTLR_ACTIVE_PROGRAMMING_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_STASH_TRANS_PROGRAMMING_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_TSU_EVENT_OVERFLOW_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_STRIPE_PROGRAMMING_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_STRIPE_WRITE_WHILE_BUSY_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_BLOCK_PROGRAMMING_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_BLOCK_WRITE_WHILE_BUSY_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_SHADOW_ERR : 1;
+	uint64_t TOP_ERR_CAUSE_ENGINE_FUNC_ERR : 1;
+
+	/* The 24 Non-reserved bits from the TOP_ERR_ADDDRESS register */
+	uint64_t TOP_ERR_ADDRESS_ADDRESS : 10;
+	uint64_t TOP_ERR_ADDRESS_BANK : 3;
+	uint64_t TOP_ERR_ADDRESS_NCU_MCU_ICACHE_TAG : 1;
+	uint64_t TOP_ERR_ADDRESS_NCU_MCU_ICACHE_DATA : 1;
+	uint64_t TOP_ERR_ADDRESS_NCU_MCU_DCACHE_TAG : 1;
+	uint64_t TOP_ERR_ADDRESS_NCU_MCU_DCACHE_DATA : 1;
+	uint64_t TOP_ERR_ADDRESS_DFC_ROB : 1;
+	uint64_t TOP_ERR_ADDRESS_DFC_COMPRESSOR_SIM : 1;
+	uint64_t TOP_ERR_ADDRESS_DFC_COMPRESSOR_REM : 1;
+	uint64_t TOP_ERR_ADDRESS_DFC_COMPRESSOR_UNARY : 1;
+	uint64_t TOP_ERR_ADDRESS_DFC_DECOMPRESSOR : 1;
+	uint64_t TOP_ERR_ADDRESS_ERR_MULTI : 1;
+	uint64_t TOP_ERR_ADDRESS_ERR_UNCORRECTED : 1;
+
+	/* One bit per CE (LSB = CE 0, MSB = CE 7), to indicate if it had any
+	 * errors.
+	 * Further details for the first CE with an error are stored below.
+	 */
+	uint64_t cesWithError : 8;
+
+	/* The 14 Non-reserved bits from the CE_ERR_CAUSE register,
+	 * for the first CE that had an error (if any)
+	 */
+	uint64_t CE_ERR_CAUSE_ENGINE_RAM_CORRECTABLE_ERR : 1;
+	uint64_t CE_ERR_CAUSE_ENGINE_RAM_UNCORRECTABLE_ERR : 1;
+	uint64_t CE_ERR_CAUSE_MCU_LOCKUP_ERR : 1;
+	uint64_t CE_ERR_CAUSE_MCU_INSTR_ERR : 1;
+	uint64_t CE_ERR_CAUSE_MCU_DATA_READ_ERR : 1;
+	uint64_t CE_ERR_CAUSE_MCU_DATA_WRITE_ERR : 1;
+	uint64_t CE_ERR_CAUSE_UDMA_LOAD_ERR : 1;
+	uint64_t CE_ERR_CAUSE_UDMA_STORE_ERR : 1;
+	uint64_t CE_ERR_CAUSE_MCU_ILLEGAL_COPROC_ERR : 1;
+	uint64_t CE_ERR_CAUSE_UDMA_COLLISION_ERR : 1;
+	uint64_t CE_ERR_CAUSE_RF_RD_COLLISION_ERR : 1;
+	uint64_t CE_ERR_CAUSE_RF_WR_COLLISION_ERR : 1;
+	uint64_t CE_ERR_CAUSE_VE_DIV_0_ERR : 1;
+	uint64_t CE_ERR_CAUSE_PLE_LANE_ERR : 1;
+
+	/* The 31 Non-reserved bits from the CE_ERR_ADDRESS register,
+	 * for the first CE that had an error (if any)
+	 */
+	uint64_t CE_ERR_ADDRESS_ADDRESS : 12;
+	uint64_t CE_ERR_ADDRESS_BANK : 3;
+	uint64_t CE_ERR_ADDRESS_DFC_EMC0 : 1;
+	uint64_t CE_ERR_ADDRESS_DFC_EMC1 : 1;
+	uint64_t CE_ERR_ADDRESS_DFC_EMC2 : 1;
+	uint64_t CE_ERR_ADDRESS_DFC_EMC3 : 1;
+	uint64_t CE_ERR_ADDRESS_MCE_OFM0 : 1;
+	uint64_t CE_ERR_ADDRESS_MCE_OFM1 : 1;
+	uint64_t CE_ERR_ADDRESS_MCE_OFM2 : 1;
+	uint64_t CE_ERR_ADDRESS_MCE_OFM3 : 1;
+	uint64_t CE_ERR_ADDRESS_PLE_INPUT0 : 1;
+	uint64_t CE_ERR_ADDRESS_PLE_INPUT1 : 1;
+	uint64_t CE_ERR_ADDRESS_PLE_INPUT2 : 1;
+	uint64_t CE_ERR_ADDRESS_PLE_INPUT3 : 1;
+	uint64_t CE_ERR_ADDRESS_PLE_OUTPUT : 1;
+	uint64_t CE_ERR_ADDRESS_PLE_MCU : 1;
+	uint64_t CE_ERR_ADDRESS_ERR_MULTI : 1;
+	uint64_t CE_ERR_ADDRESS_ERR_UNCORRECTED : 1;
+
+	/* The stacked program counter value, i.e. the value before the fault
+	 * was raised.
+	 */
+	uint64_t pc : 30;
+};
+
+#define ETHOSN_FIRMWARE_DUMP_MAGIC 0x12345678
+
+#if defined(__cplusplus)
+static_assert(sizeof(ethosn_firmware_dump) <= 32,
+	      "ethosn_firmware_dump struct too big for GP regs");
+#endif
 
 #pragma pack(pop)
 

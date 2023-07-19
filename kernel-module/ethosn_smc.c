@@ -25,7 +25,7 @@
 #include <linux/bug.h>
 
 /* Compatible SiP service version */
-#define ETHOSN_SIP_MAJOR_VERSION        3
+#define ETHOSN_SIP_MAJOR_VERSION        4
 #define ETHOSN_SIP_MINOR_VERSION        0
 
 /* SMC functions */

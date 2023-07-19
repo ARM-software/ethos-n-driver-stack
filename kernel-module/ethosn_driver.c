@@ -406,6 +406,310 @@ static int handle_message(struct ethosn_core *core)
 	return 1;
 }
 
+/* Prints the given value of the IRQ_STATUS register in a friendly format
+ * to the given buffer.
+ * Returns the buffer pointer provided (useful for calling
+ * this in a printf format arg).
+ */
+static char *print_irq_status_reg(char *buffer,
+				  size_t buffer_size,
+				  struct dl1_irq_status_r status)
+{
+	char *buffer_start = buffer;
+	char *buffer_end = buffer + buffer_size;
+
+	buffer += snprintf(buffer, buffer_end - buffer, "0x%08x", status.word);
+	if (status.word != 0) {
+		buffer += snprintf(buffer, buffer_end - buffer, " (");
+		if (status.bits.setirq_err)
+			buffer += snprintf(buffer, buffer_end - buffer,
+					   " setirq_err");
+
+		if (status.bits.setirq_dbg)
+			buffer += snprintf(buffer, buffer_end - buffer,
+					   " setirq_dbg");
+
+		if (status.bits.setirq_job)
+			buffer += snprintf(buffer, buffer_end - buffer,
+					   " setirq_job");
+
+		if (status.bits.tsu_dbg)
+			buffer += snprintf(buffer, buffer_end - buffer,
+					   " tsu_dbg");
+
+		if (status.bits.pmu_dbg)
+			buffer += snprintf(buffer, buffer_end - buffer,
+					   " pmu_dbg");
+
+		if (status.bits.tol_err)
+			buffer += snprintf(buffer, buffer_end - buffer,
+					   " tol_err");
+
+		if (status.bits.func_err)
+			buffer += snprintf(buffer, buffer_end - buffer,
+					   " func_err");
+
+		if (status.bits.rec_err)
+			buffer += snprintf(buffer, buffer_end - buffer,
+					   " rec_err");
+
+		if (status.bits.unrec_err)
+			buffer += snprintf(buffer, buffer_end - buffer,
+					   " unrec_err");
+
+		snprintf(buffer, buffer_end - buffer, " )");
+	}
+
+	return buffer_start;
+}
+
+/* Prints the firmware dump information provided by the firmware in the
+ * GP registers, if one is present.
+ * Returns true if dump was present and has been printed, false if not.
+ */
+static bool print_firmware_dump_if_present(struct ethosn_core *core)
+{
+	int gp = 0;
+	struct ethosn_firmware_dump dump = { 0 };
+
+	/* Read the dump struct from the GP registers, by copying one
+	 * word at a time.
+	 */
+	for (gp = 0; gp < 8; ++gp)
+		*((uint32_t *)&dump + gp) =
+			ethosn_read_top_reg(core, DL1_RP,
+					    DL1_GP0 + gp * (DL1_GP1 - DL1_GP0));
+
+	if (dump.magic != ETHOSN_FIRMWARE_DUMP_MAGIC)
+		return false;
+
+	dev_err(core->dev, "======== Firmware dump ========\n");
+	dev_err(core->dev, "  pc  = 0x%08x\n", dump.pc);
+	dev_err(core->dev, "  ISR = %d\n", dump.ISR);
+	dev_err(core->dev, "  CFSR\n");
+	dev_err(core->dev, "    MMFSR\n");
+	dev_err(core->dev, "      MMARVALID   = %d\n",
+		dump.CFSR_MMFSR_MMARVALID);
+	dev_err(core->dev, "      MSTKERR     = %d\n", dump.CFSR_MMFSR_MSTKERR);
+	dev_err(core->dev, "      MUNSTKERR   = %d\n",
+		dump.CFSR_MMFSR_MUNSTKERR);
+	dev_err(core->dev, "      DACCVIOL    = %d\n",
+		dump.CFSR_MMFSR_DACCVIOL);
+	dev_err(core->dev, "      IACCVIOL    = %d\n",
+		dump.CFSR_MMFSR_IACCVIOL);
+	dev_err(core->dev, "    BFSR\n");
+	dev_err(core->dev, "      BFARVALID   = %d\n",
+		dump.CFSR_BFSR_BFARVALID);
+	dev_err(core->dev, "      STKERR      = %d\n", dump.CFSR_BFSR_STKERR);
+	dev_err(core->dev, "      UNSTKERR    = %d\n", dump.CFSR_BFSR_UNSTKERR);
+	dev_err(core->dev, "      IMPRECISERR = %d\n",
+		dump.CFSR_BFSR_IMPRECISERR);
+	dev_err(core->dev, "      PRECISERR   = %d\n",
+		dump.CFSR_BFSR_PRECISERR);
+	dev_err(core->dev, "      IBUSERR     = %d\n", dump.CFSR_BFSR_IBUSERR);
+	dev_err(core->dev, "    UFSR\n");
+	dev_err(core->dev, "      DIVBYZERO   = %d\n",
+		dump.CFSR_UFSR_DIVBYZERO);
+	dev_err(core->dev, "      UNALIGNED   = %d\n",
+		dump.CFSR_UFSR_UNALIGNED);
+	dev_err(core->dev, "      NOCP        = %d\n", dump.CFSR_UFSR_NOCP);
+	dev_err(core->dev, "      INVPC       = %d\n", dump.CFSR_UFSR_INVPC);
+	dev_err(core->dev, "      INVSTATE    = %d\n", dump.CFSR_UFSR_INVSTATE);
+	dev_err(core->dev, "      UNDEFINSTR  = %d\n",
+		dump.CFSR_UFSR_UNDEFINSTR);
+	dev_err(core->dev, "  HFSR\n");
+	dev_err(core->dev, "    FORCED        = %d\n", dump.HFSR_FORCED);
+	dev_err(core->dev, "    VECTTBL       = %d\n", dump.HFSR_VECTTBL);
+	dev_err(core->dev, "  MMFAR           = 0x%08x\n", dump.MMFAR);
+	dev_err(core->dev, "  BFAR            = 0x%08x\n", dump.BFAR);
+	dev_err(core->dev, "  TOP_ERR_CAUSE\n");
+	dev_err(core->dev, "    ENGINE_RAM_CORRECTABLE_ERR     = %d\n",
+		dump.TOP_ERR_CAUSE_ENGINE_RAM_CORRECTABLE_ERR);
+	dev_err(core->dev, "    ENGINE_RAM_UNCORRECTABLE_ERR   = %d\n",
+		dump.TOP_ERR_CAUSE_ENGINE_RAM_UNCORRECTABLE_ERR);
+	dev_err(core->dev, "    TOP_TOLERABLE_RAM_ERR          = %d\n",
+		dump.TOP_ERR_CAUSE_TOP_TOLERABLE_RAM_ERR);
+	dev_err(core->dev, "    TOP_RECOVERABLE_RAM_ERR        = %d\n",
+		dump.TOP_ERR_CAUSE_TOP_RECOVERABLE_RAM_ERR);
+	dev_err(core->dev, "    MCU_LOCKUP_ERR                 = %d\n",
+		dump.TOP_ERR_CAUSE_MCU_LOCKUP_ERR);
+	dev_err(core->dev, "    MCU_INSTR_ERR                  = %d\n",
+		dump.TOP_ERR_CAUSE_MCU_INSTR_ERR);
+	dev_err(core->dev, "    MCU_DATA_READ_ERR              = %d\n",
+		dump.TOP_ERR_CAUSE_MCU_DATA_READ_ERR);
+	dev_err(core->dev, "    MCU_DATA_WRITE_ERR             = %d\n",
+		dump.TOP_ERR_CAUSE_MCU_DATA_WRITE_ERR);
+	dev_err(core->dev, "    DMA_READ_ERR                   = %d\n",
+		dump.TOP_ERR_CAUSE_DMA_READ_ERR);
+	dev_err(core->dev, "    DMA_WRITE_ERR                  = %d\n",
+		dump.TOP_ERR_CAUSE_DMA_WRITE_ERR);
+	dev_err(core->dev, "    STASH_TRANSLATION_ERR          = %d\n",
+		dump.TOP_ERR_CAUSE_STASH_TRANSLATION_ERR);
+	dev_err(core->dev, "    DMA_QUEUE_PROGRAMMING_ERR      = %d\n",
+		dump.TOP_ERR_CAUSE_DMA_QUEUE_PROGRAMMING_ERR);
+	dev_err(core->dev, "    PWRCTLR_ACTIVE_PROGRAMMING_ERR = %d\n",
+		dump.TOP_ERR_CAUSE_PWRCTLR_ACTIVE_PROGRAMMING_ERR);
+	dev_err(core->dev, "    STASH_TRANS_PROGRAMMING_ERR    = %d\n",
+		dump.TOP_ERR_CAUSE_STASH_TRANS_PROGRAMMING_ERR);
+	dev_err(core->dev, "    TSU_EVENT_OVERFLOW_ERR         = %d\n",
+		dump.TOP_ERR_CAUSE_TSU_EVENT_OVERFLOW_ERR);
+	dev_err(core->dev, "    STRIPE_PROGRAMMING_ERR         = %d\n",
+		dump.TOP_ERR_CAUSE_STRIPE_PROGRAMMING_ERR);
+	dev_err(core->dev, "    STRIPE_WRITE_WHILE_BUSY_ERR    = %d\n",
+		dump.TOP_ERR_CAUSE_STRIPE_WRITE_WHILE_BUSY_ERR);
+	dev_err(core->dev, "    BLOCK_PROGRAMMING_ERR          = %d\n",
+		dump.TOP_ERR_CAUSE_BLOCK_PROGRAMMING_ERR);
+	dev_err(core->dev, "    BLOCK_WRITE_WHILE_BUSY_ERR     = %d\n",
+		dump.TOP_ERR_CAUSE_BLOCK_WRITE_WHILE_BUSY_ERR);
+	dev_err(core->dev, "    SHADOW_ERR                     = %d\n",
+		dump.TOP_ERR_CAUSE_SHADOW_ERR);
+	dev_err(core->dev, "    ENGINE_FUNC_ERR                = %d\n",
+		dump.TOP_ERR_CAUSE_ENGINE_FUNC_ERR);
+	dev_err(core->dev, "  TOP_ERR_ADDRESS\n");
+	dev_err(core->dev, "    ADDRESS                        = 0x%04x\n",
+		dump.TOP_ERR_ADDRESS_ADDRESS);
+	dev_err(core->dev, "    BANK                           = %d\n",
+		dump.TOP_ERR_ADDRESS_BANK);
+	dev_err(core->dev, "    NCU_MCU_ICACHE_TAG             = %d\n",
+		dump.TOP_ERR_ADDRESS_NCU_MCU_ICACHE_TAG);
+	dev_err(core->dev, "    NCU_MCU_ICACHE_DATA            = %d\n",
+		dump.TOP_ERR_ADDRESS_NCU_MCU_ICACHE_DATA);
+	dev_err(core->dev, "    NCU_MCU_DCACHE_TAG             = %d\n",
+		dump.TOP_ERR_ADDRESS_NCU_MCU_DCACHE_TAG);
+	dev_err(core->dev, "    NCU_MCU_DCACHE_DATA            = %d\n",
+		dump.TOP_ERR_ADDRESS_NCU_MCU_DCACHE_DATA);
+	dev_err(core->dev, "    DFC_ROB                        = %d\n",
+		dump.TOP_ERR_ADDRESS_DFC_ROB);
+	dev_err(core->dev, "    DFC_COMPRESSOR_SIM             = %d\n",
+		dump.TOP_ERR_ADDRESS_DFC_COMPRESSOR_SIM);
+	dev_err(core->dev, "    DFC_COMPRESSOR_REM             = %d\n",
+		dump.TOP_ERR_ADDRESS_DFC_COMPRESSOR_REM);
+	dev_err(core->dev, "    DFC_COMPRESSOR_UNARY           = %d\n",
+		dump.TOP_ERR_ADDRESS_DFC_COMPRESSOR_UNARY);
+	dev_err(core->dev, "    DFC_DECOMPRESSOR               = %d\n",
+		dump.TOP_ERR_ADDRESS_DFC_DECOMPRESSOR);
+	dev_err(core->dev, "    ERR_MULTI                      = %d\n",
+		dump.TOP_ERR_ADDRESS_ERR_MULTI);
+	dev_err(core->dev, "    ERR_UNCORRECTED                = %d\n",
+		dump.TOP_ERR_ADDRESS_ERR_UNCORRECTED);
+	if (dump.cesWithError == 0) {
+		dev_err(core->dev, "  cesWithError = <none>\n");
+	} else {
+		dev_err(core->dev,
+			"  cesWithError                                =%s%s%s%s%s%s%s%s\n",
+			(dump.cesWithError & (1 << 0)) ? " 0" : "",
+			(dump.cesWithError & (1 << 1)) ? " 1" : "",
+			(dump.cesWithError & (1 << 2)) ? " 2" : "",
+			(dump.cesWithError & (1 << 3)) ? " 3" : "",
+			(dump.cesWithError & (1 << 4)) ? " 4" : "",
+			(dump.cesWithError & (1 << 5)) ? " 5" : "",
+			(dump.cesWithError & (1 << 6)) ? " 6" : "",
+			(dump.cesWithError & (1 << 7)) ? " 7" : "");
+		dev_err(core->dev, "  CE_ERR_CAUSE\n");
+		dev_err(core->dev,
+			"    CE_ERR_CAUSE_ENGINE_RAM_CORRECTABLE_ERR   = %d\n",
+			dump.CE_ERR_CAUSE_ENGINE_RAM_CORRECTABLE_ERR);
+		dev_err(core->dev,
+			"    CE_ERR_CAUSE_ENGINE_RAM_UNCORRECTABLE_ERR = %d\n",
+			dump.CE_ERR_CAUSE_ENGINE_RAM_UNCORRECTABLE_ERR);
+		dev_err(core->dev,
+			"    CE_ERR_CAUSE_MCU_LOCKUP_ERR               = %d\n",
+			dump.CE_ERR_CAUSE_MCU_LOCKUP_ERR);
+		dev_err(core->dev,
+			"    CE_ERR_CAUSE_MCU_INSTR_ERR                = %d\n",
+			dump.CE_ERR_CAUSE_MCU_INSTR_ERR);
+		dev_err(core->dev,
+			"    CE_ERR_CAUSE_MCU_DATA_READ_ERR            = %d\n",
+			dump.CE_ERR_CAUSE_MCU_DATA_READ_ERR);
+		dev_err(core->dev,
+			"    CE_ERR_CAUSE_MCU_DATA_WRITE_ERR           = %d\n",
+			dump.CE_ERR_CAUSE_MCU_DATA_WRITE_ERR);
+		dev_err(core->dev,
+			"    CE_ERR_CAUSE_UDMA_LOAD_ERR                = %d\n",
+			dump.CE_ERR_CAUSE_UDMA_LOAD_ERR);
+		dev_err(core->dev,
+			"    CE_ERR_CAUSE_UDMA_STORE_ERR               = %d\n",
+			dump.CE_ERR_CAUSE_UDMA_STORE_ERR);
+		dev_err(core->dev,
+			"    CE_ERR_CAUSE_MCU_ILLEGAL_COPROC_ERR       = %d\n",
+			dump.CE_ERR_CAUSE_MCU_ILLEGAL_COPROC_ERR);
+		dev_err(core->dev,
+			"    CE_ERR_CAUSE_UDMA_COLLISION_ERR           = %d\n",
+			dump.CE_ERR_CAUSE_UDMA_COLLISION_ERR);
+		dev_err(core->dev,
+			"    CE_ERR_CAUSE_RF_RD_COLLISION_ERR          = %d\n",
+			dump.CE_ERR_CAUSE_RF_RD_COLLISION_ERR);
+		dev_err(core->dev,
+			"    CE_ERR_CAUSE_RF_WR_COLLISION_ERR          = %d\n",
+			dump.CE_ERR_CAUSE_RF_WR_COLLISION_ERR);
+		dev_err(core->dev,
+			"    CE_ERR_CAUSE_VE_DIV_0_ERR                 = %d\n",
+			dump.CE_ERR_CAUSE_VE_DIV_0_ERR);
+		dev_err(core->dev,
+			"    CE_ERR_CAUSE_PLE_LANE_ERR                 = %d\n",
+			dump.CE_ERR_CAUSE_PLE_LANE_ERR);
+		dev_err(core->dev, "  CE_ERR_ADDRESS\n");
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_ADDRESS                    = 0x%04x\n",
+			dump.CE_ERR_ADDRESS_ADDRESS);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_BANK                       = %d\n",
+			dump.CE_ERR_ADDRESS_BANK);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_DFC_EMC0                   = %d\n",
+			dump.CE_ERR_ADDRESS_DFC_EMC0);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_DFC_EMC1                   = %d\n",
+			dump.CE_ERR_ADDRESS_DFC_EMC1);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_DFC_EMC2                   = %d\n",
+			dump.CE_ERR_ADDRESS_DFC_EMC2);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_DFC_EMC3                   = %d\n",
+			dump.CE_ERR_ADDRESS_DFC_EMC3);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_MCE_OFM0                   = %d\n",
+			dump.CE_ERR_ADDRESS_MCE_OFM0);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_MCE_OFM1                   = %d\n",
+			dump.CE_ERR_ADDRESS_MCE_OFM1);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_MCE_OFM2                   = %d\n",
+			dump.CE_ERR_ADDRESS_MCE_OFM2);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_MCE_OFM3                   = %d\n",
+			dump.CE_ERR_ADDRESS_MCE_OFM3);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_PLE_INPUT0                 = %d\n",
+			dump.CE_ERR_ADDRESS_PLE_INPUT0);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_PLE_INPUT1                 = %d\n",
+			dump.CE_ERR_ADDRESS_PLE_INPUT1);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_PLE_INPUT2                 = %d\n",
+			dump.CE_ERR_ADDRESS_PLE_INPUT2);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_PLE_INPUT3                 = %d\n",
+			dump.CE_ERR_ADDRESS_PLE_INPUT3);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_PLE_OUTPUT                 = %d\n",
+			dump.CE_ERR_ADDRESS_PLE_OUTPUT);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_PLE_MCU                    = %d\n",
+			dump.CE_ERR_ADDRESS_PLE_MCU);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_ERR_MULTI                  = %d\n",
+			dump.CE_ERR_ADDRESS_ERR_MULTI);
+		dev_err(core->dev,
+			"    CE_ERR_ADDRESS_ERR_UNCORRECTED            = %d\n",
+			dump.CE_ERR_ADDRESS_ERR_UNCORRECTED);
+	}
+
+	dev_err(core->dev, "======== End of firmware dump ========\n");
+
+	return true;
+}
+
 /**
  * ethosn_irq_bottom() - IRQ bottom handler
  * @work:	Work structure part of Ethos-N core
@@ -420,6 +724,7 @@ static void ethosn_irq_bottom(struct work_struct *work)
 	bool error_status;
 	int ret;
 	size_t num_messages_handled = 0;
+	char buffer[256] = { 0 };
 
 	ret = mutex_lock_interruptible(&core->mutex);
 	if (ret)
@@ -455,9 +760,8 @@ static void ethosn_irq_bottom(struct work_struct *work)
 	status.word = atomic_xchg(&core->irq_status, 0);
 
 	dev_dbg(core->dev,
-		"Irq bottom, word=0x%08x, err=%u, debug=%u, job=%u core_id=%u\n",
-		status.word, status.bits.setirq_err, status.bits.setirq_dbg,
-		status.bits.setirq_job, core->core_id);
+		"Irq bottom, IRQ_STATUS = %s\n",
+		print_irq_status_reg(buffer, sizeof(buffer), status));
 
 	error_status = status.bits.setirq_err || status.bits.tol_err ||
 		       status.bits.func_err || status.bits.rec_err ||
@@ -467,15 +771,25 @@ static void ethosn_irq_bottom(struct work_struct *work)
 	if (ret < 0 || error_status) {
 		/* Failure may happen before the firmware is deemed running. */
 		if (error_status) {
-			ethosn_dump_gps(core);
+			dev_err(core->dev,
+				"Error reported by IRQ_STATUS: %s. Will reset core after dump.\n",
+				print_irq_status_reg(buffer, sizeof(buffer),
+						     status));
 
-			dev_warn(core->dev,
-				 "Reset core due to error interrupt. irq_status=0x%08x\n",
-				 status.word);
+			/* Print the firmware dump struct, if one was provided
+			 * by the firmware,
+			 * otherwise fall back to simple GP dump which might
+			 * provide some insight.
+			 */
+			if (!print_firmware_dump_if_present(core)) {
+				dev_err(core->dev,
+					"Firmware dump not present, dumping raw GPs:\n");
+				ethosn_dump_gps(core);
+			}
 		} else {
-			dev_warn(core->dev,
-				 "Reset core due to mailbox error. status=%d\n",
-				 ret);
+			dev_err(core->dev,
+				"Reset core due to mailbox error. status=%d\n",
+				ret);
 		}
 
 		if (core->firmware_running) {
@@ -514,19 +828,25 @@ static irqreturn_t ethosn_irq_top(const int irq,
 
 	status.word = ethosn_read_top_reg(core, DL1_RP, DL1_IRQ_STATUS);
 
-	/* Save the IRQ status for the bottom half. */
+	/* Save the IRQ status for the bottom half (ethosn_irq_bottom). */
 	atomic_or(status.word, &core->irq_status);
-
-	/* Job bit is currently not correctly set by hardware. */
-	clear.bits.err = status.bits.setirq_err;
-	clear.bits.debug = status.bits.setirq_dbg;
-	clear.bits.job = status.bits.setirq_job;
 
 	/* This was not meant for us */
 	if (status.word == 0)
 		return IRQ_NONE;
 
-	/* Clear interrupt. */
+	/* Clear the interrupts now that we have recorded them.
+	 * This is very important for level-sensitive interrupts, as this
+	 * handler will
+	 * keep firing (and hang the kernel) until they are cleared.
+	 * There is a fixed mapping between the IRQ_STATUS bits and which
+	 * interrupt needs clearing, but to keep it simple we just clear them
+	 * all.
+	 */
+	clear.bits.err = 1;
+	clear.bits.debug = 1;
+	clear.bits.job = 1;
+
 	ethosn_write_top_reg(core, DL1_RP, DL1_CLRIRQ_EXT,
 			     clear.word);
 

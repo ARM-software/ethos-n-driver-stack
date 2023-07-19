@@ -831,9 +831,28 @@ static void ethosn_set_events(struct ethosn_core *core)
 			.mcu_setevnt  = 1,
 			.tsu_evnt     = 1,
 			.rxev_degroup = 1,
-			.rxev_evnt    = 1
+			.rxev_evnt    = 1,
+
+			/* Configure the NPU to send interrupts to the
+			 * NCU MCU when errors occur in the hardware.
+			 * The firmware will dump some error information
+			 * in the GP registers and we will print this out.
+			 *
+			 * Note that even though it is possible to handle
+			 * these errors on the host side instead, we have
+			 * less information available here (e.g. no access
+			 * to TOP_ERR_CAUSE) so it is better for the
+			 * firmware to handle it initially so that it
+			 * can dump out more information.
+			 */
+			.err_tolr_irq = 1,
+			.err_func_irq = 1,
+			.err_recv_irq = 1,
 		}
 	};
+
+	dev_dbg(core->dev,
+		"Setting DL1_SYSCTLR1 to 0x%08x.\n", sysctlr1.word);
 
 	ethosn_write_top_reg(core, DL1_RP, DL1_SYSCTLR1, sysctlr1.word);
 }
@@ -856,6 +875,32 @@ static void ethosn_set_aux_ctrl(struct ethosn_core *core)
 		auxctlr.bits.stash_ahead = 5U;
 		auxctlr.bits.stash_issue = 10U;
 	}
+
+	/* Disable error interrupts being sent to the host when the hardware
+	 * runs into errors. Note these are different to the error interrupt
+	 * sent by the firmware, which is still enabled.
+	 * The firmware handles hardware errors itself and then informs us
+	 * via the error interrupt, so we will still get informed but
+	 * after the firmware has dumped some useful debugging information.
+	 * Technically we could leave these interrupts enabled and then
+	 * we would get informed as well as the firmware being informed,
+	 * and there are some issues with this:
+	 *  1 - the kernel might see the HW error before the firmware has
+	 *      had a chance to dump more detailed error information.
+	 *  2 - this seems to result in the host being spammed with
+	 *      thousands of interrupts resulting in a hang. It's not
+	 *      clear why this is happening.
+	 *
+	 * Note that "unrecoverable" errors (see HW error categorisation
+	 * definitions) are left enabled as these cannot be handled by
+	 * the firmware.
+	 */
+	auxctlr.bits.dis_ext_err_recoverable = 1;
+	auxctlr.bits.dis_ext_err_functional = 1;
+	auxctlr.bits.dis_ext_err_tolerable = 1;
+
+	dev_dbg(core->dev,
+		"Setting DL1_AUXCTLR to 0x%08x.\n", auxctlr.word);
 
 	ethosn_write_top_reg(core, DL1_RP, DL1_AUXCTLR, auxctlr.word);
 }
@@ -975,9 +1020,9 @@ void ethosn_dump_gps(struct ethosn_core *core)
 		if (offset < 0)
 			break;
 
-		dev_info(core->dev,
-			 "GP%u=0x%08x\n",
-			 i, ethosn_read_top_reg(core, DL1_RP, offset));
+		dev_err(core->dev,
+			"GP%u=0x%08x\n",
+			i, ethosn_read_top_reg(core, DL1_RP, offset));
 	}
 }
 
