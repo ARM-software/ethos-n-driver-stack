@@ -817,6 +817,8 @@ void EthosNSubgraphViewConverter::CreateUncompiledNetwork()
         return;
     }
 
+    ARMNN_LOG(debug) << "Creating uncompiled Ethos-N network (subgraph " << m_SubgraphIdx << ")";
+
     // Initialize a new network
     m_Network = m_EthosNConfig.m_PerfOnly ? ethosn_lib::CreateEstimationNetwork(m_Capabilities)
                                           : ethosn_lib::CreateNetwork(m_Capabilities);
@@ -1025,6 +1027,9 @@ void SavePerformanceJson(const PerfData& perfData, const std::map<uint32_t, std:
 
 std::vector<EthosNPreCompiledObjectPtr> EthosNSubgraphViewConverter::Estimate()
 {
+    // Create a new network to be compiled by the Ethos-N backend
+    CreateUncompiledNetwork();
+
     ethosn_lib::EstimationOptions ethosnEstimationOpts;
     ethosnEstimationOpts.m_ActivationCompressionSaving  = m_EthosNConfig.m_PerfActivationCompressionSaving;
     ethosnEstimationOpts.m_UseWeightCompressionOverride = m_EthosNConfig.m_PerfUseWeightCompressionOverride;
@@ -1063,9 +1068,6 @@ std::vector<EthosNPreCompiledObjectPtr> EthosNSubgraphViewConverter::CompileNetw
 
     try
     {
-        // Create a new network to be compiled by the Ethos-N backend
-        CreateUncompiledNetwork();
-
         compiledBlobs = m_EthosNConfig.m_PerfOnly ? Estimate() : Compile();
     }
     catch (const std::exception& e)
@@ -1107,6 +1109,9 @@ std::vector<EthosNPreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
     }
     else
     {
+        // Create a new network to be compiled by the Ethos-N backend
+        CreateUncompiledNetwork();
+
         ARMNN_LOG(debug) << "Compiling Ethos-N network (subgraph " << m_SubgraphIdx << ")";
         std::vector<EthosNCompiledNetworkPtr> compiledNetworks =
             g_EthosNSupportLibraryInterface->Compile(*m_Network, m_CompilationOptions);
