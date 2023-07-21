@@ -223,26 +223,6 @@ ret:
 	return iova;
 }
 
-static void iommu_unmap_pages(struct iommu_domain *iommu_domain,
-			      dma_addr_t start_addr,
-			      size_t nr_pages)
-{
-	struct iommu_iotlb_gather iotlb_gather;
-	size_t i;
-
-	/*
-	 * Fast unmapping won't flush the TLB so it is done manually after all
-	 * the pages have been unmapped.
-	 */
-	iommu_iotlb_gather_init(&iotlb_gather);
-	for (i = 0; i < nr_pages; ++i)
-		iommu_unmap_fast(iommu_domain,
-				 start_addr + (i * PAGE_SIZE), PAGE_SIZE,
-				 &iotlb_gather);
-
-	iommu_iotlb_sync(iommu_domain, &iotlb_gather);
-}
-
 static void iommu_free_iova(dma_addr_t start,
 			    struct ethosn_iommu_stream *stream,
 			    int nr_pages)
@@ -1103,7 +1083,7 @@ static int iommu_stream_init(struct ethosn_allocator_internal *allocator,
 
 	return 0;
 unmap_page:
-	iommu_unmap_pages(domain->iommu_domain, stream->addr_base, i);
+	iommu_unmap(domain->iommu_domain, stream->addr_base, i * PAGE_SIZE);
 
 	if (stream->allocated_page)
 		__free_page(stream->page);
@@ -1133,7 +1113,8 @@ static void iommu_stream_deinit(struct ethosn_allocator_internal *allocator)
 		return;
 
 	/* Unmap all the virtual space (see iommu_stream_init). */
-	iommu_unmap_pages(domain->iommu_domain, stream->addr_base, nr_pages);
+	iommu_unmap(domain->iommu_domain, stream->addr_base,
+		    nr_pages * PAGE_SIZE);
 
 	if (stream->allocated_page)
 		__free_page(stream->page);
