@@ -54,7 +54,11 @@ public:
             return {};
         }
         std::vector<char> compiledNetwork = foundNetwork->second;
-        ARMNN_ASSERT(compiledNetwork.size() > sizeof(uint32_t));
+        if (compiledNetwork.size() <= sizeof(uint32_t))
+        {
+            ARMNN_ASSERT(compiledNetwork.size() > sizeof(uint32_t));
+            return {};
+        }
         uint32_t intermediateSize = 0;
         std::copy_n(compiledNetwork.end() - sizeof(uint32_t), sizeof(uint32_t),
                     reinterpret_cast<char*>(&intermediateSize));

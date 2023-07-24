@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020,2022 Arm Limited.
+// Copyright © 2018-2020,2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -11,6 +11,7 @@
 #include <array>
 #include <cassert>
 #include <cmath>
+#include <cstdint>
 #include <iomanip>
 #include <numeric>
 #include <sys/stat.h>
