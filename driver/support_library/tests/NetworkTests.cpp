@@ -6,6 +6,7 @@
 #include "../include/ethosn_support_library/Support.hpp"
 #include "../src/Network.hpp"
 #include "../src/Utils.hpp"
+#include "TestUtils.hpp"
 
 #include <catch.hpp>
 
@@ -199,6 +200,19 @@ TEST_CASE("Input with no output")
 
     auto input = AddInput(network, inputInfo).tensor;
     ethosn::support_library::CompilationOptions compilationOptions;
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork = Compile(*network, compilationOptions);
+    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork;
+    bool failed = false;
+    try
+    {
+        compiledNetwork = Compile(*network, compilationOptions);
+    }
+    catch (const NotSupportedException& e)
+    {
+        failed = true;
+        INFO(e.what());
+        REQUIRE(Contains(e.what(), "Network contains operations without any consumer i.e. There are dangling outputs"));
+    }
+
+    REQUIRE(failed);
     REQUIRE(compiledNetwork.size() == 0);
 }

@@ -37,10 +37,10 @@ void DumpNetwork(const DebuggingContext& debuggingContext, const Network& networ
                           [&](std::ofstream& s) { SaveNetworkToDot(network, s, DetailLevel::High); });
 }
 
-/// Check that the network is valid:
+/// Check that the network is valid and throw a reason if not
 /// * Ensure that all the operations which produce an operand have at least 1 consumer
 ///   (i.e. There are no dangling outputs).
-bool ValidateNetwork(const Network& network)
+void ValidateNetworkAndThrowIfBad(const Network& network)
 {
     for (detail::OperationList::const_iterator operation = network.begin(); operation != network.end(); ++operation)
     {
@@ -52,11 +52,12 @@ bool ValidateNetwork(const Network& network)
             bool isConstant = dynamic_cast<Constant*>(operation->get()) != nullptr;
             if (operand.GetConsumers().empty() && !isConstant)
             {
-                return false;
+                throw NotSupportedException(
+                    "Network contains operations without any consumer i.e. There are dangling outputs");
             }
         }
     }
-    return true;
+    // All check pass just return without throwing an error
 }
 
 }    // namespace
@@ -87,11 +88,7 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
 {
     DumpNetwork(m_DebuggingContext, m_Network);
 
-    bool validNetwork = ValidateNetwork(m_Network);
-    if (!validNetwork)
-    {
-        return std::unique_ptr<CompiledNetworkImpl>(nullptr);
-    }
+    ValidateNetworkAndThrowIfBad(m_Network);
 
     try
     {
