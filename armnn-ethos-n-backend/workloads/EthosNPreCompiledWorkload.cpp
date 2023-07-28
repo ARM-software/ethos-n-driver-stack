@@ -337,10 +337,19 @@ void EthosNPreCompiledWorkload::Execute() const
     }
 
     ARMNN_LOG(debug) << "Ethos-N ScheduleInference Subgraph " << m_PreCompiledObject->GetSubgraphIndex();
-    const std::unique_ptr<ethosn::driver_library::Inference> inference(
-        m_Network->ScheduleInference(inputBuffers.data(), numInputBuffers, outputBuffers.data(), numOutputBuffers));
+    std::unique_ptr<ethosn::driver_library::Inference> inference;
+    {
+        ARMNN_SCOPED_PROFILING_EVENT_ETHOSN("EthosNPreCompiledWorkload_ScheduleInference");
 
-    WaitStatus result = WaitForInference(inference->GetFileDescriptor(), m_PreCompiledObject->GetInferenceTimeout());
+        inference = std::unique_ptr<ethosn::driver_library::Inference>(
+            m_Network->ScheduleInference(inputBuffers.data(), numInputBuffers, outputBuffers.data(), numOutputBuffers));
+    }
+
+    WaitStatus result;
+    {
+        ARMNN_SCOPED_PROFILING_EVENT_ETHOSN("EthosNPreCompiledWorkload_WaitForInference");
+        result = WaitForInference(inference->GetFileDescriptor(), m_PreCompiledObject->GetInferenceTimeout());
+    }
 
     ARMNN_LOG(debug) << "Ethos-N cycle count: " << inference->GetCycleCount();
     if (EthosNBackendProfilingService::Instance().IsProfilingEnabled())
