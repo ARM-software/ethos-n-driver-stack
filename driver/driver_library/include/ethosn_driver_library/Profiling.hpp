@@ -155,29 +155,24 @@ public:
     /// @{
     enum class MetadataCategory
     {
-        // Note that the order of these categories matters for the python parser that
-        // generates the json file.
-        FirmwareWfe,
         FirmwareInference,
-        FirmwareCommand,
-        FirmwareDma,
-        FirmwareTsu,
+        FirmwareUpdateProgress,
+        FirmwareWfe,
+        FirmwareDmaReadSetup,
+        FirmwareDmaRead,
+        FirmwareDmaWriteSetup,
+        FirmwareDmaWrite,
         FirmwareMceStripeSetup,
+        FirmwareMceStripe,
         FirmwarePleStripeSetup,
+        FirmwarePleStripe,
+        FirmwareUdma,
         FirmwareLabel,
-        FirmwareDmaSetup,
-        FirmwareGetCompleteCommand,
-        FirmwareScheduleNextCommand,
-        FirmwareAgent,
-        FirmwareAgentStripe,
 
         // Non-firmware related categories go here.
         InferenceLifetime,
         BufferLifetime,
         CounterValue,
-
-        FirmwarePle,
-        FirmwareUdma,
     };
     MetadataCategory m_MetadataCategory;
     /// @}
@@ -185,7 +180,7 @@ public:
     /// Additional data for this entry, the contents of which are determined by m_MetadataCategory and can be decoded
     /// via the below accessor methods.
     /// For CounterSample entries, this will contain the counter value itself (see GetCounterValue()).
-    /// For timeline event entries, this will typically contain details of what the timeline event represents,
+    /// For timeline event entries, this may contain further details of what the timeline event represents,
     /// for example identifying a command number or stripe index.
     uint64_t m_MetadataValue;
 
@@ -199,14 +194,20 @@ public:
         assert(m_MetadataCategory == MetadataCategory::CounterValue);
         return impl::GetCounterValue(m_MetadataValue);
     }
+    std::string GetFirmwareLabel() const
+    {
+        assert(m_MetadataCategory == MetadataCategory::FirmwareLabel);
+        return impl::GetFirmwareLabel(m_MetadataValue);
+    }
     /// @}
 };
 
 std::vector<ProfilingEntry> ReportNewProfilingData();
 
+const char* EntryTypeToCString(ProfilingEntry::Type type);
+const char* CollatedCounterNameToCString(CollatedCounterName counterName);
+const char* PollCounterNameToCString(PollCounterName counterName);
 const char* MetadataCategoryToCString(ProfilingEntry::MetadataCategory category);
-
-const char* MetadataTypeToCString(ProfilingEntry::Type type);
 
 }    // namespace profiling
 }    // namespace driver_library

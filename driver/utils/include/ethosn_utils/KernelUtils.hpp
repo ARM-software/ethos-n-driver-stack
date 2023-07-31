@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstring>
+#include <fstream>
 #include <stdexcept>
 
 #if defined(__unix__)

@@ -1,5 +1,5 @@
 //
-// Copyright © 2019-2021 Arm Limited.
+// Copyright © 2019-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -8,6 +8,7 @@
 
 #include <uapi/ethosn_shared.h>
 
+#include <chrono>
 #include <map>
 #include <string>
 #include <vector>
@@ -22,8 +23,6 @@ class Inference;
 
 namespace profiling
 {
-
-const uint64_t g_DriverLibraryEventIdBase = 65536;
 
 namespace metadata
 {
@@ -54,7 +53,7 @@ extern std::string g_DumpFile;
 
 /// ProfilingInternal functions
 /// @{
-uint64_t GetNextTimeLineEventId();
+uint64_t GetNextTimelineEventId();
 template <typename T>
 void RecordLifetimeEvent(T* object,
                          std::map<T*, uint64_t>& objectToLifetimeEventId,
@@ -72,7 +71,7 @@ void RecordLifetimeEvent(T* object,
     {
         id                              = g_NextTimelineEventId;
         objectToLifetimeEventId[object] = id;
-        GetNextTimeLineEventId();
+        GetNextTimelineEventId();
     }
     else
     {
@@ -103,7 +102,12 @@ bool AppendKernelDriverEntries();
 /// @}
 
 ethosn_profiling_hw_counter_types ConvertHwCountersToKernel(HardwareCounters counter);
-ProfilingEntry ConvertProfilingEntry(const ethosn_profiling_entry& kernelEntry);
+
+std::pair<bool, ProfilingEntry> ConvertProfilingEntry(const ethosn_profiling_entry& kernelEntry,
+                                                      std::map<uint8_t, ProfilingEntry>& inProgressTimelineEvents,
+                                                      uint64_t& mostRecentCorrectedKernelTimestamp,
+                                                      int clockFrequencyMhz,
+                                                      uint64_t nanosecondOffset);
 
 }    // namespace profiling
 }    // namespace driver_library

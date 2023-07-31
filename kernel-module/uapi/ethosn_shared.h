@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2020-2022 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -21,7 +21,8 @@
  */
 
 /* This header defines interfaces that are shared between driver library,
- * kernel module and firmware.
+ * kernel module and firmware. This is currently all profiling-related
+ * definitions.
  */
 
 #ifndef _ETHOSN_SHARED_H_
@@ -45,26 +46,41 @@ enum ethosn_profiling_entry_type {
 };
 
 /**
- * struct ethosn_profiling_entry - Equivalent to the Driver Library's
- *				ProfilingEntry struct, with some minor
- *				differences.
- * @timestamp:	Clock cycles as defined by the PMU.
+ * struct ethosn_profiling_entry - The firmware records a big stream of these,
+ *                                 which store information about events and
+ *                                 counters.
+ * @timestamp:	The lower 32-bits of the clock cycle as defined by the PMU.
  * @type:	@see ethosn_profiling_entry_type.
- * @id:		See driver_library::ProfilingEntry::m_Id.
- * @data:	Generic data associated with this entry, combining
- *              driver_library::ProfilingEntry::m_MetadataCategory and
- *              driver_library::ProfilingEntry::m_MetadataValue.
+ * @id:		Depending on type:
+ *		  TIMELINE_EVENT_START/TIMELINE_EVENT_END: id is used to
+ *                  associate start entry and end entries,
+ *                  which will share the same id. Note that ID values will
+ *                  be re-used once the end event has been recorded.
+ *		  TIMELINE_EVENT_INSTANT: not relevant, can be anything
+ *                COUNTER_VALUE: a member of FirmwareCounterName, identifying
+ *                  which counter has been sampled.
+ * @data:	Depending on type:
+ *                TIMELINE_EVENT_START/TIMELINE_EVENT_INSTANT: a value that
+ *                  can be decoded using TimelineEntryDataUnion,
+ *		    describing what kind of event this is.
+ *                TIMELINE_EVENT_END: not relevant
+ *                COUNTER_VALUE: the counter value
  *
- * This struct is designed to be as lightweight as possible, because we will be
+ * This struct is designed to be as small as possible, because we will be
  * creating and storing lots of these and we want the profiling overhead to be
  * as small as possible.
  */
 struct ethosn_profiling_entry {
-	uint64_t timestamp;
-	uint16_t type;
-	uint16_t id;
-	uint32_t data;
+	uint32_t timestamp;
+	uint32_t type : 2;
+	uint32_t id : 5;
+	uint32_t data : 25;
 };
+
+#if defined(__cplusplus)
+static_assert(sizeof(ethosn_profiling_entry) == 8,
+	      "ethosn_profiling_entry struct packing is incorrect");
+#endif
 
 /**
  * enum ethosn_profiling_hw_counter_types - Equivalent to the Driver Library's
@@ -88,7 +104,7 @@ enum ethosn_profiling_hw_counter_types {
 };
 
 #if defined(__cplusplus)
-enum class FirmwareCounterName {
+enum class FirmwareCounterName: uint8_t {
 	DwtSleepCycleCount,
 	EventQueueSize,
 	DmaNumReads,
@@ -111,122 +127,45 @@ enum class FirmwareCounterName {
 	NcuMcuBusWriteBeats,
 };
 
-using EntryData = decltype(ethosn_profiling_entry::data);
-
-/*
- * Note that the order of these categories matters for the python parser that
- * generates the json file. New categories need to be added at the bottom of
- * the list.
- */
-enum class EntryDataCategory: uint8_t {
-	/*                          Legacy?   StrategyX?   Cascading? */
-	Wfe,                    /*   Yes         Yes         Yes     */
-	Inference,              /*   Yes         Yes         Yes     */
-	Command,                /*   Yes         Yes         Yes     */
-	Dma,                    /*   Yes         Yes         Yes     */
-	Tsu,                    /*   Yes         Yes         Yes     */
-	MceStripeSetup,         /*   Yes         No          Yes     */
-	PleStripeSetup,         /*   Yes         No          Yes     */
-	Label,                  /* Custom use                        */
-	DmaSetup,               /*   Yes         No          Yes     */
-	GetCompleteCommand,     /*   Yes         No          No      */
-	ScheduleNextCommand,    /*   Yes         No          Yes     */
-	TimeSync,               /*   Yes         Yes         Yes     */
-	Agent,                  /*   No          Yes         No      */
-	AgentStripe,            /*   No          Yes         No      */
-	Ple,                    /*   No          No          Yes     */
-	Udma                    /*   No          No          Yes     */
+enum class TimelineEventType: uint8_t {
+	TimestampFull,
+	Inference,
+	UpdateProgress,
+	Wfe,
+	DmaReadSetup,
+	DmaRead,
+	DmaWriteSetup,
+	DmaWrite,
+	MceStripeSetup,
+	MceStripe,
+	PleStripeSetup,
+	PleStripe,
+	Udma,
+	Label,
 };
 
-/* Describes the encoding of the "Data" field. */
-union DataUnion {
-	EntryData m_Raw; /* Raw access to the full Data value. */
+/* Describes the encoding of the "data" field for timeline events */
+union TimelineEntryDataUnion {
+	uint32_t m_Raw; /* Raw access to the full value. */
 
-	/* The first 4 bits is always m_Category, which identifies the category
-	 * for this entry.
-	 * The layout of the rest of the data is category-specific.
+	/* The first 4 bits is always m_Type, which identifies the type
+	 * for this timeline entry (a value of type TimelineEventType).
+	 * The layout of the rest of the data is type-specific.
+	 * Some types don't have any extra data.
 	 */
-	uint8_t m_Category : 4;
+	uint32_t m_Type : 4;
 	struct {
-		uint32_t m_Category : 4;
-		uint32_t m_Type : 1;
-	} m_WfeFields;
-	struct {
-		uint8_t m_Category : 4;
-		uint8_t m_Chars[3];
-	} m_LabelFields;
-	struct {
-		uint32_t m_Category : 4;
-		uint32_t m_CommandIdx : 10;
-	} m_CommandFields;
-	struct {
-		uint32_t m_Category : 4;
-		uint32_t m_CommandIdx : 10;
-		uint32_t m_DmaCategory : 5;
-		uint32_t m_DmaHardwareId : 3;
-		uint32_t m_StripeIdx : 10;
-	} m_DmaFields;
-	struct {
-		uint32_t m_Category : 4;
-		uint32_t m_CommandIdx : 10;
-		uint32_t m_StripeIdx : 10;
-		uint32_t m_BankId : 1;
-	} m_TsuFields;
-	struct {
-		uint32_t m_Category : 4;
-		uint32_t m_CommandIdx : 10;
-		uint32_t m_StripeIdx : 10;
-	} m_MceStripeSetupFields;
-	struct {
-		uint32_t m_Category : 4;
-		uint32_t m_CommandIdx : 10;
-		uint32_t m_StripeIdx : 10;
-	} m_PleStripeSetupFields;
-	struct {
-		uint32_t m_Category : 4;
-		uint32_t m_CommandIdx : 10;
-		uint32_t m_StripeIdx : 10;
-		uint32_t m_DmaCategory : 3;
-	} m_DmaStripeSetupFields;
-	struct {
-		uint32_t m_Category : 4;
-		uint32_t m_CommandIdx : 10;
-	} m_CompleteCommandsFields;
-	struct {
-		uint32_t m_Category : 4;
-		uint32_t m_CommandIdx : 10;
-	} m_ScheduleCommandsFields;
-	struct {
-		uint8_t m_Category : 4;
-		uint8_t m_TimeSyncData[3];
-	} m_TimeSyncFields;
-	struct {
-		uint32_t m_Category : 4;
 		uint32_t m_Type : 4;
-		uint32_t m_Idx : 4;
-		uint32_t m_CommandIdx : 10;
-	} m_AgentFields;
+		uint32_t m_TimestampUpperBits : 21;
+	} m_TimestampFullFields;
 	struct {
-		uint32_t m_Category : 4;
-		uint32_t m_AgentStripeType : 4;
-		uint32_t m_AgentStripeIdx : 4;
-		uint32_t m_CommandIdx : 10;
-		uint32_t m_StripeIdx : 10;
-	} m_AgentStripeFields;
-	struct {
-		uint32_t m_Category : 4;
-		uint32_t m_CommandIdx : 10;
-		uint32_t m_StripeIdx : 10;
-	} m_PleFields;
-	struct {
-		uint32_t m_Category : 4;
-		uint32_t m_CommandIdx : 10;
-		uint32_t m_StripeIdx : 10;
-	} m_UdmaFields;
+		uint32_t m_Type : 4;
+		uint32_t m_Char1 : 7;
+		uint32_t m_Char2 : 7;
+		uint32_t m_Char3 : 7;
+	} m_LabelFields;
 };
-
-static_assert(sizeof(DataUnion) == sizeof(EntryData),
-	      "Union/struct packing is incorrect");
 
 #endif /* defined(__cplusplus) */
+
 #endif /* _ETHOSN_SHARED_H_ */

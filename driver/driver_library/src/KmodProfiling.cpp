@@ -139,9 +139,17 @@ bool AppendKernelDriverEntries()
     {
         return false;
     }
-    std::vector<ProfilingEntry> entries;
+
+    // Read the firmware timestamp offset from the kernel module
+    uint64_t profilingTimestampOffset = 0;
+    {
+        std::ifstream f(g_FirmwareProfilingOffsetFilename);
+        f >> profilingTimestampOffset;
+    }
 
     // Read entries from the buffer until we catch up
+    std::map<uint8_t, profiling::ProfilingEntry> inProgressTimelineEvents;
+    uint64_t mostRecentCorrectedKernelTimestamp = 0;
     std::array<ethosn_profiling_entry, 64> readBuffer;
     while (true)
     {
@@ -159,31 +167,16 @@ bool AppendKernelDriverEntries()
             size_t numEntriesRead = static_cast<size_t>(result) / sizeof(ethosn_profiling_entry);
             for (size_t i = 0; i < numEntriesRead; ++i)
             {
-                entries.push_back(ConvertProfilingEntry(readBuffer[i]));
+                std::pair<bool, profiling::ProfilingEntry> successAndEntry =
+                    ConvertProfilingEntry(readBuffer[i], inProgressTimelineEvents, mostRecentCorrectedKernelTimestamp,
+                                          g_ClockFrequencyMhz, profilingTimestampOffset);
+                // Not all firmware profiling entries yield an entry we expose from the driver library
+                if (successAndEntry.first)
+                {
+                    g_ProfilingEntries.push_back(successAndEntry.second);
+                }
             }
         }
-    }
-
-    int64_t profilingTimestampOffset = 0;
-    {
-        std::ifstream f(g_FirmwareProfilingOffsetFilename);
-        uint64_t u;
-        f >> u;
-        // The offset is a signed value, but is exposed as an unsigned value by the kernel module.
-        memcpy(&profilingTimestampOffset, &u, sizeof(u));
-    }
-
-    // Sync up firmware entries using profilingTimestampOffset and update global profiling entries with
-    // correct timestamps
-    for (ProfilingEntry& entry : entries)
-    {
-        // The timestamp of the message (i.e. PMU cycle count) is stored as the number of nanoseconds since the
-        // high_resolution_clock epoch. Convert this to actual nanoseconds based on the clock frequency
-        // before calculating the difference with the host CPU (also measured in nanoseconds).
-        entry.m_Timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>(std::chrono::nanoseconds(
-            (1000 / g_ClockFrequencyMhz) * entry.m_Timestamp.time_since_epoch().count() + profilingTimestampOffset));
-
-        g_ProfilingEntries.push_back(entry);
     }
 
     return true;

@@ -259,7 +259,7 @@ struct ethosn_core {
 		bool                   is_waiting_for_firmware_ack;
 		struct ethosn_dma_info *firmware_buffer_pending;
 
-		int64_t                wall_clock_time_at_firmware_zero;
+		uint64_t               wall_clock_time_at_firmware_zero;
 	}    profiling;
 
 	/* Will tell if the core was set up for protected inferences or not*/
@@ -475,8 +475,7 @@ int ethosn_configure_firmware_profiling(struct ethosn_core *core,
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_configure_firmware_profiling_ack(struct ethosn_core *core,
-					    uint64_t firmware_timestamp);
+int ethosn_configure_firmware_profiling_ack(struct ethosn_core *core);
 
 /**
  * ethosn_send_ping() - Send ping to Ethos-N .

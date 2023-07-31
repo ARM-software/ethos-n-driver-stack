@@ -376,13 +376,9 @@ static int handle_message(struct ethosn_core *core)
 		break;
 	}
 	case ETHOSN_MESSAGE_CONFIGURE_PROFILING_ACK: {
-		struct ethosn_firmware_profiling_configuration_ack *msg =
-			core->mailbox_message;
 		dev_dbg(core->dev,
-			"<- Configured profiling (firmware timestamp = %llu)\n",
-			msg->firmware_timestamp);
-		ethosn_configure_firmware_profiling_ack(core,
-							msg->firmware_timestamp);
+			"<- Configured profiling\n");
+		ethosn_configure_firmware_profiling_ack(core);
 		break;
 	}
 	case ETHOSN_MESSAGE_ERROR_RESPONSE: {

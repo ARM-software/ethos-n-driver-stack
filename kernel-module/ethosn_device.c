@@ -1215,15 +1215,15 @@ static int ethosn_send_configure_profiling(struct ethosn_core *core,
 		fw_new_config.buffer_size = 0;
 	}
 
-	dev_dbg(core->dev,
-		"-> Configure profiling, enable_profiling=%d, buffer_address=0x%08llx, buffer_size=%d\n",
-		fw_new_config.enable_profiling, fw_new_config.buffer_address,
-		fw_new_config.buffer_size);
-
 	/* Enable profiling only after all the configs have been checked
 	 * and set
 	 */
 	fw_new_config.enable_profiling = enable;
+
+	dev_dbg(core->dev,
+		"-> Configure profiling, enable_profiling=%d, buffer_address=0x%08llx, buffer_size=%d\n",
+		fw_new_config.enable_profiling, fw_new_config.buffer_address,
+		fw_new_config.buffer_size);
 
 	return ethosn_write_message(core, ETHOSN_MESSAGE_CONFIGURE_PROFILING,
 				    &fw_new_config, sizeof(fw_new_config));
@@ -1306,8 +1306,7 @@ ret:
 	return ret;
 }
 
-int ethosn_configure_firmware_profiling_ack(struct ethosn_core *core,
-					    uint64_t firmware_timestamp)
+int ethosn_configure_firmware_profiling_ack(struct ethosn_core *core)
 {
 	if (!core->profiling.is_waiting_for_firmware_ack) {
 		dev_err(core->dev,
@@ -1328,9 +1327,7 @@ int ethosn_configure_firmware_profiling_ack(struct ethosn_core *core,
 	core->profiling.firmware_buffer_pending = NULL;
 	core->profiling.is_waiting_for_firmware_ack = false;
 	core->profiling.wall_clock_time_at_firmware_zero =
-		(int64_t)ktime_get_real_ns() -
-		((int64_t)firmware_timestamp * 1000) /
-		clock_frequency;
+		ktime_get_real_ns();
 
 	return 0;
 }
@@ -1670,7 +1667,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 
 	/* Clear any outstanding configuration */
 	if (core->profiling.is_waiting_for_firmware_ack) {
-		ret = ethosn_configure_firmware_profiling_ack(core, 0);
+		ret = ethosn_configure_firmware_profiling_ack(core);
 		if (ret)
 			return ret;
 	}

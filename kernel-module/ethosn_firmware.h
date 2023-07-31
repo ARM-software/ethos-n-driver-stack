@@ -47,7 +47,7 @@
  * This is common for the fat binary (ethosn.bin) and the individual
  * firmware binaries (sub-components of the fat binary).
  */
-#define ETHOSN_FIRMWARE_VERSION_MAJOR 13
+#define ETHOSN_FIRMWARE_VERSION_MAJOR 14
 #define ETHOSN_FIRMWARE_VERSION_MINOR 0
 #define ETHOSN_FIRMWARE_VERSION_PATCH 0
 
@@ -448,10 +448,6 @@ struct ethosn_firmware_profiling_configuration {
 	uint32_t         num_hw_counters;
 	enum ethosn_profiling_hw_counter_types
 			 hw_counters[ETHOSN_PROFILING_MAX_HW_COUNTERS];
-};
-
-struct ethosn_firmware_profiling_configuration_ack {
-	uint64_t firmware_timestamp;
 };
 
 /**

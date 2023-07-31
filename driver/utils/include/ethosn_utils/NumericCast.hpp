@@ -1,5 +1,5 @@
 //
-// Copyright © 2022 Arm Limited. All rights reserved.
+// Copyright © 2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -8,6 +8,13 @@
 #ifndef ETHOSN_ASSERT_MSG
 #error "Please define ETHOSN_ASSERT_MSG"
 #endif
+
+/// Calls NumericCast (see below), but also masks the result into the specified
+/// number of bits to silence compiler warnings.
+/// A define is necessary for this as some compilers will still raise incorrect warnings
+/// about narrowing into bitfields when the masking is done in a function.
+#define ETHOSN_NUMERIC_CAST(source, TDest, NumBits)                                                                    \
+    (ethosn::utils::NumericCast<TDest, (NumBits)>(source) & static_cast<TDest>((1U << (NumBits)) - 1U))
 
 namespace ethosn
 {

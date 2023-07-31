@@ -24,9 +24,9 @@ namespace driver_library
 namespace profiling
 {
 
-uint64_t GetNextTimeLineEventId()
+uint64_t GetNextTimelineEventId()
 {
-    g_NextTimelineEventId = std::max(g_DriverLibraryEventIdBase, g_NextTimelineEventId + 1);
+    g_NextTimelineEventId = g_NextTimelineEventId + 1;
     return g_NextTimelineEventId;
 }
 
@@ -39,7 +39,7 @@ bool ApplyConfiguration(Configuration config, const std::string& device)
         g_ProfilingEntries.clear();
         g_BufferToLifetimeEventId.clear();
         g_InferenceToLifetimeEventId.clear();
-        g_NextTimelineEventId = g_DriverLibraryEventIdBase;
+        g_NextTimelineEventId = 0;
     }
 
     return hasKernelConfigureSucceeded;
@@ -189,7 +189,7 @@ Configuration g_CurrentConfiguration = GetDefaultConfiguration();
 std::vector<ProfilingEntry> g_ProfilingEntries              = {};
 std::map<Buffer*, uint64_t> g_BufferToLifetimeEventId       = {};
 std::map<Inference*, uint64_t> g_InferenceToLifetimeEventId = {};
-uint64_t g_NextTimelineEventId                              = g_DriverLibraryEventIdBase;
+uint64_t g_NextTimelineEventId                              = 0;
 
 bool Configure(Configuration config, const std::string& device)
 {
@@ -245,32 +245,127 @@ uint64_t GetCounterValue(PollCounterName counter)
     return GetCounterValue(counter, DEVICE_NODE);
 }
 
+const char* EntryTypeToCString(ProfilingEntry::Type type)
+{
+    switch (type)
+    {
+        case ProfilingEntry::Type::TimelineEventStart:
+            return "TimelineEventStart";
+        case ProfilingEntry::Type::TimelineEventEnd:
+            return "TimelineEventEnd";
+        case ProfilingEntry::Type::TimelineEventInstant:
+            return "TimelineEventInstant";
+        case ProfilingEntry::Type::CounterSample:
+            return "CounterSample";
+        default:
+            return nullptr;
+    }
+}
+
+const char* CollatedCounterNameToCString(CollatedCounterName counterName)
+{
+    switch (counterName)
+    {
+        case CollatedCounterName::FirmwareDwtSleepCycleCount:
+            return "FirmwareDwtSleepCycleCount";
+        case CollatedCounterName::FirmwareEventQueueSize:
+            return "FirmwareEventQueueSize";
+        case CollatedCounterName::FirmwareDmaNumReads:
+            return "FirmwareDmaNumReads";
+        case CollatedCounterName::FirmwareDmaNumWrites:
+            return "FirmwareDmaNumWrites";
+        case CollatedCounterName::FirmwareDmaReadBytes:
+            return "FirmwareDmaReadBytes";
+        case CollatedCounterName::FirmwareDmaWriteBytes:
+            return "FirmwareDmaWriteBytes";
+        case CollatedCounterName::FirmwareBusAccessRdTransfers:
+            return "FirmwareBusAccessRdTransfers";
+        case CollatedCounterName::FirmwareBusRdCompleteTransfers:
+            return "FirmwareBusRdCompleteTransfers";
+        case CollatedCounterName::FirmwareBusReadBeats:
+            return "FirmwareBusReadBeats";
+        case CollatedCounterName::FirmwareBusReadTxfrStallCycles:
+            return "FirmwareBusReadTxfrStallCycles";
+        case CollatedCounterName::FirmwareBusAccessWrTransfers:
+            return "FirmwareBusAccessWrTransfers";
+        case CollatedCounterName::FirmwareBusWrCompleteTransfers:
+            return "FirmwareBusWrCompleteTransfers";
+        case CollatedCounterName::FirmwareBusWriteBeats:
+            return "FirmwareBusWriteBeats";
+        case CollatedCounterName::FirmwareBusWriteTxfrStallCycles:
+            return "FirmwareBusWriteTxfrStallCycles";
+        case CollatedCounterName::FirmwareBusWriteStallCycles:
+            return "FirmwareBusWriteStallCycles";
+        case CollatedCounterName::FirmwareBusErrorCount:
+            return "FirmwareBusErrorCount";
+        case CollatedCounterName::FirmwareNcuMcuIcacheMiss:
+            return "FirmwareNcuMcuIcacheMiss";
+        case CollatedCounterName::FirmwareNcuMcuDcacheMiss:
+            return "FirmwareNcuMcuDcacheMiss";
+        case CollatedCounterName::FirmwareNcuMcuBusReadBeats:
+            return "FirmwareNcuMcuBusReadBeats";
+        case CollatedCounterName::FirmwareNcuMcuBusWriteBeats:
+            return "FirmwareNcuMcuBusWriteBeats";
+        default:
+            return nullptr;
+    }
+}
+
+const char* PollCounterNameToCString(PollCounterName counterName)
+{
+    switch (counterName)
+    {
+        case PollCounterName::DriverLibraryNumLiveBuffers:
+            return "DriverLibraryNumLiveBuffers";
+        case PollCounterName::DriverLibraryNumLiveInferences:
+            return "DriverLibraryNumLiveInferences";
+        case PollCounterName::KernelDriverNumMailboxMessagesSent:
+            return "KernelDriverNumMailboxMessagesSent";
+        case PollCounterName::KernelDriverNumMailboxMessagesReceived:
+            return "KernelDriverNumMailboxMessagesReceived";
+        case PollCounterName::KernelDriverNumRuntimePowerSuspend:
+            return "KernelDriverNumRuntimePowerSuspend";
+        case PollCounterName::KernelDriverNumRuntimePowerResume:
+            return "KernelDriverNumRuntimePowerResume";
+        case PollCounterName::KernelDriverNumPowerSuspend:
+            return "KernelDriverNumPowerSuspend";
+        case PollCounterName::KernelDriverNumPowerResume:
+            return "KernelDriverNumPowerResume";
+        default:
+            return nullptr;
+    }
+}
+
 const char* MetadataCategoryToCString(ProfilingEntry::MetadataCategory category)
 {
     switch (category)
     {
-        case ProfilingEntry::MetadataCategory::FirmwareWfe:
-            return "FirmwareWfe";
         case ProfilingEntry::MetadataCategory::FirmwareInference:
             return "FirmwareInference";
-        case ProfilingEntry::MetadataCategory::FirmwareCommand:
-            return "FirmwareCommand";
-        case ProfilingEntry::MetadataCategory::FirmwareDma:
-            return "FirmwareDma";
-        case ProfilingEntry::MetadataCategory::FirmwareTsu:
-            return "FirmwareTsu";
+        case ProfilingEntry::MetadataCategory::FirmwareUpdateProgress:
+            return "FirmwareUpdateProgress";
+        case ProfilingEntry::MetadataCategory::FirmwareWfe:
+            return "FirmwareWfe";
+        case ProfilingEntry::MetadataCategory::FirmwareDmaReadSetup:
+            return "FirmwareDmaReadSetup";
+        case ProfilingEntry::MetadataCategory::FirmwareDmaRead:
+            return "FirmwareDmaRead";
+        case ProfilingEntry::MetadataCategory::FirmwareDmaWriteSetup:
+            return "FirmwareDmaWriteSetup";
+        case ProfilingEntry::MetadataCategory::FirmwareDmaWrite:
+            return "FirmwareDmaWrite";
         case ProfilingEntry::MetadataCategory::FirmwareMceStripeSetup:
             return "FirmwareMceStripeSetup";
+        case ProfilingEntry::MetadataCategory::FirmwareMceStripe:
+            return "FirmwareMceStripe";
         case ProfilingEntry::MetadataCategory::FirmwarePleStripeSetup:
             return "FirmwarePleStripeSetup";
+        case ProfilingEntry::MetadataCategory::FirmwarePleStripe:
+            return "FirmwarePleStripe";
+        case ProfilingEntry::MetadataCategory::FirmwareUdma:
+            return "FirmwareUdma";
         case ProfilingEntry::MetadataCategory::FirmwareLabel:
             return "FirmwareLabel";
-        case ProfilingEntry::MetadataCategory::FirmwareDmaSetup:
-            return "FirmwareDmaSetup";
-        case ProfilingEntry::MetadataCategory::FirmwareGetCompleteCommand:
-            return "FirmwareGetCompleteCommand";
-        case ProfilingEntry::MetadataCategory::FirmwareScheduleNextCommand:
-            return "FirmwareScheduleNextCommand";
         case ProfilingEntry::MetadataCategory::InferenceLifetime:
             return "InferenceLifetime";
         case ProfilingEntry::MetadataCategory::BufferLifetime:
@@ -282,88 +377,41 @@ const char* MetadataCategoryToCString(ProfilingEntry::MetadataCategory category)
     }
 }
 
-const char* MetadataTypeToCString(ProfilingEntry::Type type)
-{
-    switch (type)
-    {
-        case ProfilingEntry::Type::TimelineEventStart:
-            return "Start";
-        case ProfilingEntry::Type::TimelineEventEnd:
-            return "End";
-        case ProfilingEntry::Type::TimelineEventInstant:
-            return "Instant";
-        case ProfilingEntry::Type::CounterSample:
-            return "Counter";
-        default:
-            return nullptr;
-    }
-}
-
 ethosn_profiling_hw_counter_types ConvertHwCountersToKernel(HardwareCounters counter)
 {
     switch (counter)
     {
         case HardwareCounters::FirmwareBusAccessRdTransfers:
-        {
             return ethosn_profiling_hw_counter_types::BUS_ACCESS_RD_TRANSFERS;
-        }
         case HardwareCounters::FirmwareBusRdCompleteTransfers:
-        {
             return ethosn_profiling_hw_counter_types::BUS_RD_COMPLETE_TRANSFERS;
-        }
         case HardwareCounters::FirmwareBusReadBeats:
-        {
             return ethosn_profiling_hw_counter_types::BUS_READ_BEATS;
-        }
         case HardwareCounters::FirmwareBusReadTxfrStallCycles:
-        {
             return ethosn_profiling_hw_counter_types::BUS_READ_TXFR_STALL_CYCLES;
-        }
         case HardwareCounters::FirmwareBusAccessWrTransfers:
-        {
             return ethosn_profiling_hw_counter_types::BUS_ACCESS_WR_TRANSFERS;
-        }
         case HardwareCounters::FirmwareBusWrCompleteTransfers:
-        {
             return ethosn_profiling_hw_counter_types::BUS_WR_COMPLETE_TRANSFERS;
-        }
         case HardwareCounters::FirmwareBusWriteBeats:
-        {
             return ethosn_profiling_hw_counter_types::BUS_WRITE_BEATS;
-        }
         case HardwareCounters::FirmwareBusWriteTxfrStallCycles:
-        {
             return ethosn_profiling_hw_counter_types::BUS_WRITE_TXFR_STALL_CYCLES;
-        }
         case HardwareCounters::FirmwareBusWriteStallCycles:
-        {
             return ethosn_profiling_hw_counter_types::BUS_WRITE_STALL_CYCLES;
-        }
         case HardwareCounters::FirmwareBusErrorCount:
-        {
             return ethosn_profiling_hw_counter_types::BUS_ERROR_COUNT;
-        }
         case HardwareCounters::FirmwareNcuMcuIcacheMiss:
-        {
             return ethosn_profiling_hw_counter_types::NCU_MCU_ICACHE_MISS;
-        }
         case HardwareCounters::FirmwareNcuMcuDcacheMiss:
-        {
             return ethosn_profiling_hw_counter_types::NCU_MCU_DCACHE_MISS;
-        }
         case HardwareCounters::FirmwareNcuMcuBusReadBeats:
-        {
             return ethosn_profiling_hw_counter_types::NCU_MCU_BUS_READ_BEATS;
-        }
         case HardwareCounters::FirmwareNcuMcuBusWriteBeats:
-        {
             return ethosn_profiling_hw_counter_types::NCU_MCU_BUS_WRITE_BEATS;
-        }
         default:
-        {
             ETHOSN_FAIL_MSG("ethosn_profiling_hw_counter_types not in sync with HardwareCounters");
             return ethosn_profiling_hw_counter_types::NCU_MCU_BUS_WRITE_BEATS;
-        }
     }
 }
 
@@ -372,154 +420,139 @@ using EntryData = decltype(ethosn_profiling_entry::data);
 
 uint64_t GetIdForCounterValue(EntryId id)
 {
-    uint64_t retVal;
     // Convert ID (which is this case is the counter name)
     switch (static_cast<FirmwareCounterName>(id))
     {
         case FirmwareCounterName::DwtSleepCycleCount:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareDwtSleepCycleCount);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareDwtSleepCycleCount);
         case FirmwareCounterName::EventQueueSize:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareEventQueueSize);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareEventQueueSize);
         case FirmwareCounterName::DmaNumReads:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareDmaNumReads);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareDmaNumReads);
         case FirmwareCounterName::DmaNumWrites:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareDmaNumWrites);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareDmaNumWrites);
         case FirmwareCounterName::DmaReadBytes:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareDmaReadBytes);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareDmaReadBytes);
         case FirmwareCounterName::DmaWriteBytes:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareDmaWriteBytes);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareDmaWriteBytes);
         case FirmwareCounterName::BusAccessRdTransfers:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusAccessRdTransfers);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareBusAccessRdTransfers);
         case FirmwareCounterName::BusRdCompleteTransfers:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusRdCompleteTransfers);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareBusRdCompleteTransfers);
         case FirmwareCounterName::BusReadBeats:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusReadBeats);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareBusReadBeats);
         case FirmwareCounterName::BusReadTxfrStallCycles:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusReadTxfrStallCycles);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareBusReadTxfrStallCycles);
         case FirmwareCounterName::BusAccessWrTransfers:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusAccessWrTransfers);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareBusAccessWrTransfers);
         case FirmwareCounterName::BusWrCompleteTransfers:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusWrCompleteTransfers);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareBusWrCompleteTransfers);
         case FirmwareCounterName::BusWriteBeats:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusWriteBeats);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareBusWriteBeats);
         case FirmwareCounterName::BusWriteTxfrStallCycles:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusWriteTxfrStallCycles);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareBusWriteTxfrStallCycles);
         case FirmwareCounterName::BusWriteStallCycles:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusWriteStallCycles);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareBusWriteStallCycles);
         case FirmwareCounterName::BusErrorCount:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusErrorCount);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareBusErrorCount);
         case FirmwareCounterName::NcuMcuIcacheMiss:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareNcuMcuIcacheMiss);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareNcuMcuIcacheMiss);
         case FirmwareCounterName::NcuMcuDcacheMiss:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareNcuMcuDcacheMiss);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareNcuMcuDcacheMiss);
         case FirmwareCounterName::NcuMcuBusReadBeats:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareNcuMcuBusReadBeats);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareNcuMcuBusReadBeats);
         case FirmwareCounterName::NcuMcuBusWriteBeats:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareNcuMcuBusWriteBeats);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::FirmwareNcuMcuBusWriteBeats);
         default:
             // Set the return value so we don't get errors when asserts are disabled
-            retVal = static_cast<uint64_t>(CollatedCounterName::NumValues);
             assert(false);
-            break;
+            return static_cast<uint64_t>(CollatedCounterName::NumValues);
     }
-    return retVal;
 }
 
-EntryDataCategory GetFirmwareCategory(const EntryData data)
+ProfilingEntry::MetadataCategory ConvertTimelineEventToMetadataCategory(TimelineEventType timelineEventType)
 {
-    DataUnion temp = {};
-    temp.m_Raw     = data;
-    return static_cast<EntryDataCategory>(temp.m_Category);
-}
-
-ProfilingEntry::MetadataCategory ConvertCategoryEntry(const EntryDataCategory category)
-{
-    ProfilingEntry::MetadataCategory retVal;
-    switch (category)
+    switch (timelineEventType)
     {
-        case EntryDataCategory::Wfe:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareWfe;
-            break;
-        case EntryDataCategory::Inference:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareInference;
-            break;
-        case EntryDataCategory::Command:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareCommand;
-            break;
-        case EntryDataCategory::Dma:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareDma;
-            break;
-        case EntryDataCategory::Tsu:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareTsu;
-            break;
-        case EntryDataCategory::MceStripeSetup:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareMceStripeSetup;
-            break;
-        case EntryDataCategory::PleStripeSetup:
-            retVal = ProfilingEntry::MetadataCategory::FirmwarePleStripeSetup;
-            break;
-        case EntryDataCategory::Label:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareLabel;
-            break;
-        case EntryDataCategory::DmaSetup:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareDmaSetup;
-            break;
-        case EntryDataCategory::GetCompleteCommand:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareGetCompleteCommand;
-            break;
-        case EntryDataCategory::ScheduleNextCommand:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareScheduleNextCommand;
-            break;
-        case EntryDataCategory::Agent:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareAgent;
-            break;
-        case EntryDataCategory::AgentStripe:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareAgentStripe;
-            break;
-        case EntryDataCategory::Ple:
-            retVal = ProfilingEntry::MetadataCategory::FirmwarePle;
-            break;
-        case EntryDataCategory::Udma:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareUdma;
-            break;
+        case TimelineEventType::Inference:
+            return ProfilingEntry::MetadataCategory::FirmwareInference;
+        case TimelineEventType::UpdateProgress:
+            return ProfilingEntry::MetadataCategory::FirmwareUpdateProgress;
+        case TimelineEventType::Wfe:
+            return ProfilingEntry::MetadataCategory::FirmwareWfe;
+        case TimelineEventType::DmaReadSetup:
+            return ProfilingEntry::MetadataCategory::FirmwareDmaReadSetup;
+        case TimelineEventType::DmaRead:
+            return ProfilingEntry::MetadataCategory::FirmwareDmaRead;
+        case TimelineEventType::DmaWriteSetup:
+            return ProfilingEntry::MetadataCategory::FirmwareDmaWriteSetup;
+        case TimelineEventType::DmaWrite:
+            return ProfilingEntry::MetadataCategory::FirmwareDmaWrite;
+        case TimelineEventType::MceStripeSetup:
+            return ProfilingEntry::MetadataCategory::FirmwareMceStripeSetup;
+        case TimelineEventType::MceStripe:
+            return ProfilingEntry::MetadataCategory::FirmwareMceStripe;
+        case TimelineEventType::PleStripeSetup:
+            return ProfilingEntry::MetadataCategory::FirmwarePleStripeSetup;
+        case TimelineEventType::PleStripe:
+            return ProfilingEntry::MetadataCategory::FirmwarePleStripe;
+        case TimelineEventType::Udma:
+            return ProfilingEntry::MetadataCategory::FirmwareUdma;
+        case TimelineEventType::Label:
+            return ProfilingEntry::MetadataCategory::FirmwareLabel;
         default:
-            // Set the return value so we don't get errors when asserts are disabled
-            retVal = ProfilingEntry::MetadataCategory::FirmwareWfe;
             assert(false);
-            break;
+            // Set the return value so we don't get errors when asserts are disabled
+            return ProfilingEntry::MetadataCategory::FirmwareInference;
     }
-    return retVal;
 }
 
 // Converts a profiling entry reported by the kernel into the Driver Library's public ProfilingEntry representation.
-ProfilingEntry ConvertProfilingEntry(const ethosn_profiling_entry& kernelEntry)
+std::pair<bool, ProfilingEntry> ConvertProfilingEntry(const ethosn_profiling_entry& kernelEntry,
+                                                      std::map<uint8_t, ProfilingEntry>& inProgressTimelineEvents,
+                                                      uint64_t& mostRecentCorrectedKernelTimestamp,
+                                                      int clockFrequencyMhz,
+                                                      uint64_t nanosecondOffset)
 {
-    ProfilingEntry result;
-    // Assume for now that the kernel timestamps are in nanoseconds since the high_resolution_clock epoch.
-    // This is correct for entries from the model-based firmware, but is wrong (and will be fixed up later) for entries
-    // from the hardware-based firmware.
-    result.m_Timestamp =
-        std::chrono::time_point<std::chrono::high_resolution_clock>(std::chrono::nanoseconds(kernelEntry.timestamp));
+    ProfilingEntry result = {};
+
+    TimelineEntryDataUnion dataUnion;
+    dataUnion.m_Raw = kernelEntry.data;
+
+    // Convert the timestamp reported from the kernel/firmware, into a wall clock time to report
+    // in the public API. This needs to account for the clock frequency and offset of the timestamps
+    // from the firmware (they measure in clock cycles, not seconds) and also potential wraparound
+    // of the 32-bit timestamp field.
+
+    if (kernelEntry.type == ethosn_profiling_entry_type::TIMELINE_EVENT_INSTANT &&
+        static_cast<TimelineEventType>(dataUnion.m_Type) == TimelineEventType::TimestampFull)
+    {
+        // If we were given a full timestamp field then we don't need to account for wraparound.
+        // These are sent at the start of an inference to make sure we don't miss any time between
+        // configuring profiling and the start of an inference.
+        mostRecentCorrectedKernelTimestamp =
+            static_cast<uint64_t>(kernelEntry.timestamp) |
+            (static_cast<uint64_t>(dataUnion.m_TimestampFullFields.m_TimestampUpperBits) << 32U);
+        // We don't actually convert the rest of this entry as it has no further use now that
+        // we have updated the timestamp to use for converting future entries
+        return { false, {} };
+    }
+
+    // Account for timestamp overflow, assuming that at most a single overflow occured.
+    // This should be sufficient for entries during an inference because they will be quite close together.
+    // For larger gaps though we may incorrectly "skip" time, which is why the firmware sends a TimestampFull
+    // entry (see above) at the start of an inference.
+    const uint32_t diff =
+        static_cast<uint32_t>(kernelEntry.timestamp - mostRecentCorrectedKernelTimestamp % UINT32_MAX);
+    uint64_t overflowCorrectedKernelTimestamp = mostRecentCorrectedKernelTimestamp + diff;
+
+    // Remember this corrected timestamp for the next entry we convert, so that we can correctly
+    // correct that timestamp too.
+    mostRecentCorrectedKernelTimestamp = overflowCorrectedKernelTimestamp;
+
+    // Now we account for the different clock frequency and offset
+    result.m_Timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>(
+        std::chrono::nanoseconds((1000 / clockFrequencyMhz) * overflowCorrectedKernelTimestamp + nanosecondOffset));
 
     switch (kernelEntry.type)
     {
@@ -530,28 +563,61 @@ ProfilingEntry ConvertProfilingEntry(const ethosn_profiling_entry& kernelEntry)
             result.m_MetadataValue    = kernelEntry.data;
             break;
         case ethosn_profiling_entry_type::TIMELINE_EVENT_START:
-            result.m_Id               = static_cast<uint64_t>(kernelEntry.id);
-            result.m_Type             = ProfilingEntry::Type::TimelineEventStart;
-            result.m_MetadataCategory = ConvertCategoryEntry(GetFirmwareCategory(kernelEntry.data));
-            result.m_MetadataValue    = kernelEntry.data;
-            break;
+        {
+            // Rather than using the ID from the kernel entry which is only short and will re-use values,
+            // assign a new unique ID to make later processing simpler.
+            result.m_Id   = GetNextTimelineEventId();
+            result.m_Type = ProfilingEntry::Type::TimelineEventStart;
+            result.m_MetadataCategory =
+                ConvertTimelineEventToMetadataCategory(static_cast<TimelineEventType>(dataUnion.m_Type));
+
+            // Remember that this event is in flight, so we can match it up with the end
+            // event and assign the same ID to it
+            inProgressTimelineEvents[kernelEntry.id] = result;
+        }
+        break;
         case ethosn_profiling_entry_type::TIMELINE_EVENT_END:
-            result.m_Id               = static_cast<uint64_t>(kernelEntry.id);
-            result.m_Type             = ProfilingEntry::Type::TimelineEventEnd;
-            result.m_MetadataCategory = ConvertCategoryEntry(GetFirmwareCategory(kernelEntry.data));
-            result.m_MetadataValue    = kernelEntry.data;
-            break;
+        {
+            // Find the corresponding start event, so that we can use the same ID (we re-map the IDs)
+            auto startEntryIt = inProgressTimelineEvents.find(kernelEntry.id);
+            if (startEntryIt == inProgressTimelineEvents.end())
+            {
+                g_Logger.Warning("Profiling TIMELINE_EVENT_END entry has no corresponding start event - skipping");
+                return { false, {} };
+            }
+
+            result.m_Id   = startEntryIt->second.m_Id;
+            result.m_Type = ProfilingEntry::Type::TimelineEventEnd;
+            // Also copy the metadata from the start event for convenience
+            // (the end event from the firmware won't have anything here)
+            result.m_MetadataCategory = startEntryIt->second.m_MetadataCategory;
+            result.m_MetadataValue    = startEntryIt->second.m_MetadataValue;
+
+            inProgressTimelineEvents.erase(startEntryIt);
+        }
+        break;
         case ethosn_profiling_entry_type::TIMELINE_EVENT_INSTANT:
-            result.m_Id               = static_cast<uint64_t>(kernelEntry.id);
-            result.m_Type             = ProfilingEntry::Type::TimelineEventInstant;
-            result.m_MetadataCategory = ConvertCategoryEntry(GetFirmwareCategory(kernelEntry.data));
-            result.m_MetadataValue    = kernelEntry.data;
-            break;
+        {
+            // The ID from the kernel entry won't be set as it isn't needed,
+            // so we assign a new unique ID to make further processing simpler.
+            result.m_Id   = GetNextTimelineEventId();
+            result.m_Type = ProfilingEntry::Type::TimelineEventInstant;
+            result.m_MetadataCategory =
+                ConvertTimelineEventToMetadataCategory(static_cast<TimelineEventType>(dataUnion.m_Type));
+            if (result.m_MetadataCategory == ProfilingEntry::MetadataCategory::FirmwareLabel)
+            {
+                // Convert the label and store into driver library metadata field.
+                // It can be decoded from the public API using GetFirmwareLabel
+                result.m_MetadataValue = dataUnion.m_LabelFields.m_Char1 | dataUnion.m_LabelFields.m_Char2 << 8 |
+                                         dataUnion.m_LabelFields.m_Char3 << 16;
+            }
+        }
+        break;
         default:
             throw std::runtime_error(std::string("Invalid profiling entry type from kernel"));
             break;
     }
-    return result;
+    return { true, result };
 }
 
 }    // namespace profiling
