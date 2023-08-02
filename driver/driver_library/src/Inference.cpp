@@ -7,6 +7,7 @@
 
 #include "DumpProfiling.hpp"
 #include "ProfilingInternal.hpp"
+#include "Utils.hpp"
 
 #if defined(__unix__)
 #include <uapi/ethosn.h>
@@ -15,7 +16,9 @@
 #include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <thread>
 #if defined(__unix__)
+#include <poll.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
 #endif
@@ -49,7 +52,7 @@ private:
 };
 
 Inference::Inference(int fileDescriptor)
-    : inferenceImpl{ std::make_unique<InferenceImpl>(fileDescriptor) }
+    : m_Impl{ std::make_unique<InferenceImpl>(fileDescriptor) }
 {
     if (profiling::g_CurrentConfiguration.m_EnableProfiling)
     {
@@ -90,7 +93,7 @@ Inference::~Inference()
 
 int Inference::GetFileDescriptor() const
 {
-    return inferenceImpl->GetFileDescriptor();
+    return m_Impl->GetFileDescriptor();
 }
 
 uint64_t Inference::GetCycleCount() const
@@ -104,6 +107,59 @@ uint64_t Inference::GetCycleCount() const
     }
 #endif
     return cycleCount;
+}
+
+InferenceResult Inference::Wait(uint32_t timeoutMs) const
+{
+#if defined(__unix__)
+    struct pollfd fds;
+    memset(&fds, 0, sizeof(fds));
+    fds.fd     = GetFileDescriptor();
+    fds.events = POLLIN;    // Wait for any available input
+
+    int pollResult = poll(&fds, 1, timeoutMs);
+
+    if (pollResult < 0)
+    {
+        int err = errno;
+        g_Logger.Error("Failed to read inference result status (poll returned %s)", strerror(err));
+        return InferenceResult::Error;
+    }
+    else
+    {
+        // Either poll timed out or it finished successfully. Either way, read and return the final status
+        ethosn::driver_library::InferenceResult result;
+        if (read(GetFileDescriptor(), &result, sizeof(result)) != static_cast<ssize_t>(sizeof(result)))
+        {
+            int err = errno;
+            g_Logger.Error("Failed to read inference result status (read returned %s)", strerror(err));
+            return InferenceResult::Error;
+        }
+        else if (result == ethosn::driver_library::InferenceResult::Completed ||
+                 result == ethosn::driver_library::InferenceResult::Error)
+        {
+            return result;
+        }
+        else if (result == ethosn::driver_library::InferenceResult::Scheduled ||
+                 result == ethosn::driver_library::InferenceResult::Running)
+        {
+            g_Logger.Error("Inference timed out");
+            return result;
+        }
+        else
+        {
+            g_Logger.Error("Inference failed with unknown status %d", static_cast<uint32_t>(result));
+            return ethosn::driver_library::InferenceResult::Error;
+        }
+    }
+
+#else
+    // Default to success as for platforms other than Linux we assume we are running on the model and therefore
+    // there is no need to wait.
+    ETHOSN_UNUSED(timeoutMs);
+    return InferenceResult::Completed;
+
+#endif
 }
 
 }    // namespace driver_library

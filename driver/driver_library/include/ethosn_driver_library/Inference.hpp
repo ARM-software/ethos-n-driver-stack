@@ -44,9 +44,17 @@ public:
     /// If this is called before an inference has finished running, this will return zero.
     uint64_t GetCycleCount() const;
 
+    /// Blocks the current thread until the inference is complete, or the given
+    /// timeout expires.
+    /// Returns the status of the inference at that time:
+    ///   - If the inference finished then the result will be Completed or Error
+    ///   - If the timeout expired before the inference finished then the result
+    ///     will be Scheduled or Running
+    InferenceResult Wait(uint32_t timeoutMs) const;
+
 private:
     class InferenceImpl;
-    std::unique_ptr<InferenceImpl> inferenceImpl;
+    std::unique_ptr<InferenceImpl> m_Impl;
 };
 }    // namespace driver_library
 }    // namespace ethosn

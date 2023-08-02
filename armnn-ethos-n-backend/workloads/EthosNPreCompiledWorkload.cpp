@@ -29,7 +29,6 @@
 #include <sstream>
 #include <vector>
 #if defined(__unix__)
-#include <poll.h>
 #include <unistd.h>
 #elif defined(_MSC_VER)
 #include <io.h>
@@ -38,120 +37,10 @@
 
 using namespace arm::pipe;
 
-// Error codes for the WaitStatus class
-enum class WaitErrorCode
-{
-    Success = 0,
-    Timeout = 1,
-    Error   = 2
-};
-
-// Status class for WaitForInference
-class WaitStatus
-{
-public:
-    // Default constructor
-    WaitStatus()
-        : m_ErrorCode(WaitErrorCode::Success)
-        , m_ErrorDescription("")
-    {}
-
-    // Standard constructor
-    explicit WaitStatus(WaitErrorCode errorCode, std::string errorDescription = "")
-        : m_ErrorCode(errorCode)
-        , m_ErrorDescription(std::move(errorDescription))
-    {}
-
-    // Allow instances of this class to be copy constructed
-    WaitStatus(const WaitStatus&) = default;
-
-    // Allow instances of this class to be move constructed
-    WaitStatus(WaitStatus&&) = default;
-
-    // Allow instances of this class to be copy assigned
-    WaitStatus& operator=(const WaitStatus&) = default;
-
-    // Allow instances of this class to be move assigned
-    WaitStatus& operator=(WaitStatus&&) = default;
-
-    // Explicit bool conversion operator
-    explicit operator bool() const noexcept
-    {
-        return m_ErrorCode == WaitErrorCode::Success;
-    }
-
-    // Gets the error code
-    WaitErrorCode GetErrorCode() const
-    {
-        return m_ErrorCode;
-    }
-
-    // Gets the error description (if any)
-    std::string GetErrorDescription() const
-    {
-        return m_ErrorDescription;
-    }
-
-private:
-    WaitErrorCode m_ErrorCode;
-    std::string m_ErrorDescription;
-};
-
 namespace armnn
 {
 namespace
 {
-
-// Wait for an inference to complete
-WaitStatus WaitForInference(int fd, int timeout)
-{
-    // Default to success as for platforms other than Linux we assume we are running on the model and therefore
-    // there is no need to wait.
-    WaitStatus result;
-
-#if defined(__unix__)
-    // Wait for the inference to complete
-    struct pollfd fds;
-    memset(&fds, 0, sizeof(fds));
-    fds.fd     = fd;
-    fds.events = POLLIN;    // Wait for any available input
-
-    const int msPerSeconds = 1000;
-    int pollResult         = poll(&fds, 1, timeout * msPerSeconds);
-    // Stash errno immediately after poll call
-    int pollErrorCode = errno;
-    if (pollResult > 0)
-    {
-        ethosn::driver_library::InferenceResult ethosNResult;
-        if (read(fd, &ethosNResult, sizeof(ethosNResult)) != static_cast<ssize_t>(sizeof(ethosNResult)))
-        {
-            result = WaitStatus(WaitErrorCode::Error,
-                                "Failed to read inference result status (" + std::string(strerror(errno)) + ")");
-        }
-        else if (ethosNResult == ethosn::driver_library::InferenceResult::Completed)
-        {
-            result = WaitStatus(WaitErrorCode::Success);
-        }
-        else
-        {
-            result = WaitStatus(WaitErrorCode::Error,
-                                "Inference failed with status " + std::to_string(static_cast<uint32_t>(ethosNResult)));
-        }
-    }
-    else if (pollResult == 0)
-    {
-        result = WaitStatus(WaitErrorCode::Timeout, "Timed out while waiting for the inference to complete");
-    }
-    else
-    {
-        // pollResult < 0
-        result = WaitStatus(WaitErrorCode::Error, "Error while waiting for the inference to complete (" +
-                                                      std::string(strerror(pollErrorCode)) + ")");
-    }
-#endif
-
-    return result;
-}
 
 void SendProfilingEvents()
 {
@@ -345,10 +234,13 @@ void EthosNPreCompiledWorkload::Execute() const
             m_Network->ScheduleInference(inputBuffers.data(), numInputBuffers, outputBuffers.data(), numOutputBuffers));
     }
 
-    WaitStatus result;
+    ethosn::driver_library::InferenceResult result;
     {
-        ARMNN_SCOPED_PROFILING_EVENT_ETHOSN("EthosNPreCompiledWorkload_WaitForInference");
-        result = WaitForInference(inference->GetFileDescriptor(), m_PreCompiledObject->GetInferenceTimeout());
+        ARMNN_SCOPED_PROFILING_EVENT_ETHOSN("EthosNPreCompiledWorkload_Wait");
+        uint32_t timeoutMs = m_PreCompiledObject->GetInferenceTimeout() < 0
+                                 ? UINT32_MAX
+                                 : static_cast<uint32_t>(m_PreCompiledObject->GetInferenceTimeout()) * 1000;
+        result = inference->Wait(timeoutMs);
     }
 
     ARMNN_LOG(debug) << "Ethos-N cycle count: " << inference->GetCycleCount();
@@ -356,15 +248,18 @@ void EthosNPreCompiledWorkload::Execute() const
     {
         SendProfilingEvents();
     }
-    switch (result.GetErrorCode())
+    switch (result)
     {
-        case WaitErrorCode::Success:
+        case ethosn::driver_library::InferenceResult::Scheduled:
+            // Intentional fallthrough
+        case ethosn::driver_library::InferenceResult::Running:
+            throw RuntimeException("Ethos-N inference timed out after " +
+                                   std::to_string(m_PreCompiledObject->GetInferenceTimeout()) + "s");
+        case ethosn::driver_library::InferenceResult::Completed:
+            // Yay!
             break;
-        case WaitErrorCode::Timeout:
-        case WaitErrorCode::Error:
-        default:
-            throw RuntimeException("An error has occurred waiting for the inference of a pre-compiled object: " +
-                                   result.GetErrorDescription());
+        case ethosn::driver_library::InferenceResult::Error:
+            throw RuntimeException("Ethos-N inference error");
     }
 }
 
