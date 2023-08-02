@@ -410,8 +410,7 @@ ethosn_profiling_hw_counter_types ConvertHwCountersToKernel(HardwareCounters cou
         case HardwareCounters::FirmwareNcuMcuBusWriteBeats:
             return ethosn_profiling_hw_counter_types::NCU_MCU_BUS_WRITE_BEATS;
         default:
-            ETHOSN_FAIL_MSG("ethosn_profiling_hw_counter_types not in sync with HardwareCounters");
-            return ethosn_profiling_hw_counter_types::NCU_MCU_BUS_WRITE_BEATS;
+            throw std::runtime_error("ethosn_profiling_hw_counter_types not in sync with HardwareCounters");
     }
 }
 
@@ -464,9 +463,7 @@ uint64_t GetIdForCounterValue(EntryId id)
         case FirmwareCounterName::NcuMcuBusWriteBeats:
             return static_cast<uint64_t>(CollatedCounterName::FirmwareNcuMcuBusWriteBeats);
         default:
-            // Set the return value so we don't get errors when asserts are disabled
-            assert(false);
-            return static_cast<uint64_t>(CollatedCounterName::NumValues);
+            throw std::runtime_error("Unknown counter with ID " + std::to_string(id));
     }
 }
 
@@ -501,9 +498,8 @@ ProfilingEntry::MetadataCategory ConvertTimelineEventToMetadataCategory(Timeline
         case TimelineEventType::Label:
             return ProfilingEntry::MetadataCategory::FirmwareLabel;
         default:
-            assert(false);
-            // Set the return value so we don't get errors when asserts are disabled
-            return ProfilingEntry::MetadataCategory::FirmwareInference;
+            throw std::runtime_error("Unknown timeline event type with value " +
+                                     std::to_string(static_cast<uint32_t>(timelineEventType)));
     }
 }
 
