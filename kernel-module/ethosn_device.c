@@ -92,11 +92,10 @@ resource_size_t to_ethosn_addr(const resource_size_t linux_addr,
 	const resource_size_t region_addr = addr_map->region;
 	const resource_size_t region_extend = addr_map->extension;
 	const resource_size_t region_size = 1 << REGION_SHIFT;
-	const resource_size_t region_mask = region_size - 1;
 	resource_size_t ethosn_addr;
 
 	/* Verify that region addresses are a multiple of the region size. */
-	if ((region_addr | region_extend) & region_mask)
+	if ((region_addr | region_extend) & ETHOSN_REGION_MASK)
 		return -EFAULT;
 
 	/*
@@ -108,7 +107,7 @@ resource_size_t to_ethosn_addr(const resource_size_t linux_addr,
 		return -EFAULT;
 
 	/* Combine the region address with the region offset. */
-	ethosn_addr = region_addr | (linux_addr & region_mask);
+	ethosn_addr = region_addr | (linux_addr & ETHOSN_REGION_MASK);
 
 	return ethosn_addr;
 }
@@ -643,8 +642,13 @@ static int ethosn_core_reset(struct ethosn_core *core,
 	}
 
 	if (timeout >= ETHOSN_RESET_TIMEOUT_US) {
-		dev_err(core->dev, "Failed to %s reset the hardware.\n",
-			reset_type);
+		/* DL1_SYSCTLR0 might contain useful information (e.g.lockup) */
+		uint32_t sysctlr0 = ethosn_read_top_reg(core, DL1_RP,
+							DL1_SYSCTLR0);
+
+		dev_err(core->dev,
+			"Failed to %s reset the hardware. SYSCTLR0=0x%x\n",
+			reset_type, sysctlr0);
 
 		return -EFAULT;
 	}
@@ -1364,32 +1368,26 @@ int ethosn_send_inference(struct ethosn_core *core,
 /**
  * firmware_dma_map() - DMA map firmware
  * @core:		Pointer to Ethos-N core with firmware to DMA map
- * @ple_offset:		Offset to PLE kernels in the firmware
- * @stack_offset:	Offset to the stacks in the firmware
- * @stack_size:		Size of the stacks in the firmware
+ * @unpriv_stack_offset:Offset to the unprivileged stack in the loaded firmware
+ * @end:		Offset to the end of the loaded firmware
  *
  * Return: 0 on success, else error code.
  */
 static int firmware_dma_map(struct ethosn_core *core,
-			    size_t ple_offset,
-			    size_t stack_offset,
-			    size_t stack_size)
+			    size_t unpriv_stack_offset,
+			    size_t end)
 {
-	struct ethosn_dma_prot_range prot_ranges[3];
+	struct ethosn_dma_prot_range prot_ranges[2];
 	int ret;
 
-	/* Code need to be writable (e.g. global variables are stored here) */
+	/* Code, PLE kernels and vector table can be read-only */
 	prot_ranges[0].start = 0;
-	prot_ranges[0].end = ple_offset;
-	prot_ranges[0].prot = ETHOSN_PROT_READ | ETHOSN_PROT_WRITE;
-	/* PLE kernels and vector need to be read-only */
-	prot_ranges[1].start = ple_offset;
-	prot_ranges[1].end = stack_offset;
-	prot_ranges[1].prot = ETHOSN_PROT_READ;
+	prot_ranges[0].end = unpriv_stack_offset;
+	prot_ranges[0].prot = ETHOSN_PROT_READ;
 	/* Stacks need to be writable */
-	prot_ranges[2].start = stack_offset;
-	prot_ranges[2].end = stack_size;
-	prot_ranges[2].prot = ETHOSN_PROT_READ | ETHOSN_PROT_WRITE;
+	prot_ranges[1].start = unpriv_stack_offset;
+	prot_ranges[1].end = end;
+	prot_ranges[1].prot = ETHOSN_PROT_READ | ETHOSN_PROT_WRITE;
 
 	ret = ethosn_dma_map_with_prot_ranges(core->main_allocator,
 					      core->firmware,
@@ -1442,8 +1440,7 @@ static int protected_firmware_map(struct ethosn_core *core)
 		goto error;
 	}
 
-	ret = firmware_dma_map(core, firmware->ple_offset,
-			       firmware->stack_offset, firmware->size);
+	ret = firmware_dma_map(core, firmware->stack_offset, firmware->size);
 	if (ret) {
 		dev_err(core->dev,
 			"%s: Failed to DMA map firmware in protected memory: %d\n",
@@ -1521,6 +1518,13 @@ static int firmware_load(struct ethosn_core *core)
 	const struct firmware *fw;
 	struct ethosn_big_fw *big_fw;
 	int ret = -ENOMEM;
+	uint32_t load_src_offset = 0;
+	uint32_t load_src_size = 0;
+	bool is_first_core = (core == core->parent->core[0]);
+	bool is_carveout_second_core = !core->parent->smmu_available &&
+				       !is_first_core;
+
+	dev_dbg(core->dev, "Requesting firmware\n");
 
 	/* Request firmware binary */
 	ret = request_firmware(&fw, "ethosn.bin", core->parent->dev);
@@ -1562,48 +1566,8 @@ static int firmware_load(struct ethosn_core *core)
 		big_fw->priv_stack_offset,
 		big_fw->priv_stack_size);
 
-	/* Unmap, as the mappings may have changed (e.g. if a new
-	 * firmware binary was deployed while the kernel module is running)
-	 */
-	if (core->firmware)
-		ethosn_dma_unmap(core->main_allocator, core->firmware);
-
-	/* If the firmware binary has changed size since the memory was
-	 * allocated, (e.g. if a new firmware binary was deployed while the
-	 * kernel module is running), then re-allocate it
-	 */
-	if (core->firmware && core->firmware->size != big_fw->size)
-		ethosn_dma_release(core->main_allocator, &core->firmware);
-
-	/* Allocate space for the whole binary (if necessary).
-	 * No mapping yet - we do that later as each asset has different flags.
-	 * We still need to do the allocation in one go though, as the firmware
-	 * layout in memory needs to be identical to the layout of the binary,
-	 * as the firmware code makes assumptions about this.
-	 */
-	if (!core->firmware) {
-		core->firmware = ethosn_dma_alloc(core->main_allocator,
-						  big_fw->size,
-						  ETHOSN_STREAM_FIRMWARE,
-						  GFP_KERNEL,
-						  "firmware");
-
-		if (IS_ERR_OR_NULL(core->firmware)) {
-			dev_err(core->dev, "%s: ethosn_dma_alloc failed: %ld\n",
-				__func__, PTR_ERR(core->firmware));
-			ret = -ENOMEM;
-			goto release_fw;
-		}
-	}
-
-	/* Copy firmware binary into the allocation */
-	memcpy(core->firmware->cpu_addr, fw->data + big_fw->offset,
-	       big_fw->size);
-	ethosn_dma_sync_for_device(core->main_allocator, core->firmware);
-
-	/* Map each asset (separately, as we need different protection
-	 * for some assets). First check that the assets are in the expected
-	 * order, otherwise the mappings might be wrong.
+	/* First check that the assets are in the expected
+	 * order, otherwise the following logic might be wrong.
 	 */
 	if (big_fw->code_offset >= big_fw->ple_offset ||
 	    big_fw->ple_offset >= big_fw->vector_table_offset ||
@@ -1615,19 +1579,99 @@ static int firmware_load(struct ethosn_core *core)
 		goto release_fw;
 	}
 
-	ret = firmware_dma_map(core, big_fw->ple_offset,
-			       big_fw->unpriv_stack_offset, big_fw->size);
+	/* For carveout dual core, we re-use the code loaded for the first core
+	 * to run the second core, and thus avoid having to use
+	 * position-independent code in the firmware. We therefore only need
+	 * to load the vector table and stacks into memory for the second core.
+	 */
+	load_src_offset =
+		is_carveout_second_core ? big_fw->vector_table_offset : 0;
+	load_src_size = is_carveout_second_core ? big_fw->size -
+			big_fw->vector_table_offset : big_fw->size;
+
+	/* Allocate space for the parts of the binary that we need to load.
+	 * No mapping yet - we do that later as each asset has different flags.
+	 * We still need to do the allocation in one go though, as the firmware
+	 * layout in memory needs to be identical to the layout of the binary,
+	 * as the firmware code makes assumptions about this.
+	 */
+	core->firmware = ethosn_dma_alloc(core->main_allocator,
+					  load_src_size,
+					  ETHOSN_STREAM_FIRMWARE,
+					  GFP_KERNEL,
+					  "firmware");
+
+	if (IS_ERR_OR_NULL(core->firmware)) {
+		dev_err(core->dev, "%s: ethosn_dma_alloc failed: %ld\n",
+			__func__, PTR_ERR(core->firmware));
+		ret = -ENOMEM;
+		goto release_fw;
+	}
+
+	/* Copy firmware binary into the allocation */
+	memcpy(core->firmware->cpu_addr,
+	       fw->data + big_fw->offset + load_src_offset,
+	       load_src_size);
+	ethosn_dma_sync_for_device(core->main_allocator, core->firmware);
+
+	/* Map each asset (separately, as we need different protection
+	 * for some assets)
+	 */
+	ret = firmware_dma_map(core,
+			       big_fw->unpriv_stack_offset - load_src_offset,
+			       load_src_size);
 	if (ret < 0) {
 		dev_err(core->dev, "%s: Failed to DMA map firmware: %d\n",
 			__func__, ret);
 		goto free_firmware;
 	}
 
+	/* Firmware must be allocated at the start of the carveout/smmu region,
+	 * so
+	 * that assumptions made in the MPU setup (and other places) are valid.
+	 * For core 1 in a dual-core carveout setup though, this can't happen
+	 * and we sacrifice some security in the MPU setup.
+	 */
+	if (!is_carveout_second_core &&
+	    (core->firmware->iova_addr & ETHOSN_REGION_MASK) != 0) {
+		dev_err(core->dev,
+			"ethosn_dma_alloc for firmware on core 0 must be at address zero\n");
+		ret = -EINVAL;
+		goto release_fw;
+	}
+
 	/* Remember the vector table address, as we'll need this to boot the
 	 * firmware.
 	 */
 	core->firmware_vtable_dma_addr = core->firmware->iova_addr +
-					 big_fw->vector_table_offset;
+					 big_fw->vector_table_offset -
+					 load_src_offset;
+
+	/* For core 1 in a dual-core carveout setup, the vector table hardcoded
+	 * into firmware binary will point to the first core's privileged stack,
+	 * which we need to fix up to instead point to the second core's
+	 * privileged stack which we just allocated.
+	 */
+	if (is_carveout_second_core) {
+		uint32_t *vtable = core->firmware->cpu_addr +
+				   big_fw->vector_table_offset -
+				   load_src_offset;
+		/* Calculate bottom of the privileged stack */
+		uint32_t new_stack_pointer =
+			(core->firmware->iova_addr + big_fw->priv_stack_offset +
+			 big_fw->priv_stack_size - load_src_offset) &
+			ETHOSN_REGION_MASK;
+
+		ethosn_dma_sync_for_cpu(core->main_allocator, core->firmware);
+
+		dev_dbg(core->dev,
+			"Updating carveout second core vtable stack pointer from 0x%x to 0x%x\n",
+			vtable[0], new_stack_pointer);
+		vtable[0] = new_stack_pointer;
+
+		ethosn_dma_sync_for_device(core->main_allocator,
+					   core->firmware);
+	}
 
 	release_firmware(fw);
 
@@ -1662,7 +1706,6 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 
 	dev_info(core->dev, "Reset core device\n");
 
-	/* Firmware is not running */
 	core->firmware_running = false;
 
 	/* Clear any outstanding configuration */
@@ -1681,38 +1724,6 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 	ret = ethosn_reset(core, false, alloc_id);
 	if (ret)
 		return ret;
-
-#ifdef ETHOSN_TZMP1
-
-	/*
-	 * Firmware has already been loaded into the protected memory by TF-A
-	 * during boot so it only needs to be mapped
-	 */
-	ret = protected_firmware_map(core);
-	if (ret) {
-		dev_err(core->dev,
-			"%s: Failed to map protected firmware %d\n",
-			__func__, ret);
-
-		return ret;
-	}
-
-#else
-
-	/* Load the firmware. Note this must be done after resetting the device,
-	 * so that the firmware code isn't being run and we can safely
-	 * overwrite it
-	 */
-	ret = firmware_load(core);
-	if (ret) {
-		dev_err(core->dev,
-			"%s: firmware_load failed with %i\n",
-			__func__, ret);
-
-		return ret;
-	}
-
-#endif
 
 	/* In a secure build, TF-A will perform the setup below */
 #ifdef ETHOSN_NS
@@ -1780,6 +1791,9 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 				     parent->asset_allocator[0],
 				     ETHOSN_STREAM_COMMAND_STREAM));
 
+	/* Clear GP_BOOT_SUCCESS so we know when it is set by the firmware*/
+	ethosn_write_top_reg(core, DL1_RP, GP_BOOT_SUCCESS, 0);
+
 	/* Boot the firmware */
 	ret = ethosn_boot_firmware(core);
 	if (ret)
@@ -1787,19 +1801,27 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 
 	dev_info(core->dev, "Waiting for core device\n");
 
-	/* Wait for firmware to set GP_MAILBOX to 0 which indicates that it has
+	/* Wait for firmware to set GP_BOOT_SUCCESS which indicates that it has
 	 * booted
 	 */
 	for (timeout = 0; timeout < ETHOSN_RESET_TIMEOUT_US;
 	     timeout += ETHOSN_RESET_WAIT_US) {
-		if (ethosn_read_top_reg(core, DL1_RP, GP_MAILBOX) == 0)
+		if (ethosn_read_top_reg(core, DL1_RP,
+					GP_BOOT_SUCCESS) ==
+		    ETHOSN_FIRMWARE_BOOT_SUCCESS_MAGIC)
 			break;
 
 		udelay(ETHOSN_RESET_WAIT_US);
 	}
 
 	if (timeout >= ETHOSN_RESET_TIMEOUT_US) {
-		dev_err(core->dev, "Timeout while waiting for core device\n");
+		/* DL1_SYSCTLR0 might contain useful information (e.g.lockup) */
+		uint32_t sysctlr0 = ethosn_read_top_reg(core, DL1_RP,
+							DL1_SYSCTLR0);
+
+		dev_err(core->dev,
+			"Timeout while waiting for core device. SYSCTLR0=0x%x.\n",
+			sysctlr0);
 
 		return -ETIME;
 	}
@@ -2423,9 +2445,6 @@ static void dfs_init(struct ethosn_core *core)
 
 int ethosn_device_init(struct ethosn_core *core)
 {
-#ifndef ETHOSN_TZMP1
-	const bool smmu_available = core->parent->smmu_available;
-#endif
 	int ret;
 
 	/* Round up queue size to next power of 2 */
@@ -2434,13 +2453,30 @@ int ethosn_device_init(struct ethosn_core *core)
 	/* Initialize debugfs */
 	dfs_init(core);
 
-#ifndef ETHOSN_TZMP1
-	/* When Carveout is used, the firmware must be allocated first */
-	if (!smmu_available) {
-		/* Load the firmware */
-		ret = firmware_load(core);
-		if (ret)
-			goto remove_debufs;
+#ifdef ETHOSN_TZMP1
+
+	/*
+	 * Firmware has already been loaded into the protected memory by TF-A
+	 * during boot so it only needs to be mapped
+	 */
+	ret = protected_firmware_map(core);
+	if (ret) {
+		dev_err(core->dev,
+			"%s: Failed to map protected firmware %d\n",
+			__func__, ret);
+
+		return ret;
+	}
+
+#else
+
+	ret = firmware_load(core);
+	if (ret) {
+		dev_err(core->dev,
+			"%s: firmware_load failed with %i\n",
+			__func__, ret);
+
+		return ret;
 	}
 
 #endif
@@ -2448,17 +2484,17 @@ int ethosn_device_init(struct ethosn_core *core)
 	/* Allocate the mailbox structure */
 	ret = mailbox_alloc(core);
 	if (ret)
-		goto deinit_firmware;
+		goto remove_debugfs;
 
 	/* Allocate the firmware log */
 	ret = firmware_log_alloc(core);
 	if (ret)
-		goto deinit_firmware;
+		goto remove_debugfs;
 
 	/* Allocate the debug_monitor_channel structure */
 	ret = debug_monitor_channel_alloc(core);
 	if (ret)
-		goto deinit_firmware;
+		goto remove_debugfs;
 
 	/* For multi-npu, we test only the first NPU */
 	if (ethosn_global_core_for_testing == NULL)
@@ -2469,13 +2505,7 @@ int ethosn_device_init(struct ethosn_core *core)
 
 	return 0;
 
-deinit_firmware:
-#ifndef ETHOSN_TZMP1
-	if (!smmu_available)
-		ethosn_firmware_deinit(core);
-
-remove_debufs:
-#endif
+remove_debugfs:
 	dfs_deinit(core);
 
 	return ret;

@@ -47,7 +47,7 @@
  * This is common for the fat binary (ethosn.bin) and the individual
  * firmware binaries (sub-components of the fat binary).
  */
-#define ETHOSN_FIRMWARE_VERSION_MAJOR 14
+#define ETHOSN_FIRMWARE_VERSION_MAJOR 15
 #define ETHOSN_FIRMWARE_VERSION_MINOR 0
 #define ETHOSN_FIRMWARE_VERSION_PATCH 0
 
@@ -522,9 +522,15 @@ struct ethosn_message_error_response {
  * between kernel driver and firmware
  */
 #define GP_MAILBOX                      DL1_GP1
+#define GP_BOOT_SUCCESS                 DL1_GP2
 #define GP_DEBUG_MONITOR_CHANNEL        DL1_GP4
 #define GP_MAILBOX_SIZE                 DL1_GP5
 #define GP_COMMAND_STREAM_SIZE          DL1_GP6
+
+/* Special value stored in GP_BOOT_SUCCESS by the firmware to indicate
+ * that it has successfully booted.
+ */
+#define ETHOSN_FIRMWARE_BOOT_SUCCESS_MAGIC 0x12488421
 
 /*
  * Struct used for reporting faults from the firmware to the

@@ -767,10 +767,19 @@ static void ethosn_irq_bottom(struct work_struct *work)
 	if (ret < 0 || error_status) {
 		/* Failure may happen before the firmware is deemed running. */
 		if (error_status) {
+			uint32_t sysctlr0;
+
 			dev_err(core->dev,
 				"Error reported by IRQ_STATUS: %s. Will reset core after dump.\n",
 				print_irq_status_reg(buffer, sizeof(buffer),
 						     status));
+
+			/* DL1_SYSCTLR0 might contain useful
+			 * information (e.g.lockup)
+			 */
+			sysctlr0 = ethosn_read_top_reg(core, DL1_RP,
+						       DL1_SYSCTLR0);
+			dev_err(core->dev, "SYSCTLR0=0x%x.\n", sysctlr0);
 
 			/* Print the firmware dump struct, if one was provided
 			 * by the firmware,
