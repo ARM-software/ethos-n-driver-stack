@@ -1684,8 +1684,8 @@ void BitstreamRope::ReserveNumElements(size_t numElements)
 
 void BitstreamRope::AddElement(BitstreamRope::Element&& element)
 {
-    m_Elements.push_back(std::move(element));
     m_TotalBits += element.numBits;
+    m_Elements.push_back(std::move(element));
 }
 
 void BitstreamRope::AddRope(BitstreamRope&& rope)

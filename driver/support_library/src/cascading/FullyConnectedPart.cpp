@@ -41,8 +41,8 @@ McePart::ConstructionParams ConvertConstructionParams(FullyConnectedPart::Constr
     mceParams.m_OperationIds           = std::move(fcParams.m_OperationIds);
     mceParams.m_InputDataType          = std::move(fcParams.m_InputDataType);
     mceParams.m_OutputDataType         = std::move(fcParams.m_OutputDataType);
-    mceParams.m_LowerBound             = fcParams.m_OutputDataType == DataType::UINT8_QUANTIZED ? 0 : -128;
-    mceParams.m_UpperBound             = fcParams.m_OutputDataType == DataType::UINT8_QUANTIZED ? 255 : 127;
+    mceParams.m_LowerBound             = mceParams.m_OutputDataType == DataType::UINT8_QUANTIZED ? 0 : -128;
+    mceParams.m_UpperBound             = mceParams.m_OutputDataType == DataType::UINT8_QUANTIZED ? 255 : 127;
     return mceParams;
 }
 
