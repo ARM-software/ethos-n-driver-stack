@@ -1091,17 +1091,14 @@ std::vector<EthosNPreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
 
     if (caching->IsLoading())
     {
-        // Currently one compiled network is supported.
-
-        armnn::Optional<std::pair<std::vector<char>, uint32_t>> cached =
-            caching->GetCompiledNetworkAndIntermediateSize(m_SubgraphIdx);
+        armnn::Optional<const EthosNCaching::CachedNetwork&> cached = caching->GetCachedNetwork(m_SubgraphIdx);
         if (cached.has_value())
         {
-            std::pair<std::vector<char>, uint32_t> networkAndIntermediate = std::move(cached.value());
-            auto preCompiledObject                                        = std::make_unique<EthosNPreCompiledObject>(
-                EthosNPreCompiledObject::Network(std::move(networkAndIntermediate.first)), m_EthosNConfig.m_Offline,
+            ARMNN_LOG(debug) << "Using cache for Ethos-N network (subgraph " << m_SubgraphIdx << ")";
+            auto preCompiledObject = std::make_unique<EthosNPreCompiledObject>(
+                EthosNPreCompiledObject::Network(cached.value().m_CompiledNetwork), m_EthosNConfig.m_Offline,
                 m_EthosNOperationNameMapping, m_EthosNConfig.m_InferenceTimeout, m_SubgraphIdx,
-                networkAndIntermediate.second);
+                cached.value().m_IntermediateDataSize);
 
             // Convert the EthosNPreCompiledObject into a "blob" (void) object and attach the custom blob deleter
             compiledBlobs.emplace_back(preCompiledObject.release(), DeleteAsType<EthosNPreCompiledObject>);
@@ -1165,7 +1162,10 @@ std::vector<EthosNPreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
             // If saving options are specified, add to stored map to save once complete.
             if (caching->IsSaving())
             {
-                caching->AddCompiledNetwork(m_SubgraphIdx, compiledNetworkData, intermediateBufSize);
+                EthosNCaching::CachedNetwork cachedNetwork;
+                cachedNetwork.m_CompiledNetwork      = compiledNetworkData;
+                cachedNetwork.m_IntermediateDataSize = intermediateBufSize;
+                caching->AddCachedNetwork(m_SubgraphIdx, std::move(cachedNetwork));
             }
 
             auto preCompiledObject = std::make_unique<EthosNPreCompiledObject>(

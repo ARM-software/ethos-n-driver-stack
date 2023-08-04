@@ -30,6 +30,12 @@ struct EthosNCachingOptions
 class EthosNCaching
 {
 public:
+    struct CachedNetwork
+    {
+        std::vector<char> m_CompiledNetwork;
+        uint32_t m_IntermediateDataSize;
+    };
+
     EthosNCaching();
     ~EthosNCaching() = default;
 
@@ -42,36 +48,12 @@ public:
 
     uint32_t GetNumCachedNetworked() const
     {
-        return static_cast<uint32_t>(m_CompiledNetworks.size());
+        return static_cast<uint32_t>(m_CachedNetworks.size());
     }
 
-    armnn::Optional<std::pair<std::vector<char>, uint32_t>>
-        GetCompiledNetworkAndIntermediateSize(uint32_t subgraphIdx) const
-    {
-        auto foundNetwork = m_CompiledNetworks.find(subgraphIdx);
-        if (foundNetwork == m_CompiledNetworks.end())
-        {
-            return {};
-        }
-        std::vector<char> compiledNetwork = foundNetwork->second;
-        if (compiledNetwork.size() <= sizeof(uint32_t))
-        {
-            ARMNN_ASSERT(compiledNetwork.size() > sizeof(uint32_t));
-            return {};
-        }
-        uint32_t intermediateSize = 0;
-        std::copy_n(compiledNetwork.end() - sizeof(uint32_t), sizeof(uint32_t),
-                    reinterpret_cast<char*>(&intermediateSize));
-        compiledNetwork.resize(compiledNetwork.size() - sizeof(uint32_t));
-        return armnn::Optional<std::pair<std::vector<char>, uint32_t>>({ compiledNetwork, intermediateSize });
-    };
+    void AddCachedNetwork(uint32_t subgraphIdx, CachedNetwork cachedNetwork);
+    armnn::Optional<const CachedNetwork&> GetCachedNetwork(uint32_t subgraphIdx) const;
 
-    void AddCompiledNetwork(uint32_t subgraphIdx, std::vector<char> compiledSubgraph, uint32_t bufferSize)
-    {
-        std::copy_n(reinterpret_cast<const char*>(&bufferSize), sizeof(bufferSize),
-                    std::back_inserter(compiledSubgraph));
-        m_CompiledNetworks[subgraphIdx] = compiledSubgraph;
-    }
     bool GetIsLoaded()
     {
         return m_IsLoaded;
@@ -104,7 +86,7 @@ private:
 
     /// Holds serialized compiled networks temporarily from all subgraphs.
     /// This is used to load or save the compiled networks.
-    std::map<uint32_t, std::vector<char>> m_CompiledNetworks;
+    std::map<uint32_t, CachedNetwork> m_CachedNetworks;
 
     // Used to determine if the m_EthosNCachingOptions or m_CompiledNetworks have been loaded or not.
     bool m_IsLoaded;

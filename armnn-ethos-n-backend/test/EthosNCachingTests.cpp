@@ -311,11 +311,11 @@ TEST_SUITE("EthosNCaching")
 
     TEST_CASE("TestCachingSavingAndLoading")
     {
-
         const testing_utils::TempDir tmpDir;
-        std::string filePath               = tmpDir.Str() + "/EthosNTesting.bin";
-        std::vector<char> compiledSubgraph = { 10, 11, 12, 13, 14 };
-        uint32_t intermediateBufferSize    = 11;
+        std::string filePath = tmpDir.Str() + "/EthosNTesting.bin";
+        EthosNCaching::CachedNetwork cachedNetwork;
+        cachedNetwork.m_CompiledNetwork      = { 10, 11, 12, 13, 14 };
+        cachedNetwork.m_IntermediateDataSize = 11;
 
         {
             EthosNCaching cache;
@@ -326,11 +326,11 @@ TEST_SUITE("EthosNCaching")
                 std::ofstream file{ filePath };
             }
             cache.SetEthosNCachingOptions({ backendOptions });
-            cache.AddCompiledNetwork(0, compiledSubgraph, intermediateBufferSize);
-            armnn::Optional<std::pair<std::vector<char>, uint32_t>> networkAndSize =
-                cache.GetCompiledNetworkAndIntermediateSize(0);
-            CHECK(networkAndSize.value().first == compiledSubgraph);
-            CHECK(networkAndSize.value().second == intermediateBufferSize);
+            cache.AddCachedNetwork(0, cachedNetwork);
+            armnn::Optional<const EthosNCaching::CachedNetwork&> network = cache.GetCachedNetwork(0);
+            REQUIRE(network.has_value());
+            CHECK(network.value().m_CompiledNetwork == cachedNetwork.m_CompiledNetwork);
+            CHECK(network.value().m_IntermediateDataSize == cachedNetwork.m_IntermediateDataSize);
             CHECK(cache.Save());
         }
         {
@@ -339,10 +339,10 @@ TEST_SUITE("EthosNCaching")
                                           { { "SaveCachedNetwork", false }, { "CachedNetworkFilePath", filePath } });
             cache.SetEthosNCachingOptions({ backendOptions });
             cache.Load();
-            armnn::Optional<std::pair<std::vector<char>, uint32_t>> networkAndSize =
-                cache.GetCompiledNetworkAndIntermediateSize(0);
-            CHECK(networkAndSize.value().first == compiledSubgraph);
-            CHECK(networkAndSize.value().second == intermediateBufferSize);
+            armnn::Optional<const EthosNCaching::CachedNetwork&> network = cache.GetCachedNetwork(0);
+            REQUIRE(network.has_value());
+            CHECK(network.value().m_CompiledNetwork == cachedNetwork.m_CompiledNetwork);
+            CHECK(network.value().m_IntermediateDataSize == cachedNetwork.m_IntermediateDataSize);
         }
         // Testing loading fails - non-existewnt file
         {
@@ -376,11 +376,11 @@ TEST_SUITE("EthosNCaching")
                 { { "SaveCachedNetwork", true }, { "CachedNetworkFilePath", nonExistentPath } });
             cache.SetEthosNCachingOptions({ backendOptions });
 
-            cache.AddCompiledNetwork(0, compiledSubgraph, intermediateBufferSize);
-            armnn::Optional<std::pair<std::vector<char>, uint32_t>> networkAndSize =
-                cache.GetCompiledNetworkAndIntermediateSize(0);
-            CHECK(networkAndSize.value().first == compiledSubgraph);
-            CHECK(networkAndSize.value().second == intermediateBufferSize);
+            cache.AddCachedNetwork(0, cachedNetwork);
+            armnn::Optional<const EthosNCaching::CachedNetwork&> network = cache.GetCachedNetwork(0);
+            REQUIRE(network.has_value());
+            CHECK(network.value().m_CompiledNetwork == cachedNetwork.m_CompiledNetwork);
+            CHECK(network.value().m_IntermediateDataSize == cachedNetwork.m_IntermediateDataSize);
             CHECK(cache.Save());
 
             CHECK(fs::exists(nonExistentPath));

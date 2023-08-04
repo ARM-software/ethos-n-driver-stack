@@ -60,13 +60,27 @@ EthosNCachingOptions GetEthosNCachingOptionsFromModelOptions(const armnn::ModelO
 
 EthosNCaching::EthosNCaching()
     : m_EthosNCachingOptions({ false, "" })
-    , m_CompiledNetworks()
     , m_IsLoaded(false)
 {}
 
 void EthosNCaching::SetEthosNCachingOptions(const armnn::ModelOptions& modelOptions)
 {
     m_EthosNCachingOptions = GetEthosNCachingOptionsFromModelOptions(modelOptions);
+}
+
+armnn::Optional<const EthosNCaching::CachedNetwork&> EthosNCaching::GetCachedNetwork(uint32_t subgraphIdx) const
+{
+    auto foundNetwork = m_CachedNetworks.find(subgraphIdx);
+    if (foundNetwork == m_CachedNetworks.end())
+    {
+        return {};
+    }
+    return foundNetwork->second;
+}
+
+void EthosNCaching::AddCachedNetwork(uint32_t subgraphIdx, CachedNetwork cachedNetwork)
+{
+    m_CachedNetworks[subgraphIdx] = std::move(cachedNetwork);
 }
 
 bool EthosNCaching::IsSaving()
@@ -118,34 +132,37 @@ bool EthosNCaching::SaveCachedSubgraphs()
         return true;
     }
 
-    // Save map to a filepath provided in ModelOptions. This will be validated by now.
+    // Save map to a filepath provided in ModelOptions. This will have been validated by now.
     std::string filePath = m_EthosNCachingOptions.m_CachedNetworkFilePath;
     ARMNN_LOG(info) << "Saving cached network " << filePath;
     std::ofstream out(filePath, std::ios::binary);
 
     // Write the number of subgraphs, used for the loop limit.
-    uint32_t numOfSubgraphs = static_cast<uint32_t>(m_CompiledNetworks.size());
+    uint32_t numOfSubgraphs = static_cast<uint32_t>(m_CachedNetworks.size());
     out.write(reinterpret_cast<const char*>(&numOfSubgraphs), sizeof(numOfSubgraphs));
 
-    // Write the sizes of each of the compiled networks in order, this is used when reading in.
-    for (auto&& it : m_CompiledNetworks)
+    // Write the sizes of each of the cached networks in order, this is used when reading in.
+    for (auto&& it : m_CachedNetworks)
     {
-        size_t compiledNetworkSize = it.second.size();
+        size_t compiledNetworkSize = it.second.m_CompiledNetwork.size() + sizeof(it.second.m_IntermediateDataSize);
         out.write(reinterpret_cast<const char*>(&compiledNetworkSize), sizeof(compiledNetworkSize));
     }
 
     // Write the subgraph index associated with each compiled network
-    for (auto&& it : m_CompiledNetworks)
+    for (auto&& it : m_CachedNetworks)
     {
         uint32_t subgraphIdx = it.first;
         out.write(reinterpret_cast<const char*>(&subgraphIdx), sizeof(subgraphIdx));
     }
 
-    // Write the compiled networks binary, this is used when reading in using the sizes.
-    for (auto&& it : m_CompiledNetworks)
+    // Write the compiled network's binary and intermediate data size
+    for (auto&& it : m_CachedNetworks)
     {
-        auto bytesToWrite = static_cast<std::streamsize>(sizeof(char) * it.second.size());
-        out.write(reinterpret_cast<const char*>(&it.second[0]), bytesToWrite);
+        auto bytesToWrite = static_cast<std::streamsize>(sizeof(char) * it.second.m_CompiledNetwork.size());
+        out.write(reinterpret_cast<const char*>(&it.second.m_CompiledNetwork[0]), bytesToWrite);
+
+        size_t intermediateDataSize = it.second.m_IntermediateDataSize;
+        out.write(reinterpret_cast<const char*>(&intermediateDataSize), sizeof(intermediateDataSize));
     }
 
     if (!out)
@@ -186,8 +203,8 @@ bool EthosNCaching::LoadCachedSubgraphs()
         return false;
     }
 
-    // Read in sizes of each of the compiled networks
-    std::vector<size_t> compiledNetworkSizes;
+    // Read in sizes of each of the cached networks
+    std::vector<size_t> cachedNetworkSizes;
     for (uint32_t i = 0; i < numOfNetworks; ++i)
     {
         size_t size;
@@ -198,8 +215,9 @@ bool EthosNCaching::LoadCachedSubgraphs()
             return false;
         }
 
-        compiledNetworkSizes.emplace_back(size);
+        cachedNetworkSizes.emplace_back(size);
     }
+
     // Read the subgraph index for each compiled network
     std::vector<uint32_t> compiledNetworkSubgraphIdxs;
     for (uint32_t i = 0; i < numOfNetworks; ++i)
@@ -215,21 +233,32 @@ bool EthosNCaching::LoadCachedSubgraphs()
     }
 
     // Read in the compiled networks binary using the sizes.
-    for (uint32_t i = 0; i < compiledNetworkSizes.size(); ++i)
+    for (uint32_t i = 0; i < numOfNetworks; ++i)
     {
-        size_t size        = compiledNetworkSizes[i];
-        size_t subgraphIdx = compiledNetworkSubgraphIdxs[i];
-        std::vector<char> binaryContent(size);
+        size_t compiledNetworkSize = cachedNetworkSizes[i] - sizeof(CachedNetwork::m_IntermediateDataSize);
+        CachedNetwork cachedNetwork;
+        cachedNetwork.m_CompiledNetwork.resize(compiledNetworkSize);
 
-        auto bytesToRead = static_cast<std::streamsize>(sizeof(char) * size);
-        in.read(reinterpret_cast<char*>(&binaryContent[0]), bytesToRead);
+        auto bytesToRead = static_cast<std::streamsize>(sizeof(char) * compiledNetworkSize);
+        in.read(reinterpret_cast<char*>(&cachedNetwork.m_CompiledNetwork[0]), bytesToRead);
         if (!in)
         {
             ARMNN_LOG(error) << "Error trying to read subgraph " << i;
             return false;
         }
 
-        m_CompiledNetworks.emplace(subgraphIdx, binaryContent);
+        uint32_t intermediateDataSize;
+        in.read(reinterpret_cast<char*>(&intermediateDataSize), sizeof(intermediateDataSize));
+
+        if (!in)
+        {
+            ARMNN_LOG(error) << "Error trying to read intermediate data size " << i;
+            return false;
+        }
+
+        cachedNetwork.m_IntermediateDataSize = intermediateDataSize;
+
+        m_CachedNetworks.emplace(compiledNetworkSubgraphIdxs[i], std::move(cachedNetwork));
     }
 
     return true;
@@ -240,7 +269,7 @@ void EthosNCaching::Reset()
     if (IsSaving() || IsLoading())
     {
         m_EthosNCachingOptions = { false, "" };
-        m_CompiledNetworks.clear();
+        m_CachedNetworks.clear();
         m_IsLoaded = false;
     }
 }
