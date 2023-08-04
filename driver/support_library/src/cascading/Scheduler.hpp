@@ -248,11 +248,6 @@ private:
     /// Keeps track of the next stripe that needs to be scheduled for each agent.
     std::vector<uint32_t> m_AgentProgress;
 
-    CommandQueue m_DmaRdCommands;
-    CommandQueue m_DmaWrCommands;
-    CommandQueue m_MceCommands;
-    CommandQueue m_PleCommands;
-
     uint32_t m_NextRdDmaCmdId = 0;
     uint32_t m_NextWrDmaCmdId = 4;
 
@@ -273,6 +268,11 @@ private:
     /// other counter values too. This stores those dependencies, and allows us to omit some WaitForCounters
     /// which we can guarantee will always be met.
     CounterImplications m_CounterImplications;
+
+    CommandQueue m_DmaRdCommands;
+    CommandQueue m_DmaWrCommands;
+    CommandQueue m_MceCommands;
+    CommandQueue m_PleCommands;
 
     command_stream::cascading::PleKernelId m_MceifConfiguration  = command_stream::cascading::PleKernelId::NOT_FOUND;
     command_stream::cascading::PleKernelId m_LastLoadedPleKernel = command_stream::cascading::PleKernelId::NOT_FOUND;
