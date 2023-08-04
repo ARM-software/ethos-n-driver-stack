@@ -469,7 +469,7 @@ adb shell /vendor/bin/hw/android.hardware.neuralnetworks@1.3-service-armnn -v -c
 
 The following features and feature combinations have known limitations in this Ethos-N driver stack release.
 
-## Backend limitations
+### Backend limitations
 
 Custom allocators can only be used for importing intermediate tensors, not inputs and outputs.
 
@@ -490,6 +490,13 @@ For more information on memory requirements and limitations, see the documentati
 ### Power Management limitations
 
 The hibernate power management feature is only supported with SMMU configurations.
+
+### Security limitations
+
+The security guarantees provided by the NPU hardware and software stack depend on the configuration of the system. In particular, configurations
+that do not use an SMMU (and therefore use a reserved memory area) have weaker security because there is no SMMU that can be used to prevent
+the NPU from accessing memory that it should not be accessing (e.g. that belonging to inferences from other processes). A malicious userspace process might be able to cause the NPU to read or write to such memory by sending a maliciously crafted command stream. If security is of concern, we recommend
+that you use an SMMU.
 
 ## License
 
