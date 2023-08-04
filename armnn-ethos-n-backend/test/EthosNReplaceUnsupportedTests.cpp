@@ -70,8 +70,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
 
         CHECK(workingCopy.GetIConnectableLayers().size() == 4);
 
-        const std::vector<IConnectableLayer*> vecPattern(workingCopy.beginIConnectable(),
-                                                         workingCopy.endIConnectable());
+        const std::vector<IConnectableLayer*> vecPattern(workingCopy.begin(), workingCopy.end());
 
         IConnectableLayer* inputLayer     = vecPattern[0];
         IConnectableLayer* weightsLayer   = vecPattern[1];
@@ -158,8 +157,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
 
         CHECK(workingCopy.GetIConnectableLayers().size() == 3);
 
-        const std::vector<IConnectableLayer*> vecPattern(workingCopy.beginIConnectable(),
-                                                         workingCopy.endIConnectable());
+        const std::vector<IConnectableLayer*> vecPattern(workingCopy.begin(), workingCopy.end());
 
         IConnectableLayer* inputLayer   = vecPattern[0];
         IConnectableLayer* standInLayer = vecPattern[1];
@@ -265,7 +263,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
 
     armnn::IConnectableLayer* GetFirstLayerWithName(const armnn::SubgraphView& graph, const std::string& name)
     {
-        for (auto it = graph.beginIConnectable(); it != graph.endIConnectable(); it++)
+        for (auto it = graph.begin(); it != graph.end(); it++)
         {
             if (std::string((*it)->GetName()) == name)
             {
@@ -391,8 +389,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
             //
             // Expected modified pattern:
             // Input -> DepthwiseConvolution2d -> Output
-            const std::vector<IConnectableLayer*> outLayers(workingCopy.beginIConnectable(),
-                                                            workingCopy.endIConnectable());
+            const std::vector<IConnectableLayer*> outLayers(workingCopy.begin(), workingCopy.end());
             CHECK(outLayers.size() == 5);
 
             IConnectableLayer* inputLayer     = outLayers[0];
@@ -711,8 +708,8 @@ TEST_SUITE("EthosNReplaceUnsupported")
             SubgraphView::SubgraphViewPtr subgraph = std::make_shared<SubgraphView>(g);
             SubgraphView workingCopy               = subgraph->GetWorkingCopy();
             INetworkPtr network                    = INetwork::Create();
-            CHECK(ReplaceConstantAdditionWithReinterpretQuantization(workingCopy, *workingCopy.beginIConnectable(),
-                                                                     *network, reason) == false);
+            CHECK(ReplaceConstantAdditionWithReinterpretQuantization(workingCopy, *workingCopy.begin(), *network,
+                                                                     reason) == false);
         }
 
         // Failure case - addition that doesn't need replacing (as it is supported natively)

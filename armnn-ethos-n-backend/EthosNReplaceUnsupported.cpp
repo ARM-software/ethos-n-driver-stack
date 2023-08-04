@@ -536,7 +536,7 @@ void ReplaceUnsupportedLayers(SubgraphView& graph,
     do
     {
         madeChange = false;
-        for (auto it = graph.beginIConnectable(); it != graph.endIConnectable(); ++it)
+        for (auto it = graph.begin(); it != graph.end(); ++it)
         {
             for (const ReplacementFunc f : replacementFuncs)
             {
