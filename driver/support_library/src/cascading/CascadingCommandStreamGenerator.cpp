@@ -92,7 +92,7 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
     // Dump out the agent ID <> Op mapping, which is useful if a compilation failure
     // happens before we dump out the final CompiledOpGraph
     m_DebuggingContext.Save(CompilationOptions::DebugLevel::Medium, "OpsToAgentIds.txt", [&](std::ofstream& s) {
-        for (const std::pair<const Op*, AgentIdType>& p : m_OpToAgentIdMapping)
+        for (const std::pair<Op* const, AgentIdType>& p : m_OpToAgentIdMapping)
         {
             s << p.first->m_DebugTag << ": " << p.second << std::endl;
         }

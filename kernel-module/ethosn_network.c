@@ -499,7 +499,7 @@ void ethosn_schedule_queued_inference(struct ethosn_core *core)
 	 * The first inference that meets the neccessary criteria is scheduled.
 	 * If none, then the inference queue is checked again after next request
 	 */
-	if (!list_empty(&ethosn->queue.inference_queue))
+	if (!list_empty(&ethosn->queue.inference_queue)) {
 		list_for_each_entry(inference,
 				    &ethosn->queue.inference_queue,
 				    queue_node) {
@@ -511,8 +511,9 @@ void ethosn_schedule_queued_inference(struct ethosn_core *core)
 				break;
 			}
 		}
+	}
 
-		mutex_unlock(&ethosn->queue.inference_queue_mutex);
+	mutex_unlock(&ethosn->queue.inference_queue_mutex);
 
 	if (schedule_inference) {
 		/* Schedule the inference on a particular core */
