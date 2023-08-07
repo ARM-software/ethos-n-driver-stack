@@ -146,12 +146,6 @@
      - O is the output quantization scale.
 
 
-## Temporarily Disabled Operations
-The following operations have been temporarily disabled and will be enabled in a future release. These operations are now only supported at the "EstimateOnly" level. They can be used in SPA and will contribute zero performance impact, but cannot be compiled for execution on the actual hardware.
-- Transpose
-- SpaceToDepth
-
-
 For more information, see `driver/support_library/src/SupportQueries.cpp`.
 
 **Please contact your Arm FAE for any further questions.**
