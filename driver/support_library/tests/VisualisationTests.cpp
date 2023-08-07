@@ -366,7 +366,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
             .AddBufferType(BufferType::ConstantDma)
             .AddOperationId(7)
             .AddProducerOutputIndex(13)
-            .AddEncodedWeights(std::make_shared<EncodedWeights>(EncodedWeights{ {}, 12, { 1, 2, 3 }, true }))
+            .AddEncodedWeights(std::make_shared<EncodedWeights>(EncodedWeights{ {}, 12, { 1, 2, 3 }, true, true }))
             .AddConstantData(std::make_shared<std::vector<uint8_t>>(std::vector<uint8_t>{ 1, 2, 3 }));
 
     graph.AddBuffer(buffer3.get());

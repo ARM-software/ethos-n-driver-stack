@@ -68,6 +68,13 @@ std::shared_ptr<ethosn::support_library::EncodedWeights> WeightEncoderCache::Enc
 
         it->second.m_EncodedWeights = std::make_shared<EncodedWeights>(w);
 
+        if (!w.m_IsValid)
+        {
+            // Encode weights does not work, size don't fit in the HW WeightPayload struct PLDLEN field (17 bit).
+            // This will be detect in a check below but lets return early to avoid using the fields in the invalid struct.
+            return {};
+        }
+
         // There is no point compressing weights with a stripe shape which will not fit into SRAM.
         // For example if the weights are huge and we are trying to encode them all into a single stripe,
         // then the plan that this is used for will never fit into SRAM and so it is a waste of time
@@ -88,6 +95,12 @@ std::shared_ptr<ethosn::support_library::EncodedWeights> WeightEncoderCache::Enc
             m_MaxUncompressedStripeSize = std::min(m_MaxUncompressedStripeSize, uncompressedSize);
             return {};
         }
+    }
+
+    if (!it->second.m_EncodedWeights->m_IsValid)
+    {
+        // Encode weights does not work, size don't fit in the HW WeightPayload struct PLDLEN field (17 bit).
+        return {};
     }
 
     return it->second.m_EncodedWeights;

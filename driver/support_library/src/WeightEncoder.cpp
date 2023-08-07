@@ -134,6 +134,7 @@ struct EncodedOfm
 {
     std::vector<uint8_t> m_EncodedWeights;
     uint32_t m_NumOfBits;
+    bool m_IsValid;
 };
 
 /// Stores a list of bit arrays, which are conceptually joined together end-to-end.
@@ -1361,9 +1362,17 @@ void WriteWeightHeader(BitstreamWriter& writer,
 }
 
 /// Write the weight payload header. There may be one or multiple payload headers in the weight stream.
-void WritePayloadHeader(BitstreamWriter& writer, const size_t payloadLength, const WeightCompressionParams& compParams)
+bool WritePayloadHeader(BitstreamWriter& writer, const size_t payloadLength, const WeightCompressionParams& compParams)
 {
     // See Ethos-N78 MCE Specification, section 6.8.6.3.3
+
+    // Make sure payloadLength fits in the HW WeightPayload struct PLDLEN field (17 bit).
+    if (payloadLength > 0x1ffff)
+    {
+        // Unsupported weight payload lenght, hardware register only support 17 bits
+        return false;
+    }
+
     writer.Write(&payloadLength, 17);
     writer.Write(&compParams.m_ReloadCompressionParams, 1);
 
@@ -1389,6 +1398,7 @@ void WritePayloadHeader(BitstreamWriter& writer, const size_t payloadLength, con
             }
         }
     }
+    return true;
 }
 
 // Calculates the exact offset and size in DRAM of each weight stripe
@@ -1978,7 +1988,15 @@ std::vector<BitstreamRope> MergeStreamsOgAndUpdateHeaders(std::vector<EncodedOfm
 
         for (uint32_t streamIdxWithinGroup = 0; streamIdxWithinGroup < group.size(); ++streamIdxWithinGroup)
         {
-            uint32_t streamIdx           = group[streamIdxWithinGroup];
+            uint32_t streamIdx = group[streamIdxWithinGroup];
+            if (!streams[streamIdx].m_IsValid || (numBitsStream + streams[streamIdx].m_NumOfBits) >= 0x1ffff)
+            {
+                // This encoded weight stream or the resulting sum of the combined encoded weight stream does not work.
+                // The size don't fit in the HW WeightPayload struct PLDLEN field (17 bit). return an empty object.
+                std::vector<BitstreamRope> empty_result(0);
+                return empty_result;
+            }
+
             std::vector<uint8_t>& stream = streams[streamIdx].m_EncodedWeights;
 
             // start position in byte
@@ -2153,7 +2171,11 @@ EncodedOfm EncodeOfm(const WeightEncodingRequest& request,
 
     uint32_t pldLen = static_cast<uint32_t>(weightSymbols.size());
 
-    WritePayloadHeader(writer, pldLen, compParams);
+    if (!WritePayloadHeader(writer, pldLen, compParams))
+    {
+        // Encode weights does not work, it don't fit in the HW WeightPayload struct PLDLEN field (17 bit). return an object with m_IsValid set to false
+        return { writer.GetBitstream(), static_cast<uint32_t>(writer.GetOffset()), false };
+    }
 
     GRCCompressPackChunk(weightSymbols, zeroSymbols, compParams, writer, request.m_Capabilities);
 
@@ -2161,7 +2183,7 @@ EncodedOfm EncodeOfm(const WeightEncodingRequest& request,
     prevCompParams = compParams;
 
     // Note that we deliberately make a copy of the byte array here, as that will trim off any unused capacity at the end
-    return { writer.GetBitstream(), static_cast<uint32_t>(writer.GetOffset()) };
+    return { writer.GetBitstream(), static_cast<uint32_t>(writer.GetOffset()), true };
 }
 
 }    // namespace
@@ -2367,9 +2389,20 @@ EncodedWeights EncodeWeightsStage2(std::unique_ptr<IStage1Results> stage1Results
         std::vector<EncodedOfm> encodedOfmStreamsForThisStripe(
             std::begin(stage1Results.encodedStreams) + firstOfmInStripe,
             std::begin(stage1Results.encodedStreams) + lastOfmInStripe);
+
         std::vector<BitstreamRope> streamPerOgForThisStripe = MergeStreamsOgAndUpdateHeaders(
             encodedOfmStreamsForThisStripe, stage1Results.numOfmInParallel * stage1Results.numIterationsOfm,
             dmaEngineAlignment);
+        if (streamPerOgForThisStripe.empty())
+        {
+            // Encode weights does not work, the size don't fit in the HW WeightPayload struct PLDLEN field (17 bit).
+            // Mark returnd encodedWeights as not valid.
+            EncodedWeights encodedWeights;
+            encodedWeights.m_IsValid      = false;
+            encodedWeights.m_IsWideFilter = stage1Results.wideSubfilters.size() > 1;
+            encodedWeights.m_MaxSize      = 0;
+            return encodedWeights;
+        }
         streamPerStripeOg.insert(std::end(streamPerStripeOg), std::make_move_iterator(streamPerOgForThisStripe.begin()),
                                  std::make_move_iterator(streamPerOgForThisStripe.end()));
     }
@@ -2405,6 +2438,7 @@ EncodedWeights EncodeWeightsStage2(std::unique_ptr<IStage1Results> stage1Results
     assert(numOfmsPerSram >= 1);
 
     EncodedWeights encodedWeights;
+    encodedWeights.m_IsValid  = true;
     encodedWeights.m_Metadata = CalculateWeightsMetadata(streamPerStripeOg, stage1Results.numOfmInParallel);
 
     // Merge together all the stripes into groups based on the SRAM they will be loaded into.

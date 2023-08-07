@@ -40,6 +40,7 @@ struct EncodedWeights
     std::vector<WeightsMetadata> m_Metadata;
     uint32_t m_MaxSize;
     std::vector<uint8_t> m_Data;
+    bool m_IsValid;
     bool m_IsWideFilter;
 };
 
