@@ -111,8 +111,30 @@ Buffer ProcMemAllocator::CreateBuffer(const uint8_t* src, uint32_t size)
     return Buffer(std::make_unique<Buffer::BufferImpl>(src, size, m_AllocatorFd));
 }
 
+void CheckImportMemorySize(int fd, uint32_t size)
+{
+    int64_t memSize = lseek(fd, 0, SEEK_END);
+
+    if (memSize < 0)
+    {
+        throw std::runtime_error(std::string("Failed to get memory size from fd. ") + strerror(errno));
+    }
+
+    if (lseek(fd, 0, SEEK_SET))
+    {
+        throw std::runtime_error(std::string("Failed to seek start of file from fd. ") + strerror(errno));
+    }
+
+    if (static_cast<uint64_t>(memSize) < static_cast<uint64_t>(size))
+    {
+        throw std::runtime_error("Source buffer is smaller than the size specified");
+    }
+}
+
 Buffer ProcMemAllocator::ImportBuffer(int fd, uint32_t size)
 {
+    CheckImportMemorySize(fd, size);
+
     return Buffer(std::make_unique<Buffer::BufferImpl>(fd, size, m_AllocatorFd));
 }
 
