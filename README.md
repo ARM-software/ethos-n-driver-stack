@@ -59,13 +59,13 @@ To use the NPU in Secure mode, the target platform must have a [Trusted Firmware
 
 NPU support is available in the TF-A source tree, along with a reference implementation showing how to use it on the Arm Juno platform.
 For instructions on how to get and build the TF-A source, see the [TF-A documentation](https://trustedfirmware-a.readthedocs.io/en/latest/index.html). The following commit of TF-A has been tested:
-[42fb812a](https://review.trustedfirmware.org/plugins/gitiles/TF-A/trusted-firmware-a/+/42fb812a7525682362096d651a3749787b3bd555).
+[4796d2d9bb4a1c0ccaffa4f6b49dbb0f0304d1d1](https://review.trustedfirmware.org/plugins/gitiles/TF-A/trusted-firmware-a/+/4796d2d9bb4a1c0ccaffa4f6b49dbb0f0304d1d1).
 
-The build flag required to enable NPU support for the Arm Juno platform is available at [TF-A Arm Platform Build Options](https://review.trustedfirmware.org/plugins/gitiles/TF-A/trusted-firmware-a/+/42fb812a7525682362096d651a3749787b3bd555/docs/plat/arm/arm-build-options.rst).
+The build flag required to enable NPU support for the Arm Juno platform is available at [TF-A Arm Platform Build Options](https://review.trustedfirmware.org/plugins/gitiles/TF-A/trusted-firmware-a/+/4796d2d9bb4a1c0ccaffa4f6b49dbb0f0304d1d1/docs/plat/arm/arm-build-options.rst).
 
 For information about boot up in Secure or Non-secure modes, see the Arm Ethos-N78 NPU Technical Reference Manual.
 
-For information about how to port TF-A to another platform, see the [TF-A Porting Guide](https://review.trustedfirmware.org/plugins/gitiles/TF-A/trusted-firmware-a/+/42fb812a7525682362096d651a3749787b3bd555/docs/getting_started/porting-guide.rst).
+For information about how to port TF-A to another platform, see the [TF-A Porting Guide](https://review.trustedfirmware.org/plugins/gitiles/TF-A/trusted-firmware-a/+/4796d2d9bb4a1c0ccaffa4f6b49dbb0f0304d1d1/docs/porting-guide.rst).
 
 If TZMP1 support is required, the TF-A must be built with the TZMP1 build option as well as the NPU build option.
 
