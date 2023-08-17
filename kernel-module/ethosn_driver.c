@@ -1461,6 +1461,7 @@ static int ethosn_populate_protected_firmware(struct ethosn_device *ethosn)
 
 #endif
 
+#ifndef ETHOSN_NO_SMC
 static int ethosn_check_smc_core_secure_status(const struct device *dev,
 					       phys_addr_t core_addr)
 {
@@ -1495,6 +1496,8 @@ static int ethosn_check_smc_core_secure_status(const struct device *dev,
 	return 0;
 }
 
+#endif
+
 /**
  * ethosn_driver_probe() - Do common probing functionality
  * @core:	ethosn core struct
@@ -1516,8 +1519,12 @@ static int ethosn_driver_probe(struct ethosn_core *core,
 {
 	struct ethosn_profiling_config config = {};
 	const phys_addr_t core_addr = top_regs->start;
-	int ret = ethosn_check_smc_core_secure_status(core->dev, core_addr);
+	int ret = 0;
 	const bool smmu_available = core->parent->smmu_available;
+
+	#ifndef ETHOSN_NO_SMC
+	ret = ethosn_check_smc_core_secure_status(core->dev, core_addr);
+	#endif
 
 	if (ret)
 		return ret;

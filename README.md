@@ -199,7 +199,7 @@ You must follow specific steps to build the Ethos-N NPU driver. You must build t
 
 2. Build the Ethos-N NPU kernel module.
 
-    _Note: By default, the kernel module is built for an NPU running in Secure mode. If Non-secure mode is required, add the `EXTRA_CCFLAGS=" -DETHOSN_NS"` flag to the following make commands. If TZMP1 mode is required, add the `EXTRA_CCFLAGS=" -DETHOSN_TZMP1"` flag to the following make commands. Please see the above [Secure mode and TZMP1](#secure-mode-and-tzmp1) section for more details._
+    _Note: By default, the kernel module is built for an NPU running in Secure mode. If Non-secure mode is required, add the `EXTRA_CCFLAGS=" -DETHOSN_NS"` flag to the following make commands. If TZMP1 mode is required, add the `EXTRA_CCFLAGS=" -DETHOSN_TZMP1"` flag to the following make commands. If disabling all SMC calls is required when using using Non-secure mode, add the `EXTRA_CCFLAGS=" -DETHOSN_NO_SMC"` flag to the following make commands. Secure mode still makes use of SMC calls regardless of this flag. Please see the above [Secure mode and TZMP1](#secure-mode-and-tzmp1) section for more details._
 
     How you compile the driver affects how you build the Ethos-N NPU kernel module:
 
