@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2018-2022 Arm Limited.
+# Copyright © 2018-2023 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -236,34 +236,6 @@ def setup_toolchain(env, toolchain):
         if "LINKFLAGS" in env:
             flags = ["-Wl,--enable-new-dtags"]
             remove_flags(flags, env["LINKFLAGS"])
-    elif toolchain == "android-ndk":
-        bin_path = os.path.join(
-            env["android_ndk_dir"],
-            "toolchains",
-            "llvm",
-            "prebuilt",
-            "linux-x86_64",
-            "bin",
-        )
-        env.PrependENVPath("PATH", bin_path)
-        env.Replace(
-            CC=os.path.join(bin_path, "clang++") + " -target aarch64-linux-android21",
-            CXX=os.path.join(bin_path, "clang++") + " -target aarch64-linux-android21",
-            LINK=os.path.join(bin_path, "clang++") + " -target aarch64-linux-android21",
-            AS=os.path.join(bin_path, "llvm-as") + " -target aarch64-linux-android21",
-            AR=os.path.join(bin_path, "llvm-ar"),
-            RANLIB=os.path.join(bin_path, "aarch64-linux-android-ranlib"),
-        )
-        # List of flags Android's clang++ doesnt understand so should be removed from the inherited common set of flags
-        if "CPPFLAGS" in env:
-            flags = ["-Wlogical-op", "-Wnoexcept", "-Wstrict-null-sentinel"]
-            remove_flags(flags, env["CPPFLAGS"])
-        if "LINKFLAGS" in env:
-            flags = ["-Wl,--enable-new-dtags"]
-            remove_flags(flags, env["LINKFLAGS"])
-
-        # Temporary warnings disabled to workaround compile errors
-        env.AppendUnique(CPPFLAGS=["-Wno-sign-conversion"])
 
 
 def validate_dir(env, path, exception_type):

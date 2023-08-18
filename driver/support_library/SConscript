@@ -92,7 +92,7 @@ shared_lib_name = "libEthosNSupport" if env["PLATFORM"] == "posix" else "libEtho
 # On non-Unix platforms, the static and shared libs may need to have different compile options, so the obj names
 # need to be unique
 obj_prefix = None if env["PLATFORM"] == "posix" else "Shared_"
-libs = ["pthread"] if env["platform"] != "android-ndk" else []
+libs = ["pthread"]
 ethosn_support_shared = soEnv.SharedLibrary(
     shared_lib_name, srcs, SHOBJPREFIX=obj_prefix, LIBS=libs
 )

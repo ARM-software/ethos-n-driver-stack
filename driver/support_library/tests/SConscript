@@ -103,9 +103,6 @@ if os.path.isdir(internal_dir):
 srcs.extend(internal_srcs)
 
 libs = [ethosn_support_shared]
-# Catch2 uses android log APIs (could probably disable this in a catch config somewhere instead)
-if env["platform"] == "android-ndk":
-    libs.append("log")
 
 unitTests = env.Program("UnitTests", srcs, LIBS=libs)
 testAlias = env.Alias("support-library-unit-tests", [unitTests], unitTests[0].abspath)
