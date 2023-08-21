@@ -428,8 +428,7 @@ FmsDmaRegParams GetDmaParamsNhwcb(const FmSDesc& fmData,
         fmsDmaParams.totalBytes *= chunkState.chunkSize.channels;
     }
     {
-        fmsDmaParams.channels =
-            chunkState.isSramChannelStrided ? chunkState.chunkSize.channels : chunkState.chunkSize.channels;
+        fmsDmaParams.channels = chunkState.chunkSize.channels;
     }
     return fmsDmaParams;
 }
