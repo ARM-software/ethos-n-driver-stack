@@ -1,5 +1,5 @@
 //
-// Copyright © 2020,2022 Arm Limited.
+// Copyright © 2020,2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -91,6 +91,15 @@ inline bool EndsWith(const std::string& s, const std::string& q)
         return false;
     }
     return std::equal(s.end() - q.size(), s.end(), q.begin());
+}
+
+inline bool StartsWith(const std::string& string, const std::string& substring)
+{
+    if (string.size() < substring.size())
+    {
+        return false;
+    }
+    return std::equal(substring.begin(), substring.end(), string.begin());
 }
 
 }    // namespace utils

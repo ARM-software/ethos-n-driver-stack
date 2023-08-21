@@ -553,6 +553,11 @@ void GgfParser::ParseNetwork(void)
             // Blank line
             continue;
         }
+        else if (utils::StartsWith(line.substr(firstNonWhitespaceIdx), "//"))
+        {
+            // Comment line
+            continue;
+        }
         else if (line[firstNonWhitespaceIdx] == '#' && firstColonIdx == std::string::npos)
         {
             // Comment line
