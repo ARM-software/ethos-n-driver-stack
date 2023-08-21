@@ -5,10 +5,13 @@
 
 #include "../src/cascading/OpGraph.hpp"
 
+#include <ethosn_command_stream/cascading/CommandStream.hpp>
+
 #include <catch.hpp>
 
 #include <fstream>
 
+using namespace ethosn;
 using namespace ethosn::support_library;
 using namespace ethosn::command_stream::cascading;
 
@@ -25,7 +28,7 @@ TEST_CASE("OpGraph Contains")
     OpGraph graph;
 
     std::unique_ptr<DramBuffer> buffer = TestBuffer();
-    MceOp op;
+    Op op("dummy");
 
     // Initially these are not in the graph
     REQUIRE(!graph.Contains(buffer.get()));
@@ -51,14 +54,14 @@ TEST_CASE("OpGraph GetSingleProducer and GetProducers")
     REQUIRE(graph.GetProducers(buffer.get()) == std::vector<Op*>{});
 
     // Add an Op as a producer
-    MceOp op;
+    Op op("dummy");
     graph.AddOp(&op);
     graph.SetProducer(buffer.get(), &op);
     REQUIRE(graph.GetSingleProducer(buffer.get()) == &op);
     REQUIRE(graph.GetProducers(buffer.get()) == std::vector<Op*>{ &op });
 
     // Add a second Op as a producer
-    MceOp op2;
+    Op op2("dummy");
     graph.AddOp(&op2);
     graph.AddProducer(buffer.get(), &op2);
     REQUIRE_THROWS(graph.GetSingleProducer(buffer.get()));
@@ -76,14 +79,14 @@ TEST_CASE("OpGraph GetConsumers")
     REQUIRE(graph.GetConsumers(buffer.get()) == std::vector<std::pair<Op*, uint32_t>>{});
 
     // Add an Op as a consumer
-    MceOp op1;
+    Op op1("dummy");
     graph.AddOp(&op1);
     graph.AddConsumer(buffer.get(), &op1, 0);
     REQUIRE(graph.GetConsumers(buffer.get()) == std::vector<std::pair<Op*, uint32_t>>{ { &op1, 0 } });
 
     // Add another Op as a consumer, but using its 2nd input.
     // Note we must first connect the 1st input of the op to something else
-    MceOp op2;
+    Op op2("dummy");
     graph.AddOp(&op2);
     graph.AddConsumer(buffer.get(), &op2, 0);
     graph.AddConsumer(buffer.get(), &op2, 1);
@@ -97,7 +100,7 @@ TEST_CASE("OpGraph GetInputs")
     OpGraph graph;
 
     // Start with just a single op that has no inputs
-    MceOp op;
+    Op op("dummy");
     graph.AddOp(&op);
     REQUIRE(graph.GetInputs(&op) == std::vector<Buffer*>{});
 
@@ -120,7 +123,7 @@ TEST_CASE("OpGraph GetOutput")
     OpGraph graph;
 
     // Start with just a single op that has no output
-    MceOp op;
+    Op op("dummy");
     graph.AddOp(&op);
     REQUIRE(graph.GetOutput(&op) == nullptr);
 
@@ -135,7 +138,7 @@ TEST_CASE("OpGraph GetOutput")
 TEST_CASE("OpGraph AddOp")
 {
     OpGraph graph;
-    MceOp op;
+    Op op("dummy");
 
     // Add the op and check it has been added
     graph.AddOp(&op);
@@ -165,7 +168,7 @@ TEST_CASE("OpGraph SetProducer")
     // Try calling with an Op that isn't part of the graph
     {
         OpGraph graph;
-        MceOp op;
+        Op op("dummy");
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         graph.AddBuffer(buffer.get());
         REQUIRE_THROWS(graph.SetProducer(buffer.get(), &op));
@@ -174,7 +177,7 @@ TEST_CASE("OpGraph SetProducer")
     // Try calling with a Buffer that isn't part of the graph
     {
         OpGraph graph;
-        MceOp op;
+        Op op("dummy");
         graph.AddOp(&op);
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         REQUIRE_THROWS(graph.SetProducer(buffer.get(), &op));
@@ -183,13 +186,13 @@ TEST_CASE("OpGraph SetProducer")
     // Try setting the producer for a buffer that already has a producer
     {
         OpGraph graph;
-        MceOp op1;
+        Op op1("dummy");
         graph.AddOp(&op1);
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         graph.AddBuffer(buffer.get());
         graph.SetProducer(buffer.get(), &op1);
 
-        MceOp op2;
+        Op op2("dummy");
         graph.AddOp(&op2);
         REQUIRE_THROWS(graph.SetProducer(buffer.get(), &op2));
     }
@@ -197,7 +200,7 @@ TEST_CASE("OpGraph SetProducer")
     // Try adding a producer that is already a producer
     {
         OpGraph graph;
-        MceOp op1;
+        Op op1("dummy");
         graph.AddOp(&op1);
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         graph.AddBuffer(buffer.get());
@@ -209,7 +212,7 @@ TEST_CASE("OpGraph SetProducer")
     // Successful case
     {
         OpGraph graph;
-        MceOp op1;
+        Op op1("dummy");
         graph.AddOp(&op1);
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         graph.AddBuffer(buffer.get());
@@ -225,7 +228,7 @@ TEST_CASE("OpGraph AddProducer")
     // Try calling with an Op that isn't part of the graph
     {
         OpGraph graph;
-        MceOp op;
+        Op op("dummy");
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         graph.AddBuffer(buffer.get());
         REQUIRE_THROWS(graph.AddProducer(buffer.get(), &op));
@@ -234,7 +237,7 @@ TEST_CASE("OpGraph AddProducer")
     // Try calling with a Buffer that isn't part of the graph
     {
         OpGraph graph;
-        MceOp op;
+        Op op("dummy");
         graph.AddOp(&op);
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         REQUIRE_THROWS(graph.AddProducer(buffer.get(), &op));
@@ -243,13 +246,13 @@ TEST_CASE("OpGraph AddProducer")
     // Try adding a producer for a buffer that already has a producer
     {
         OpGraph graph;
-        MceOp op1;
+        Op op1("dummy");
         graph.AddOp(&op1);
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         graph.AddBuffer(buffer.get());
         graph.SetProducer(buffer.get(), &op1);
 
-        MceOp op2;
+        Op op2("dummy");
         graph.AddOp(&op2);
         graph.AddProducer(buffer.get(), &op2);
         REQUIRE(graph.GetProducers(buffer.get()) == std::vector<Op*>{ &op1, &op2 });
@@ -258,7 +261,7 @@ TEST_CASE("OpGraph AddProducer")
     // Try adding a producer that is already a producer
     {
         OpGraph graph;
-        MceOp op1;
+        Op op1("dummy");
         graph.AddOp(&op1);
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         graph.AddBuffer(buffer.get());
@@ -270,7 +273,7 @@ TEST_CASE("OpGraph AddProducer")
     // Successful case
     {
         OpGraph graph;
-        MceOp op1;
+        Op op1("dummy");
         graph.AddOp(&op1);
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         graph.AddBuffer(buffer.get());
@@ -286,7 +289,7 @@ TEST_CASE("OpGraph RemoveProducer")
     SECTION("Try calling with nullptr Buffer")
     {
         OpGraph graph;
-        MceOp o;
+        Op o("dummy");
         graph.AddOp(&o);
         REQUIRE_THROWS(graph.RemoveProducer(nullptr, &o));
     }
@@ -301,7 +304,7 @@ TEST_CASE("OpGraph RemoveProducer")
     SECTION("Try calling with a Buffer that isn't part of the graph")
     {
         OpGraph graph;
-        MceOp o;
+        Op o("dummy");
         graph.AddOp(&o);
         std::unique_ptr<DramBuffer> b = TestBuffer();
         REQUIRE_THROWS(graph.RemoveProducer(b.get(), &o));
@@ -311,7 +314,7 @@ TEST_CASE("OpGraph RemoveProducer")
         OpGraph graph;
         std::unique_ptr<DramBuffer> b = TestBuffer();
         graph.AddBuffer(b.get());
-        MceOp o;
+        Op o("dummy");
         REQUIRE_THROWS(graph.RemoveProducer(b.get(), &o));
     }
 
@@ -320,7 +323,7 @@ TEST_CASE("OpGraph RemoveProducer")
         OpGraph graph;
         std::unique_ptr<DramBuffer> b = TestBuffer();
         graph.AddBuffer(b.get());
-        MceOp o;
+        Op o("dummy");
         graph.AddOp(&o);
         REQUIRE_THROWS(graph.RemoveProducer(b.get(), &o));
     }
@@ -329,9 +332,9 @@ TEST_CASE("OpGraph RemoveProducer")
         OpGraph graph;
         std::unique_ptr<DramBuffer> b = TestBuffer();
         graph.AddBuffer(b.get());
-        MceOp o1;
+        Op o1("dummy");
         graph.AddOp(&o1);
-        MceOp o2;
+        Op o2("dummy");
         graph.AddOp(&o2);
         graph.SetProducer(b.get(), &o1);
 
@@ -341,7 +344,7 @@ TEST_CASE("OpGraph RemoveProducer")
     SECTION("Remove a producer from a buffer that has only one")
     {
         OpGraph graph;
-        MceOp op1;
+        Op op1("dummy");
         graph.AddOp(&op1);
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         graph.AddBuffer(buffer.get());
@@ -355,9 +358,9 @@ TEST_CASE("OpGraph RemoveProducer")
     SECTION("Remove a producer from a buffer that has two")
     {
         OpGraph graph;
-        MceOp op1;
+        Op op1("dummy");
         graph.AddOp(&op1);
-        MceOp op2;
+        Op op2("dummy");
         graph.AddOp(&op2);
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         graph.AddBuffer(buffer.get());
@@ -399,7 +402,7 @@ TEST_CASE("OpGraph ClearProducers")
     SECTION("Clear the producer for a buffer that already has one")
     {
         OpGraph graph;
-        MceOp op1;
+        Op op1("dummy");
         graph.AddOp(&op1);
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         graph.AddBuffer(buffer.get());
@@ -413,9 +416,9 @@ TEST_CASE("OpGraph ClearProducers")
     SECTION("Clear the producers for a buffer that has two")
     {
         OpGraph graph;
-        MceOp op1;
+        Op op1("dummy");
         graph.AddOp(&op1);
-        MceOp op2;
+        Op op2("dummy");
         graph.AddOp(&op2);
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         graph.AddBuffer(buffer.get());
@@ -434,7 +437,7 @@ TEST_CASE("OpGraph AddConsumer")
     // Try calling with an Op that isn't part of the graph
     {
         OpGraph graph;
-        MceOp op;
+        Op op("dummy");
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         graph.AddBuffer(buffer.get());
         REQUIRE_THROWS(graph.AddConsumer(buffer.get(), &op, 0));
@@ -443,7 +446,7 @@ TEST_CASE("OpGraph AddConsumer")
     // Try calling with a Buffer that isn't part of the graph
     {
         OpGraph graph;
-        MceOp op;
+        Op op("dummy");
         graph.AddOp(&op);
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         REQUIRE_THROWS(graph.AddConsumer(buffer.get(), &op, 0));
@@ -452,7 +455,7 @@ TEST_CASE("OpGraph AddConsumer")
     // Try adding an op as a consumer that is already linked to another buffer
     {
         OpGraph graph;
-        MceOp op1;
+        Op op1("dummy");
         graph.AddOp(&op1);
         std::unique_ptr<DramBuffer> buffer1 = TestBuffer();
         graph.AddBuffer(buffer1.get());
@@ -467,7 +470,7 @@ TEST_CASE("OpGraph AddConsumer")
     // This requires the vector of inputs to be appended to
     {
         OpGraph graph;
-        MceOp op1;
+        Op op1("dummy");
         graph.AddOp(&op1);
         std::unique_ptr<DramBuffer> buffer1 = TestBuffer();
         graph.AddBuffer(buffer1.get());
@@ -481,7 +484,7 @@ TEST_CASE("OpGraph AddConsumer")
     // This is an error, as the earlier-numbered slots would be unconnected.
     {
         OpGraph graph;
-        MceOp op1;
+        Op op1("dummy");
         graph.AddOp(&op1);
         std::unique_ptr<DramBuffer> buffer1 = TestBuffer();
         graph.AddBuffer(buffer1.get());
@@ -495,7 +498,7 @@ TEST_CASE("OpGraph RemoveConsumer")
     SECTION("Try calling with nullptr Buffer")
     {
         OpGraph graph;
-        MceOp o;
+        Op o("dummy");
         graph.AddOp(&o);
         REQUIRE_THROWS(graph.RemoveConsumer(nullptr, &o, 0));
     }
@@ -510,7 +513,7 @@ TEST_CASE("OpGraph RemoveConsumer")
     SECTION("Try calling with a Buffer that isn't part of the graph")
     {
         OpGraph graph;
-        MceOp o;
+        Op o("dummy");
         graph.AddOp(&o);
         std::unique_ptr<DramBuffer> b = TestBuffer();
         REQUIRE_THROWS(graph.RemoveConsumer(b.get(), &o, 0));
@@ -520,7 +523,7 @@ TEST_CASE("OpGraph RemoveConsumer")
         OpGraph graph;
         std::unique_ptr<DramBuffer> b = TestBuffer();
         graph.AddBuffer(b.get());
-        MceOp o;
+        Op o("dummy");
         REQUIRE_THROWS(graph.RemoveConsumer(b.get(), &o, 0));
     }
 
@@ -529,7 +532,7 @@ TEST_CASE("OpGraph RemoveConsumer")
         OpGraph graph;
         std::unique_ptr<DramBuffer> b = TestBuffer();
         graph.AddBuffer(b.get());
-        MceOp o1;
+        Op o1("dummy");
         graph.AddOp(&o1);
         REQUIRE_THROWS(graph.RemoveConsumer(b.get(), &o1, 0));
     }
@@ -539,9 +542,9 @@ TEST_CASE("OpGraph RemoveConsumer")
         OpGraph graph;
         std::unique_ptr<DramBuffer> b = TestBuffer();
         graph.AddBuffer(b.get());
-        MceOp o1;
+        Op o1("dummy");
         graph.AddOp(&o1);
-        MceOp o2;
+        Op o2("dummy");
         graph.AddOp(&o2);
         graph.AddConsumer(b.get(), &o1, 0);
 
@@ -553,7 +556,7 @@ TEST_CASE("OpGraph RemoveConsumer")
         OpGraph graph;
         std::unique_ptr<DramBuffer> b = TestBuffer();
         graph.AddBuffer(b.get());
-        MceOp o1;
+        Op o1("dummy");
         graph.AddOp(&o1);
         graph.AddConsumer(b.get(), &o1, 0);
 
@@ -565,7 +568,7 @@ TEST_CASE("OpGraph RemoveConsumer")
         OpGraph graph;
         std::unique_ptr<DramBuffer> b = TestBuffer();
         graph.AddBuffer(b.get());
-        MceOp o1;
+        Op o1("dummy");
         graph.AddOp(&o1);
         graph.AddConsumer(b.get(), &o1, 0);
         graph.AddConsumer(b.get(), &o1, 1);
@@ -576,7 +579,7 @@ TEST_CASE("OpGraph RemoveConsumer")
     SECTION("Remove a consumer from a buffer that has only one")
     {
         OpGraph graph;
-        MceOp op1;
+        Op op1("dummy");
         graph.AddOp(&op1);
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         graph.AddBuffer(buffer.get());
@@ -590,9 +593,9 @@ TEST_CASE("OpGraph RemoveConsumer")
     SECTION("Remove a consumer from a buffer that has two")
     {
         OpGraph graph;
-        MceOp op1;
+        Op op1("dummy");
         graph.AddOp(&op1);
-        MceOp op2;
+        Op op2("dummy");
         graph.AddOp(&op2);
         std::unique_ptr<DramBuffer> buffer = TestBuffer();
         graph.AddBuffer(buffer.get());
@@ -632,7 +635,13 @@ TEST_CASE("OpGraph RemoveAndPrune")
     //
 
     OpGraph graph;
-    MceOp B, D, E, G, H, L, Z;
+    Op B("dummy");
+    Op D("dummy");
+    Op E("dummy");
+    Op G("dummy");
+    Op H("dummy");
+    Op L("dummy");
+    Op Z("dummy");
     std::unique_ptr<DramBuffer> a = TestBuffer();
     std::unique_ptr<DramBuffer> c = TestBuffer();
     std::unique_ptr<DramBuffer> f = TestBuffer();
@@ -1408,7 +1417,9 @@ TEST_CASE("OpGraph RemoveRedundantCopies Invalid Buffers and Ops")
     SECTION("Non-Dma Ops")
     {
         // Replace D with something that's not a DMA op
-        MceOp newD;
+        MceOp newD(command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                   command_stream::BlockConfig{ 8U, 8U }, TensorShape{ 1, 1, 1, 1 }, TensorShape{ 1, 1, 1, 1 },
+                   TensorShape{ 1, 1, 1, 1 }, TraversalOrder::Zxy, Stride{ 1, 1 }, 0, 0, 0, 0);
         graph.RemoveConsumer(c.get(), &D, 0);
         graph.RemoveProducer(e.get(), &D);
         graph.RemoveAndPrune(&D);

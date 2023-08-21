@@ -212,7 +212,8 @@ TEST_CASE("SaveOpGraphToDot Graph Topology", "[Visualisation]")
                                                   .AddSlotSize(1 * 16 * 16 * 16)
                                                   .AddDebugTag("Sram Weights");
 
-    MceOp mce;
+    MceOp mce(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 8U, 8U }, TensorShape{ 1, 1, 1, 1 },
+              TensorShape{ 1, 1, 1, 1 }, TensorShape{ 1, 1, 1, 1 }, TraversalOrder::Zxy, Stride{ 1, 1 }, 0, 0, 0, 0);
     mce.m_DebugTag = "Mce";
 
     std::unique_ptr<SramBuffer> sramOfm = SramBuffer::Build()
@@ -233,9 +234,13 @@ TEST_CASE("SaveOpGraphToDot Graph Topology", "[Visualisation]")
                                               .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                               .AddDebugTag("Dram Ofm");
 
-    MceOp consumer1;
+    MceOp consumer1(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 8U, 8U },
+                    TensorShape{ 1, 1, 1, 1 }, TensorShape{ 1, 1, 1, 1 }, TensorShape{ 1, 1, 1, 1 },
+                    TraversalOrder::Zxy, Stride{ 1, 1 }, 0, 0, 0, 0);
     consumer1.m_DebugTag = "Consumer 1";
-    MceOp consumer2;
+    MceOp consumer2(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 8U, 8U },
+                    TensorShape{ 1, 1, 1, 1 }, TensorShape{ 1, 1, 1, 1 }, TensorShape{ 1, 1, 1, 1 },
+                    TraversalOrder::Zxy, Stride{ 1, 1 }, 0, 0, 0, 0);
     consumer2.m_DebugTag = "Consumer 2";
 
     graph.AddBuffer(dramIfm.get());

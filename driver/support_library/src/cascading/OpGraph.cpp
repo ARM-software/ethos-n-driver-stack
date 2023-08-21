@@ -483,24 +483,6 @@ DotAttributes DmaOp::GetDotAttributes(DetailLevel detail) const
     return result;
 }
 
-MceOp::MceOp()
-    : Op("MceOp")
-    , m_Op(MceOperation::CONVOLUTION)
-    , m_Algo(CompilerMceAlgorithm::Direct)
-    , m_BlockConfig{ 0u, 0u }
-    , m_InputStripeShape{ 0, 0, 0, 0 }
-    , m_OutputStripeShape{ 0, 0, 0, 0 }
-    , m_WeightsStripeShape{ 0, 0, 0, 0 }
-    , m_Order(TraversalOrder::Xyz)
-    , m_Stride()
-    , m_PadLeft(0)
-    , m_PadTop(0)
-    , m_UpscaleFactor(1)
-    , m_UpsampleType(MceUpsampleType::OFF)
-    , m_LowerBound(0)
-    , m_UpperBound(255)
-{}
-
 MceOp::MceOp(MceOperation op,
              CompilerMceAlgorithm algo,
              BlockConfig blockConfig,
@@ -552,22 +534,6 @@ DotAttributes MceOp::GetDotAttributes(DetailLevel detail) const
     }
     return result;
 }
-
-PleOp::PleOp()
-    : Op("PleOp")
-    , m_Op(PleOperation::FAULT)
-    , m_BlockConfig{ 0u, 0u }
-    , m_NumInputs(0)
-    , m_InputStripeShapes{}
-    , m_OutputStripeShape{ 0, 0, 0, 0 }
-    , m_PleKernelId{ command_stream::cascading::PleKernelId::NOT_FOUND }
-    , m_BlockMultiplier(0)
-    , m_LoadKernel{ true }
-    , m_Input0Multiplier(0)
-    , m_Input0Shift(0)
-    , m_Input1Multiplier(0)
-    , m_Input1Shift(0)
-{}
 
 PleOp::PleOp(PleOperation op,
              BlockConfig blockConfig,

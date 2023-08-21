@@ -199,7 +199,6 @@ public:
 class MceOp : public Op
 {
 public:
-    MceOp();
     MceOp(command_stream::MceOperation op,
           CompilerMceAlgorithm algo,
           command_stream::BlockConfig blockConfig,
@@ -235,7 +234,6 @@ public:
 class PleOp : public Op
 {
 public:
-    PleOp();
     PleOp(command_stream::PleOperation op,
           command_stream::BlockConfig blockConfig,
           uint32_t numInputs,
