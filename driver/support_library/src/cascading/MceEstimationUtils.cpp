@@ -70,7 +70,8 @@ uint64_t GetMceCycleCountWinograd(const HardwareCapabilities& caps,
     // weights to process compared to MACs this can become the limiting factor.
     // This estimation is a heuristic based on observations.
     constexpr uint32_t cyclesPerWeightTransform = 2;
-    uint64_t weightTransformCycleCount          = numBlocksPerOg * numIfms * numSubfilters * cyclesPerWeightTransform;
+    uint64_t weightTransformCycleCount =
+        static_cast<uint64_t>(numBlocksPerOg) * numIfms * numSubfilters * cyclesPerWeightTransform;
 
     return std::max(macCycleCount, weightTransformCycleCount);
 }
