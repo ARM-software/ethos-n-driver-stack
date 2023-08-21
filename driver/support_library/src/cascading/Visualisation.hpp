@@ -72,6 +72,8 @@ std::string ToString(const utils::Fraction& f);
 std::string ToString(MceUpsampleType t);
 std::string ToString(PackedBoundaryThickness t);
 std::string ToString(const BufferType& t);
+std::string ToString(const Padding& p);
+std::string ToString(const PoolingType& p);
 
 /// Replaces any illegal characters to form a valid .dot file "ID".
 std::string SanitizeId(std::string s);

@@ -881,7 +881,7 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
 
     Combination comb = combA + combB + combC;
 
-    bool dumpInputGraphToFile = true;
+    bool dumpInputGraphToFile = false;
     if (dumpInputGraphToFile)
     {
         std::ofstream stream("GetOpGraphForDfsCombinationPartialSram Input.dot");
@@ -892,7 +892,7 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
     FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
     OpGraph combOpGraph            = GetOpGraphForCombination(comb, frozenGraph);
 
-    bool dumpToFile = true;
+    bool dumpToFile = false;
     if (dumpToFile)
     {
         std::ofstream stream("GetOpGraphForDfsCombinationPartialSram Output.dot");

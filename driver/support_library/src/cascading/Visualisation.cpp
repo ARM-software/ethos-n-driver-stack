@@ -678,6 +678,27 @@ std::string ToString(PackedBoundaryThickness t)
            " }";
 }
 
+std::string ToString(const Padding& p)
+{
+    return "{ L: " + std::to_string(static_cast<int>(p.m_Left)) + ", T: " + std::to_string(static_cast<int>(p.m_Top)) +
+           ", R: " + std::to_string(static_cast<int>(p.m_Right)) +
+           ", B: " + std::to_string(static_cast<int>(p.m_Bottom)) + " }";
+}
+
+std::string ToString(const PoolingType& p)
+{
+    switch (p)
+    {
+        case PoolingType::AVG:
+            return "AVG";
+        case PoolingType::MAX:
+            return "MAX";
+        default:
+            ETHOSN_FAIL_MSG("Unknown PoolingType");
+            return "";
+    }
+}
+
 /// Replaces any illegal characters to form a valid .dot file "ID".
 std::string SanitizeId(std::string s)
 {
@@ -846,6 +867,19 @@ DotAttributes GetDotAttributes(Operation* operation, DetailLevel detailLevel)
             {
                 m_Label << "Weights: " << op.GetWeights().GetId() << "\n";
                 m_Label << "Bias: " << op.GetBias().GetId() << "\n";
+            }
+        }
+
+        void Visit(Pooling& op) override
+        {
+            if (m_DetailLevel >= DetailLevel::High)
+            {
+                m_Label << "Type: " << ToString(op.GetPoolingInfo().m_PoolingType) << "\n";
+                m_Label << "Pooling size: " << op.GetPoolingInfo().m_PoolingSizeX << " x "
+                        << op.GetPoolingInfo().m_PoolingSizeY << "\n";
+                m_Label << "Stride: " << op.GetPoolingInfo().m_PoolingStrideX << " x "
+                        << op.GetPoolingInfo().m_PoolingStrideY << "\n";
+                m_Label << "Padding: " << ToString(op.GetPoolingInfo().m_Padding) << "\n";
             }
         }
 

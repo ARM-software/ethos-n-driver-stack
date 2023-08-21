@@ -112,6 +112,9 @@ TEST_CASE("SaveNetworkToDot Details", "[Visualisation]")
                                               std::vector<int32_t>(1 * 1 * 32 * 32, 0).data());
     network.AddFullyConnected(inputFc.GetOutput(0), bias, weightsFc, FullyConnectedInfo());
 
+    PoolingInfo poolingInfo(3, 3, 1, 1, { 1, 1, 1, 1 }, PoolingType::AVG);
+    network.AddPooling(input.GetOutput(0), poolingInfo);
+
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
     bool dumpToFile = false;
     if (dumpToFile)
@@ -161,6 +164,10 @@ Operation9[label = "9: FullyConnected\nWeights: 8\nBias: 1\n", shape = oval]
 Operand7_0 -> Operation9
 Operand9_0[label = "Operand\nShape = [1, 1, 1, 32]\nFormat = NHWC\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 1.000000\n", shape = box]
 Operation9 -> Operand9_0
+Operation10[label = "10: Pooling\nType: AVG\nPooling size: 3 x 3\nStride: 1 x 1\nPadding: { L: 1, T: 1, R: 1, B: 1 }\n", shape = oval]
+Operand0_0 -> Operation10
+Operand10_0[label = "Operand\nShape = [1, 16, 16, 32]\nFormat = NHWC\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 1.000000\n", shape = box]
+Operation10 -> Operand10_0
 }
 )";
 
@@ -512,7 +519,7 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     std::map<Buffer*, std::string> extraBufferDetails = { { inputBuffer.get(), "Extra details for InputBuffer!" } };
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
-    bool dumpToFile = true;
+    bool dumpToFile = false;
     if (dumpToFile)
     {
         std::ofstream stream("SaveEstimatedOpGraphToDot.dot");

@@ -1093,7 +1093,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Linear")
     graph.AddConsumer(i.get(), &J, 0);
     graph.AddProducer(k.get(), &J);
 
-    bool debug = true;
+    bool debug = false;
     if (debug)
     {
         std::ofstream s("OpGraph RemoveRedundantCopiesDramToSram Linear Pre.dot");
@@ -1555,7 +1555,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Multiple Concat")
     graph.AddProducer(i.get(), &K);
     graph.AddProducer(i.get(), &H);
 
-    bool debug = true;
+    bool debug = false;
     if (debug)
     {
         std::ofstream s("OpGraph RemoveRedundantCopiesSramToDram Multiple Concat Pre.dot");
@@ -1741,7 +1741,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Multiple Split")
     graph.AddProducer(i.get(), &L);
     graph.AddConsumer(m.get(), &L, 0);
 
-    bool debug = true;
+    bool debug = false;
     if (debug)
     {
         std::ofstream s("OpGraph RemoveRedundantCopiesSramToDram Multiple Split Pre.dot");
@@ -1906,7 +1906,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Concat one branch invalid")
     graph.AddConsumer(j.get(), &K, 0);
     graph.AddProducer(i.get(), &K);
 
-    bool debug = true;
+    bool debug = false;
     if (debug)
     {
         std::ofstream s("OpGraph RemoveRedundantCopiesSramToDram Concat one branch invalid Pre.dot");
@@ -2031,7 +2031,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Split one branch invalid")
     graph.AddProducer(j.get(), &K);
     graph.AddConsumer(i.get(), &K, 0);
 
-    bool debug = true;
+    bool debug = false;
     if (debug)
     {
         std::ofstream s("OpGraph RemoveRedundantCopiesDramToSram Split one branch invalid Pre.dot");
