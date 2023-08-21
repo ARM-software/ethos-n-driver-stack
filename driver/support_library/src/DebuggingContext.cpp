@@ -67,7 +67,7 @@ DebuggingContext::DebuggingContext(const CompilationOptions::DebugInfo& debugInf
                 {
                     partIds.insert(std::stoi(ethosn::utils::Trim(partIdString)));
                 }
-                catch (const std::logic_error& e)
+                catch (const std::logic_error&)
                 {
                     reportError(std::string("Invalid part ID: ") + partIdString);
                 }
