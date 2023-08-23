@@ -697,6 +697,8 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
         TensorInfo inputInfo  = pooling.GetInput(0).GetTensorInfo();
         TensorInfo outputInfo = pooling.GetOutput(0).GetTensorInfo();
 
+        // Create the appropriate fused or standalone PLE parts, based on the type of pooling
+
         auto createFusedPoolingPart = [&](PleOperation op) {
             std::map<std::string, std::string> selectionStringParams;
             if (op != PleOperation::DOWNSAMPLE_2X2)    // Downsample is sign-agnostic
@@ -716,8 +718,7 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
             m_GraphOfParts.AddPart(std::move(poolingFusedPlePart));
         };
 
-        // Pooling Visitor decoder, creating appropriate FusedPle Parts for supported Operations.
-        // Handle MeanXy Operations with 7x7, 8x8 sizes.
+        // MeanXy
         if (inputHeight == 7U && inputWidth == 7U && poolingInfo == poolingInfoMeanXy)
         {
             createFusedPoolingPart(PleOperation::MEAN_XY_7X7);
@@ -726,7 +727,7 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
         {
             createFusedPoolingPart(PleOperation::MEAN_XY_8X8);
         }
-        // Handle MaxPool Operations of supported kernel sizes, strides and padding.
+        // MaxPool with stride 2
         else if (poolingInfo == PoolingInfo{ 2, 2, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
         {
             createFusedPoolingPart(PleOperation::MAXPOOL_2X2_2_2);
@@ -743,6 +744,7 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
         {
             createFusedPoolingPart(PleOperation::DOWNSAMPLE_2X2);
         }
+        // AvgPool
         else if (poolingInfo == PoolingInfo{ 3, 3, 1, 1, poolingInfo.m_Padding, PoolingType::AVG })
         {
             const std::vector<QuantizationInfo> inputQuantizations = {
@@ -761,11 +763,61 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
             parts.push_back(poolingStandalonePlePart.get());
             m_GraphOfParts.AddPart(std::move(poolingStandalonePlePart));
         }
+        // MaxPool with stride 1
+        else if (poolingInfo.m_PoolingType == PoolingType::MAX && poolingInfo.m_PoolingStrideX == 1 &&
+                 poolingInfo.m_PoolingStrideY == 1)
+        {
+            std::map<std::string, std::string> selectionStringParams = {
+                { "datatype", outputInfo.m_DataType == DataType::INT8_QUANTIZED ? "s8" : "u8" }
+            };
+            const std::vector<QuantizationInfo> inputQuantizations = {
+                pooling.GetInput(0).GetTensorInfo().m_QuantizationInfo
+            };
+            // Decompose a 2D pooling into 2 x 1D pooling (first X then Y)
+            TensorShape intermediateTensorShape = pooling.GetInput(0).GetTensorInfo().m_Dimensions;
+            intermediateTensorShape[2]          = GetWidth(pooling.GetOutput(0).GetTensorInfo().m_Dimensions);
+
+            if (poolingInfo.m_PoolingSizeX > 1)
+            {
+                const std::vector<TensorShape> inputShapes    = { pooling.GetInput(0).GetTensorInfo().m_Dimensions };
+                std::map<std::string, int> selectionIntParams = { { "is_direction_x", 1 } };
+                std::map<std::string, int> runtimeParams      = {
+                    { "pooling_size", poolingInfo.m_PoolingSizeX },
+                    { "pad_before", poolingInfo.m_Padding.m_Left },
+                };
+
+                auto poolingStandalonePlePartX = std::make_unique<StandalonePlePart>(
+                    m_GraphOfParts.GeneratePartId(), inputShapes, intermediateTensorShape, inputQuantizations,
+                    pooling.GetOutput(0).GetTensorInfo().m_QuantizationInfo, PleOperation::MAXPOOL1D,
+                    m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+                    std::set<uint32_t>{ pooling.GetId() }, pooling.GetOutput(0).GetTensorInfo().m_DataType,
+                    selectionStringParams, selectionIntParams, runtimeParams);
+                parts.push_back(poolingStandalonePlePartX.get());
+                m_GraphOfParts.AddPart(std::move(poolingStandalonePlePartX));
+            }
+
+            if (poolingInfo.m_PoolingSizeY > 1)
+            {
+                const std::vector<TensorShape> inputShapes    = { intermediateTensorShape };
+                std::map<std::string, int> selectionIntParams = { { "is_direction_y", 1 } };
+                std::map<std::string, int> runtimeParams      = {
+                    { "pooling_size", poolingInfo.m_PoolingSizeY },
+                    { "pad_before", poolingInfo.m_Padding.m_Top },
+                };
+                auto poolingStandalonePlePartY = std::make_unique<StandalonePlePart>(
+                    m_GraphOfParts.GeneratePartId(), inputShapes, pooling.GetOutput(0).GetTensorInfo().m_Dimensions,
+                    inputQuantizations, pooling.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
+                    PleOperation::MAXPOOL1D, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+                    std::set<uint32_t>{ pooling.GetId() }, pooling.GetOutput(0).GetTensorInfo().m_DataType,
+                    selectionStringParams, selectionIntParams, runtimeParams);
+                parts.push_back(poolingStandalonePlePartY.get());
+                m_GraphOfParts.AddPart(std::move(poolingStandalonePlePartY));
+            }
+        }
         else
         {
-            throw InternalErrorException(
-                "Only PoolingType::MAX 2x2_2_2, 3x3_2_2_even/odd and PoolingType::AVG 3x3_1_1, "
-                "7x7_2_2, 8x8_2_2 are supported at the moment");
+            // This should have already been caught by the supported checks
+            throw InternalErrorException("Unsupported pooling configuration");
         }
     }
 

@@ -215,6 +215,8 @@ std::string ToString(PleOperation o)
             return "TRANSPOSE_XY";
         case PleOperation::LEAKY_RELU:
             return "LEAKY_RELU";
+        case PleOperation::MAXPOOL1D:
+            return "MAXPOOL1D";
         default:
             ETHOSN_FAIL_MSG("Unknown PLE operation");
             return "";

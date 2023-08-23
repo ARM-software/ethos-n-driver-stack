@@ -57,6 +57,7 @@ enum class PleOperation : uint8_t
     LEAKY_RELU           = 13U,
     DOWNSAMPLE_2X2       = 14U,
     // After this point they are not in SPA so can be whatever
+    MAXPOOL1D,
 };
 
 enum class CompilerDataFormat
@@ -288,6 +289,11 @@ constexpr T RoundUpToNearestMultiple(T num, S nearestMultiple)
     }
 
     return num + nearestMultiple - remainder;
+}
+
+inline uint32_t RoundDownToMultiple(uint32_t x, uint32_t m)
+{
+    return (x / m) * m;
 }
 
 /// Splits the given multiplier (which must be between 0 and 1) into integer scale and shift amounts,

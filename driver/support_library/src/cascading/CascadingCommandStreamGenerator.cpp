@@ -1002,8 +1002,9 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
     // Get the output buffer from the Ple Op
     SramBuffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrPleOp)->Sram();
 
-    PleSDesc pleS = {};
-    pleS.m_PleOp  = ptrPleOp;
+    PleSDesc pleS       = {};
+    pleS.m_InputBuffer0 = inputBuffer0;
+    pleS.m_PleOp        = ptrPleOp;
 
     pleS.ofmZeroPoint = ethosn::utils::NumericCast<int16_t>(outputBuffer->m_QuantizationInfo.GetZeroPoint());
 

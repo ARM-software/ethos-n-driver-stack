@@ -81,31 +81,10 @@ command_stream::cascading::StartPleStripeCommand
     result.type                  = CommandType::StartPleStripe;
     result.agentId               = agentId;
 
-    ncu_ple_interface::StripeInfo pleInfo = {};
-
     TensorSize stripeCoord;
     stripeCoord.width    = (static_cast<uint32_t>(stripeId) / pleS.stripeIdStrides.width) % pleS.numStripes.width;
     stripeCoord.height   = (static_cast<uint32_t>(stripeId) / pleS.stripeIdStrides.height) % pleS.numStripes.height;
     stripeCoord.channels = (static_cast<uint32_t>(stripeId) / pleS.stripeIdStrides.channels) % pleS.numStripes.channels;
-
-    if (stripeCoord.height == 0)
-    {
-        pleInfo.flags |= static_cast<uint32_t>(ncu_ple_interface::Flags::TOP);
-    }
-    if (stripeCoord.height == (pleS.numStripes.height - 1U))
-    {
-        pleInfo.flags |= static_cast<uint32_t>(ncu_ple_interface::Flags::BOTTOM);
-    }
-    if (stripeCoord.width == 0)
-    {
-        pleInfo.flags |= static_cast<uint32_t>(ncu_ple_interface::Flags::LEFT);
-    }
-    if (stripeCoord.width == (pleS.numStripes.width - 1U))
-    {
-        pleInfo.flags |= static_cast<uint32_t>(ncu_ple_interface::Flags::RIGHT);
-    }
-
-    pleInfo.output.zeroPoint = pleS.ofmZeroPoint;
 
     TensorSize stripeSize;
     stripeSize.width =
@@ -115,66 +94,112 @@ command_stream::cascading::StartPleStripeCommand
     stripeSize.channels = (stripeCoord.channels == (pleS.numStripes.channels - 1U)) ? pleS.edgeStripeSize.channels
                                                                                     : pleS.defaultStripeSize.channels;
 
-    pleInfo.stripeWidth  = static_cast<uint16_t>(stripeSize.width);
-    pleInfo.stripeHeight = static_cast<uint16_t>(stripeSize.height);
-    pleInfo.stripeDepth  = static_cast<uint16_t>(stripeSize.channels);
-
-    pleInfo.output.dfcAddr = PleDfcAddr(pleS.ofmTile, stripeId);
-
-    // For max pooling (odd), we may need to schedule an additional "zero size" stripe at the end so that
-    // the PLE kernel can receive the final row of elements from the MCE and use this to complete the pooling
-    // for the previous stripe. This messes up the SRAM addresses for PLE outputs, so we ignore these zero size
-    // stripes for the purposes of SRAM offsets.
-    if (pleS.edgeStripeSize.height == 0)
+    // Most PLE kernels use a common layout for the scratch registers, but some have their own layout
+    if (pleS.m_PleOp->m_Op == PleOperation::MAXPOOL1D)
     {
-        uint32_t adjustedStripeId = (stripeId / pleS.numStripes.height) * (pleS.numStripes.height - 1) +
-                                    std::min(stripeId % pleS.numStripes.height, pleS.numStripes.height - 2);
-        pleInfo.output.dfcAddr = PleDfcAddr(pleS.ofmTile, adjustedStripeId);
-    }
-
-    // specific work according to PLE input: either from SRAM or from MCE
-    if (pleS.inputMode == PleInputMode::SRAM_ONE_INPUT || pleS.inputMode == PleInputMode::SRAM_TWO_INPUTS)
-    {
-        pleInfo.inputs[0].dfcAddr = PleDfcAddr(pleS.ifmTile0, stripeId);
-        if (pleS.inputMode == PleInputMode::SRAM_TWO_INPUTS)
+        result.SCRATCH[0] = stripeSize.width;
+        result.SCRATCH[1] = stripeSize.height;
+        result.SCRATCH[2] = stripeSize.channels;
+        // For valid padding cases, the input size can be larger than the output size in the direction
+        // of the pooling, so we send this value separately.
+        if (pleS.m_PleOp->m_SelectionIntParams.count("is_direction_x") > 0)
         {
-            pleInfo.inputs[1].dfcAddr = PleDfcAddr(pleS.ifmTile1, stripeId);
+            result.SCRATCH[3] = utils::GetWidth(pleS.m_InputBuffer0->m_TensorShape);
         }
+        else if (pleS.m_PleOp->m_SelectionIntParams.count("is_direction_y") > 0)
+        {
+            result.SCRATCH[3] = utils::GetHeight(pleS.m_InputBuffer0->m_TensorShape);
+        }
+        result.SCRATCH[4] = SramAddr(pleS.ifmTile0, stripeId);
+        result.SCRATCH[5] = SramAddr(pleS.ofmTile, stripeId);
+        result.SCRATCH[6] = pleS.m_PleOp->m_RuntimeParams.at("pad_before");
+        result.SCRATCH[7] = pleS.m_PleOp->m_RuntimeParams.at("pooling_size");
     }
     else
     {
-        // PLE takes input from MCE
-        static_assert(static_cast<ncu_ple_interface::MceOp>(PleInputMode::MCE_ALL_OGS) ==
-                          ncu_ple_interface::MceOp::CONVOLUTION,
-                      "");
-        static_assert(static_cast<ncu_ple_interface::MceOp>(PleInputMode::MCE_ONE_OG) ==
-                          ncu_ple_interface::MceOp::DEPTHWISE_CONVOLUTION,
-                      "");
-        pleInfo.mceOp = static_cast<ncu_ple_interface::MceOp>(pleS.inputMode);
+        ncu_ple_interface::StripeInfo pleInfo = {};
+
+        if (stripeCoord.height == 0)
+        {
+            pleInfo.flags |= static_cast<uint32_t>(ncu_ple_interface::Flags::TOP);
+        }
+        if (stripeCoord.height == (pleS.numStripes.height - 1U))
+        {
+            pleInfo.flags |= static_cast<uint32_t>(ncu_ple_interface::Flags::BOTTOM);
+        }
+        if (stripeCoord.width == 0)
+        {
+            pleInfo.flags |= static_cast<uint32_t>(ncu_ple_interface::Flags::LEFT);
+        }
+        if (stripeCoord.width == (pleS.numStripes.width - 1U))
+        {
+            pleInfo.flags |= static_cast<uint32_t>(ncu_ple_interface::Flags::RIGHT);
+        }
+
+        pleInfo.output.zeroPoint = pleS.ofmZeroPoint;
+
+        pleInfo.stripeWidth  = static_cast<uint16_t>(stripeSize.width);
+        pleInfo.stripeHeight = static_cast<uint16_t>(stripeSize.height);
+        pleInfo.stripeDepth  = static_cast<uint16_t>(stripeSize.channels);
+
+        pleInfo.output.dfcAddr = PleDfcAddr(pleS.ofmTile, stripeId);
+
+        // For max pooling (odd), we may need to schedule an additional "zero size" stripe at the end so that
+        // the PLE kernel can receive the final row of elements from the MCE and use this to complete the pooling
+        // for the previous stripe. This messes up the SRAM addresses for PLE outputs, so we ignore these zero size
+        // stripes for the purposes of SRAM offsets.
+        if (pleS.edgeStripeSize.height == 0)
+        {
+            uint32_t adjustedStripeId = (stripeId / pleS.numStripes.height) * (pleS.numStripes.height - 1) +
+                                        std::min(stripeId % pleS.numStripes.height, pleS.numStripes.height - 2);
+            pleInfo.output.dfcAddr = PleDfcAddr(pleS.ofmTile, adjustedStripeId);
+        }
+
+        // specific work according to PLE input: either from SRAM or from MCE
+        if (pleS.inputMode == PleInputMode::SRAM_ONE_INPUT || pleS.inputMode == PleInputMode::SRAM_TWO_INPUTS)
+        {
+            pleInfo.inputs[0].dfcAddr = PleDfcAddr(pleS.ifmTile0, stripeId);
+            if (pleS.inputMode == PleInputMode::SRAM_TWO_INPUTS)
+            {
+                pleInfo.inputs[1].dfcAddr = PleDfcAddr(pleS.ifmTile1, stripeId);
+            }
+        }
+        else
+        {
+            // PLE takes input from MCE
+            static_assert(static_cast<ncu_ple_interface::MceOp>(PleInputMode::MCE_ALL_OGS) ==
+                              ncu_ple_interface::MceOp::CONVOLUTION,
+                          "");
+            static_assert(static_cast<ncu_ple_interface::MceOp>(PleInputMode::MCE_ONE_OG) ==
+                              ncu_ple_interface::MceOp::DEPTHWISE_CONVOLUTION,
+                          "");
+            pleInfo.mceOp = static_cast<ncu_ple_interface::MceOp>(pleS.inputMode);
+        }
+
+        pleInfo.inputs[0].zeroPoint = pleS.ifmInfo0.zeroPoint;
+        pleInfo.inputs[1].zeroPoint = pleS.ifmInfo1.zeroPoint;
+
+        if (pleS.m_PleOp->m_RuntimeParams.count("input0_multiplier") > 0)
+        {
+            pleInfo.inputs[0].multiplier = NumericCast<uint16_t>(pleS.m_PleOp->m_RuntimeParams.at("input0_multiplier"));
+        }
+        if (pleS.m_PleOp->m_RuntimeParams.count("input0_shift") > 0)
+        {
+            pleInfo.inputs[0].shift = NumericCast<uint16_t>(pleS.m_PleOp->m_RuntimeParams.at("input0_shift"));
+        }
+        if (pleS.m_PleOp->m_RuntimeParams.count("input1_multiplier") > 0)
+        {
+            pleInfo.inputs[1].multiplier = NumericCast<uint16_t>(pleS.m_PleOp->m_RuntimeParams.at("input1_multiplier"));
+        }
+        if (pleS.m_PleOp->m_RuntimeParams.count("input1_shift") > 0)
+        {
+            pleInfo.inputs[1].shift = NumericCast<uint16_t>(pleS.m_PleOp->m_RuntimeParams.at("input1_shift"));
+        }
+        // Write PLE struct to PLE scratch registers
+        static_assert(sizeof(pleInfo) <= sizeof(result.SCRATCH), "StripeInfo must fit in scratch registers");
+        memcpy(&result.SCRATCH[0], &pleInfo, sizeof(pleInfo));
     }
 
-    pleInfo.inputs[0].zeroPoint = pleS.ifmInfo0.zeroPoint;
-    pleInfo.inputs[1].zeroPoint = pleS.ifmInfo1.zeroPoint;
-
-    if (pleS.m_PleOp->m_RuntimeParams.count("input0_multiplier") > 0)
-    {
-        pleInfo.inputs[0].multiplier = NumericCast<uint16_t>(pleS.m_PleOp->m_RuntimeParams.at("input0_multiplier"));
-    }
-    if (pleS.m_PleOp->m_RuntimeParams.count("input0_shift") > 0)
-    {
-        pleInfo.inputs[0].shift = NumericCast<uint16_t>(pleS.m_PleOp->m_RuntimeParams.at("input0_shift"));
-    }
-    if (pleS.m_PleOp->m_RuntimeParams.count("input1_multiplier") > 0)
-    {
-        pleInfo.inputs[1].multiplier = NumericCast<uint16_t>(pleS.m_PleOp->m_RuntimeParams.at("input1_multiplier"));
-    }
-    if (pleS.m_PleOp->m_RuntimeParams.count("input1_shift") > 0)
-    {
-        pleInfo.inputs[1].shift = NumericCast<uint16_t>(pleS.m_PleOp->m_RuntimeParams.at("input1_shift"));
-    }
-    // Write PLE struct to PLE scratch registers
-    static_assert(sizeof(pleInfo) <= sizeof(result.SCRATCH), "StripeInfo must fit in scratch registers");
-    memcpy(&result.SCRATCH[0], &pleInfo, sizeof(pleInfo));
     return result;
 }
 

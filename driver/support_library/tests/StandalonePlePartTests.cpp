@@ -237,7 +237,7 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
         REQUIRE(plans0.size() == 0);
 
         Plans plans1 = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
-        REQUIRE(plans1.size() == 2);
+        REQUIRE(plans1.size() == 3);
 
         CheckPlansParams params;
         params.m_PartId           = partId;

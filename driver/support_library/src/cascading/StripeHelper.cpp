@@ -246,10 +246,6 @@ StripeConfig GetDefaultStripeConfig(const CompilationOptions& compilationOptions
                         {
                             result.splits.mceAndPleOutputDepth = valueBool();
                         }
-                        else if (name == "Splits.InputDepthOnly")
-                        {
-                            result.splits.inputDepthOnly = valueBool();
-                        }
                         else if (name == "Splits.None")
                         {
                             result.splits.none = valueBool();
@@ -805,7 +801,6 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         stripeConfig.DisableAllSplits();
         stripeConfig.splits.widthHeightOutputDepthInputDepth = true;
         stripeConfig.splits.outputDepthInputDepth            = true;
-        stripeConfig.splits.inputDepthOnly                   = true;
     }
 
     // Note use of numSrams rather than numOgs when doing depthwise as only one OG per CE is used for depthwise.

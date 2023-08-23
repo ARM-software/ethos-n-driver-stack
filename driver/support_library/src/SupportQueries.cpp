@@ -2172,60 +2172,119 @@ SupportedLevel SupportQueries::IsPoolingSupported(const PoolingInfo& poolingInfo
     }
     else if (poolingInfo.m_PoolingType == PoolingType::MAX)
     {
-        const Padding noPad    = { 0, 0, 0, 0 };
-        const Padding padAfter = { 0, 1, 0, 1 };
-
-        const PoolingInfo supportedConfigs[] = {
-            { 1, 1, 2, 2, noPad, PoolingType::MAX },    { 2, 2, 2, 2, noPad, PoolingType::MAX },
-            { 2, 2, 2, 2, padAfter, PoolingType::MAX }, { 3, 3, 2, 2, noPad, PoolingType::MAX },
-            { 3, 3, 2, 2, padAfter, PoolingType::MAX },
-        };
-
-        const auto it = std::find(std::begin(supportedConfigs), std::end(supportedConfigs), poolingInfo);
-
-        if (it == std::end(supportedConfigs))
+        if (poolingInfo.m_PoolingStrideX == 2 && poolingInfo.m_PoolingStrideY == 2)
         {
-            SetReason("Unsupported configuration in Max pooling", reason, reasonMaxLength);
+            const Padding noPad    = { 0, 0, 0, 0 };
+            const Padding padAfter = { 0, 1, 0, 1 };
+
+            const PoolingInfo stride2SupportedConfigs[] = {
+                { 1, 1, 2, 2, noPad, PoolingType::MAX },    { 2, 2, 2, 2, noPad, PoolingType::MAX },
+                { 2, 2, 2, 2, padAfter, PoolingType::MAX }, { 3, 3, 2, 2, noPad, PoolingType::MAX },
+                { 3, 3, 2, 2, padAfter, PoolingType::MAX },
+            };
+
+            const auto it =
+                std::find(std::begin(stride2SupportedConfigs), std::end(stride2SupportedConfigs), poolingInfo);
+
+            if (it == std::end(stride2SupportedConfigs))
+            {
+                SetReason("Unsupported configuration in Max pooling with stride 2", reason, reasonMaxLength);
+                return SupportedLevel::EstimateOnly;
+            }
+
+            if (poolingInfo.m_PoolingSizeX == 2)
+            {
+                if ((poolingInfo.m_Padding == noPad) && (((inputWidth % 2U) != 0) || ((inputHeight % 2U) != 0)))
+                {
+                    SetReason("Max pooling 2x2_2_2 with no padding: input sizes must be even", reason, reasonMaxLength);
+                    return SupportedLevel::EstimateOnly;
+                }
+
+                if ((poolingInfo.m_Padding == padAfter) && (((inputWidth % 2U) == 0) || ((inputHeight % 2U) == 0)))
+                {
+                    SetReason("Max pooling 2x2_2_2 with padding: input sizes must be odd", reason, reasonMaxLength);
+                    return SupportedLevel::EstimateOnly;
+                }
+            }
+
+            if (poolingInfo.m_PoolingSizeX == 3)
+            {
+                // Maximum width is implementation dependent
+                constexpr unsigned maxWidth = 417;
+
+                if (inputWidth > maxWidth)
+                {
+                    SetReason("Max pooling 3x3_2_2: maximum input width (%u) exceeded", reason, reasonMaxLength,
+                              maxWidth);
+                    return SupportedLevel::EstimateOnly;
+                }
+
+                if ((poolingInfo.m_Padding == noPad) && (((inputWidth % 2U) == 0) || ((inputHeight % 2U) == 0)))
+                {
+                    SetReason("Max pooling 3x3_2_2 with no padding: input sizes must be odd", reason, reasonMaxLength);
+                    return SupportedLevel::EstimateOnly;
+                }
+
+                if ((poolingInfo.m_Padding == padAfter) && (((inputWidth % 2U) != 0) || ((inputHeight % 2U) != 0)))
+                {
+                    SetReason("Max pooling 3x3_2_2 with padding: input sizes must be even", reason, reasonMaxLength);
+                    return SupportedLevel::EstimateOnly;
+                }
+            }
+        }
+        else if (poolingInfo.m_PoolingStrideX == 1 && poolingInfo.m_PoolingStrideY == 1)
+        {
+            // This is done using the MaxPool1D kernel, which has limitations on the padding amounts
+            TensorShape weightsShape{ poolingInfo.m_PoolingSizeY, poolingInfo.m_PoolingSizeX, 0, 0 };
+            bool isSamePadding = (poolingInfo.m_Padding == CalcSamePadding(inputInfo.m_Dimensions, weightsShape,
+                                                                           Stride{ 1, 1 }, PadMode::Symmetric)) ||
+                                 (poolingInfo.m_Padding == CalcSamePadding(inputInfo.m_Dimensions, weightsShape,
+                                                                           Stride{ 1, 1 }, PadMode::PreferBefore)) ||
+                                 (poolingInfo.m_Padding == CalcSamePadding(inputInfo.m_Dimensions, weightsShape,
+                                                                           Stride{ 1, 1 }, PadMode::PreferAfter));
+
+            if (poolingInfo.m_Padding == Padding{ 0, 0, 0, 0 } && poolingInfo.m_PoolingSizeX <= 9 &&
+                poolingInfo.m_PoolingSizeY <= 9)
+            {
+                // Supported
+            }
+            else if (isSamePadding && poolingInfo.m_PoolingSizeX <= 17 && poolingInfo.m_PoolingSizeY <= 17)
+            {
+                // Supported
+            }
+            else
+            {
+                // Note that we could quite easily support larger sizes in future by repeatedly
+                // applying the max pooling PLE kernel (e.g. pooling of size 20 is pooling of size 17 followed
+                // by pooling of size 4).
+                SetReason("Unsupported pooling size and padding for max pooling with stride 1 - must be VALID with "
+                          "size <= 9 or SAME with size <= 17",
+                          reason, reasonMaxLength);
+                return SupportedLevel::EstimateOnly;
+            }
+
+            // We don't support splitting the tensor in the dimension of the pooling, so there is a limit
+            // on the max tensor size in width and height (if those dimensions are pooled) based on
+            // the size of SRAM
+            const HardwareCapabilities hwCapabilities(GetValidCapabilities(m_Capabilities));
+            const uint32_t availableSram          = hwCapabilities.GetTotalSramSize() - hwCapabilities.GetMaxPleSize();
+            const uint32_t availableSramPerTensor = availableSram / 2;    // Both input and output in SRAM
+            const uint32_t maxSize                = utils::RoundDownToMultiple(
+                availableSramPerTensor / (GetWidth(g_BrickGroupShape) * GetChannels(g_BrickGroupShape)),
+                GetWidth(g_BrickGroupShape));
+            if ((poolingInfo.m_PoolingSizeX > 1 && inputWidth > maxSize) ||
+                (poolingInfo.m_PoolingSizeY > 1 && inputHeight > maxSize))
+            {
+                SetReason(
+                    "Input tensor for max pooling with stride 1 is too large - width and height are limited to %u",
+                    reason, reasonMaxLength, maxSize);
+                return SupportedLevel::EstimateOnly;
+            }
+        }
+        else
+        {
+            SetReason("Unsupported stride for max pooling - must be 1,1 or 2,2", reason, reasonMaxLength);
             return SupportedLevel::EstimateOnly;
-        }
-
-        if (poolingInfo.m_PoolingSizeX == 2)
-        {
-            if ((poolingInfo.m_Padding == noPad) && (((inputWidth % 2U) != 0) || ((inputHeight % 2U) != 0)))
-            {
-                SetReason("Max pooling 2x2_2_2 with no padding: input sizes must be even", reason, reasonMaxLength);
-                return SupportedLevel::EstimateOnly;
-            }
-
-            if ((poolingInfo.m_Padding == padAfter) && (((inputWidth % 2U) == 0) || ((inputHeight % 2U) == 0)))
-            {
-                SetReason("Max pooling 2x2_2_2 with padding: input sizes must be odd", reason, reasonMaxLength);
-                return SupportedLevel::EstimateOnly;
-            }
-        }
-
-        if (poolingInfo.m_PoolingSizeX == 3)
-        {
-            // Maximum width is implementation dependent
-            constexpr unsigned maxWidth = 417;
-
-            if (inputWidth > maxWidth)
-            {
-                SetReason("Max pooling 3x3_2_2: maximum input width (%u) exceeded", reason, reasonMaxLength, maxWidth);
-                return SupportedLevel::EstimateOnly;
-            }
-
-            if ((poolingInfo.m_Padding == noPad) && (((inputWidth % 2U) == 0) || ((inputHeight % 2U) == 0)))
-            {
-                SetReason("Max pooling 3x3_2_2 with no padding: input sizes must be odd", reason, reasonMaxLength);
-                return SupportedLevel::EstimateOnly;
-            }
-
-            if ((poolingInfo.m_Padding == padAfter) && (((inputWidth % 2U) != 0) || ((inputHeight % 2U) != 0)))
-            {
-                SetReason("Max pooling 3x3_2_2 with padding: input sizes must be even", reason, reasonMaxLength);
-                return SupportedLevel::EstimateOnly;
-            }
         }
 
         if ((inputWidth < poolingInfo.m_PoolingSizeX) || (inputHeight < poolingInfo.m_PoolingSizeY))

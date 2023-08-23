@@ -41,15 +41,11 @@ SupportedLevel IsPoolingSupportedImpl(SupportQueries& queries,
 }
 }    // namespace
 
-TEST_CASE("PoolingSupported")
+TEST_CASE("IsPoolingSupported")
 {
     char reason[1024];
 
     SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
-
-    const Padding noPad    = { 0, 0, 0, 0 };
-    const Padding padAfter = { 0, 1, 0, 1 };
-    const Padding padAll   = { 1, 1, 1, 1 };
 
     // Invalid pooling size
     {
@@ -79,7 +75,7 @@ TEST_CASE("PoolingSupported")
         REQUIRE(Contains(reason, "Provided outputInfo is incorrect"));
     }
 
-    // Input and output XY cannot be fit into SRAM (Z split is possible)
+    // Avg pool 3x3_1_1 - Input and output XY cannot be fit into SRAM (Z split is possible)
     {
         TensorInfo input({ 1, 480, 33, 64 });
         PoolingInfo poolingInfo(3, 3, 1, 1, { 1, 1, 1, 1 }, PoolingType::AVG);
@@ -88,7 +84,7 @@ TEST_CASE("PoolingSupported")
         REQUIRE(Contains(reason, "AVG pooling 3x3_1_1: maximum input width x height cannot fit into SRAM"));
     }
 
-    // Input and output XY can be fit into SRAM (Z split is possible)
+    // Avg pool 3x3_1_1 - Input and output XY can be fit into SRAM (Z split is possible)
     {
         TensorInfo input({ 1, 480, 32, 64 });
         PoolingInfo poolingInfo(3, 3, 1, 1, { 1, 1, 1, 1 }, PoolingType::AVG);
@@ -96,7 +92,7 @@ TEST_CASE("PoolingSupported")
                 SupportedLevel::Supported);
     }
 
-    // Input and output XY cannot be fit into SRAM (Z split is not possible)
+    // Avg pool 3x3_1_1 - Input and output XY cannot be fit into SRAM (Z split is not possible)
     {
         TensorInfo input({ 1, 481, 64, 16 });
         PoolingInfo poolingInfo(3, 3, 1, 1, { 1, 1, 1, 1 }, PoolingType::AVG);
@@ -105,7 +101,7 @@ TEST_CASE("PoolingSupported")
         REQUIRE(Contains(reason, "AVG pooling 3x3_1_1: maximum input width x height cannot fit into SRAM"));
     }
 
-    // Input and output XY can be fit into SRAM (Z split is not possible)
+    // Avg pool 3x3_1_1 - Input and output XY can be fit into SRAM (Z split is not possible)
     {
         TensorInfo input({ 1, 480, 64, 16 });
         PoolingInfo poolingInfo(3, 3, 1, 1, { 1, 1, 1, 1 }, PoolingType::AVG);
@@ -122,39 +118,75 @@ TEST_CASE("PoolingSupported")
         REQUIRE(Contains(reason, "Zero point out of range for input info"));
     }
 
+    // Max pool stride 1 - neither SAME nor VALID padding
+    {
+        TensorInfo input({ 1, 16, 16, 32 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        PoolingInfo poolingInfo(3, 3, 1, 1, { 0, 1, 2, 3 }, PoolingType::MAX);
+        REQUIRE(queries.IsPoolingSupported(poolingInfo, input, nullptr, reason, sizeof(reason)) ==
+                SupportedLevel::EstimateOnly);
+        REQUIRE(Contains(reason, "Unsupported pooling size and padding"));
+    }
+
+    // Max pool stride 1 - VALID padding but too big pooling size
+    {
+        TensorInfo input({ 1, 16, 16, 32 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        PoolingInfo poolingInfo(10, 5, 1, 1, { 0, 0, 0, 0 }, PoolingType::MAX);
+        REQUIRE(queries.IsPoolingSupported(poolingInfo, input, nullptr, reason, sizeof(reason)) ==
+                SupportedLevel::EstimateOnly);
+        REQUIRE(Contains(reason, "Unsupported pooling size and padding"));
+    }
+
+    // Max pool stride 1 - SAME padding but too big pooling size
+    {
+        TensorInfo input({ 1, 16, 16, 32 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        PoolingInfo poolingInfo(5, 20, 1, 1, { 10, 9, 2, 2 }, PoolingType::MAX);
+        REQUIRE(queries.IsPoolingSupported(poolingInfo, input, nullptr, reason, sizeof(reason)) ==
+                SupportedLevel::EstimateOnly);
+        REQUIRE(Contains(reason, "Unsupported pooling size and padding"));
+    }
+
+    // Max pool stride 1 - too big in X or Y
+    {
+        TensorInfo input({ 1, 8000, 16, 32 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        PoolingInfo poolingInfo(5, 5, 1, 1, { 2, 2, 2, 2 }, PoolingType::MAX);
+        REQUIRE(queries.IsPoolingSupported(poolingInfo, input, nullptr, reason, sizeof(reason)) ==
+                SupportedLevel::EstimateOnly);
+        REQUIRE(Contains(reason, "width and height are limited"));
+    }
+
     // EstimateOnly
-    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 2, 2 }, { 1, 1 }, noPad, PoolingType::MAX) ==
+    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 3, 3 }, { 1, 1 }, { 0, 0, 0, 0 }, PoolingType::AVG) ==
             SupportedLevel::EstimateOnly);
-    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 3, 3 }, { 1, 1 }, noPad, PoolingType::MAX) ==
+    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 5, 5 }, { 3, 3 }, { 0, 0, 0, 0 }, PoolingType::AVG) ==
             SupportedLevel::EstimateOnly);
-    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 3, 3 }, { 1, 1 }, noPad, PoolingType::AVG) ==
+    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 7, 7 }, { 1, 1 }, { 0, 0, 0, 0 }, PoolingType::AVG) ==
             SupportedLevel::EstimateOnly);
-    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 5, 5 }, { 3, 3 }, noPad, PoolingType::AVG) ==
+    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 7, 7 }, { 2, 2 }, { 0, 0, 0, 0 }, PoolingType::AVG) ==
             SupportedLevel::EstimateOnly);
-    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 7, 7 }, { 1, 1 }, noPad, PoolingType::AVG) ==
+    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 8, 8 }, { 1, 1 }, { 0, 0, 0, 0 }, PoolingType::AVG) ==
             SupportedLevel::EstimateOnly);
-    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 7, 7 }, { 2, 2 }, noPad, PoolingType::AVG) ==
-            SupportedLevel::EstimateOnly);
-    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 8, 8 }, { 1, 1 }, noPad, PoolingType::AVG) ==
-            SupportedLevel::EstimateOnly);
-    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 8, 8 }, { 2, 2 }, noPad, PoolingType::AVG) ==
+    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 8, 8 }, { 2, 2 }, { 0, 0, 0, 0 }, PoolingType::AVG) ==
             SupportedLevel::EstimateOnly);
 
     // Supported
-    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 1, 1 }, { 2, 2 }, noPad, PoolingType::MAX) ==
+    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 2, 2 }, { 1, 1 }, { 0, 0, 0, 0 }, PoolingType::MAX) ==
             SupportedLevel::Supported);
-    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 2, 2 }, { 2, 2 }, noPad, PoolingType::MAX) ==
+    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 3, 3 }, { 1, 1 }, { 0, 0, 0, 0 }, PoolingType::MAX) ==
             SupportedLevel::Supported);
-    REQUIRE(IsPoolingSupportedImpl(queries, { 17, 17 }, { 2, 2 }, { 2, 2 }, padAfter, PoolingType::MAX) ==
+    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 1, 1 }, { 2, 2 }, { 0, 0, 0, 0 }, PoolingType::MAX) ==
             SupportedLevel::Supported);
-    REQUIRE(IsPoolingSupportedImpl(queries, { 17, 17 }, { 3, 3 }, { 2, 2 }, noPad, PoolingType::MAX) ==
+    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 2, 2 }, { 2, 2 }, { 0, 0, 0, 0 }, PoolingType::MAX) ==
             SupportedLevel::Supported);
-    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 3, 3 }, { 2, 2 }, padAfter, PoolingType::MAX) ==
+    REQUIRE(IsPoolingSupportedImpl(queries, { 17, 17 }, { 2, 2 }, { 2, 2 }, { 0, 1, 0, 1 }, PoolingType::MAX) ==
             SupportedLevel::Supported);
-    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 3, 3 }, { 1, 1 }, padAll, PoolingType::AVG) ==
+    REQUIRE(IsPoolingSupportedImpl(queries, { 17, 17 }, { 3, 3 }, { 2, 2 }, { 0, 0, 0, 0 }, PoolingType::MAX) ==
             SupportedLevel::Supported);
-    REQUIRE(IsPoolingSupportedImpl(queries, { 7, 7 }, { 7, 7 }, { 1, 1 }, noPad,
+    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 3, 3 }, { 2, 2 }, { 0, 1, 0, 1 }, PoolingType::MAX) ==
+            SupportedLevel::Supported);
+    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 3, 3 }, { 1, 1 }, { 1, 1, 1, 1 }, PoolingType::AVG) ==
+            SupportedLevel::Supported);
+    REQUIRE(IsPoolingSupportedImpl(queries, { 7, 7 }, { 7, 7 }, { 1, 1 }, { 0, 0, 0, 0 },
                                    PoolingType::AVG) == SupportedLevel::Supported);    // mean cases
-    REQUIRE(IsPoolingSupportedImpl(queries, { 8, 8 }, { 8, 8 }, { 1, 1 }, noPad,
+    REQUIRE(IsPoolingSupportedImpl(queries, { 8, 8 }, { 8, 8 }, { 1, 1 }, { 0, 0, 0, 0 },
                                    PoolingType::AVG) == SupportedLevel::Supported);    // mean cases
 }

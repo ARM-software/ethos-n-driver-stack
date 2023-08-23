@@ -15,6 +15,7 @@ namespace support_library
 {
 
 class PleOp;
+class Buffer;
 
 struct PleIfmInfo
 {
@@ -24,6 +25,7 @@ struct PleIfmInfo
 /// PLE Scheduler data
 struct PleSDesc
 {
+    Buffer* m_InputBuffer0;
     PleOp* m_PleOp;
 
     /// Output tile

@@ -264,6 +264,9 @@ uint32_t GetPleCyclesPerPatch(PleOperation op)
             return 41;
         case PleOperation::TRANSPOSE_XY:
             return 14;
+        case PleOperation::MAXPOOL1D:
+            // This depends on the pooling size, but this is a rough average
+            return 40;
         default:
             return 0;
     }
@@ -298,6 +301,8 @@ uint32_t GetPleStripeOverhead(PleOperation op)
         case PleOperation::SIGMOID:
             return 100;
         case PleOperation::TRANSPOSE_XY:
+            return 100;
+        case PleOperation::MAXPOOL1D:
             return 100;
         default:
             return 0;

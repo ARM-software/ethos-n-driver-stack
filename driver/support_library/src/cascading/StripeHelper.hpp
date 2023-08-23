@@ -46,7 +46,6 @@ struct StripeConfig
         bool outputDepthInputDepth            = true;
         bool mceAndPleOutputDepth             = true;
         bool mceOutputDepthOnly               = true;
-        bool inputDepthOnly                   = true;
         bool none                             = true;
     } splits;
 
@@ -120,7 +119,6 @@ struct StripeConfig
         splits.outputDepthInputDepth            = false;
         splits.mceAndPleOutputDepth             = false;
         splits.mceOutputDepthOnly               = false;
-        splits.inputDepthOnly                   = false;
         splits.none                             = false;
     }
 
@@ -146,7 +144,6 @@ struct StripeConfig
     {
         splits.widthHeightOutputDepthInputDepth = false;
         splits.outputDepthInputDepth            = false;
-        splits.inputDepthOnly                   = false;
     }
     void DisableSplitOutputDepth()
     {
