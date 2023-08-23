@@ -183,37 +183,37 @@ std::string ToString(CompilerMceAlgorithm a)
     }
 }
 
-std::string ToString(command_stream::PleOperation o)
+std::string ToString(PleOperation o)
 {
     switch (o)
     {
-        case ethosn::command_stream::PleOperation::ADDITION:
+        case PleOperation::ADDITION:
             return "ADDITION";
-        case ethosn::command_stream::PleOperation::ADDITION_RESCALE:
+        case PleOperation::ADDITION_RESCALE:
             return "ADDITION_RESCALE";
-        case ethosn::command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA:
+        case PleOperation::AVGPOOL_3X3_1_1_UDMA:
             return "AVGPOOL_3X3_1_1_UDMA";
-        case ethosn::command_stream::PleOperation::DOWNSAMPLE_2X2:
+        case PleOperation::DOWNSAMPLE_2X2:
             return "DOWNSAMPLE_2X2";
-        case ethosn::command_stream::PleOperation::INTERLEAVE_2X2_2_2:
+        case PleOperation::INTERLEAVE_2X2_2_2:
             return "INTERLEAVE_2X2_2_2";
-        case ethosn::command_stream::PleOperation::MAXPOOL_2X2_2_2:
+        case PleOperation::MAXPOOL_2X2_2_2:
             return "MAXPOOL_2X2_2_2";
-        case ethosn::command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN:
+        case PleOperation::MAXPOOL_3X3_2_2_EVEN:
             return "MAXPOOL_3X3_2_2_EVEN";
-        case ethosn::command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD:
+        case PleOperation::MAXPOOL_3X3_2_2_ODD:
             return "MAXPOOL_3X3_2_2_ODD";
-        case ethosn::command_stream::PleOperation::MEAN_XY_7X7:
+        case PleOperation::MEAN_XY_7X7:
             return "MEAN_XY_7X7";
-        case ethosn::command_stream::PleOperation::MEAN_XY_8X8:
+        case PleOperation::MEAN_XY_8X8:
             return "MEAN_XY_8X8";
-        case ethosn::command_stream::PleOperation::PASSTHROUGH:
+        case PleOperation::PASSTHROUGH:
             return "PASSTHROUGH";
-        case ethosn::command_stream::PleOperation::SIGMOID:
+        case PleOperation::SIGMOID:
             return "SIGMOID";
-        case ethosn::command_stream::PleOperation::TRANSPOSE_XY:
+        case PleOperation::TRANSPOSE_XY:
             return "TRANSPOSE_XY";
-        case ethosn::command_stream::PleOperation::LEAKY_RELU:
+        case PleOperation::LEAKY_RELU:
             return "LEAKY_RELU";
         default:
             ETHOSN_FAIL_MSG("Unknown PLE operation");
@@ -362,293 +362,9 @@ std::string ToString(command_stream::DataType dataType)
     }
 }
 
-std::string ToString(PleKernelId id)
+std::string ToString(command_stream::PleKernelId id)
 {
-    switch (id)
-    {
-        case PleKernelId::ADDITION_16X16_1:
-            return "ADDITION_16X16_1";
-            break;
-        case PleKernelId::ADDITION_16X16_1_S:
-            return "ADDITION_16X16_1_S";
-            break;
-        case PleKernelId::ADDITION_RESCALE_16X16_1:
-            return "ADDITION_RESCALE_16X16_1";
-            break;
-        case PleKernelId::ADDITION_RESCALE_16X16_1_S:
-            return "ADDITION_RESCALE_16X16_1_S";
-            break;
-        case PleKernelId::AVGPOOL_3X3_1_1_UDMA_16X16_1:
-            return "AVGPOOL_3X3_1_1_UDMA_16X16_1";
-            break;
-        case PleKernelId::AVGPOOL_3X3_1_1_UDMA_16X16_1_S:
-            return "AVGPOOL_3X3_1_1_UDMA_16X16_1_S";
-            break;
-        case PleKernelId::INTERLEAVE_2X2_2_2_16X16_1:
-            return "INTERLEAVE_2X2_2_2_16X16_1";
-            break;
-        case PleKernelId::MAXPOOL_2X2_2_2_8X8_4:
-            return "MAXPOOL_2X2_2_2_8X8_4";
-            break;
-        case PleKernelId::MAXPOOL_2X2_2_2_16X8_2:
-            return "MAXPOOL_2X2_2_2_16X8_2";
-            break;
-        case PleKernelId::MAXPOOL_2X2_2_2_16X16_1:
-            return "MAXPOOL_2X2_2_2_16X16_1";
-            break;
-        case PleKernelId::MAXPOOL_2X2_2_2_32X8_1:
-            return "MAXPOOL_2X2_2_2_32X8_1";
-            break;
-        case PleKernelId::MAXPOOL_2X2_2_2_8X8_4_S:
-            return "MAXPOOL_2X2_2_2_8X8_4_S";
-            break;
-        case PleKernelId::MAXPOOL_2X2_2_2_16X8_2_S:
-            return "MAXPOOL_2X2_2_2_16X8_2_S";
-            break;
-        case PleKernelId::MAXPOOL_2X2_2_2_16X16_1_S:
-            return "MAXPOOL_2X2_2_2_16X16_1_S";
-            break;
-        case PleKernelId::MAXPOOL_2X2_2_2_32X8_1_S:
-            return "MAXPOOL_2X2_2_2_32X8_1_S";
-            break;
-        case PleKernelId::MAXPOOL_3X3_2_2_EVEN_8X8_4:
-            return "MAXPOOL_3X3_2_2_EVEN_8X8_4";
-            break;
-        case PleKernelId::MAXPOOL_3X3_2_2_EVEN_16X8_2:
-            return "MAXPOOL_3X3_2_2_EVEN_16X8_2";
-            break;
-        case PleKernelId::MAXPOOL_3X3_2_2_EVEN_32X8_1:
-            return "MAXPOOL_3X3_2_2_EVEN_32X8_1";
-            break;
-        case PleKernelId::MAXPOOL_3X3_2_2_EVEN_8X8_4_S:
-            return "MAXPOOL_3X3_2_2_EVEN_8X8_4_S";
-            break;
-        case PleKernelId::MAXPOOL_3X3_2_2_EVEN_16X8_2_S:
-            return "MAXPOOL_3X3_2_2_EVEN_16X8_2_S";
-            break;
-        case PleKernelId::MAXPOOL_3X3_2_2_EVEN_32X8_1_S:
-            return "MAXPOOL_3X3_2_2_EVEN_32X8_1_S";
-            break;
-        case PleKernelId::MAXPOOL_3X3_2_2_ODD_8X8_4:
-            return "MAXPOOL_3X3_2_2_ODD_8X8_4";
-            break;
-        case PleKernelId::MAXPOOL_3X3_2_2_ODD_16X8_2:
-            return "MAXPOOL_3X3_2_2_ODD_16X8_2";
-            break;
-        case PleKernelId::MAXPOOL_3X3_2_2_ODD_32X8_1:
-            return "MAXPOOL_3X3_2_2_ODD_32X8_1";
-            break;
-        case PleKernelId::MAXPOOL_3X3_2_2_ODD_8X8_4_S:
-            return "MAXPOOL_3X3_2_2_ODD_8X8_4_S";
-            break;
-        case PleKernelId::MAXPOOL_3X3_2_2_ODD_16X8_2_S:
-            return "MAXPOOL_3X3_2_2_ODD_16X8_2_S";
-            break;
-        case PleKernelId::MAXPOOL_3X3_2_2_ODD_32X8_1_S:
-            return "MAXPOOL_3X3_2_2_ODD_32X8_1_S";
-            break;
-        case PleKernelId::MEAN_XY_7X7_8X8_1:
-            return "MEAN_XY_7X7_8X8_1";
-            break;
-        case PleKernelId::MEAN_XY_7X7_8X8_1_S:
-            return "MEAN_XY_7X7_8X8_1_S";
-            break;
-        case PleKernelId::MEAN_XY_8X8_8X8_1:
-            return "MEAN_XY_8X8_8X8_1";
-            break;
-        case PleKernelId::MEAN_XY_8X8_8X8_1_S:
-            return "MEAN_XY_8X8_8X8_1_S";
-            break;
-        case PleKernelId::PASSTHROUGH_8X8_1:
-            return "PASSTHROUGH_8X8_1";
-            break;
-        case PleKernelId::PASSTHROUGH_8X8_2:
-            return "PASSTHROUGH_8X8_2";
-            break;
-        case PleKernelId::PASSTHROUGH_8X8_4:
-            return "PASSTHROUGH_8X8_4";
-            break;
-        case PleKernelId::PASSTHROUGH_16X8_1:
-            return "PASSTHROUGH_16X8_1";
-            break;
-        case PleKernelId::PASSTHROUGH_32X8_1:
-            return "PASSTHROUGH_32X8_1";
-            break;
-        case PleKernelId::PASSTHROUGH_8X16_1:
-            return "PASSTHROUGH_8X16_1";
-            break;
-        case PleKernelId::PASSTHROUGH_16X8_2:
-            return "PASSTHROUGH_16X8_2";
-            break;
-        case PleKernelId::PASSTHROUGH_16X16_1:
-            return "PASSTHROUGH_16X16_1";
-            break;
-        case PleKernelId::PASSTHROUGH_8X32_1:
-            return "PASSTHROUGH_8X32_1";
-            break;
-        case PleKernelId::SIGMOID_8X8_1:
-            return "SIGMOID_8X8_1";
-            break;
-        case PleKernelId::SIGMOID_8X8_2:
-            return "SIGMOID_8X8_2";
-            break;
-        case PleKernelId::SIGMOID_8X8_4:
-            return "SIGMOID_8X8_4";
-            break;
-        case PleKernelId::SIGMOID_16X8_1:
-            return "SIGMOID_16X8_1";
-            break;
-        case PleKernelId::SIGMOID_32X8_1:
-            return "SIGMOID_32X8_1";
-            break;
-        case PleKernelId::SIGMOID_8X16_1:
-            return "SIGMOID_8X16_1";
-            break;
-        case PleKernelId::SIGMOID_16X8_2:
-            return "SIGMOID_16X8_2";
-            break;
-        case PleKernelId::SIGMOID_16X16_1:
-            return "SIGMOID_16X16_1";
-            break;
-        case PleKernelId::SIGMOID_8X32_1:
-            return "SIGMOID_8X32_1";
-            break;
-        case PleKernelId::SIGMOID_8X8_1_S:
-            return "SIGMOID_8X8_1_S";
-            break;
-        case PleKernelId::SIGMOID_8X8_2_S:
-            return "SIGMOID_8X8_2_S";
-            break;
-        case PleKernelId::SIGMOID_8X8_4_S:
-            return "SIGMOID_8X8_4_S";
-            break;
-        case PleKernelId::SIGMOID_16X8_1_S:
-            return "SIGMOID_16X8_1_S";
-            break;
-        case PleKernelId::SIGMOID_32X8_1_S:
-            return "SIGMOID_32X8_1_S";
-            break;
-        case PleKernelId::SIGMOID_8X16_1_S:
-            return "SIGMOID_8X16_1_S";
-            break;
-        case PleKernelId::SIGMOID_16X8_2_S:
-            return "SIGMOID_16X8_2_S";
-            break;
-        case PleKernelId::SIGMOID_16X16_1_S:
-            return "SIGMOID_16X16_1_S";
-            break;
-        case PleKernelId::SIGMOID_8X32_1_S:
-            return "SIGMOID_8X32_1_S";
-            break;
-        case PleKernelId::TRANSPOSE_XY_8X8_1:
-            return "TRANSPOSE_XY_8X8_1";
-            break;
-        case PleKernelId::TRANSPOSE_XY_8X8_2:
-            return "TRANSPOSE_XY_8X8_2";
-            break;
-        case PleKernelId::TRANSPOSE_XY_8X8_4:
-            return "TRANSPOSE_XY_8X8_4";
-            break;
-        case PleKernelId::TRANSPOSE_XY_16X8_1:
-            return "TRANSPOSE_XY_16X8_1";
-            break;
-        case PleKernelId::TRANSPOSE_XY_32X8_1:
-            return "TRANSPOSE_XY_32X8_1";
-            break;
-        case PleKernelId::TRANSPOSE_XY_8X16_1:
-            return "TRANSPOSE_XY_8X16_1";
-            break;
-        case PleKernelId::TRANSPOSE_XY_16X8_2:
-            return "TRANSPOSE_XY_16X8_2";
-            break;
-        case PleKernelId::TRANSPOSE_XY_16X16_1:
-            return "TRANSPOSE_XY_16X16_1";
-            break;
-        case PleKernelId::TRANSPOSE_XY_8X32_1:
-            return "TRANSPOSE_XY_8X32_1";
-            break;
-        case PleKernelId::LEAKY_RELU_8X8_1:
-            return "LEAKY_RELU_8X8_1";
-            break;
-        case PleKernelId::LEAKY_RELU_8X8_2:
-            return "LEAKY_RELU_8X8_2";
-            break;
-        case PleKernelId::LEAKY_RELU_8X8_4:
-            return "LEAKY_RELU_8X8_4";
-            break;
-        case PleKernelId::LEAKY_RELU_16X8_1:
-            return "LEAKY_RELU_16X8_1";
-            break;
-        case PleKernelId::LEAKY_RELU_32X8_1:
-            return "LEAKY_RELU_32X8_1";
-            break;
-        case PleKernelId::LEAKY_RELU_8X16_1:
-            return "LEAKY_RELU_8X16_1";
-            break;
-        case PleKernelId::LEAKY_RELU_16X8_2:
-            return "LEAKY_RELU_16X8_2";
-            break;
-        case PleKernelId::LEAKY_RELU_16X16_1:
-            return "LEAKY_RELU_16X16_1";
-            break;
-        case PleKernelId::LEAKY_RELU_8X32_1:
-            return "LEAKY_RELU_8X32_1";
-            break;
-        case PleKernelId::LEAKY_RELU_8X8_1_S:
-            return "LEAKY_RELU_8X8_1_S";
-            break;
-        case PleKernelId::LEAKY_RELU_8X8_2_S:
-            return "LEAKY_RELU_8X8_2_S";
-            break;
-        case PleKernelId::LEAKY_RELU_8X8_4_S:
-            return "LEAKY_RELU_8X8_4_S";
-            break;
-        case PleKernelId::LEAKY_RELU_16X8_1_S:
-            return "LEAKY_RELU_16X8_1_S";
-            break;
-        case PleKernelId::LEAKY_RELU_32X8_1_S:
-            return "LEAKY_RELU_32X8_1_S";
-            break;
-        case PleKernelId::LEAKY_RELU_8X16_1_S:
-            return "LEAKY_RELU_8X16_1_S";
-            break;
-        case PleKernelId::LEAKY_RELU_16X8_2_S:
-            return "LEAKY_RELU_16X8_2_S";
-            break;
-        case PleKernelId::LEAKY_RELU_16X16_1_S:
-            return "LEAKY_RELU_16X16_1_S";
-            break;
-        case PleKernelId::LEAKY_RELU_8X32_1_S:
-            return "LEAKY_RELU_8X32_1_S";
-            break;
-        case PleKernelId::DOWNSAMPLE_2X2_8X8_2:
-            return "DOWNSAMPLE_2X2_8X8_2";
-            break;
-        case PleKernelId::DOWNSAMPLE_2X2_8X8_4:
-            return "DOWNSAMPLE_2X2_8X8_4";
-            break;
-        case PleKernelId::DOWNSAMPLE_2X2_16X8_1:
-            return "DOWNSAMPLE_2X2_16X8_1";
-            break;
-        case PleKernelId::DOWNSAMPLE_2X2_32X8_1:
-            return "DOWNSAMPLE_2X2_32X8_1";
-            break;
-        case PleKernelId::DOWNSAMPLE_2X2_8X16_1:
-            return "DOWNSAMPLE_2X2_8X16_1";
-            break;
-        case PleKernelId::DOWNSAMPLE_2X2_16X8_2:
-            return "DOWNSAMPLE_2X2_16X8_2";
-            break;
-        case PleKernelId::DOWNSAMPLE_2X2_16X16_1:
-            return "DOWNSAMPLE_2X2_16X16_1";
-            break;
-        case PleKernelId::DOWNSAMPLE_2X2_8X32_1:
-            return "DOWNSAMPLE_2X2_8X32_1";
-            break;
-        default:
-            ETHOSN_FAIL_MSG("Unknown PleKernelId");
-            return "";
-    }
+    return command_stream::PleKernelId2String(id);
 }
 
 std::string ToString(const BufferType& t)

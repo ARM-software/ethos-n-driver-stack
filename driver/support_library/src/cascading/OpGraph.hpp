@@ -11,7 +11,7 @@
 
 #include "../include/ethosn_support_library/Optional.hpp"
 #include <ethosn_command_stream/CommandStream.hpp>
-#include <ethosn_command_stream/cascading/PleKernelId.hpp>
+#include <ethosn_command_stream/cascading/PleKernelIds.hpp>
 
 #include <map>
 #include <unordered_map>
@@ -234,22 +234,23 @@ public:
 class PleOp : public Op
 {
 public:
-    PleOp(command_stream::PleOperation op,
+    PleOp(PleOperation op,
           command_stream::BlockConfig blockConfig,
           uint32_t numInputs,
           std::vector<TensorShape> inputStripeShapes,
           TensorShape outputStripeShape,
           DataType dataType,
-          bool loadKernel);
+          bool loadKernel,
+          const HardwareCapabilities& caps);
 
     virtual DotAttributes GetDotAttributes(DetailLevel) const override;
 
-    command_stream::PleOperation m_Op;
+    PleOperation m_Op;
     command_stream::BlockConfig m_BlockConfig;
     uint32_t m_NumInputs;
     std::vector<TensorShape> m_InputStripeShapes;
     TensorShape m_OutputStripeShape;
-    command_stream::cascading::PleKernelId m_PleKernelId;
+    command_stream::PleKernelId m_PleKernelId;
     uint32_t m_BlockMultiplier;
     bool m_LoadKernel;
     utils::Optional<uint32_t> m_Offset;

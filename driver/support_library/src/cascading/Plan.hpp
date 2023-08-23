@@ -12,7 +12,7 @@
 
 #include "../include/ethosn_support_library/Optional.hpp"
 #include <ethosn_command_stream/CommandStream.hpp>
-#include <ethosn_command_stream/cascading/PleKernelId.hpp>
+#include <ethosn_command_stream/cascading/PleKernelIds.hpp>
 
 #include <map>
 #include <unordered_map>

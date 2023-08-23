@@ -668,7 +668,7 @@ StripeGenerator::StripeGenerator(const TensorShape& mceInput,
                                  uint32_t padLeft,
                                  uint32_t upscaleFactor,
                                  command_stream::MceOperation op,
-                                 command_stream::PleOperation pleOp,
+                                 PleOperation pleOp,
                                  const utils::ShapeMultiplier& mceShapeMult,
                                  const utils::ShapeMultiplier& pleShapeMult,
                                  const HardwareCapabilities& m_Capabilities,
@@ -747,8 +747,8 @@ StripeConfig StripeGenerator::ApplyPleKernelSplitRestrictions(CascadeType cascad
 
     // MaxPool_3x3_2_2 cannot be cascaded if it isn't the full tensor and can only be cascaded along height or depth.
     // This way, IFM streaming cannot cause data corruption in Ple Sram.
-    if (m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
-        m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD)
+    if (m_KernelOperation == PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+        m_KernelOperation == PleOperation::MAXPOOL_3X3_2_2_ODD)
     {
         if (cascadeType == CascadeType::Beginning)
         {
@@ -877,8 +877,8 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         // If splitting in height, maxpool requires at least two slots in the OFM tile because it can't
         // write a full stripe of output data until it starts the next output stripe (due to pooling windows
         // overlapping the stripe boundary).
-        if (m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
-            m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD)
+        if (m_KernelOperation == PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+            m_KernelOperation == PleOperation::MAXPOOL_3X3_2_2_ODD)
         {
             if (GetHeight(pleInputStripe) < GetHeight(m_MceOutputTensorShape))
             {
@@ -891,8 +891,8 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         outputCopy.m_Max = std::min(outputCopy.m_Max, stripeConfig.ofmNumStripes.max);
 
         // Prevent unsupported splits for max pooling due to limitations of the PLE kernel
-        if (m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
-            m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD)
+        if (m_KernelOperation == PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+            m_KernelOperation == PleOperation::MAXPOOL_3X3_2_2_ODD)
         {
             // Prevent having more than one channel per PLE, when it is also split in height.
             if (GetHeight(pleInputStripe) < GetHeight(m_MceOutputTensorShape) &&

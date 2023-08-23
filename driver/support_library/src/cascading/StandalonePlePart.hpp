@@ -22,7 +22,7 @@ public:
                       const TensorShape& outputTensorShape,
                       const std::vector<QuantizationInfo>& inputQuantizationInfos,
                       const QuantizationInfo& outputQuantizationInfo,
-                      command_stream::PleOperation op,
+                      PleOperation op,
                       const EstimationOptions& estOpt,
                       const CompilationOptions& compOpt,
                       const HardwareCapabilities& capabilities,
@@ -65,7 +65,7 @@ private:
     TensorShape m_OutputTensorShape;
     std::vector<QuantizationInfo> m_InputQuantizationInfos;
     QuantizationInfo m_OutputQuantizationInfo;
-    command_stream::PleOperation m_KernelOperation;
+    PleOperation m_KernelOperation;
     DataType m_DataType;
     impl::StripeConfig m_StripeConfig;
     uint16_t m_Input0Multiplier;

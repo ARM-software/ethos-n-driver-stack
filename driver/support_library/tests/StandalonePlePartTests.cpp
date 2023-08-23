@@ -37,7 +37,7 @@ struct CheckPlansParams
 StandalonePlePart BuildPart(const std::vector<TensorShape>& inputShapes,
                             const std::vector<QuantizationInfo>& inputQuantizationInfos,
                             TensorShape outputShape,
-                            command_stream::PleOperation op,
+                            PleOperation op,
                             const HardwareCapabilities& caps,
                             const PartId partId,
                             EstimationOptions& estOpts,
@@ -171,9 +171,8 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
 
         EstimationOptions estOpts;
         CompilationOptions compOpts;
-        StandalonePlePart part =
-            BuildPart({ inputShape }, { inputQuantInfo }, outputShape,
-                      command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA, caps, partId, estOpts, compOpts);
+        StandalonePlePart part = BuildPart({ inputShape }, { inputQuantInfo }, outputShape,
+                                           PleOperation::AVGPOOL_3X3_1_1_UDMA, caps, partId, estOpts, compOpts);
 
         // A plan is returned since both input and output tensors is fit into SRAM
         Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
@@ -206,9 +205,9 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
         CheckPlans(plans4, params);
     }
 
-    SECTION("1TOPS_2PLE_RATIO")
+    SECTION("1TOPS_4PLE_RATIO")
     {
-        const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO);
+        const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_4PLE_RATIO);
 
         const PartId partId = 0;
 
@@ -223,9 +222,8 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
         EstimationOptions estOpts;
         CompilationOptions compOpts;
 
-        StandalonePlePart part =
-            BuildPart({ inputShape }, { inputQuantInfo }, outputShape,
-                      command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA, caps, partId, estOpts, compOpts);
+        StandalonePlePart part = BuildPart({ inputShape }, { inputQuantInfo }, outputShape,
+                                           PleOperation::AVGPOOL_3X3_1_1_UDMA, caps, partId, estOpts, compOpts);
 
         // The input tensor will not be split to fit into SRAM
         // Therefore only the "lonely" type is expected to return a plan.
@@ -288,7 +286,7 @@ TEST_CASE("StandalonePlePart ADDITION")
         CompilationOptions compOpts;
 
         StandalonePlePart part = BuildPart({ inputShape, inputShape }, { inputQuantInfo, inputQuantInfo }, outputShape,
-                                           command_stream::PleOperation::ADDITION, caps, partId, estOpts, compOpts);
+                                           PleOperation::ADDITION, caps, partId, estOpts, compOpts);
 
         // Only the lonely part is expected to return a plan
 
@@ -344,7 +342,7 @@ TEST_CASE("StandalonePlePart ADDITION")
         EstimationOptions estOpts;
         CompilationOptions compOpts;
         StandalonePlePart part = BuildPart({ inputShape, inputShape }, { inputQuantInfo, inputQuantInfo }, outputShape,
-                                           command_stream::PleOperation::ADDITION, caps, partId, estOpts, compOpts);
+                                           PleOperation::ADDITION, caps, partId, estOpts, compOpts);
 
         // Only the lonely part is expected to return a plan
 
@@ -379,9 +377,9 @@ TEST_CASE("StandalonePlePart ADDITION")
 
 TEST_CASE("StandalonePlePart ADDITION_RESCALE")
 {
-    SECTION("2TOPS_2PLE_RATIO")
+    SECTION("4TOPS_2PLE_RATIO")
     {
-        const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_2TOPS_2PLE_RATIO);
+        const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_2PLE_RATIO);
 
         const PartId partId = 0;
 
@@ -402,9 +400,8 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
 
         EstimationOptions estOpts;
         CompilationOptions compOpts;
-        StandalonePlePart part =
-            BuildPart({ inputShape, inputShape }, { inputQuantInfo, inputQuantInfo }, outputShape,
-                      command_stream::PleOperation::ADDITION_RESCALE, caps, partId, estOpts, compOpts);
+        StandalonePlePart part = BuildPart({ inputShape, inputShape }, { inputQuantInfo, inputQuantInfo }, outputShape,
+                                           PleOperation::ADDITION_RESCALE, caps, partId, estOpts, compOpts);
 
         std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
                                                      .AddFormat(CascadingBufferFormat::NHWCB)
@@ -434,9 +431,9 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
         CheckPlans(plans4, params);
     }
 
-    SECTION("2TOPS_4PLE_RATIO")
+    SECTION("8TOPS_2PLE_RATIO")
     {
-        const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO);
+        const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_8TOPS_2PLE_RATIO);
 
         const PartId partId = 0;
 
@@ -457,9 +454,8 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
 
         EstimationOptions estOpts;
         CompilationOptions compOpts;
-        StandalonePlePart part =
-            BuildPart({ inputShape, inputShape }, { inputQuantInfo, inputQuantInfo }, outputShape,
-                      command_stream::PleOperation::ADDITION_RESCALE, caps, partId, estOpts, compOpts);
+        StandalonePlePart part = BuildPart({ inputShape, inputShape }, { inputQuantInfo, inputQuantInfo }, outputShape,
+                                           PleOperation::ADDITION_RESCALE, caps, partId, estOpts, compOpts);
 
         // Only the lonely part is expected to return a plan
 

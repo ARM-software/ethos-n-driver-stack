@@ -221,7 +221,7 @@ void FusedPlePart::CreateIdentityMceAndFusedPlePlans(const MceAndPleInfo& info,
                 // A fuse only ple operation only has 1 input
                 auto op                = std::make_unique<PleOp>(m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,
                                                   std::vector<TensorShape>{ info.m_PleCompute.m_Input },
-                                                  info.m_PleCompute.m_Output, m_OutputDataType, true);
+                                                  info.m_PleCompute.m_Output, m_OutputDataType, true, m_Capabilities);
                 op->m_Input0Multiplier = m_Input0Multiplier;
                 op->m_Input0Shift      = m_Input0Shift;
                 op->m_Input1Multiplier = m_Input1Multiplier;
@@ -263,7 +263,7 @@ void FusedPlePart::CreateFuseOnlyPlans(const PleOnlyInfo& info, Plans& plans) co
             // A fuse only ple operation only has 1 input
             auto op                = std::make_unique<PleOp>(m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,
                                               std::vector<TensorShape>{ info.m_PleCompute.m_Input },
-                                              info.m_PleCompute.m_Output, m_OutputDataType, true);
+                                              info.m_PleCompute.m_Output, m_OutputDataType, true, m_Capabilities);
             op->m_Input0Multiplier = m_Input0Multiplier;
             op->m_Input0Shift      = m_Input0Shift;
             op->m_Input1Multiplier = m_Input1Multiplier;
@@ -397,8 +397,8 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     bool fullTensor = fullPlane && fullDepth;
 
     // Do not generate Middle or End Plans, if there is a MAXPOOL_3x3_2_2 Ple Operation without a full tensor.
-    if ((m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
-         m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD) &&
+    if ((m_KernelOperation == PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+         m_KernelOperation == PleOperation::MAXPOOL_3X3_2_2_ODD) &&
         !fullTensor)
     {
         return ret;

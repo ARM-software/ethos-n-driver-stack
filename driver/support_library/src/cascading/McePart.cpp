@@ -469,7 +469,7 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                 std::unique_ptr<PleOp> pleOp =
                     std::make_unique<PleOp>(PleOperation::PASSTHROUGH, info.m_MceCompute.m_BlockConfig, 1,
                                             std::vector<TensorShape>{ info.m_PleCompute.m_Input },
-                                            info.m_PleCompute.m_Output, m_OutputDataType, true);
+                                            info.m_PleCompute.m_Output, m_OutputDataType, true, m_Capabilities);
                 auto outBufferAndPleOp = AddPleToOpGraph(
                     opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(pleOp), m_OutputTensorShape,
                     m_OutputQuantizationInfo, m_OutputDataType, m_CorrespondingOperationIds);

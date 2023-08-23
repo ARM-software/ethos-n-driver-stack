@@ -37,7 +37,7 @@ class MockPart : public BasePart
 {
 public:
     MockPart(PartId id, bool hasInput = true, bool hasOutput = true)
-        : BasePart(id, "MockPart", estOpt, compOpt, GetEthosN78HwCapabilities())
+        : BasePart(id, "MockPart", estOpt, compOpt, ms_Capabilities)
         , m_CanMergeWithChannelSelectorBefore(false)
         , m_CanMergeWithChannelSelectorAfter(false)
         , m_HasInput(hasInput)
@@ -86,6 +86,8 @@ protected:
     bool m_HasOutput;
 
 private:
+    static HardwareCapabilities ms_Capabilities;
+
     const EstimationOptions estOpt   = EstimationOptions();
     const CompilationOptions compOpt = CompilationOptions();
 };

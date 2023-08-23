@@ -86,7 +86,7 @@ struct Elem
     std::unordered_map<PartOutputSlot, std::shared_ptr<EndingGlue>> m_EndingGlues;
 };
 
-using PleOperations = std::vector<std::pair<command_stream::cascading::PleKernelId, uint32_t>>;
+using PleOperations = std::vector<std::pair<command_stream::PleKernelId, uint32_t>>;
 
 /// A Combination stores which Plans have been chosen for a set of Parts.
 /// It also stores Glues which connect adjacent Plans to each other.

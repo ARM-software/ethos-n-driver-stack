@@ -151,7 +151,7 @@ struct MceSDesc
     /// Relu activation values
     ReluActivation reluActiv;
     /// ID of the PLE kernel
-    command_stream::cascading::PleKernelId pleKernelId;
+    command_stream::PleKernelId pleKernelId;
 };
 
 MceUpsampleType ConvertResizeAlgorithmToCascadingCommand(const ResizeAlgorithm algorithm);

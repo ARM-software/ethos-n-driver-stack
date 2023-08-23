@@ -15,6 +15,7 @@
 using namespace ethosn::support_library;
 using namespace ethosn::support_library::registers;
 using namespace ethosn::command_stream::cascading;
+using namespace ethosn::command_stream;
 
 TEST_CASE("Cascading/MceSDesc/Depthwise")
 {
@@ -49,7 +50,7 @@ TEST_CASE("Cascading/MceSDesc/Depthwise")
     mceS.isOfmSigned                  = false;
     mceS.upsampleType                 = MceUpsampleType::OFF;
     mceS.upsampleEdgeMode             = { MceUpsampleEdgeMode::GENERATE, MceUpsampleEdgeMode::GENERATE };
-    mceS.mceOpMode                    = MceOperation::DEPTHWISE_CONVOLUTION;
+    mceS.mceOpMode                    = ethosn::command_stream::cascading::MceOperation::DEPTHWISE_CONVOLUTION;
     mceS.algorithm                    = MceAlgorithm::DIRECT;
     mceS.isWideFilter                 = false;
     mceS.isExtraIfmStripeAtRightEdge  = false;
@@ -65,7 +66,7 @@ TEST_CASE("Cascading/MceSDesc/Depthwise")
     mceS.ifmStripeShapeEdge           = { 16, 16 };
     mceS.reluActiv.min                = 0;
     mceS.reluActiv.max                = 255;
-    mceS.pleKernelId                  = PleKernelId::PASSTHROUGH_16X16_1;
+    mceS.pleKernelId                  = PleKernelId::V8422_PASSTHROUGH_bw16_bh16_bm1;
 
     auto CheckEnabledMuls = [&](const HardwareCapabilities& caps, uint32_t ceIdx, uint32_t expectedMulsOg0,
                                 uint32_t expectedMulsOg1, uint32_t expectedMulsOg2, uint32_t expectedMulsOg3) {
@@ -160,7 +161,7 @@ TEST_CASE("Cascading/MceSDesc/WeightsAddress")
     mceS.ifmStripeShapeEdge           = { 16, 16 };
     mceS.reluActiv.min                = 0;
     mceS.reluActiv.max                = 255;
-    mceS.pleKernelId                  = ethosn::command_stream::cascading::PleKernelId::PASSTHROUGH_16X16_1;
+    mceS.pleKernelId                  = PleKernelId::V8422_PASSTHROUGH_bw16_bh16_bm1;
 
     auto CheckStripe = [&](uint32_t stripeId, uint32_t expectedAddressOg0, uint32_t expectedAddressOg1,
                            uint32_t expectedAddressOg2, uint32_t expectedAddressOg3) {
@@ -242,7 +243,7 @@ TEST_CASE("Cascading/MceSDesc/Edge Stripe")
     mceS.ifmStripeShapeEdge           = { 2, 1 };
     mceS.reluActiv.min                = 0;
     mceS.reluActiv.max                = 255;
-    mceS.pleKernelId                  = ethosn::command_stream::cascading::PleKernelId::PASSTHROUGH_16X16_1;
+    mceS.pleKernelId                  = PleKernelId::V8422_PASSTHROUGH_bw16_bh16_bm1;
 
     auto CheckStripe = [&](uint32_t stripeId, uint32_t expectedOfmStripeHeight, uint32_t expectedOfmStripeWidth,
                            uint32_t expectedStripeOfm, uint32_t expectedStripeIfm) {
@@ -345,7 +346,7 @@ TEST_CASE("Cascading/MceSDesc/Slots")
     mceS.ifmStripeShapeEdge           = { 2, 1 };
     mceS.reluActiv.min                = 0;
     mceS.reluActiv.max                = 255;
-    mceS.pleKernelId                  = ethosn::command_stream::cascading::PleKernelId::PASSTHROUGH_16X16_1;
+    mceS.pleKernelId                  = PleKernelId::V8422_PASSTHROUGH_bw16_bh16_bm1;
 
     auto checkStripe =
         [&](uint32_t stripeId, const std::array<uint32_t, 3>& expectedTopSlots,

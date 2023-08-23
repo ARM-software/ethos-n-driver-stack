@@ -332,7 +332,7 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
             auto fusedPlePart = std::make_unique<FusedPlePart>(
                 m_GraphOfParts.GeneratePartId(), depthwise.GetInput(0).GetTensorInfo().m_Dimensions,
                 mceOperationInput.m_Dimensions, depthwise.GetInput(0).GetTensorInfo().m_QuantizationInfo,
-                mceOperationInput.m_QuantizationInfo, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
+                mceOperationInput.m_QuantizationInfo, PleOperation::INTERLEAVE_2X2_2_2,
                 utils::ShapeMultiplier{ { 1, convInfo.m_Stride.m_Y },
                                         { 1, convInfo.m_Stride.m_X },
                                         { convInfo.m_Stride.m_X * convInfo.m_Stride.m_Y } },
@@ -495,7 +495,7 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
             auto fusedPlePart = std::make_unique<FusedPlePart>(
                 m_GraphOfParts.GeneratePartId(), convolution.GetInput(0).GetTensorInfo().m_Dimensions,
                 interleaveOutput.m_Dimensions, convolution.GetInput(0).GetTensorInfo().m_QuantizationInfo,
-                interleaveOutput.m_QuantizationInfo, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
+                interleaveOutput.m_QuantizationInfo, PleOperation::INTERLEAVE_2X2_2_2,
                 utils::ShapeMultiplier{ { 1, convInfo.m_Stride.m_Y },
                                         { 1, convInfo.m_Stride.m_X },
                                         { convInfo.m_Stride.m_X * convInfo.m_Stride.m_Y } },
@@ -695,7 +695,7 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
         TensorInfo inputInfo  = pooling.GetInput(0).GetTensorInfo();
         TensorInfo outputInfo = pooling.GetOutput(0).GetTensorInfo();
 
-        auto createPoolingPart = [&](command_stream::PleOperation op) {
+        auto createFusedPoolingPart = [&](PleOperation op) {
             auto poolingFusedPlePart = std::make_unique<FusedPlePart>(
                 m_GraphOfParts.GeneratePartId(), pooling.GetInput(0).GetTensorInfo().m_Dimensions,
                 pooling.GetOutput(0).GetTensorInfo().m_Dimensions,
@@ -713,28 +713,28 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
         // Handle MeanXy Operations with 7x7, 8x8 sizes.
         if (inputHeight == 7U && inputWidth == 7U && poolingInfo == poolingInfoMeanXy)
         {
-            createPoolingPart(command_stream::PleOperation::MEAN_XY_7X7);
+            createFusedPoolingPart(PleOperation::MEAN_XY_7X7);
         }
         else if (inputHeight == 8U && inputWidth == 8U && poolingInfo == poolingInfoMeanXy)
         {
-            createPoolingPart(command_stream::PleOperation::MEAN_XY_8X8);
+            createFusedPoolingPart(PleOperation::MEAN_XY_8X8);
         }
         // Handle MaxPool Operations of supported kernel sizes, strides and padding.
         else if (poolingInfo == PoolingInfo{ 2, 2, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
         {
-            createPoolingPart(command_stream::PleOperation::MAXPOOL_2X2_2_2);
+            createFusedPoolingPart(PleOperation::MAXPOOL_2X2_2_2);
         }
         else if (isInputOdd && poolingInfo == PoolingInfo{ 3, 3, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
         {
-            createPoolingPart(command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD);
+            createFusedPoolingPart(PleOperation::MAXPOOL_3X3_2_2_ODD);
         }
         else if (isInputEven && poolingInfo == PoolingInfo{ 3, 3, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
         {
-            createPoolingPart(command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN);
+            createFusedPoolingPart(PleOperation::MAXPOOL_3X3_2_2_EVEN);
         }
         else if (poolingInfo == PoolingInfo{ 1, 1, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
         {
-            createPoolingPart(command_stream::PleOperation::DOWNSAMPLE_2X2);
+            createFusedPoolingPart(PleOperation::DOWNSAMPLE_2X2);
         }
         else if (poolingInfo == PoolingInfo{ 3, 3, 1, 1, poolingInfo.m_Padding, PoolingType::AVG })
         {
@@ -745,8 +745,8 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
             auto poolingStandalonePlePart              = std::make_unique<StandalonePlePart>(
                 m_GraphOfParts.GeneratePartId(), inputShapes, pooling.GetOutput(0).GetTensorInfo().m_Dimensions,
                 inputQuantizations, pooling.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
-                command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA, m_EstimationOptions.value(), m_CompilationOptions,
-                m_Capabilities, std::set<uint32_t>{ pooling.GetId() }, pooling.GetOutput(0).GetTensorInfo().m_DataType);
+                PleOperation::AVGPOOL_3X3_1_1_UDMA, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+                std::set<uint32_t>{ pooling.GetId() }, pooling.GetOutput(0).GetTensorInfo().m_DataType);
             parts.push_back(poolingStandalonePlePart.get());
             m_GraphOfParts.AddPart(std::move(poolingStandalonePlePart));
         }
@@ -807,8 +807,7 @@ void NetworkToGraphOfPartsConverter::Visit(Addition& addition)
         bool isQuantInfoIdentical = (quantInfoInput0 == quantInfoInput1) && (quantInfoInput0 == quantInfoOutput);
 
         // use non-scaling PLE kernel if all quant info is identical for both inputs and output
-        command_stream::PleOperation pleOp = isQuantInfoIdentical ? command_stream::PleOperation::ADDITION
-                                                                  : command_stream::PleOperation::ADDITION_RESCALE;
+        PleOperation pleOp = isQuantInfoIdentical ? PleOperation::ADDITION : PleOperation::ADDITION_RESCALE;
 
         const std::vector<QuantizationInfo> inputQuantizations = { quantInfoInput0, quantInfoInput1 };
         const std::vector<TensorShape> inputShapes             = { addition.GetInput(0).GetTensorInfo().m_Dimensions,
@@ -1056,7 +1055,7 @@ void NetworkToGraphOfPartsConverter::Visit(LeakyRelu& leakyRelu)
             m_GraphOfParts.GeneratePartId(), leakyRelu.GetInput(0).GetTensorInfo().m_Dimensions,
             leakyRelu.GetOutput(0).GetTensorInfo().m_Dimensions,
             leakyRelu.GetInput(0).GetTensorInfo().m_QuantizationInfo,
-            leakyRelu.GetOutput(0).GetTensorInfo().m_QuantizationInfo, command_stream::PleOperation::LEAKY_RELU,
+            leakyRelu.GetOutput(0).GetTensorInfo().m_QuantizationInfo, PleOperation::LEAKY_RELU,
             g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
             std::set<uint32_t>{ leakyRelu.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType,
             leakyRelu.GetLeakyReluInfo().m_Alpha, m_DebuggingContext, m_ThreadPool);
@@ -1077,10 +1076,9 @@ void NetworkToGraphOfPartsConverter::Visit(Sigmoid& sigmoid)
     auto sigmoidPart = std::make_unique<FusedPlePart>(
         m_GraphOfParts.GeneratePartId(), sigmoid.GetInput(0).GetTensorInfo().m_Dimensions,
         sigmoid.GetOutput(0).GetTensorInfo().m_Dimensions, sigmoid.GetInput(0).GetTensorInfo().m_QuantizationInfo,
-        sigmoid.GetOutput(0).GetTensorInfo().m_QuantizationInfo, command_stream::PleOperation::SIGMOID,
-        g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-        std::set<uint32_t>{ sigmoid.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType, 0.0f, m_DebuggingContext,
-        m_ThreadPool);
+        sigmoid.GetOutput(0).GetTensorInfo().m_QuantizationInfo, PleOperation::SIGMOID, g_IdentityShapeMultiplier,
+        m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ sigmoid.GetId() },
+        inputInfo.m_DataType, outputInfo.m_DataType, 0.0f, m_DebuggingContext, m_ThreadPool);
     parts.push_back(sigmoidPart.get());
     m_GraphOfParts.AddPart(std::move(sigmoidPart));
     ConnectParts(sigmoid, parts);
@@ -1101,10 +1099,9 @@ void NetworkToGraphOfPartsConverter::Visit(Tanh& tanh)
     auto tanhPart = std::make_unique<FusedPlePart>(
         m_GraphOfParts.GeneratePartId(), tanh.GetInput(0).GetTensorInfo().m_Dimensions,
         tanh.GetOutput(0).GetTensorInfo().m_Dimensions, tanh.GetInput(0).GetTensorInfo().m_QuantizationInfo,
-        tanh.GetOutput(0).GetTensorInfo().m_QuantizationInfo, command_stream::PleOperation::SIGMOID,
-        g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-        std::set<uint32_t>{ tanh.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType, 0.0f, m_DebuggingContext,
-        m_ThreadPool);
+        tanh.GetOutput(0).GetTensorInfo().m_QuantizationInfo, PleOperation::SIGMOID, g_IdentityShapeMultiplier,
+        m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ tanh.GetId() },
+        inputInfo.m_DataType, outputInfo.m_DataType, 0.0f, m_DebuggingContext, m_ThreadPool);
     parts.push_back(tanhPart.get());
     m_GraphOfParts.AddPart(std::move(tanhPart));
     ConnectParts(tanh, parts);
@@ -1114,14 +1111,14 @@ void NetworkToGraphOfPartsConverter::Visit(MeanXy& meanxy)
 {
     std::vector<BasePart*> parts;
     ShapeMultiplier shapeMultiplier = { 1, 1, 1 };
-    command_stream::PleOperation pleOperation;
+    PleOperation pleOperation;
     if (meanxy.GetInput(0).GetTensorInfo().m_Dimensions[1] == 7)
     {
-        pleOperation = command_stream::PleOperation::MEAN_XY_7X7;
+        pleOperation = PleOperation::MEAN_XY_7X7;
     }
     else
     {
-        pleOperation = command_stream::PleOperation::MEAN_XY_8X8;
+        pleOperation = PleOperation::MEAN_XY_8X8;
     }
 
     TensorInfo inputInfo  = meanxy.GetInput(0).GetTensorInfo();

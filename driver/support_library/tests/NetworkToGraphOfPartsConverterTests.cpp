@@ -941,7 +941,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
     Op* maybePleOpMeanXy7x7 = meanxyPlans_7x7[0].m_OpGraph.GetOp(2);
     REQUIRE(IsPleOp(maybePleOpMeanXy7x7));
     PleOp* pleOpMeanXy7x7 = static_cast<PleOp*>(maybePleOpMeanXy7x7);
-    REQUIRE(pleOpMeanXy7x7->m_Op == ethosn::command_stream::PleOperation::MEAN_XY_7X7);
+    REQUIRE(pleOpMeanXy7x7->m_Op == PleOperation::MEAN_XY_7X7);
     REQUIRE(graph.GetPartInputs(1).size() == 1);
     REQUIRE(graph.GetPartOutputs(1).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
@@ -960,7 +960,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
     Op* maybePleOpMeanXyPoolPlans7x7 = meanxyPoolPlans_7x7[0].m_OpGraph.GetOp(2);
     REQUIRE(IsPleOp(maybePleOpMeanXyPoolPlans7x7));
     PleOp* pleOpMeanXyPool7x7 = static_cast<PleOp*>(maybePleOpMeanXyPoolPlans7x7);
-    REQUIRE(pleOpMeanXyPool7x7->m_Op == ethosn::command_stream::PleOperation::MEAN_XY_7X7);
+    REQUIRE(pleOpMeanXyPool7x7->m_Op == PleOperation::MEAN_XY_7X7);
     REQUIRE(graph.GetPartInputs(3).size() == 1);
     REQUIRE(graph.GetPartOutputs(3).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 3, 0 }).value().m_PartId == 0);
@@ -985,7 +985,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
     Op* maybePleOpMeanXyPlans8x8 = meanxyPlans_8x8[0].m_OpGraph.GetOp(2);
     REQUIRE(IsPleOp(maybePleOpMeanXyPlans8x8));
     PleOp* pleOpMeanXyPlans8x8 = static_cast<PleOp*>(maybePleOpMeanXyPlans8x8);
-    REQUIRE(pleOpMeanXyPlans8x8->m_Op == ethosn::command_stream::PleOperation::MEAN_XY_8X8);
+    REQUIRE(pleOpMeanXyPlans8x8->m_Op == PleOperation::MEAN_XY_8X8);
     REQUIRE(graph.GetPartInputs(6).size() == 1);
     REQUIRE(graph.GetPartOutputs(6).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 6, 0 }).value().m_PartId == 5);
@@ -1004,7 +1004,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
     Op* maybePleOpMeanXyPoolPlans8x8 = meanxyPoolPlans_8x8[0].m_OpGraph.GetOp(2);
     REQUIRE(IsPleOp(maybePleOpMeanXyPoolPlans8x8));
     PleOp* pleOpMeanXyPoolPlans8x8 = static_cast<PleOp*>(maybePleOpMeanXyPoolPlans8x8);
-    REQUIRE(pleOpMeanXyPoolPlans8x8->m_Op == ethosn::command_stream::PleOperation::MEAN_XY_8X8);
+    REQUIRE(pleOpMeanXyPoolPlans8x8->m_Op == PleOperation::MEAN_XY_8X8);
     REQUIRE(graph.GetPartInputs(8).size() == 1);
     REQUIRE(graph.GetPartOutputs(8).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 8, 0 }).value().m_PartId == 5);
@@ -1097,7 +1097,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest LeakyRelu Sigmoid Tanh")
     Op* maybePleOpTanhPlans = tanhPlans[0].m_OpGraph.GetOp(2);
     REQUIRE(IsPleOp(maybePleOpTanhPlans));
     PleOp* pleOpTanhPlans = static_cast<PleOp*>(maybePleOpTanhPlans);
-    REQUIRE(pleOpTanhPlans->m_Op == ethosn::command_stream::PleOperation::SIGMOID);
+    REQUIRE(pleOpTanhPlans->m_Op == PleOperation::SIGMOID);
     REQUIRE(graph.GetPartInputs(1).size() == 1);
     REQUIRE(graph.GetPartOutputs(1).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
@@ -1115,7 +1115,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest LeakyRelu Sigmoid Tanh")
     Op* maybePleOpSigmoidPlans = sigmoidPlans[0].m_OpGraph.GetOp(2);
     REQUIRE(IsPleOp(maybePleOpSigmoidPlans));
     PleOp* pleOpSigmoidPlans = static_cast<PleOp*>(maybePleOpSigmoidPlans);
-    REQUIRE(pleOpSigmoidPlans->m_Op == ethosn::command_stream::PleOperation::SIGMOID);
+    REQUIRE(pleOpSigmoidPlans->m_Op == PleOperation::SIGMOID);
     REQUIRE(graph.GetPartInputs(3).size() == 1);
     REQUIRE(graph.GetPartOutputs(3).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 3, 0 }).value().m_PartId == 0);
@@ -1133,7 +1133,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest LeakyRelu Sigmoid Tanh")
     Op* maybePleOpLeakyReluPlans = leakyreluPlans[0].m_OpGraph.GetOp(2);
     REQUIRE(IsPleOp(maybePleOpLeakyReluPlans));
     PleOp* pleOpLeakyReluPlans = static_cast<PleOp*>(maybePleOpLeakyReluPlans);
-    REQUIRE(pleOpLeakyReluPlans->m_Op == ethosn::command_stream::PleOperation::LEAKY_RELU);
+    REQUIRE(pleOpLeakyReluPlans->m_Op == PleOperation::LEAKY_RELU);
     REQUIRE(graph.GetPartInputs(5).size() == 1);
     REQUIRE(graph.GetPartOutputs(5).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 5, 0 }).value().m_PartId == 0);
@@ -1297,7 +1297,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MaxPool_3X3_2_2")
     Op* maybePleOpMaxPoolEvenPlans = maxpoolEvenPlans[0].m_OpGraph.GetOp(2);
     REQUIRE(IsPleOp(maybePleOpMaxPoolEvenPlans));
     PleOp* pleOpMaxPoolEvenPlans = static_cast<PleOp*>(maybePleOpMaxPoolEvenPlans);
-    REQUIRE(pleOpMaxPoolEvenPlans->m_Op == ethosn::command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN);
+    REQUIRE(pleOpMaxPoolEvenPlans->m_Op == PleOperation::MAXPOOL_3X3_2_2_EVEN);
     REQUIRE(graph.GetPartInputs(1).size() == 1);
     REQUIRE(graph.GetPartOutputs(1).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
@@ -1320,7 +1320,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MaxPool_3X3_2_2")
     Op* maybePleOpMaxPoolOddPlans = maxpoolOddPlans[0].m_OpGraph.GetOp(2);
     REQUIRE(IsPleOp(maybePleOpMaxPoolOddPlans));
     PleOp* pleOpMaxPoolOddPlans = static_cast<PleOp*>(maybePleOpMaxPoolOddPlans);
-    REQUIRE(pleOpMaxPoolOddPlans->m_Op == ethosn::command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD);
+    REQUIRE(pleOpMaxPoolOddPlans->m_Op == PleOperation::MAXPOOL_3X3_2_2_ODD);
     REQUIRE(graph.GetPartInputs(4).size() == 1);
     REQUIRE(graph.GetPartOutputs(4).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 4, 0 }).value().m_PartId == 3);
@@ -1672,7 +1672,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Strided Depthwise")
         Op* maybePleOp = plans[0].m_OpGraph.GetOp(2);
         REQUIRE(IsPleOp(maybePleOp));
         PleOp* pleOp = static_cast<PleOp*>(maybePleOp);
-        REQUIRE(pleOp->m_Op == ethosn::command_stream::PleOperation::INTERLEAVE_2X2_2_2);
+        REQUIRE(pleOp->m_Op == PleOperation::INTERLEAVE_2X2_2_2);
     }
     {
         auto plans     = mcePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, { nullptr }, 1);
@@ -1901,7 +1901,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA")
     Op* maybePleOpAvePoolPlans = avePoolPlans[0].m_OpGraph.GetOp(0);
     REQUIRE(IsPleOp(maybePleOpAvePoolPlans));
     PleOp* pleOpAvePoolPlans = static_cast<PleOp*>(maybePleOpAvePoolPlans);
-    REQUIRE(pleOpAvePoolPlans->m_Op == ethosn::command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA);
+    REQUIRE(pleOpAvePoolPlans->m_Op == PleOperation::AVGPOOL_3X3_1_1_UDMA);
     REQUIRE(graph.GetPartInputs(1).size() == 1);
     REQUIRE(graph.GetPartOutputs(1).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
@@ -2050,7 +2050,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION")
     Op* maybePleOpAdditionPlans = additionPlans[0].m_OpGraph.GetOp(0);
     REQUIRE(IsPleOp(maybePleOpAdditionPlans));
     PleOp* pleOpAdditionPlans = static_cast<PleOp*>(maybePleOpAdditionPlans);
-    REQUIRE(pleOpAdditionPlans->m_Op == ethosn::command_stream::PleOperation::ADDITION);
+    REQUIRE(pleOpAdditionPlans->m_Op == PleOperation::ADDITION);
     REQUIRE(graph.GetPartInputs(2).size() == 2);
     REQUIRE(graph.GetPartOutputs(2).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 0);
@@ -2137,7 +2137,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION_RESCALE")
     Op* maybePleOpAdditionPlans = additionPlans[0].m_OpGraph.GetOp(0);
     REQUIRE(IsPleOp(maybePleOpAdditionPlans));
     PleOp* pleOpAdditionPlans = static_cast<PleOp*>(maybePleOpAdditionPlans);
-    REQUIRE(pleOpAdditionPlans->m_Op == ethosn::command_stream::PleOperation::ADDITION_RESCALE);
+    REQUIRE(pleOpAdditionPlans->m_Op == PleOperation::ADDITION_RESCALE);
     REQUIRE(graph.GetPartInputs(2).size() == 2);
     REQUIRE(graph.GetPartOutputs(2).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 0);
@@ -3473,7 +3473,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Downsample_2x2")
     Op* maybePleOpDownsamplePlans = downsamplePlans[0].m_OpGraph.GetOp(2);
     REQUIRE(IsPleOp(maybePleOpDownsamplePlans));
     PleOp* pleOpDownsamplePlans = static_cast<PleOp*>(maybePleOpDownsamplePlans);
-    REQUIRE(pleOpDownsamplePlans->m_Op == ethosn::command_stream::PleOperation::DOWNSAMPLE_2X2);
+    REQUIRE(pleOpDownsamplePlans->m_Op == PleOperation::DOWNSAMPLE_2X2);
     REQUIRE(graph.GetPartInputs(1).size() == 1);
     REQUIRE(graph.GetPartOutputs(1).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);

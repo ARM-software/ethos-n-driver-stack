@@ -17,6 +17,8 @@ namespace ethosn
 namespace support_library
 {
 
+HardwareCapabilities MockPart::ms_Capabilities = GetEthosN78HwCapabilities();
+
 ethosn::support_library::Plans
     MockPart::GetPlans(CascadeType, ethosn::command_stream::BlockConfig, const std::vector<Buffer*>&, uint32_t) const
 {
@@ -51,10 +53,10 @@ ethosn::support_library::Plans
     }
     if (m_HasInput && m_HasOutput)
     {
-        opGraph.AddOp(std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                              ethosn::command_stream::BlockConfig{ 8u, 8u }, 1,
-                                              std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
-                                              TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, true));
+        opGraph.AddOp(std::make_unique<PleOp>(PleOperation::PASSTHROUGH, ethosn::command_stream::BlockConfig{ 8u, 8u },
+                                              1, std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
+                                              TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, true,
+                                              m_Capabilities));
 
         opGraph.AddConsumer(opGraph.GetBuffers().front(), opGraph.GetOps()[0], 0);
         opGraph.SetProducer(opGraph.GetBuffers().back(), opGraph.GetOps()[0]);
@@ -70,7 +72,7 @@ ethosn::support_library::Plans
 HardwareCapabilities GetEthosN78HwCapabilities()
 {
     FirmwareAndHardwareCapabilities fwHwCapabilities =
-        GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, 0);
+        GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_4PLE_RATIO, 0);
     return HardwareCapabilities(fwHwCapabilities);
 }
 

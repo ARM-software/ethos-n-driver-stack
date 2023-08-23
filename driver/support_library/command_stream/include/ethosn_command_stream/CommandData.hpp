@@ -7,7 +7,6 @@
 
 #include "BinaryTuple.hpp"
 #include "Opcode.hpp"
-#include "PleOperation.hpp"
 #include "cascading/CommandStream.hpp"
 
 #include <array>

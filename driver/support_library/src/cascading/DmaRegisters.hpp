@@ -124,7 +124,7 @@ struct WgtSDesc
 struct PleLDesc
 {
     /// ID of the kernel used
-    command_stream::cascading::PleKernelId pleKernelId;
+    command_stream::PleKernelId pleKernelId;
     /// Destination SRAM address
     uint32_t sramAddr;
 };

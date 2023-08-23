@@ -475,7 +475,7 @@ void CheckPle(PlanDesc& desc, const CheckPlansParams& params)
         {
             CHECK(desc.m_Ple->m_OperationIds == params.m_OperationIds.value());
         }
-        CHECK(desc.m_Ple->m_Op == command_stream::PleOperation::PASSTHROUGH);
+        CHECK(desc.m_Ple->m_Op == PleOperation::PASSTHROUGH);
         // m_BlockConfig will depend on the streaming strategy, and so cannot be checked generically
         CHECK(desc.m_Ple->m_NumInputs == 1);
         CHECK(

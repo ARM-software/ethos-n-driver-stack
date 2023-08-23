@@ -18,10 +18,10 @@
 #include <fstream>
 
 using namespace ethosn::support_library;
-using PleKernelId  = ethosn::command_stream::cascading::PleKernelId;
+using PleKernelId  = ethosn::command_stream::PleKernelId;
 using BlockConfig  = ethosn::command_stream::BlockConfig;
 using MceOperation = ethosn::command_stream::MceOperation;
-using PleOperation = ethosn::command_stream::PleOperation;
+using PleOperation = ethosn::support_library::PleOperation;
 
 // These Mock classes are used locally to create a test framework for double-buffering logic.
 class WeightPart : public MockPart
@@ -83,10 +83,10 @@ public:
 
         if (m_HasInput && m_HasOutput)
         {
-            opGraph.AddOp(std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                                  BlockConfig{ 8u, 8u }, 1,
+            opGraph.AddOp(std::make_unique<PleOp>(PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
                                                   std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
-                                                  TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, true));
+                                                  TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, true,
+                                                  m_Capabilities));
 
             opGraph.AddConsumer(opGraph.GetBuffers().front(), opGraph.GetOps()[0], 0);
             opGraph.SetProducer(opGraph.GetBuffers().back(), opGraph.GetOps()[0]);
@@ -554,6 +554,11 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMcePle", "[CombinerDFS]")
 //  W
 TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
 {
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
     GraphOfParts graph;
 
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -605,10 +610,9 @@ TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
         TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
     planA.m_OpGraph.GetOps()[0]->m_DebugTag = "MceOp";
     size_t mceOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
-    planA.m_OpGraph.AddOp(std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                                  BlockConfig{ 8u, 8u }, 1,
-                                                  std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
-                                                  TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, true));
+    planA.m_OpGraph.AddOp(std::make_unique<PleOp>(
+        PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
+        TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, true, hwCaps));
     size_t pleOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
     planA.m_OpGraph.GetOps()[1]->m_DebugTag = "PleOp";
     planA.m_OpGraph.AddConsumer(inputSram, planA.m_OpGraph.GetOps()[mceOpIndex], 0);
@@ -618,11 +622,6 @@ TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
     planA.m_OpGraph.SetProducer(outputSram, planA.m_OpGraph.GetOps()[pleOpIndex]);
     planA.m_InputMappings  = { { inputSram, partAInputSlot0 } };
     planA.m_OutputMappings = { { outputSram, partAOutputSlot0 } };
-
-    const CompilationOptions compOpt;
-    const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
-    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
     CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
@@ -656,6 +655,11 @@ TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
 //  W
 TEST_CASE("BufferDeallocationTest_CascadeOps", "[CombinerDFS]")
 {
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
     GraphOfParts graph;
 
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -711,10 +715,9 @@ TEST_CASE("BufferDeallocationTest_CascadeOps", "[CombinerDFS]")
         TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
     planA.m_OpGraph.GetOps()[0]->m_DebugTag = "MceOp";
     size_t mceOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
-    planA.m_OpGraph.AddOp(std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                                  BlockConfig{ 8u, 8u }, 1,
-                                                  std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
-                                                  TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, true));
+    planA.m_OpGraph.AddOp(std::make_unique<PleOp>(
+        PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
+        TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, true, hwCaps));
     size_t pleOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
     planA.m_OpGraph.GetOps()[1]->m_DebugTag = "PleOp";
     planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[inputBufferIndex], planA.m_OpGraph.GetOps()[mceOpIndex],
@@ -727,11 +730,6 @@ TEST_CASE("BufferDeallocationTest_CascadeOps", "[CombinerDFS]")
     planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[outputBufferIndex], planA.m_OpGraph.GetOps()[pleOpIndex]);
     planA.m_InputMappings  = { { planA.m_OpGraph.GetBuffers()[inputBufferIndex], partAInputSlot0 } };
     planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[outputBufferIndex], partAOutputSlot0 } };
-
-    const CompilationOptions compOpt;
-    const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
-    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     FrozenGraphOfParts frozenGraph = FrozenGraphOfParts(std::move(graph));
     CombinerTest combiner(frozenGraph, hwCaps, compOpt, estOpt, debuggingContext);
@@ -3319,9 +3317,9 @@ TEST_CASE("AllocateSram", "[CombinerDFS]")
 
     // Adding a passthrough PLE kernel to the plan
     // The PleKernelId is expected to be PASSTHROUGH_8x8_2
-    auto op = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+    auto op = std::make_unique<PleOp>(PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
                                       std::vector<TensorShape>{ TensorShape{ 1, 4, 16, 1024 } },
-                                      TensorShape{ 1, 4, 16, 1024 }, DataType::UINT8_QUANTIZED, true);
+                                      TensorShape{ 1, 4, 16, 1024 }, DataType::UINT8_QUANTIZED, true, hwCaps);
 
     numMemoryStripes.m_Output = 1;
     auto outBufferAndPleOp =
@@ -3343,7 +3341,7 @@ TEST_CASE("AllocateSram", "[CombinerDFS]")
     // PLE kernel used previously has different block height
     // The plan is expected to be fit into SRAM and there is a need to Load the Kernel
     SectionContext context3 = context;
-    PleKernelId pleKernel1  = PleKernelId::PASSTHROUGH_8X16_1;
+    PleKernelId pleKernel1  = PleKernelId::V2442_PASSTHROUGH_bw8_bh16_bm1;
     context3.pleOps         = { { pleKernel1, 0 } };
     REQUIRE(combiner.AllocateSram(context3, partA.GetPartId(), planA, { mockBuffer.get() }) == true);
     REQUIRE(context3.pleOps.size() == 2);
@@ -3352,7 +3350,7 @@ TEST_CASE("AllocateSram", "[CombinerDFS]")
     // PLE kernel passthrough is already used previously in the same
     // section, the plan is expected to be fit into SRAM and no need to Load the Kernel
     SectionContext context4 = context;
-    PleKernelId pleKernel2  = PleKernelId::PASSTHROUGH_8X8_2;
+    PleKernelId pleKernel2  = PleKernelId::V2442_PASSTHROUGH_bw8_bh8_bm2;
     context4.pleOps         = { { pleKernel2, 0 } };
     REQUIRE(combiner.AllocateSram(context4, partA.GetPartId(), planA, { mockBuffer.get() }) == true);
     REQUIRE(context4.pleOps.size() == 1);
@@ -3440,9 +3438,9 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
         {
             // Adding a passthrough PLE kernel to the plan
             // The PleKernelId is expected to be PASSTHROUGH_8x8_2
-            auto op = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u },
-                                              1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                              TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true);
+            auto op                   = std::make_unique<PleOp>(PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+                                              std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                              TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true, hwCaps);
             numMemoryStripes.m_Output = 1;
             auto outBufferAndPleOp =
                 AddPleToOpGraph(planA.m_OpGraph, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
@@ -3556,9 +3554,9 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
         {
             // Adding a passthrough PLE kernel to the plan
             // The PleKernelId is expected to be PASSTHROUGH_8x8_2
-            auto op = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u },
-                                              1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                              TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true);
+            auto op                   = std::make_unique<PleOp>(PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+                                              std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                              TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true, hwCaps);
             numMemoryStripes.m_Output = 1;
             auto outBufferAndPleOp =
                 AddPleToOpGraph(planA.m_OpGraph, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
@@ -3627,10 +3625,9 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
             {
                 // Adding a passthrough PLE kernel to the plan
                 // The PleKernelId is expected to be PASSTHROUGH_8x8_2
-                auto op =
-                    std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
-                                            std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                            TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true);
+                auto op                   = std::make_unique<PleOp>(PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+                                                  std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                                  TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true, hwCaps);
                 numMemoryStripes.m_Output = 1;
                 auto outBufferAndPleOp = AddPleToOpGraph(planB.m_OpGraph, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes,
                                                          std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(),
@@ -3663,10 +3660,9 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
             WHEN("Continuing the section with the second plan that has Ple Op not already loaded")
             {
                 // Adding a passthrough PLE kernel to the plan
-                auto op =
-                    std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 16u, 16u },
-                                            1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                            TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true);
+                auto op = std::make_unique<PleOp>(PleOperation::PASSTHROUGH, BlockConfig{ 16u, 16u }, 1,
+                                                  std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                                  TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true, hwCaps);
 
                 numMemoryStripes.m_Output = 1;
 
@@ -3735,10 +3731,10 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                 WHEN("Ending the section with the third plan that has already loaded Ple Op")
                 {
                     // Adding a passthrough PLE kernel to the plan
-                    auto op = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                                      BlockConfig{ 16u, 16u }, 1,
-                                                      std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                                      TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true);
+                    auto op =
+                        std::make_unique<PleOp>(PleOperation::PASSTHROUGH, BlockConfig{ 16u, 16u }, 1,
+                                                std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                                TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true, hwCaps);
                     numMemoryStripes.m_Output = 1;
                     auto outBufferAndPleOp    = AddPleToOpGraph(
                         planC.m_OpGraph, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
@@ -3777,10 +3773,10 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                 WHEN("Ending the section with the third plan that has Ple Op not already loaded")
                 {
                     // Adding a passthrough PLE kernel to the plan
-                    auto op = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                                      BlockConfig{ 8u, 32u }, 1,
-                                                      std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                                      TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true);
+                    auto op =
+                        std::make_unique<PleOp>(PleOperation::PASSTHROUGH, BlockConfig{ 8u, 32u }, 1,
+                                                std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                                TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true, hwCaps);
 
                     numMemoryStripes.m_Output = 1;
 

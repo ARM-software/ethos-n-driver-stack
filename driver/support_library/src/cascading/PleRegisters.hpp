@@ -39,7 +39,7 @@ struct PleSDesc
     /// Source of input data to PLE
     command_stream::cascading::PleInputMode inputMode;
     /// ID of the PLE kernel used
-    command_stream::cascading::PleKernelId pleKernelId;
+    command_stream::PleKernelId pleKernelId;
     /// PLE kernel location in SRAM
     uint32_t pleKernelSramAddr;
 

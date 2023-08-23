@@ -246,7 +246,7 @@ TEST_CASE("PleOnlyAddition2Tensors")
     Op* maybePleOpAdditionPlans = additionPlans[0].m_OpGraph.GetOp(0);
     REQUIRE(IsPleOp(maybePleOpAdditionPlans));
     PleOp* pleOpAdditionPlans = static_cast<PleOp*>(maybePleOpAdditionPlans);
-    REQUIRE(pleOpAdditionPlans->m_Op == ethosn::command_stream::PleOperation::ADDITION);
+    REQUIRE(pleOpAdditionPlans->m_Op == PleOperation::ADDITION);
 
     // Part 3: Output
     REQUIRE(graph.GetPartInputs(3).size() == 1);

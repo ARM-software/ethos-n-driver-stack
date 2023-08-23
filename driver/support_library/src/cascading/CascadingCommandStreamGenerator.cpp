@@ -865,7 +865,7 @@ AgentIdType CascadingCommandStreamGenerator::AddWeightStreamerToCommandStream(Dm
 
 // Private function to add MCE_SCHEDULER to the command stream
 AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceOp* const ptrMceOp,
-                                                                            const PleKernelId pleKernelId)
+                                                                            command_stream::PleKernelId pleKernelId)
 {
     // Get the input buffers to the Mce Op
     OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrMceOp);
@@ -1513,9 +1513,9 @@ bool CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                 // If splitting in height, maxpool data can't be written out until the stripe after has been finished,
                 // because the pooling windows overlap the stripe boundary so it doesn't have enough input data
                 // until the next stripe.
-                command_stream::PleOperation pleOperation = static_cast<const PleOp*>(producerOp)->m_Op;
-                if ((pleOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
-                     pleOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD) &&
+                PleOperation pleOperation = static_cast<const PleOp*>(producerOp)->m_Op;
+                if ((pleOperation == PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+                     pleOperation == PleOperation::MAXPOOL_3X3_2_2_ODD) &&
                     producerAgentData.pleS.numStripes.height > 1)
                 {
                     consumerAgentDependency.boundary = 1;
@@ -1878,9 +1878,9 @@ bool CascadingCommandStreamGenerator::FillProducerAgentDependency(
                 // If splitting in height, maxpool data can't be written out until the stripe after has been finished,
                 // because the pooling windows overlap the stripe boundary so it doesn't have enough input data
                 // until the next stripe.
-                command_stream::PleOperation pleOperation = static_cast<const PleOp*>(producerOp)->m_Op;
-                if ((pleOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
-                     pleOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD) &&
+                PleOperation pleOperation = static_cast<const PleOp*>(producerOp)->m_Op;
+                if ((pleOperation == PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+                     pleOperation == PleOperation::MAXPOOL_3X3_2_2_ODD) &&
                     producerAgentData.pleS.numStripes.height > 1)
                 {
                     // It gets more complicated for the odd pooling case where we have an additional

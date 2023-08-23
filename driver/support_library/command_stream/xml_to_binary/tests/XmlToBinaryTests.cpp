@@ -58,7 +58,7 @@ const std::string g_XmlStr =
             <!-- Agent 3 -->
             <MCE_SCHEDULER>
                 <MCE_OP_MODE>DEPTHWISE_CONVOLUTION</MCE_OP_MODE>
-                <PLE_KERNEL_ID>DOWNSAMPLE_2X2_16X16_1</PLE_KERNEL_ID>
+                <PLE_KERNEL_ID>V2442_DOWNSAMPLE_2X2_bw16_bh16_bm1</PLE_KERNEL_ID>
                 <ACTIVATION_CONFIG>0x12348235</ACTIVATION_CONFIG>
                 <WIDE_KERNEL_CONTROL>0x87978</WIDE_KERNEL_CONTROL>
                 <FILTER>0x1234675</FILTER>
@@ -72,12 +72,12 @@ const std::string g_XmlStr =
             </MCE_SCHEDULER>
             <!-- Agent 4 -->
             <PLE_LOADER>
-                <PLE_KERNEL_ID>SIGMOID_16X8_1_S</PLE_KERNEL_ID>
+                <PLE_KERNEL_ID>V2442_SIGMOID_bw16_bh16_bm1_s8</PLE_KERNEL_ID>
             </PLE_LOADER>
             <!-- Agent 5 -->
             <PLE_SCHEDULER>
                 <INPUT_MODE>MCE_ONE_OG</INPUT_MODE>
-                <PLE_KERNEL_ID>DOWNSAMPLE_2X2_16X16_1</PLE_KERNEL_ID>
+                <PLE_KERNEL_ID>V2442_DOWNSAMPLE_2X2_bw16_bh16_bm1</PLE_KERNEL_ID>
                 <PLE_KERNEL_SRAM_ADDR>4096</PLE_KERNEL_SRAM_ADDR>
             </PLE_SCHEDULER>
         </AGENTS>)"
@@ -373,7 +373,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
         { /* MceScheduler = */
           cascading::MceS{
               /* MceOpMode = */ cascading::MceOperation::DEPTHWISE_CONVOLUTION,
-              /* PleKernelId = */ cascading::PleKernelId::DOWNSAMPLE_2X2_16X16_1,
+              /* PleKernelId = */ PleKernelId::V2442_DOWNSAMPLE_2X2_bw16_bh16_bm1,
               /* ACTIVATION_CONFIG = */ uint32_t{ 0x12348235 },
               /* WIDE_KERNEL_CONTROL = */ uint32_t{ 0x87978 },
               /* FILTER = */ uint32_t{ 0x1234675 },
@@ -392,7 +392,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
         /* AgentData = */
         { /* PleLoader = */
           cascading::PleL{
-              /* PleKernelId = */ cascading::PleKernelId::SIGMOID_16X8_1_S,
+              /* PleKernelId = */ PleKernelId::V2442_SIGMOID_bw16_bh16_bm1_s8,
           } },
     };
 
@@ -402,7 +402,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
         { /* PleScheduler = */
           cascading::PleS{
               /* InputMode = */ cascading::PleInputMode::MCE_ONE_OG,
-              /* PleKernelId = */ cascading::PleKernelId::DOWNSAMPLE_2X2_16X16_1,
+              /* PleKernelId = */ PleKernelId::V2442_DOWNSAMPLE_2X2_bw16_bh16_bm1,
               /* PleKernelSramAddress = */ uint32_t{ 4096 },
           } },
     };

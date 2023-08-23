@@ -200,10 +200,9 @@ bool Combiner::AllocateSram(SectionContext& context,
         // If PLE kernel of the current plan is already used by previous part of the same
         // section, then its size is not counted.
 
-        auto CheckPleKernel =
-            [&pleKernelInfo](const std::pair<command_stream::cascading::PleKernelId, uint32_t>& plePair) {
-                return (pleKernelInfo.m_PleOp->m_PleKernelId == plePair.first);
-            };
+        auto CheckPleKernel = [&pleKernelInfo](const std::pair<command_stream::PleKernelId, uint32_t>& plePair) {
+            return (pleKernelInfo.m_PleOp->m_PleKernelId == plePair.first);
+        };
 
         auto pleIterator = std::find_if(context.pleOps.begin(), context.pleOps.end(), CheckPleKernel);
 

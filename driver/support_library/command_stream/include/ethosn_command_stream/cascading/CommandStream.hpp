@@ -6,7 +6,7 @@
 #pragma once
 
 #include "../MacroUtils.hpp"
-#include "PleKernelId.hpp"
+#include "PleKernelIds.hpp"
 
 #include <ethosn_utils/SmallVector.hpp>
 #include <ethosn_utils/Span.hpp>

@@ -30,7 +30,7 @@ PassStats GetConversionStats(const ConversionData& input, const ConversionData& 
 PleStats GetPleStats(const HardwareCapabilities& caps,
                      const std::vector<TensorShape>& inputShapes,
                      const TensorShape& outputShape,
-                     const command_stream::PleOperation& pleOperation,
+                     const PleOperation& pleOperation,
                      uint32_t blockMultiplier,
                      const ethosn::command_stream::BlockConfig& blockConfig);
 

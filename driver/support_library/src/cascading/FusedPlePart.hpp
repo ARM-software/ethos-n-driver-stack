@@ -26,7 +26,7 @@ public:
                  const TensorShape& outputTensorShape,
                  const QuantizationInfo& inputQuantizationInfo,
                  const QuantizationInfo& outputQuantizationInfo,
-                 command_stream::PleOperation op,
+                 PleOperation op,
                  const utils::ShapeMultiplier& shapeMultiplier,
                  const EstimationOptions& estOpt,
                  const CompilationOptions& compOpt,
@@ -70,7 +70,7 @@ public:
         m_StripeGenerator.m_StripeConfig.blockConfigs =
             FilterPleBlockConfigs(m_KernelOperation, m_StripeGenerator.m_StripeConfig.blockConfigs);
 
-        if (op == command_stream::PleOperation::SIGMOID)
+        if (op == PleOperation::SIGMOID)
         {
             constexpr double log2e = 1.4426950408889634;
 
@@ -98,7 +98,7 @@ public:
                 m_Input0Shift      = 0;
             }
         }
-        else if (op == command_stream::PleOperation::LEAKY_RELU)
+        else if (op == PleOperation::LEAKY_RELU)
         {
             const double alphaRescaleFactor =
                 alpha * (inputQuantizationInfo.GetScale() / outputQuantizationInfo.GetScale());
@@ -172,7 +172,7 @@ private:
     TensorShape m_OutputTensorShape;
     QuantizationInfo m_InputQuantizationInfo;
     QuantizationInfo m_OutputQuantizationInfo;
-    command_stream::PleOperation m_KernelOperation;
+    PleOperation m_KernelOperation;
     utils::ShapeMultiplier m_ShapeMultiplier;
 
     impl::StripeConfig m_StripeConfig;

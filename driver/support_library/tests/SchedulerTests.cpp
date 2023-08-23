@@ -10,6 +10,7 @@
 #include <catch.hpp>
 
 using namespace ethosn::support_library;
+using namespace ethosn::command_stream;
 using namespace ethosn::command_stream::cascading;
 using CommandVariant = ethosn::command_stream::CommandVariant;
 
@@ -152,7 +153,7 @@ MceSDesc MakeMceSDesc()
     result.ifmTile.numSlots = 1;
     result.wgtTile.numSlots = 1;
     result.blockSize        = { 16, 16 };
-    result.pleKernelId      = PleKernelId::PASSTHROUGH_8X8_1;
+    result.pleKernelId      = PleKernelId::V4442_PASSTHROUGH_bw8_bh8_bm1;
     return result;
 }
 
@@ -160,7 +161,7 @@ PleSDesc MakePleSDesc()
 {
     PleSDesc result{};
     result.ofmTile.numSlots = 1;
-    result.pleKernelId      = PleKernelId::PASSTHROUGH_8X8_1;
+    result.pleKernelId      = PleKernelId::V4442_PASSTHROUGH_bw8_bh8_bm1;
     result.stripeIdStrides  = { 1, 1, 1 };
     result.numStripes       = { 1, 1, 1 };
     return result;

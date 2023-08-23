@@ -30,7 +30,7 @@ namespace sl       = ethosn::support_library;
 namespace utils    = ethosn::support_library::utils;
 using BlockConfig  = ethosn::command_stream::BlockConfig;
 using MceOperation = ethosn::command_stream::MceOperation;
-using PleOperation = ethosn::command_stream::PleOperation;
+using PleOperation = ethosn::support_library::PleOperation;
 
 /// Checks SaveNetworkToDot produces the expected output, focusing on the overall network topology (connections
 /// between operations) rather than on the details given for each individual operation.
@@ -328,6 +328,8 @@ Dram_Ofm -> Consumer_2
 /// rather than the overall graph topology (connections between nodes).
 TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
 {
+    HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
     // Build a simple graph of disconnected nodes, to check the details are printed correctly for each one.
     OpGraph graph;
 
@@ -386,7 +388,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
     graph.AddOp(&dma);
 
     PleOp ple(PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 },
-              DataType::UINT8_QUANTIZED, true);
+              DataType::UINT8_QUANTIZED, true, hwCaps);
     ple.m_DebugTag         = "Ple";
     ple.m_Offset           = 0;
     ple.m_Input0Multiplier = 10;
@@ -412,7 +414,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
 {
 Mce[label = "Mce\nIdx in OpGraph: 0\nMceOp\nOp = CONVOLUTION\nAlgo = DIRECT\nBlock Config = 3x4\nInput Stripe Shape = [1, 2, 3, 4]\nOutput Stripe Shape = [5, 6, 7, 8]\nWeights Stripe Shape = [9, 10, 11, 12]\nOrder = Zxy\nStride = 10, 20\nPad L/T = 30, 40\nUpscaleFactor = 2\nUpsampleType = NEAREST_NEIGHBOUR\nLower/Upper Bound = 100, 200\nOperation Ids = []\n", shape = oval]
 Dma[label = "Dma\nIdx in OpGraph: 1\nDmaOp\nOperation Ids = []\nTransfer Format = NHWCB\nOffset = [0, 0, 0, 0]\n", shape = oval, color = darkgoldenrod]
-Ple[label = "Ple\nIdx in OpGraph: 2\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nPle kernel Id = ADDITION_16X16_1\nKernel Load = True\nOffset = 0 (0x0)\nOperation Ids = []\nInput0Multiplier = 10\nInput0Shift = 11\nInput1Multiplier = 12\nInput1Shift = 13\n", shape = oval]
+Ple[label = "Ple\nIdx in OpGraph: 2\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nPle kernel Id = V2442_ADDITION_bw16_bh16_bm1_u8\nKernel Load = True\nOffset = 0 (0x0)\nOperation Ids = []\nInput0Multiplier = 10\nInput0Shift = 11\nInput1Multiplier = 12\nInput1Shift = 13\n", shape = oval]
 Buffer1[label = "Buffer1\nLocation = PleInputSram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\n", shape = box]
 Buffer2[label = "Buffer2\nLocation = Sram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nStripe shape = [5, 6, 7, 8]\nOrder = Zxy\nSlot size in bytes = 1680 (0x690)\nNum. Stripes = 9\nPacked boundary thickness = { L: 0, T: 0, R: 0, B: 0 }\nNum loads = 1\nForbid FCAF_WIDE\n", shape = box, color = blue]
 Buffer3[label = "Buffer3\nLocation = Dram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nEncoded weights = { 3 bytes, max size = 12, num. metadata = 0, is wide filter = True }\nConstant data = [ 3 bytes ]\nType = ConstantDma\nOperation ID = 7\nProducer Output Index = 13\n", shape = box, color = brown]
@@ -427,6 +429,7 @@ Buffer3[label = "Buffer3\nLocation = Dram\nFormat = WEIGHT\nData Type = INT32_QU
 /// display of the pass performance stats.
 TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
 {
+    HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
     // Build a simple graph with two cascaded PleOps, which we then create a fake EstimatedOpGraph struct to describe.
     // Include a EstimateOnlyOp at the end which we will exclude from the EstimatedOpGraph, to test the case where some Ops
     // aren't in a Pass.
@@ -446,7 +449,7 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     graph.AddBuffer(inputBuffer.get());
 
     PleOp ple1(PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 },
-               DataType::UINT8_QUANTIZED, true);
+               DataType::UINT8_QUANTIZED, true, hwCaps);
     ple1.m_DebugTag = "Ple1";
     graph.AddOp(&ple1);
 
@@ -463,7 +466,7 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     graph.AddBuffer(intermediateBuffer.get());
 
     PleOp ple2(PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 },
-               DataType::UINT8_QUANTIZED, true);
+               DataType::UINT8_QUANTIZED, true, hwCaps);
     ple2.m_DebugTag = "Ple2";
     graph.AddOp(&ple2);
 
@@ -582,16 +585,17 @@ OutputBuffer -> EstimateOnly
 /// agent IDs marked on each Pass and Op, and buffer IDs.
 TEST_CASE("SaveCompiledOpGraphToDot", "[Visualisation]")
 {
+    HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
     // Build a very simple graph with two Ops in a Pass, which we then create a fake CompiledOpGraph struct to describe.
     OpGraph graph;
 
     PleOp ple1(PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 },
-               DataType::UINT8_QUANTIZED, true);
+               DataType::UINT8_QUANTIZED, true, hwCaps);
     ple1.m_DebugTag = "Ple1";
     graph.AddOp(&ple1);
 
     PleOp ple2(PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 },
-               DataType::UINT8_QUANTIZED, true);
+               DataType::UINT8_QUANTIZED, true, hwCaps);
     ple2.m_DebugTag = "Ple2";
     graph.AddOp(&ple2);
 
@@ -820,8 +824,8 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     auto standalonePlePart = std::make_unique<StandalonePlePart>(
         9, std::vector<TensorShape>{ TensorShape{ 1, 2, 3, 4 }, TensorShape{ 1, 2, 3, 4 } }, TensorShape{ 1, 2, 3, 4 },
         std::vector<QuantizationInfo>{ QuantizationInfo(9, 10.0f), QuantizationInfo(9, 10.0f) },
-        QuantizationInfo(9, 10.0f), ethosn::command_stream::PleOperation::ADDITION, estOpt, compOpt, caps,
-        std::set<uint32_t>{ 1 }, DataType::UINT8_QUANTIZED);
+        QuantizationInfo(9, 10.0f), PleOperation::ADDITION, estOpt, compOpt, caps, std::set<uint32_t>{ 1 },
+        DataType::UINT8_QUANTIZED);
     parts.AddPart(std::move(standalonePlePart));
 
     // ConstantPart

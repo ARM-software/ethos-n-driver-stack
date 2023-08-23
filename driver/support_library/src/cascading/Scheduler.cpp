@@ -559,7 +559,7 @@ void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stri
         // Loading a new kernel invalidates the MCEIF configuration, as the PLE will be reset and therefore
         // forget its position in the PLE input SRAM buffer ring buffer. Clearing this will force the
         // MCE stripe to reconfigure it appropriately.
-        m_MceifConfiguration = PleKernelId::NOT_FOUND;
+        m_MceifConfiguration = utils::EmptyOptional{};
     }
 
     // Wait for MCEIF to have been configured if necessary
@@ -570,7 +570,7 @@ void Scheduler::SchedulePleSchedulerStripe(const uint32_t agentId, uint32_t stri
                         agentAndDeps.agent.pleS.inputMode == PleInputMode::SRAM_TWO_INPUTS;
     if (!isSram)
     {
-        if (m_MceifConfiguration == PleKernelId::NOT_FOUND)
+        if (!m_MceifConfiguration.has_value())
         {
             WaitForCounterCommand waitCommand;
             waitCommand.type         = CommandType::WaitForCounter;

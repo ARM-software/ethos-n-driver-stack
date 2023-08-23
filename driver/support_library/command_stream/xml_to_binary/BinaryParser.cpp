@@ -216,7 +216,7 @@ void Parse(std::stringstream& parent, const cascading::MceS& mces)
     Parse(parent, "</MCE_OP_MODE>", 0, true);
 
     Parse(parent, "<PLE_KERNEL_ID>", 4, false);
-    Parse(parent, cascading::PleKernelId2String(mces.pleKernelId), 0, false);
+    Parse(parent, PleKernelId2String(mces.pleKernelId), 0, false);
     Parse(parent, "</PLE_KERNEL_ID>", 0, true);
 
     Parse(parent, "<ACTIVATION_CONFIG>", 4, false);
@@ -267,7 +267,7 @@ void Parse(std::stringstream& parent, const cascading::PleL& plel)
     Parse(parent, "<PLE_LOADER>", 3, true);
 
     Parse(parent, "<PLE_KERNEL_ID>", 4, false);
-    Parse(parent, cascading::PleKernelId2String(plel.pleKernelId), 0, false);
+    Parse(parent, PleKernelId2String(plel.pleKernelId), 0, false);
     Parse(parent, "</PLE_KERNEL_ID>", 0, true);
 
     Parse(parent, "</PLE_LOADER>", 3, true);
@@ -315,7 +315,7 @@ void Parse(std::stringstream& parent, const cascading::PleS& ples)
     Parse(parent, "</INPUT_MODE>", 0, true);
 
     Parse(parent, "<PLE_KERNEL_ID>", 4, false);
-    Parse(parent, cascading::PleKernelId2String(ples.pleKernelId), 0, false);
+    Parse(parent, PleKernelId2String(ples.pleKernelId), 0, false);
     Parse(parent, "</PLE_KERNEL_ID>", 0, true);
 
     Parse(parent, "<PLE_KERNEL_SRAM_ADDR>", 4, false);

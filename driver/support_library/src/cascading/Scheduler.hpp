@@ -274,8 +274,8 @@ private:
     CommandQueue m_MceCommands;
     CommandQueue m_PleCommands;
 
-    command_stream::cascading::PleKernelId m_MceifConfiguration  = command_stream::cascading::PleKernelId::NOT_FOUND;
-    command_stream::cascading::PleKernelId m_LastLoadedPleKernel = command_stream::cascading::PleKernelId::NOT_FOUND;
+    utils::Optional<command_stream::PleKernelId> m_MceifConfiguration;
+    utils::Optional<command_stream::PleKernelId> m_LastLoadedPleKernel;
 
     const HardwareCapabilities& m_Capabilities;
 };

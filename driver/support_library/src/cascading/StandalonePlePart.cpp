@@ -43,15 +43,17 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
     }
 
     Plans plans;
-    StripeConfig stripeConfig = m_StripeConfig;
+    StripeConfig stripeConfig             = m_StripeConfig;
+    command_stream::BlockConfig blkConfig = { 0u, 0u };    // Ignored by standalone PLE kernel.
 
     switch (m_KernelOperation)
     {
-        case command_stream::PleOperation::ADDITION:
-        case command_stream::PleOperation::ADDITION_RESCALE:
+        case PleOperation::ADDITION:
+        case PleOperation::ADDITION_RESCALE:
+            blkConfig = { 16U, 16U };    // Addition still uses blocks, even though it doesn't use the MCE
             // All split are possible as these operations are elementwise
             break;
-        case command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA:
+        case PleOperation::AVGPOOL_3X3_1_1_UDMA:
         {
             // AVGPOOL_3X3_1_1_UDMA: only split in D is allowed.
             // This makes it cascadalbe only if the whole input, output
@@ -92,7 +94,6 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
     const uint32_t brickGroupDepth  = g_BrickGroupShape[3];
 
     auto addPlan = [&](const TensorShape& outputStripeShape) {
-        command_stream::BlockConfig blkConfig = { 0u, 0u };    // Ignored by standalone PLE kernel.
         std::vector<TensorShape> inputStripes;
         for (uint32_t i = 0; i < m_InputTensorShapes.size(); ++i)
         {
@@ -137,7 +138,7 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
 
             auto op =
                 std::make_unique<PleOp>(m_KernelOperation, blkConfig, static_cast<uint32_t>(m_InputTensorShapes.size()),
-                                        inputStripes, outputStripeShape, m_DataType, true);
+                                        inputStripes, outputStripeShape, m_DataType, true, m_Capabilities);
             op->m_Input0Multiplier = m_Input0Multiplier;
             op->m_Input0Shift      = m_Input0Shift;
             op->m_Input1Multiplier = m_Input1Multiplier;

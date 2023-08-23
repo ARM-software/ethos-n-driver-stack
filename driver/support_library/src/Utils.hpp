@@ -10,7 +10,6 @@
 
 #include <ethosn_command_stream/BinaryTuple.hpp>
 #include <ethosn_command_stream/CommandData.hpp>
-#include <ethosn_command_stream/PleOperation.hpp>
 #include <ethosn_command_stream/cascading/CommandStream.hpp>
 #include <ethosn_utils/Log.hpp>
 #include <ethosn_utils/Macros.hpp>
@@ -39,6 +38,26 @@ class Node;
 class FuseOnlyPleOperationNode;
 class MceOperationNode;
 enum class CascadingBufferFormat;
+
+// These enum values must match those in the SPA code (which looks up PLE performance numbers).
+enum class PleOperation : uint8_t
+{
+    ADDITION             = 0U,
+    ADDITION_RESCALE     = 1U,
+    AVGPOOL_3X3_1_1_UDMA = 2U,
+    INTERLEAVE_2X2_2_2   = 4U,
+    MAXPOOL_2X2_2_2      = 5U,
+    MAXPOOL_3X3_2_2_EVEN = 6U,
+    MAXPOOL_3X3_2_2_ODD  = 7U,
+    MEAN_XY_7X7          = 8U,
+    MEAN_XY_8X8          = 9U,
+    PASSTHROUGH          = 10U,
+    SIGMOID              = 11U,
+    TRANSPOSE_XY         = 12U,
+    LEAKY_RELU           = 13U,
+    DOWNSAMPLE_2X2       = 14U,
+    // After this point they are not in SPA so can be whatever
+};
 
 enum class CompilerDataFormat
 {
@@ -699,10 +718,8 @@ inline NeedBoundary GetBoundaryRequirements(const uint32_t padBefore,
 }
 
 std::vector<command_stream::BlockConfig>
-    FilterPleBlockConfigs(const command_stream::PleOperation pleOp,
-                          const std::vector<command_stream::BlockConfig>& allowedBlockConfigs);
-bool PleBlockConfigAllowed(const command_stream::PleOperation pleOp,
-                           const command_stream::BlockConfig allowedBlockConfig);
+    FilterPleBlockConfigs(PleOperation pleOp, const std::vector<command_stream::BlockConfig>& allowedBlockConfigs);
+bool PleBlockConfigAllowed(PleOperation pleOp, const command_stream::BlockConfig allowedBlockConfig);
 
 constexpr int32_t g_IdentityWeightValue = 128;
 constexpr float g_IdentityWeightScale   = 1.f / static_cast<float>(g_IdentityWeightValue);

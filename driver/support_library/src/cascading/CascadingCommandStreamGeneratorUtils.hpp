@@ -580,7 +580,7 @@ inline void SetPlesHeightStripeInfo(PleSDesc& pleSchedulerData, const TensorShap
     // For max pooling (odd), we may need to schedule an additional "zero size" stripe at the end so that
     // the PLE kernel can receive the final row of elements from the MCE and use this to complete the pooling
     // for the previous stripe.
-    if (pleOp.m_Op == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD &&
+    if (pleOp.m_Op == PleOperation::MAXPOOL_3X3_2_2_ODD &&
         utils::GetHeight(pleOp.m_InputStripeShapes[0]) == 2 * ofmStripeHeight && ofmHeight % ofmStripeHeight == 0)
     {
         pleSchedulerData.numStripes.height += 1;

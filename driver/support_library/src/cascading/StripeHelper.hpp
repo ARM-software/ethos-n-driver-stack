@@ -444,7 +444,7 @@ public:
                     uint32_t padLeft,
                     uint32_t upscaleFactor,
                     command_stream::MceOperation op,
-                    command_stream::PleOperation pleOp,
+                    PleOperation pleOp,
                     const utils::ShapeMultiplier& mceShapeMult,
                     const utils::ShapeMultiplier& pleShapeMult,
                     const HardwareCapabilities& caps,
@@ -475,7 +475,7 @@ public:
     uint32_t m_PadLeft;
     uint32_t m_UpscaleFactor;
     command_stream::MceOperation m_Operation;
-    command_stream::PleOperation m_KernelOperation;
+    PleOperation m_KernelOperation;
     utils::ShapeMultiplier m_MceShapeMultiplier;
     utils::ShapeMultiplier m_PleShapeMultiplier;
 

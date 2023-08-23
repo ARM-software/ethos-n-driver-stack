@@ -10,6 +10,7 @@
 #include "Plan.hpp"
 #include "Scheduler.hpp"
 #include "ethosn_command_stream/CommandStreamBuffer.hpp"
+#include "ethosn_command_stream/cascading/PleKernelIds.hpp"
 #include <unordered_map>
 
 namespace ethosn
@@ -70,8 +71,7 @@ private:
     // Private function to add WGT_STREAMER to the command stream
     AgentIdType AddWeightStreamerToCommandStream(DmaOp* const ptrDmaOp);
     // Private function to add MCE_SCHEDULER to the command stream
-    AgentIdType AddMceSchedulerToCommandStream(MceOp* const ptrMceOp,
-                                               const command_stream::cascading::PleKernelId pleKernelId);
+    AgentIdType AddMceSchedulerToCommandStream(MceOp* const ptrMceOp, command_stream::PleKernelId pleKernelId);
     // Private function to add PLE_LOADER to the command stream
     AgentIdType AddPleLoaderToCommandStream(PleOp* const ptrPleOp);
     // Private function to add PLE_SCHEDULER to the command stream
@@ -145,8 +145,7 @@ private:
         }
     };
     // Data structure for mapping a Ple kernel to its loader Agent
-    std::unordered_map<command_stream::cascading::PleKernelId, AgentIdType, EnumHasher>
-        m_PleKernelToPleLoaderAgentIdMapping;
+    std::unordered_map<command_stream::PleKernelId, AgentIdType, EnumHasher> m_PleKernelToPleLoaderAgentIdMapping;
 
     /// Command stream agents used to build the command stream. This is an intermediate representation
     /// that is just for the support library and is converted into the command stream agents, commands and

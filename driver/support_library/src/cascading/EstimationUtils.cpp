@@ -233,71 +233,71 @@ OutputStats GetOutputStatsCascading(const SramBuffer& ofmSramBuffer,
 namespace
 {
 
-uint32_t GetPleCyclesPerPatch(command_stream::PleOperation op)
+uint32_t GetPleCyclesPerPatch(PleOperation op)
 {
     // These numbers were estimated from some internal benchmarks running on the model.
     switch (op)
     {
-        case command_stream::PleOperation::ADDITION:
+        case PleOperation::ADDITION:
             return 15;
-        case command_stream::PleOperation::ADDITION_RESCALE:
+        case PleOperation::ADDITION_RESCALE:
             return 35;
-        case command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA:
+        case PleOperation::AVGPOOL_3X3_1_1_UDMA:
             return 97;
-        case command_stream::PleOperation::DOWNSAMPLE_2X2:
+        case PleOperation::DOWNSAMPLE_2X2:
             return 10;
-        case command_stream::PleOperation::INTERLEAVE_2X2_2_2:
+        case PleOperation::INTERLEAVE_2X2_2_2:
             return 13;
-        case command_stream::PleOperation::LEAKY_RELU:
+        case PleOperation::LEAKY_RELU:
             return 37;
-        case command_stream::PleOperation::MAXPOOL_2X2_2_2:
+        case PleOperation::MAXPOOL_2X2_2_2:
             return 13;
-        case command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN:    // intentional fallthrough
-        case command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD:
+        case PleOperation::MAXPOOL_3X3_2_2_EVEN:    // intentional fallthrough
+        case PleOperation::MAXPOOL_3X3_2_2_ODD:
             return 37;
-        case command_stream::PleOperation::MEAN_XY_7X7:    // intentional fallthrough
-        case command_stream::PleOperation::MEAN_XY_8X8:
+        case PleOperation::MEAN_XY_7X7:    // intentional fallthrough
+        case PleOperation::MEAN_XY_8X8:
             return 37;
-        case command_stream::PleOperation::PASSTHROUGH:
+        case PleOperation::PASSTHROUGH:
             return 6;
-        case command_stream::PleOperation::SIGMOID:
+        case PleOperation::SIGMOID:
             return 41;
-        case command_stream::PleOperation::TRANSPOSE_XY:
+        case PleOperation::TRANSPOSE_XY:
             return 14;
         default:
             return 0;
     }
 }
 
-uint32_t GetPleStripeOverhead(command_stream::PleOperation op)
+uint32_t GetPleStripeOverhead(PleOperation op)
 {
     switch (op)
     {
-        case command_stream::PleOperation::ADDITION:
+        case PleOperation::ADDITION:
             return 1500;
-        case command_stream::PleOperation::ADDITION_RESCALE:
+        case PleOperation::ADDITION_RESCALE:
             return 1500;
-        case command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA:
+        case PleOperation::AVGPOOL_3X3_1_1_UDMA:
             return 100;
-        case command_stream::PleOperation::DOWNSAMPLE_2X2:
+        case PleOperation::DOWNSAMPLE_2X2:
             return 100;
-        case command_stream::PleOperation::INTERLEAVE_2X2_2_2:
+        case PleOperation::INTERLEAVE_2X2_2_2:
             return 100;
-        case command_stream::PleOperation::LEAKY_RELU:
+        case PleOperation::LEAKY_RELU:
             return 100;
-        case command_stream::PleOperation::MAXPOOL_2X2_2_2:
+        case PleOperation::MAXPOOL_2X2_2_2:
             return 100;
-        case command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN:    // intentional fallthrough
-        case command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD:
+        case PleOperation::MAXPOOL_3X3_2_2_EVEN:    // intentional fallthrough
+        case PleOperation::MAXPOOL_3X3_2_2_ODD:
             return 100;
-        case command_stream::PleOperation::MEAN_XY_7X7:    // intentional fallthrough
-        case command_stream::PleOperation::MEAN_XY_8X8:
+        case PleOperation::MEAN_XY_7X7:    // intentional fallthrough
+        case PleOperation::MEAN_XY_8X8:
             return 100;
-        case command_stream::PleOperation::PASSTHROUGH:
+        case PleOperation::PASSTHROUGH:
             return 100;
-        case command_stream::PleOperation::SIGMOID:
+        case PleOperation::SIGMOID:
             return 100;
-        case command_stream::PleOperation::TRANSPOSE_XY:
+        case PleOperation::TRANSPOSE_XY:
             return 100;
         default:
             return 0;
@@ -309,7 +309,7 @@ uint32_t GetPleStripeOverhead(command_stream::PleOperation op)
 PleStats GetPleStats(const HardwareCapabilities& caps,
                      const std::vector<TensorShape>& inputShapes,
                      const TensorShape& outputShape,
-                     const command_stream::PleOperation& pleOperation,
+                     const PleOperation& pleOperation,
                      uint32_t blockMultiplier,
                      const ethosn::command_stream::BlockConfig& blockConfig)
 {
@@ -322,6 +322,12 @@ PleStats GetPleStats(const HardwareCapabilities& caps,
     uint32_t patchesW = 0;
     uint32_t patchesC = 0;
 
+    // Standalone operations (e.g. Avg pool) don't use a block config.
+    // Addition is a special case which has a block config but doesn't have the same overheads
+    // so we ignore it
+    bool hasBlockConfig = pleOperation != PleOperation::ADDITION && pleOperation != PleOperation::ADDITION_RESCALE &&
+                          blockConfig.m_BlockWidth() != 0 && blockConfig.m_BlockHeight() != 0;
+
     for (auto& inputShape : inputShapes)
     {
         uint32_t effectiveHeight = GetHeight(inputShape);
@@ -329,8 +335,7 @@ PleStats GetPleStats(const HardwareCapabilities& caps,
 
         // Note that we round up to the block config, because the PLE always processes an entire block,
         // even if it is only partial.
-        // Standalone operations (e.g. Addition) don't use a block config.
-        if (blockConfig.m_BlockWidth() != 0 && blockConfig.m_BlockHeight() != 0)
+        if (hasBlockConfig)
         {
             effectiveHeight = utils::RoundUpToNearestMultiple(GetHeight(inputShape), blockConfig.m_BlockHeight());
             effectiveWidth  = utils::RoundUpToNearestMultiple(GetWidth(inputShape), blockConfig.m_BlockWidth());
@@ -347,9 +352,8 @@ PleStats GetPleStats(const HardwareCapabilities& caps,
     pleStats.m_NumOfPatches = patchesW * patchesH * patchesC;
     pleStats.m_Operation    = static_cast<uint32_t>(pleOperation);
 
-    // Standalone operations (e.g. Addition) don't use a block config.
     uint64_t blockOverhead = 0;
-    if (blockConfig.m_BlockWidth() != 0 && blockConfig.m_BlockHeight() != 0)
+    if (hasBlockConfig)
     {
         uint64_t numBlocks =
             static_cast<uint64_t>(utils::DivRoundUp(utils::GetHeight(outputShape), blockConfig.m_BlockHeight())) *
