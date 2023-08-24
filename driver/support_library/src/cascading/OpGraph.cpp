@@ -560,85 +560,84 @@ utils::Optional<command_stream::PleKernelId> LookupPleKernelId(const std::map<st
 }    // namespace
 
 PleOp::PleOp(PleOperation op,
-             BlockConfig blockConfig,
              uint32_t numInputs,
              std::vector<TensorShape> inputStripeShapes,
              TensorShape outputStripeShape,
-             DataType dataType,
              bool loadKernel,
-             const HardwareCapabilities& caps)
+             const HardwareCapabilities& caps,
+             std::map<std::string, std::string> selectionStringParams,
+             std::map<std::string, int> selectionIntParams,
+             std::map<std::string, int> runtimeParams)
     : Op("PleOp")
     , m_Op(op)
-    , m_BlockConfig(blockConfig)
     , m_NumInputs(numInputs)
     , m_InputStripeShapes(inputStripeShapes)
     , m_OutputStripeShape(outputStripeShape)
     , m_LoadKernel(loadKernel)
-    , m_Input0Multiplier(0)
-    , m_Input0Shift(0)
-    , m_Input1Multiplier(0)
-    , m_Input1Shift(0)
+    , m_SelectionStringParams(std::move(selectionStringParams))
+    , m_SelectionIntParams(std::move(selectionIntParams))
+    , m_RuntimeParams(std::move(runtimeParams))
 {
     // Find the correct PLE kernel to use
-    std::map<std::string, std::string> params;
-    params["ces"]       = std::to_string(caps.GetNumberOfEngines());
-    params["ogs"]       = std::to_string(caps.GetOgsPerEngine());
-    params["emcs"]      = std::to_string(caps.GetNumberofSramsPerEngine());
-    params["ple_lanes"] = std::to_string(caps.GetNumberOfPleLanes());
 
-    params["operation"] = ToString(op);
+    // Add fixed parameters
+    m_SelectionStringParams["operation"] = ToString(op);
+    m_SelectionIntParams["ces"]          = caps.GetNumberOfEngines();
+    m_SelectionIntParams["ogs"]          = caps.GetOgsPerEngine();
+    m_SelectionIntParams["emcs"]         = caps.GetNumberofSramsPerEngine();
+    m_SelectionIntParams["ple_lanes"]    = caps.GetNumberOfPleLanes();
 
-    bool isSignAgnostic = (op == PleOperation::DOWNSAMPLE_2X2) || (op == PleOperation::INTERLEAVE_2X2_2_2) ||
-                          (op == PleOperation::PASSTHROUGH) || (op == PleOperation::TRANSPOSE_XY);
-    if (!isSignAgnostic)
+    // Combine int and string parameters into one string-to-string map, as this is what
+    // the PLE kernel database needs for a lookup.
+    std::map<std::string, std::string> selectionParams = m_SelectionStringParams;
+    for (auto kv : m_SelectionIntParams)
     {
-        params["datatype"] = dataType == DataType::INT8_QUANTIZED ? "s8" : "u8";
+        selectionParams[kv.first] = std::to_string(kv.second);
     }
 
-    bool hasBlockSize = op != PleOperation::AVGPOOL_3X3_1_1_UDMA;
+    bool hasBlockSize = m_SelectionIntParams.count("block_width") > 0;
     if (hasBlockSize)
     {
-        params["block_width"]  = std::to_string(blockConfig.m_BlockWidth());
-        params["block_height"] = std::to_string(blockConfig.m_BlockHeight());
-
         // Look for the best block multiplier
         // The first available value that meets the condition:
         // blkMultiplier * blockWidth >= input stripe width
         // or the one that is the closest to meet this condition.
-        uint32_t stripeWidth = utils::GetWidth(inputStripeShapes.at(0));
-        m_BlockMultiplier    = 0;
-        for (uint32_t blockMultiplier : { 1, 2, 4 })
+        uint32_t stripeWidth           = utils::GetWidth(inputStripeShapes.at(0));
+        uint32_t blockWidth            = m_SelectionIntParams.at("block_width");
+        uint32_t chosenBlockMultiplier = 0;
+        for (uint32_t candiateBlockMultiplier : { 1, 2, 4 })
         {
-            std::map<std::string, std::string> paramsWithBlockMultiplier = params;
-            paramsWithBlockMultiplier["block_multiplier"]                = std::to_string(blockMultiplier);
+            std::map<std::string, std::string> paramsWithBlockMultiplier = selectionParams;
+            paramsWithBlockMultiplier["block_multiplier"]                = std::to_string(candiateBlockMultiplier);
 
             utils::Optional<PleKernelId> kernelId = LookupPleKernelId(paramsWithBlockMultiplier);
             if (kernelId.has_value())
             {
-                m_PleKernelId     = kernelId.value();
-                m_BlockMultiplier = blockMultiplier;
-                if (blockMultiplier * blockConfig.m_BlockWidth() >= stripeWidth)
+                m_PleKernelId         = kernelId.value();
+                chosenBlockMultiplier = candiateBlockMultiplier;
+                if (candiateBlockMultiplier * blockWidth >= stripeWidth)
                 {
                     break;
                 }
             }
         }
 
-        if (m_BlockMultiplier == 0)
+        if (chosenBlockMultiplier == 0)
         {
             throw InternalErrorException("Cannot find PLE kernel");
         }
+
+        m_SelectionIntParams["block_multiplier"] = chosenBlockMultiplier;
     }
     else
     {
         // No block multiplier, so only one kernel should match
-        utils::Optional<PleKernelId> kernelId = LookupPleKernelId(params);
+        utils::Optional<PleKernelId> kernelId = LookupPleKernelId(selectionParams);
         if (!kernelId.has_value())
         {
             throw InternalErrorException("Cannot find PLE kernel");
         }
-        m_PleKernelId     = kernelId.value();
-        m_BlockMultiplier = 0;
+        m_PleKernelId = kernelId.value();
     }
 }
 
@@ -649,21 +648,19 @@ DotAttributes PleOp::GetDotAttributes(DetailLevel detail) const
     {
         result.m_Label = "PleOp\n";
         result.m_Label += "Op = " + ToString(m_Op) + "\n";
-        result.m_Label += "Block Config = " + ToString(m_BlockConfig) + "\n";
-        result.m_Label += "Num Inputs = " + to_string(m_NumInputs) + "\n";
-        result.m_Label += "Input Stripe Shapes = " + ArrayToString(m_InputStripeShapes) + "\n";
-        result.m_Label += "Output Stripe Shape = " + ToString(m_OutputStripeShape) + "\n";
-        result.m_Label += "Ple kernel Id = " + ToString(m_PleKernelId) + "\n";
-        result.m_Label += "Kernel Load = " + ToString(m_LoadKernel) + "\n";
+        result.m_Label += "NumInputs = " + to_string(m_NumInputs) + "\n";
+        result.m_Label += "InputStripeShapes = " + ArrayToString(m_InputStripeShapes) + "\n";
+        result.m_Label += "OutputStripeShape = " + ToString(m_OutputStripeShape) + "\n";
+        result.m_Label += "KernelLoad = " + ToString(m_LoadKernel) + "\n";
         if (m_Offset.has_value())
         {
             result.m_Label += "Offset = " + ToString(m_Offset.value()) + " (" + ToStringHex(m_Offset.value()) + ")\n";
         }
-        result.m_Label += "Operation Ids = " + ArrayToString(m_OperationIds) + "\n";
-        result.m_Label += "Input0Multiplier = " + ToString(m_Input0Multiplier) + "\n";
-        result.m_Label += "Input0Shift = " + ToString(m_Input0Shift) + "\n";
-        result.m_Label += "Input1Multiplier = " + ToString(m_Input1Multiplier) + "\n";
-        result.m_Label += "Input1Shift = " + ToString(m_Input1Shift) + "\n";
+        result.m_Label += "OperationIds = " + ArrayToString(m_OperationIds) + "\n";
+        result.m_Label += "SelectionStringParams = " + MapToString(m_SelectionStringParams) + "\n";
+        result.m_Label += "SelectionIntParams = " + MapToString(m_SelectionIntParams) + "\n";
+        result.m_Label += "RuntimeParams = " + MapToString(m_RuntimeParams) + "\n";
+        result.m_Label += "PleKernelId = " + ToString(m_PleKernelId) + "\n";
     }
     return result;
 }

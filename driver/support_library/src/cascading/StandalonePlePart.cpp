@@ -23,6 +23,35 @@ namespace support_library
 {
 using namespace impl;
 
+StandalonePlePart::StandalonePlePart(PartId id,
+                                     const std::vector<TensorShape>& inputTensorShapes,
+                                     const TensorShape& outputTensorShape,
+                                     const std::vector<QuantizationInfo>& inputQuantizationInfos,
+                                     const QuantizationInfo& outputQuantizationInfo,
+                                     PleOperation op,
+                                     const EstimationOptions& estOpt,
+                                     const CompilationOptions& compOpt,
+                                     const HardwareCapabilities& capabilities,
+                                     std::set<uint32_t> correspondingOperationIds,
+                                     DataType dataType,
+                                     std::map<std::string, std::string> selectionStringParams,
+                                     std::map<std::string, int> selectionIntParams,
+                                     std::map<std::string, int> runtimeParams)
+    : BasePart(id, "StandalonePlePart", std::move(correspondingOperationIds), estOpt, compOpt, capabilities)
+    , m_InputTensorShapes(inputTensorShapes)
+    , m_OutputTensorShape(outputTensorShape)
+    , m_InputQuantizationInfos(inputQuantizationInfos)
+    , m_OutputQuantizationInfo(outputQuantizationInfo)
+    , m_KernelOperation(op)
+    , m_DataType(dataType)
+    , m_StripeConfig(impl::GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
+    , m_SelectionStringParams(std::move(selectionStringParams))
+    , m_SelectionIntParams(std::move(selectionIntParams))
+    , m_RuntimeParams(std::move(runtimeParams))
+{
+    assert(m_InputQuantizationInfos.size() == m_InputTensorShapes.size());
+}
+
 Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
                                   ethosn::command_stream::BlockConfig blockConfig,
                                   const std::vector<Buffer*>& sramBufferInputs,
@@ -43,14 +72,12 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
     }
 
     Plans plans;
-    StripeConfig stripeConfig             = m_StripeConfig;
-    command_stream::BlockConfig blkConfig = { 0u, 0u };    // Ignored by standalone PLE kernel.
+    StripeConfig stripeConfig = m_StripeConfig;
 
     switch (m_KernelOperation)
     {
         case PleOperation::ADDITION:
         case PleOperation::ADDITION_RESCALE:
-            blkConfig = { 16U, 16U };    // Addition still uses blocks, even though it doesn't use the MCE
             // All split are possible as these operations are elementwise
             break;
         case PleOperation::AVGPOOL_3X3_1_1_UDMA:
@@ -136,13 +163,9 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
             NumMemoryStripes numMemoryStripes;
             numMemoryStripes.m_Output = numOutputStripes;
 
-            auto op =
-                std::make_unique<PleOp>(m_KernelOperation, blkConfig, static_cast<uint32_t>(m_InputTensorShapes.size()),
-                                        inputStripes, outputStripeShape, m_DataType, true, m_Capabilities);
-            op->m_Input0Multiplier = m_Input0Multiplier;
-            op->m_Input0Shift      = m_Input0Shift;
-            op->m_Input1Multiplier = m_Input1Multiplier;
-            op->m_Input1Shift      = m_Input1Shift;
+            auto op = std::make_unique<PleOp>(m_KernelOperation, static_cast<uint32_t>(m_InputTensorShapes.size()),
+                                              inputStripes, outputStripeShape, true, m_Capabilities,
+                                              m_SelectionStringParams, m_SelectionIntParams, m_RuntimeParams);
 
             OwnedOpGraph opGraph;
             PartInputMapping inputMappings;
@@ -273,6 +296,11 @@ ethosn::support_library::DotAttributes StandalonePlePart::GetDotAttributes(Detai
         result.m_Label += "OutputTensorShape = " + ToString(m_OutputTensorShape) + "\n";
         result.m_Label += "InputQuantizationInfo = " + ArrayToString(m_InputQuantizationInfos) + "\n";
         result.m_Label += "OutputQuantizationInfo = " + ToString(m_OutputQuantizationInfo) + "\n";
+        result.m_Label += "KernelOperation = " + ToString(m_KernelOperation) + "\n";
+        result.m_Label += "DataType = " + ToString(m_DataType) + "\n";
+        result.m_Label += "SelectionStringParams = " + MapToString(m_SelectionStringParams) + "\n";
+        result.m_Label += "SelectionIntParams = " + MapToString(m_SelectionIntParams) + "\n";
+        result.m_Label += "RuntimeParams = " + MapToString(m_RuntimeParams) + "\n";
     }
     return result;
 }

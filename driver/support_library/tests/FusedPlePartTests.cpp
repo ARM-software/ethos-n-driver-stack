@@ -50,9 +50,13 @@ FusedPlePart BuildPart(TensorShape inputShape,
     const QuantizationInfo inputQuantInfo(0, 1.0f);
     const QuantizationInfo outputQuantInfo(0, 1.0f);
     const std::set<uint32_t> operationsIds = { 1 };
-    FusedPlePart part(partId, inputShape, outputShape, inputQuantInfo, outputQuantInfo, op, shapeMultiplier, estOpts,
-                      compOpts, caps, std::move(operationsIds), DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED,
-                      0.0f, debuggingContext, threadPool);
+    FusedPlePart part(
+        partId, inputShape, outputShape, inputQuantInfo, outputQuantInfo, op, shapeMultiplier, estOpts, compOpts, caps,
+        operationsIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, debuggingContext, threadPool,
+        op == PleOperation::LEAKY_RELU ? std::map<std::string, std::string>{ { "datatype", "u8" } }
+                                       : std::map<std::string, std::string>{},
+        std::map<std::string, int>{ { "block_width", 16 }, { "block_height", 16 }, { "block_multiplier", 1 } },
+        std::map<std::string, int>{});
 
     part.SetOutputRequirements({ BoundaryRequirements{} }, { false });
 
@@ -607,8 +611,9 @@ TEST_CASE("FusedPlePart GetPlans structure")
         const PleOperation csOp                = PleOperation::PASSTHROUGH;
         const utils::ShapeMultiplier shapeMult = { 1, 1, 1 };
         FusedPlePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, csOp, shapeMult, estOpts, compOpt, caps,
-                          operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, 0.0f, debuggingContext,
-                          threadPool);
+                          operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, debuggingContext,
+                          threadPool, {}, std::map<std::string, int>{ { "block_width", 16 }, { "block_height", 16 } },
+                          std::map<std::string, int>{});
         part.SetOutputRequirements({ BoundaryRequirements{} }, { false });
 
         CheckPlansParams params;
@@ -767,15 +772,19 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
         const PleOperation csOpEven            = PleOperation::MAXPOOL_3X3_2_2_EVEN;
         const utils::ShapeMultiplier shapeMult = { { 1, 2 }, { 1, 2 }, 1 };
         FusedPlePart partEven(partId, tsInEven, tsOut, inputQuantInfo, outputQuantInfo, csOpEven, shapeMult, estOpts,
-                              compOpt, caps, operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, 0.0f,
-                              debuggingContext, threadPool);
+                              compOpt, caps, operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED,
+                              debuggingContext, threadPool, { { "datatype", "u8" } },
+                              std::map<std::string, int>{ { "block_width", 16 }, { "block_height", 16 } },
+                              std::map<std::string, int>{});
         partEven.SetOutputRequirements({ BoundaryRequirements{} }, { false });
 
         TensorShape tsInOdd        = { 1, 129, 129, 64 };
         const PleOperation csOpOdd = PleOperation::MAXPOOL_3X3_2_2_ODD;
         FusedPlePart partOdd(partId, tsInOdd, tsOut, inputQuantInfo, outputQuantInfo, csOpOdd, shapeMult, estOpts,
-                             compOpt, caps, operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, 0.0f,
-                             debuggingContext, threadPool);
+                             compOpt, caps, operationIds, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED,
+                             debuggingContext, threadPool, { { "datatype", "u8" } },
+                             std::map<std::string, int>{ { "block_width", 16 }, { "block_height", 16 } },
+                             std::map<std::string, int>{});
         partOdd.SetOutputRequirements({ BoundaryRequirements{} }, { false });
 
         CheckPlansParams paramsEven;
@@ -1272,14 +1281,13 @@ TEST_CASE("FusedPlePart GetPlans strategy 0 shape multiplier")
                 params.m_OutputShape = outputShape;
                 params.m_PleOp       = pleOp;
                 params.m_Any.push_back([](const PlanDesc& plan) {
-                    bool blockConfig = plan.m_Ple->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u };
                     TensorShape inputStripe{ 1, 16, 16, 16 };
                     uint32_t numInputStripes = 1;
                     TensorShape outputStripe{ 1, 8, 8, 64 };
                     uint32_t numOutputStripes = 1;
                     TensorShape pleInputStripe{ 1, 16, 16, 16 };
                     TensorShape pleOutputComputeStripe{ 1, 8, 8, 64 };
-                    return blockConfig && plan.m_InputSram->Sram()->m_StripeShape == inputStripe &&
+                    return plan.m_InputSram->Sram()->m_StripeShape == inputStripe &&
                            plan.m_InputSram->Sram()->m_NumStripes == numInputStripes &&
                            plan.m_OutputSram->Sram()->m_StripeShape == outputStripe &&
                            plan.m_OutputSram->Sram()->m_NumStripes == numOutputStripes &&

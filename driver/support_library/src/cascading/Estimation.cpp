@@ -278,8 +278,11 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
             inputShapes.push_back(inputBuffer->m_TensorShape);
         }
 
-        result.m_LegacyStats.m_Ple = GetPleStats(capabilities, inputShapes, sramOutputBuffer->m_TensorShape,
-                                                 pleOp->m_Op, pleOp->m_BlockMultiplier, pleOp->m_BlockConfig);
+        result.m_LegacyStats.m_Ple =
+            GetPleStats(capabilities, inputShapes, sramOutputBuffer->m_TensorShape, pleOp->m_Op,
+                        GetWithDefault(pleOp->m_SelectionIntParams, "block_multiplier", 0),
+                        GetWithDefault(pleOp->m_SelectionIntParams, "block_width", 0),
+                        GetWithDefault(pleOp->m_SelectionIntParams, "block_height", 0));
         includeOp(pleOp);
     }
 

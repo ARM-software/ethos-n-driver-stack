@@ -83,10 +83,11 @@ public:
 
         if (m_HasInput && m_HasOutput)
         {
-            opGraph.AddOp(std::make_unique<PleOp>(PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
-                                                  std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
-                                                  TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, true,
-                                                  m_Capabilities));
+            opGraph.AddOp(std::make_unique<PleOp>(
+                PleOperation::PASSTHROUGH, 1, std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
+                TensorShape{ 1, 16, 16, 16 }, true, m_Capabilities, std::map<std::string, std::string>{},
+                std::map<std::string, int>{ { "block_width", 8 }, { "block_height", 8 } },
+                std::map<std::string, int>{}));
 
             opGraph.AddConsumer(opGraph.GetBuffers().front(), opGraph.GetOps()[0], 0);
             opGraph.SetProducer(opGraph.GetBuffers().back(), opGraph.GetOps()[0]);
@@ -611,8 +612,9 @@ TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
     planA.m_OpGraph.GetOps()[0]->m_DebugTag = "MceOp";
     size_t mceOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
     planA.m_OpGraph.AddOp(std::make_unique<PleOp>(
-        PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
-        TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, true, hwCaps));
+        PleOperation::PASSTHROUGH, 1, std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
+        TensorShape{ 1, 16, 16, 16 }, true, hwCaps, std::map<std::string, std::string>{},
+        std::map<std::string, int>{ { "block_width", 8 }, { "block_height", 8 } }, std::map<std::string, int>{}));
     size_t pleOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
     planA.m_OpGraph.GetOps()[1]->m_DebugTag = "PleOp";
     planA.m_OpGraph.AddConsumer(inputSram, planA.m_OpGraph.GetOps()[mceOpIndex], 0);
@@ -716,8 +718,9 @@ TEST_CASE("BufferDeallocationTest_CascadeOps", "[CombinerDFS]")
     planA.m_OpGraph.GetOps()[0]->m_DebugTag = "MceOp";
     size_t mceOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
     planA.m_OpGraph.AddOp(std::make_unique<PleOp>(
-        PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
-        TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, true, hwCaps));
+        PleOperation::PASSTHROUGH, 1, std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
+        TensorShape{ 1, 16, 16, 16 }, true, hwCaps, std::map<std::string, std::string>{},
+        std::map<std::string, int>{ { "block_width", 8 }, { "block_height", 8 } }, std::map<std::string, int>{}));
     size_t pleOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
     planA.m_OpGraph.GetOps()[1]->m_DebugTag = "PleOp";
     planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[inputBufferIndex], planA.m_OpGraph.GetOps()[mceOpIndex],
@@ -3317,9 +3320,11 @@ TEST_CASE("AllocateSram", "[CombinerDFS]")
 
     // Adding a passthrough PLE kernel to the plan
     // The PleKernelId is expected to be PASSTHROUGH_8x8_2
-    auto op = std::make_unique<PleOp>(PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
-                                      std::vector<TensorShape>{ TensorShape{ 1, 4, 16, 1024 } },
-                                      TensorShape{ 1, 4, 16, 1024 }, DataType::UINT8_QUANTIZED, true, hwCaps);
+    auto op = std::make_unique<PleOp>(
+        PleOperation::PASSTHROUGH, 1, std::vector<TensorShape>{ TensorShape{ 1, 4, 16, 1024 } },
+        TensorShape{ 1, 4, 16, 1024 }, true, hwCaps, std::map<std::string, std::string>{},
+        std::map<std::string, int>{ { "block_width", 8 }, { "block_height", 8 }, { "block_multiplier", 2 } },
+        std::map<std::string, int>{});
 
     numMemoryStripes.m_Output = 1;
     auto outBufferAndPleOp =
@@ -3438,9 +3443,11 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
         {
             // Adding a passthrough PLE kernel to the plan
             // The PleKernelId is expected to be PASSTHROUGH_8x8_2
-            auto op                   = std::make_unique<PleOp>(PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
-                                              std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                              TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true, hwCaps);
+            auto op = std::make_unique<PleOp>(
+                PleOperation::PASSTHROUGH, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                TensorShape{ 1, 8, 8, 8 }, true, hwCaps, std::map<std::string, std::string>{},
+                std::map<std::string, int>{ { "block_width", 8 }, { "block_height", 8 }, { "block_multiplier", 2 } },
+                std::map<std::string, int>{});
             numMemoryStripes.m_Output = 1;
             auto outBufferAndPleOp =
                 AddPleToOpGraph(planA.m_OpGraph, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
@@ -3554,9 +3561,11 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
         {
             // Adding a passthrough PLE kernel to the plan
             // The PleKernelId is expected to be PASSTHROUGH_8x8_2
-            auto op                   = std::make_unique<PleOp>(PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
-                                              std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                              TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true, hwCaps);
+            auto op = std::make_unique<PleOp>(
+                PleOperation::PASSTHROUGH, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                TensorShape{ 1, 8, 8, 8 }, true, hwCaps, std::map<std::string, std::string>{},
+                std::map<std::string, int>{ { "block_width", 8 }, { "block_height", 8 }, { "block_multiplier", 2 } },
+                std::map<std::string, int>{});
             numMemoryStripes.m_Output = 1;
             auto outBufferAndPleOp =
                 AddPleToOpGraph(planA.m_OpGraph, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
@@ -3625,9 +3634,12 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
             {
                 // Adding a passthrough PLE kernel to the plan
                 // The PleKernelId is expected to be PASSTHROUGH_8x8_2
-                auto op                   = std::make_unique<PleOp>(PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
-                                                  std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                                  TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true, hwCaps);
+                auto op = std::make_unique<PleOp>(
+                    PleOperation::PASSTHROUGH, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                    TensorShape{ 1, 8, 8, 8 }, true, hwCaps, std::map<std::string, std::string>{},
+                    std::map<std::string, int>{
+                        { "block_width", 8 }, { "block_height", 8 }, { "block_multiplier", 2 } },
+                    std::map<std::string, int>{});
                 numMemoryStripes.m_Output = 1;
                 auto outBufferAndPleOp = AddPleToOpGraph(planB.m_OpGraph, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes,
                                                          std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(),
@@ -3660,9 +3672,12 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
             WHEN("Continuing the section with the second plan that has Ple Op not already loaded")
             {
                 // Adding a passthrough PLE kernel to the plan
-                auto op = std::make_unique<PleOp>(PleOperation::PASSTHROUGH, BlockConfig{ 16u, 16u }, 1,
-                                                  std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                                  TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true, hwCaps);
+                auto op = std::make_unique<PleOp>(
+                    PleOperation::PASSTHROUGH, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                    TensorShape{ 1, 8, 8, 8 }, true, hwCaps, std::map<std::string, std::string>{},
+                    std::map<std::string, int>{
+                        { "block_width", 16 }, { "block_height", 16 }, { "block_multiplier", 1 } },
+                    std::map<std::string, int>{});
 
                 numMemoryStripes.m_Output = 1;
 
@@ -3731,10 +3746,12 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                 WHEN("Ending the section with the third plan that has already loaded Ple Op")
                 {
                     // Adding a passthrough PLE kernel to the plan
-                    auto op =
-                        std::make_unique<PleOp>(PleOperation::PASSTHROUGH, BlockConfig{ 16u, 16u }, 1,
-                                                std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                                TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true, hwCaps);
+                    auto op = std::make_unique<PleOp>(
+                        PleOperation::PASSTHROUGH, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                        TensorShape{ 1, 8, 8, 8 }, true, hwCaps, std::map<std::string, std::string>{},
+                        std::map<std::string, int>{
+                            { "block_width", 16 }, { "block_height", 16 }, { "block_multiplier", 1 } },
+                        std::map<std::string, int>{});
                     numMemoryStripes.m_Output = 1;
                     auto outBufferAndPleOp    = AddPleToOpGraph(
                         planC.m_OpGraph, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
@@ -3773,10 +3790,12 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                 WHEN("Ending the section with the third plan that has Ple Op not already loaded")
                 {
                     // Adding a passthrough PLE kernel to the plan
-                    auto op =
-                        std::make_unique<PleOp>(PleOperation::PASSTHROUGH, BlockConfig{ 8u, 32u }, 1,
-                                                std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                                TensorShape{ 1, 8, 8, 8 }, DataType::UINT8_QUANTIZED, true, hwCaps);
+                    auto op = std::make_unique<PleOp>(
+                        PleOperation::PASSTHROUGH, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                        TensorShape{ 1, 8, 8, 8 }, true, hwCaps, std::map<std::string, std::string>{},
+                        std::map<std::string, int>{
+                            { "block_width", 8 }, { "block_height", 32 }, { "block_multiplier", 1 } },
+                        std::map<std::string, int>{});
 
                     numMemoryStripes.m_Output = 1;
 

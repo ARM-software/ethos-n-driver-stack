@@ -47,7 +47,12 @@ StandalonePlePart BuildPart(const std::vector<TensorShape>& inputShapes,
     const std::set<uint32_t> operationsIds = { 1 };
 
     StandalonePlePart part(partId, inputShapes, outputShape, inputQuantizationInfos, outputQuantInfo, op, estOpts,
-                           compOpts, caps, operationsIds, DataType::UINT8_QUANTIZED);
+                           compOpts, caps, operationsIds, DataType::UINT8_QUANTIZED,
+                           std::map<std::string, std::string>{ { "datatype", "u8" } },
+                           op == PleOperation::AVGPOOL_3X3_1_1_UDMA
+                               ? std::map<std::string, int>{}
+                               : std::map<std::string, int>{ { "block_width", 16 }, { "block_height", 16 } },
+                           std::map<std::string, int>{});
     part.SetOutputRequirements({ BoundaryRequirements{}, BoundaryRequirements{} }, { false, false });
 
     return part;

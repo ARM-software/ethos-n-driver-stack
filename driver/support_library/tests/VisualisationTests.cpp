@@ -387,14 +387,10 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
     dma.m_DebugTag = "Dma";
     graph.AddOp(&dma);
 
-    PleOp ple(PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 },
-              DataType::UINT8_QUANTIZED, true, hwCaps);
-    ple.m_DebugTag         = "Ple";
-    ple.m_Offset           = 0;
-    ple.m_Input0Multiplier = 10;
-    ple.m_Input0Shift      = 11;
-    ple.m_Input1Multiplier = 12;
-    ple.m_Input1Shift      = 13;
+    PleOp ple(PleOperation::ADDITION, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 }, true, hwCaps,
+              { { "datatype", "s8" } }, { { "block_width", 16 }, { "block_height", 16 } }, { { "runtimeParam1", 98 } });
+    ple.m_DebugTag = "Ple";
+    ple.m_Offset   = 0;
     graph.AddOp(&ple);
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
@@ -414,7 +410,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
 {
 Mce[label = "Mce\nIdx in OpGraph: 0\nMceOp\nOp = CONVOLUTION\nAlgo = DIRECT\nBlock Config = 3x4\nInput Stripe Shape = [1, 2, 3, 4]\nOutput Stripe Shape = [5, 6, 7, 8]\nWeights Stripe Shape = [9, 10, 11, 12]\nOrder = Zxy\nStride = 10, 20\nPad L/T = 30, 40\nUpscaleFactor = 2\nUpsampleType = NEAREST_NEIGHBOUR\nLower/Upper Bound = 100, 200\nOperation Ids = []\n", shape = oval]
 Dma[label = "Dma\nIdx in OpGraph: 1\nDmaOp\nOperation Ids = []\nTransfer Format = NHWCB\nOffset = [0, 0, 0, 0]\n", shape = oval, color = darkgoldenrod]
-Ple[label = "Ple\nIdx in OpGraph: 2\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nPle kernel Id = V2442_ADDITION_bw16_bh16_bm1_u8\nKernel Load = True\nOffset = 0 (0x0)\nOperation Ids = []\nInput0Multiplier = 10\nInput0Shift = 11\nInput1Multiplier = 12\nInput1Shift = 13\n", shape = oval]
+Ple[label = "Ple\nIdx in OpGraph: 2\nPleOp\nOp = ADDITION\nNumInputs = 2\nInputStripeShapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutputStripeShape = [9, 10, 11, 12]\nKernelLoad = True\nOffset = 0 (0x0)\nOperationIds = []\nSelectionStringParams = { datatype: s8, operation: ADDITION }\nSelectionIntParams = { block_height: 16, block_multiplier: 1, block_width: 16, ces: 2, emcs: 4, ogs: 4, ple_lanes: 2 }\nRuntimeParams = { runtimeParam1: 98 }\nPleKernelId = V2442_ADDITION_bw16_bh16_bm1_s8\n", shape = oval]
 Buffer1[label = "Buffer1\nLocation = PleInputSram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\n", shape = box]
 Buffer2[label = "Buffer2\nLocation = Sram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nStripe shape = [5, 6, 7, 8]\nOrder = Zxy\nSlot size in bytes = 1680 (0x690)\nNum. Stripes = 9\nPacked boundary thickness = { L: 0, T: 0, R: 0, B: 0 }\nNum loads = 1\nForbid FCAF_WIDE\n", shape = box, color = blue]
 Buffer3[label = "Buffer3\nLocation = Dram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nEncoded weights = { 3 bytes, max size = 12, num. metadata = 0, is wide filter = True }\nConstant data = [ 3 bytes ]\nType = ConstantDma\nOperation ID = 7\nProducer Output Index = 13\n", shape = box, color = brown]
@@ -448,8 +444,9 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
 
     graph.AddBuffer(inputBuffer.get());
 
-    PleOp ple1(PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 },
-               DataType::UINT8_QUANTIZED, true, hwCaps);
+    PleOp ple1(PleOperation::ADDITION, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 }, true, hwCaps,
+               { { "datatype", "s8" } }, { { "block_width", 16 }, { "block_height", 16 } },
+               { { "runtimeParam1", 98 } });
     ple1.m_DebugTag = "Ple1";
     graph.AddOp(&ple1);
 
@@ -465,8 +462,9 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
 
     graph.AddBuffer(intermediateBuffer.get());
 
-    PleOp ple2(PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 },
-               DataType::UINT8_QUANTIZED, true, hwCaps);
+    PleOp ple2(PleOperation::ADDITION, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 }, true, hwCaps,
+               { { "datatype", "s8" } }, { { "block_width", 16 }, { "block_height", 16 } },
+               { { "runtimeParam1", 98 } });
     ple2.m_DebugTag = "Ple2";
     graph.AddOp(&ple2);
 
@@ -589,13 +587,15 @@ TEST_CASE("SaveCompiledOpGraphToDot", "[Visualisation]")
     // Build a very simple graph with two Ops in a Pass, which we then create a fake CompiledOpGraph struct to describe.
     OpGraph graph;
 
-    PleOp ple1(PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 },
-               DataType::UINT8_QUANTIZED, true, hwCaps);
+    PleOp ple1(PleOperation::ADDITION, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 }, true, hwCaps,
+               { { "datatype", "s8" } }, { { "block_width", 16 }, { "block_height", 16 } },
+               { { "runtimeParam1", 98 } });
     ple1.m_DebugTag = "Ple1";
     graph.AddOp(&ple1);
 
-    PleOp ple2(PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 },
-               DataType::UINT8_QUANTIZED, true, hwCaps);
+    PleOp ple2(PleOperation::ADDITION, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 }, true, hwCaps,
+               { { "datatype", "s8" } }, { { "block_width", 16 }, { "block_height", 16 } },
+               { { "runtimeParam1", 98 } });
     ple2.m_DebugTag = "Ple2";
     graph.AddOp(&ple2);
 
@@ -765,7 +765,8 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
         1, TensorShape{ 1, 2, 3, 4 }, TensorShape{ 5, 6, 7, 8 }, QuantizationInfo(9, 10.0f),
         QuantizationInfo(11, 12.0f), PleOperation::DOWNSAMPLE_2X2, support_library::utils::ShapeMultiplier{ 1, 2, 3 },
         estOpt, compOpt, caps, std::set<uint32_t>{ 13, 14, 15 }, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED,
-        0.0f, debuggingContext, threadPool);
+        debuggingContext, threadPool, std::map<std::string, std::string>{ { "test1", "test2" } },
+        std::map<std::string, int>{ { "test3", 4 } }, std::map<std::string, int>{ { "test5", 6 } });
     parts.AddPart(std::move(fusedPlePart));
 
     // McePart
@@ -825,7 +826,8 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
         9, std::vector<TensorShape>{ TensorShape{ 1, 2, 3, 4 }, TensorShape{ 1, 2, 3, 4 } }, TensorShape{ 1, 2, 3, 4 },
         std::vector<QuantizationInfo>{ QuantizationInfo(9, 10.0f), QuantizationInfo(9, 10.0f) },
         QuantizationInfo(9, 10.0f), PleOperation::ADDITION, estOpt, compOpt, caps, std::set<uint32_t>{ 1 },
-        DataType::UINT8_QUANTIZED);
+        DataType::UINT8_QUANTIZED, std::map<std::string, std::string>{ { "test1", "test2" } },
+        std::map<std::string, int>{ { "test3", 4 } }, std::map<std::string, int>{ { "test5", 6 } });
     parts.AddPart(std::move(standalonePlePart));
 
     // ConstantPart
@@ -835,7 +837,7 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     parts.AddPart(std::move(constantPart));
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
-    bool dumpToFile = false;
+    bool dumpToFile = true;
     if (dumpToFile)
     {
         std::ofstream stream("GraphOfParts Part Details.dot");
@@ -849,13 +851,13 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     std::string expected =
         R"(digraph SupportLibraryGraph
 {
-FusedPlePart_1[label = "FusedPlePart 1\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nInputDataType = UINT8_QUANTIZED\nOutputDataType = UINT8_QUANTIZED\nKernelOperation = DOWNSAMPLE_2X2\nShapeMultiplier = [1/1, 2/1, 3/1]\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [1, 2, 3, 4]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 1\nStripeGenerator.KernelWidth = 1\nStripeGenerator.UpscaleFactor = 1\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceShapeMultiplier = [1/1, 1/1, 1/1]\nStripeGenerator.PleShapeMultiplier = [1/1, 2/1, 3/1]\n"]
+FusedPlePart_1[label = "FusedPlePart 1\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nInputDataType = UINT8_QUANTIZED\nOutputDataType = UINT8_QUANTIZED\nKernelOperation = DOWNSAMPLE_2X2\nShapeMultiplier = [1/1, 2/1, 3/1]\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [1, 2, 3, 4]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 1\nStripeGenerator.KernelWidth = 1\nStripeGenerator.UpscaleFactor = 1\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceShapeMultiplier = [1/1, 1/1, 1/1]\nStripeGenerator.PleShapeMultiplier = [1/1, 2/1, 3/1]\nSelectionStringParams = { test1: test2 }\nSelectionIntParams = { test3: 4 }\nRuntimeParams = { test5: 6 }\n"]
 ConcatPart_2[label = "ConcatPart 2\nCorrespondingOperationIds = [13, 14, 15]\nPreferNhwc = True\nInputTensorsInfo = [([1, 2, 3, 4], UINT8_QUANTIZED, NHWC, ZeroPoint = 0, Scale = 1.000000)]\nOutputTensorInfo = ([5, 6, 7, 8], UINT8_QUANTIZED, NHWC, ZeroPoint = 9, Scale = 10.000000)\nAxis = 3\nOffsets = [0, 16]\n"]
 InputPart_3[label = "InputPart 3\nCorrespondingOperationIds = [13, 14, 15]\nCompilerDataFormat = NHWCB\nOutputTensorShape = [1, 2, 3, 4]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputDataType = UINT8_QUANTIZED\n"]
 McePart_5[label = "McePart 5\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nInputDataType = UINT8_QUANTIZED\nOutputDataType = UINT8_QUANTIZED\nWeightsInfo = ([9, 10, 11, 12], UINT8_QUANTIZED, NHWC, ZeroPoint = 11, Scale = 12.000000)\nBiasInfo = ([19, 110, 111, 112], UINT8_QUANTIZED, NHWC, ZeroPoint = 111, Scale = 112.000000)\nStride = 2, 2\nUpscaleFactor = 3\nUpsampleType = NEAREST_NEIGHBOUR\nPadTop = 1\nPadLeft = 3\nOperation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 9\nStripeGenerator.KernelWidth = 10\nStripeGenerator.UpscaleFactor = 3\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceShapeMultiplier = [3/1, 3/1, 1/4]\nStripeGenerator.PleShapeMultiplier = [1/1, 1/1, 1/1]\nLowerBound = 0\nUpperBound = 255\nIsChannelSelector = False\n"]
 OutputPart_6[label = "OutputPart 6\nCorrespondingOperationIds = [13, 14, 15]\nCompilerDataFormat = NHWCB\nInputTensorShape = [1, 2, 3, 4]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nInputDataType = UINT8_QUANTIZED\n"]
 ReshapePart_8[label = "ReshapePart 8\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nDataType = UINT8_QUANTIZED\n"]
-StandalonePlePart_9[label = "StandalonePlePart 9\nCorrespondingOperationIds = [1]\nInputTensorShape = [[1, 2, 3, 4], [1, 2, 3, 4]]\nOutputTensorShape = [1, 2, 3, 4]\nInputQuantizationInfo = [ZeroPoint = 9, Scale = 10.000000, ZeroPoint = 9, Scale = 10.000000]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\n"]
+StandalonePlePart_9[label = "StandalonePlePart 9\nCorrespondingOperationIds = [1]\nInputTensorShape = [[1, 2, 3, 4], [1, 2, 3, 4]]\nOutputTensorShape = [1, 2, 3, 4]\nInputQuantizationInfo = [ZeroPoint = 9, Scale = 10.000000, ZeroPoint = 9, Scale = 10.000000]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nKernelOperation = ADDITION\nDataType = UINT8_QUANTIZED\nSelectionStringParams = { test1: test2 }\nSelectionIntParams = { test3: 4 }\nRuntimeParams = { test5: 6 }\n"]
 ConstantPart_10[label = "ConstantPart 10\nCorrespondingOperationIds = [7]\nCompilerDataFormat = NHWCB\nOutputTensorShape = [1, 2, 3, 4]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputDataType = UINT8_QUANTIZED\nConstantData = [ 3 bytes ]\n"]
 }
 )";

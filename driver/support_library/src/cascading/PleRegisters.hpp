@@ -14,16 +14,18 @@ namespace ethosn
 namespace support_library
 {
 
+class PleOp;
+
 struct PleIfmInfo
 {
     int16_t zeroPoint;
-    uint16_t multiplier;
-    uint16_t shift;
 };
 
 /// PLE Scheduler data
 struct PleSDesc
 {
+    PleOp* m_PleOp;
+
     /// Output tile
     Tile ofmTile;
     /// Output zero correction
@@ -47,11 +49,11 @@ struct PleSDesc
 
     /// First input tile
     Tile ifmTile0;
-    /// First input zero correction, multiplier and shift
+    /// First input zero correction
     PleIfmInfo ifmInfo0;
     /// Second input tile
     Tile ifmTile1;
-    /// Second input zero correction, multiplier and shift
+    /// Second input zero correction
     PleIfmInfo ifmInfo1;
 };
 

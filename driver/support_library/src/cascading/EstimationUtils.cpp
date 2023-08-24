@@ -311,7 +311,8 @@ PleStats GetPleStats(const HardwareCapabilities& caps,
                      const TensorShape& outputShape,
                      const PleOperation& pleOperation,
                      uint32_t blockMultiplier,
-                     const ethosn::command_stream::BlockConfig& blockConfig)
+                     uint32_t blockWidth,
+                     uint32_t blockHeight)
 {
     using namespace utils;
 
@@ -326,7 +327,7 @@ PleStats GetPleStats(const HardwareCapabilities& caps,
     // Addition is a special case which has a block config but doesn't have the same overheads
     // so we ignore it
     bool hasBlockConfig = pleOperation != PleOperation::ADDITION && pleOperation != PleOperation::ADDITION_RESCALE &&
-                          blockConfig.m_BlockWidth() != 0 && blockConfig.m_BlockHeight() != 0;
+                          blockWidth != 0 && blockHeight != 0;
 
     for (auto& inputShape : inputShapes)
     {
@@ -337,8 +338,8 @@ PleStats GetPleStats(const HardwareCapabilities& caps,
         // even if it is only partial.
         if (hasBlockConfig)
         {
-            effectiveHeight = utils::RoundUpToNearestMultiple(GetHeight(inputShape), blockConfig.m_BlockHeight());
-            effectiveWidth  = utils::RoundUpToNearestMultiple(GetWidth(inputShape), blockConfig.m_BlockWidth());
+            effectiveHeight = utils::RoundUpToNearestMultiple(GetHeight(inputShape), blockHeight);
+            effectiveWidth  = utils::RoundUpToNearestMultiple(GetWidth(inputShape), blockWidth);
         }
 
         patchesH = std::max(utils::DivRoundUp(effectiveHeight, GetHeight(g_PatchShape)), patchesH);
@@ -355,10 +356,9 @@ PleStats GetPleStats(const HardwareCapabilities& caps,
     uint64_t blockOverhead = 0;
     if (hasBlockConfig)
     {
-        uint64_t numBlocks =
-            static_cast<uint64_t>(utils::DivRoundUp(utils::GetHeight(outputShape), blockConfig.m_BlockHeight())) *
-            static_cast<uint64_t>(utils::DivRoundUp(utils::GetWidth(outputShape), blockConfig.m_BlockWidth())) *
-            patchesC;
+        uint64_t numBlocks = static_cast<uint64_t>(utils::DivRoundUp(utils::GetHeight(outputShape), blockHeight)) *
+                             static_cast<uint64_t>(utils::DivRoundUp(utils::GetWidth(outputShape), blockWidth)) *
+                             patchesC;
         uint64_t numMultipliedBlocks = numBlocks / blockMultiplier;
 
         constexpr uint32_t overheadPerBlock           = 10;

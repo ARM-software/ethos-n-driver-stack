@@ -16,7 +16,6 @@ namespace support_library
 class StandalonePlePart : public BasePart
 {
 public:
-    template <typename Ids>
     StandalonePlePart(PartId id,
                       const std::vector<TensorShape>& inputTensorShapes,
                       const TensorShape& outputTensorShape,
@@ -26,29 +25,11 @@ public:
                       const EstimationOptions& estOpt,
                       const CompilationOptions& compOpt,
                       const HardwareCapabilities& capabilities,
-                      Ids&& correspondingOperationIds,
-                      DataType dataType)
-        : BasePart(id, "StandalonePlePart", std::forward<Ids>(correspondingOperationIds), estOpt, compOpt, capabilities)
-        , m_InputTensorShapes(inputTensorShapes)
-        , m_OutputTensorShape(outputTensorShape)
-        , m_InputQuantizationInfos(inputQuantizationInfos)
-        , m_OutputQuantizationInfo(outputQuantizationInfo)
-        , m_KernelOperation(op)
-        , m_DataType(dataType)
-        , m_StripeConfig(impl::GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
-    {
-        assert(m_InputQuantizationInfos.size() == m_InputTensorShapes.size());
-
-        const double outputScale = outputQuantizationInfo.GetScale();
-        const double inputScale0 = inputQuantizationInfos[0].GetScale();
-        utils::CalculateRescaleMultiplierAndShift(inputScale0 / outputScale, m_Input0Multiplier, m_Input0Shift);
-
-        if (inputTensorShapes.size() == 2)
-        {
-            const double inputScale1 = inputQuantizationInfos[1].GetScale();
-            utils::CalculateRescaleMultiplierAndShift(inputScale1 / outputScale, m_Input1Multiplier, m_Input1Shift);
-        }
-    }
+                      std::set<uint32_t> correspondingOperationIds,
+                      DataType dataType,
+                      std::map<std::string, std::string> selectionStringParams,
+                      std::map<std::string, int> selectionIntParams,
+                      std::map<std::string, int> runtimeParams);
 
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,
@@ -68,10 +49,14 @@ private:
     PleOperation m_KernelOperation;
     DataType m_DataType;
     impl::StripeConfig m_StripeConfig;
-    uint16_t m_Input0Multiplier;
-    uint16_t m_Input0Shift;
-    uint16_t m_Input1Multiplier;
-    uint16_t m_Input1Shift;
+    /// The set of parameters used to select which PLE kernel to use.
+    /// @{
+    std::map<std::string, std::string> m_SelectionStringParams;
+    std::map<std::string, int> m_SelectionIntParams;
+    /// @}
+    /// The set of parameters passed to the selected PLE kernel at runtime.
+    std::map<std::string, int> m_RuntimeParams;
 };
+
 }    // namespace support_library
 }    // namespace ethosn

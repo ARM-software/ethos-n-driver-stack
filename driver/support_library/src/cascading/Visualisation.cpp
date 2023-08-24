@@ -304,6 +304,11 @@ std::string ToStringHex(const uint32_t v)
     return ss.str();
 }
 
+std::string ToString(const std::string& s)
+{
+    return s;
+}
+
 std::string ToString(DataType t)
 {
     switch (t)

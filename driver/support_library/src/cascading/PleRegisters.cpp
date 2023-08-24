@@ -6,8 +6,13 @@
 #include "PleRegisters.hpp"
 
 #include "../Utils.hpp"
+#include "OpGraph.hpp"
+
+#define ETHOSN_ASSERT_MSG(cond, msg) assert(cond)
+#include <ethosn_utils/NumericCast.hpp>
 
 using namespace ethosn::command_stream::cascading;
+using namespace ethosn::utils;
 
 namespace ethosn
 {
@@ -151,12 +156,22 @@ command_stream::cascading::StartPleStripeCommand
     pleInfo.inputs[0].zeroPoint = pleS.ifmInfo0.zeroPoint;
     pleInfo.inputs[1].zeroPoint = pleS.ifmInfo1.zeroPoint;
 
-    pleInfo.inputs[0].multiplier = pleS.ifmInfo0.multiplier;
-    pleInfo.inputs[1].multiplier = pleS.ifmInfo1.multiplier;
-
-    pleInfo.inputs[0].shift = pleS.ifmInfo0.shift;
-    pleInfo.inputs[1].shift = pleS.ifmInfo1.shift;
-
+    if (pleS.m_PleOp->m_RuntimeParams.count("input0_multiplier") > 0)
+    {
+        pleInfo.inputs[0].multiplier = NumericCast<uint16_t>(pleS.m_PleOp->m_RuntimeParams.at("input0_multiplier"));
+    }
+    if (pleS.m_PleOp->m_RuntimeParams.count("input0_shift") > 0)
+    {
+        pleInfo.inputs[0].shift = NumericCast<uint16_t>(pleS.m_PleOp->m_RuntimeParams.at("input0_shift"));
+    }
+    if (pleS.m_PleOp->m_RuntimeParams.count("input1_multiplier") > 0)
+    {
+        pleInfo.inputs[1].multiplier = NumericCast<uint16_t>(pleS.m_PleOp->m_RuntimeParams.at("input1_multiplier"));
+    }
+    if (pleS.m_PleOp->m_RuntimeParams.count("input1_shift") > 0)
+    {
+        pleInfo.inputs[1].shift = NumericCast<uint16_t>(pleS.m_PleOp->m_RuntimeParams.at("input1_shift"));
+    }
     // Write PLE struct to PLE scratch registers
     static_assert(sizeof(pleInfo) <= sizeof(result.SCRATCH), "StripeInfo must fit in scratch registers");
     memcpy(&result.SCRATCH[0], &pleInfo, sizeof(pleInfo));

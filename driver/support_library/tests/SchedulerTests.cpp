@@ -160,6 +160,13 @@ MceSDesc MakeMceSDesc()
 PleSDesc MakePleSDesc()
 {
     PleSDesc result{};
+    static HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+    static PleOp pleOp(
+        PleOperation::PASSTHROUGH, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } }, TensorShape{ 1, 8, 8, 8 },
+        true, hwCaps, std::map<std::string, std::string>{},
+        std::map<std::string, int>{ { "block_width", 8 }, { "block_height", 32 }, { "block_multiplier", 1 } },
+        std::map<std::string, int>{});
+    result.m_PleOp          = &pleOp;
     result.ofmTile.numSlots = 1;
     result.pleKernelId      = PleKernelId::V4442_PASSTHROUGH_bw8_bh8_bm1;
     result.stripeIdStrides  = { 1, 1, 1 };

@@ -23,6 +23,57 @@ namespace support_library
 using namespace impl;
 using namespace utils;
 
+FusedPlePart::FusedPlePart(PartId id,
+                           const TensorShape& inputTensorShape,
+                           const TensorShape& outputTensorShape,
+                           const QuantizationInfo& inputQuantizationInfo,
+                           const QuantizationInfo& outputQuantizationInfo,
+                           PleOperation op,
+                           const utils::ShapeMultiplier& shapeMultiplier,
+                           const EstimationOptions& estOpt,
+                           const CompilationOptions& compOpt,
+                           const HardwareCapabilities& capabilities,
+                           std::set<uint32_t> correspondingOperationIds,
+                           DataType m_InputDataType,
+                           DataType m_OutputDataType,
+                           DebuggingContext&,
+                           ThreadPool& threadPool,
+                           std::map<std::string, std::string> selectionStringParams,
+                           std::map<std::string, int> selectionIntParams,
+                           std::map<std::string, int> runtimeParams)
+    : BasePart(id, "FusedPlePart", std::move(correspondingOperationIds), estOpt, compOpt, capabilities)
+    , m_InputTensorShape(inputTensorShape)
+    , m_OutputTensorShape(outputTensorShape)
+    , m_InputQuantizationInfo(inputQuantizationInfo)
+    , m_OutputQuantizationInfo(outputQuantizationInfo)
+    , m_KernelOperation(op)
+    , m_ShapeMultiplier(shapeMultiplier)
+    , m_StripeConfig(GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
+    , m_StripeGenerator(m_InputTensorShape,
+                        m_InputTensorShape,
+                        m_OutputTensorShape,
+                        1,
+                        1,
+                        0,
+                        0,
+                        1,
+                        command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
+                        op,
+                        ShapeMultiplier::Identity,
+                        shapeMultiplier,
+                        capabilities,
+                        m_StripeConfig)
+    , m_WeightEncoderCache(capabilities, threadPool)
+    , m_InputDataType(m_InputDataType)
+    , m_OutputDataType(m_OutputDataType)
+    , m_SelectionStringParams(std::move(selectionStringParams))
+    , m_SelectionIntParams(std::move(selectionIntParams))
+    , m_RuntimeParams(std::move(runtimeParams))
+{
+    m_StripeGenerator.m_StripeConfig.blockConfigs =
+        FilterPleBlockConfigs(m_KernelOperation, m_StripeGenerator.m_StripeConfig.blockConfigs);
+}
+
 utils::Optional<ethosn::command_stream::MceOperation> FusedPlePart::GetMceOperation() const
 {
     return {};
@@ -192,6 +243,10 @@ void FusedPlePart::CreateIdentityMceAndFusedPlePlans(const MceAndPleInfo& info,
                                                      Plans& plans,
                                                      uint32_t numWeightStripes) const
 {
+    std::map<std::string, int> selectionIntParams = m_SelectionIntParams;
+    selectionIntParams["block_width"]             = info.m_PleCompute.m_BlockConfig.m_BlockWidth();
+    selectionIntParams["block_height"]            = info.m_PleCompute.m_BlockConfig.m_BlockHeight();
+
     // Create plan with identity mce op and ple op
     for (auto numInputStripes = info.m_Memory.m_Input.m_Range.m_Min;
          numInputStripes <= info.m_Memory.m_Input.m_Range.m_Max; ++numInputStripes)
@@ -219,13 +274,10 @@ void FusedPlePart::CreateIdentityMceAndFusedPlePlans(const MceAndPleInfo& info,
                 }
 
                 // A fuse only ple operation only has 1 input
-                auto op                = std::make_unique<PleOp>(m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,
-                                                  std::vector<TensorShape>{ info.m_PleCompute.m_Input },
-                                                  info.m_PleCompute.m_Output, m_OutputDataType, true, m_Capabilities);
-                op->m_Input0Multiplier = m_Input0Multiplier;
-                op->m_Input0Shift      = m_Input0Shift;
-                op->m_Input1Multiplier = m_Input1Multiplier;
-                op->m_Input1Shift      = m_Input1Shift;
+                auto op =
+                    std::make_unique<PleOp>(m_KernelOperation, 1, std::vector<TensorShape>{ info.m_PleCompute.m_Input },
+                                            info.m_PleCompute.m_Output, true, m_Capabilities, m_SelectionStringParams,
+                                            selectionIntParams, m_RuntimeParams);
 
                 auto outBufferAndPleOp = AddPleToOpGraph(opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes,
                                                          std::move(op), m_OutputTensorShape, m_OutputQuantizationInfo,
@@ -242,6 +294,10 @@ void FusedPlePart::CreateIdentityMceAndFusedPlePlans(const MceAndPleInfo& info,
 
 void FusedPlePart::CreateFuseOnlyPlans(const PleOnlyInfo& info, Plans& plans) const
 {
+    std::map<std::string, int> selectionIntParams = m_SelectionIntParams;
+    selectionIntParams["block_width"]             = info.m_PleCompute.m_BlockConfig.m_BlockWidth();
+    selectionIntParams["block_height"]            = info.m_PleCompute.m_BlockConfig.m_BlockHeight();
+
     for (auto numOutputStripes = info.m_Memory.m_Output.m_Range.m_Min;
          numOutputStripes <= info.m_Memory.m_Output.m_Range.m_Max; ++numOutputStripes)
     {
@@ -261,13 +317,9 @@ void FusedPlePart::CreateFuseOnlyPlans(const PleOnlyInfo& info, Plans& plans) co
                                       m_InputQuantizationInfo, m_InputDataType);
 
             // A fuse only ple operation only has 1 input
-            auto op                = std::make_unique<PleOp>(m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,
-                                              std::vector<TensorShape>{ info.m_PleCompute.m_Input },
-                                              info.m_PleCompute.m_Output, m_OutputDataType, true, m_Capabilities);
-            op->m_Input0Multiplier = m_Input0Multiplier;
-            op->m_Input0Shift      = m_Input0Shift;
-            op->m_Input1Multiplier = m_Input1Multiplier;
-            op->m_Input1Shift      = m_Input1Shift;
+            auto op = std::make_unique<PleOp>(
+                m_KernelOperation, 1, std::vector<TensorShape>{ info.m_PleCompute.m_Input }, info.m_PleCompute.m_Output,
+                true, m_Capabilities, m_SelectionStringParams, selectionIntParams, m_RuntimeParams);
 
             auto outBufferAndPleOp = AddPleToOpGraph(opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes,
                                                      std::move(op), m_OutputTensorShape, m_OutputQuantizationInfo,
@@ -590,6 +642,9 @@ ethosn::support_library::DotAttributes FusedPlePart::GetDotAttributes(DetailLeve
             "StripeGenerator.MceShapeMultiplier = " + ToString(m_StripeGenerator.m_MceShapeMultiplier) + "\n";
         result.m_Label +=
             "StripeGenerator.PleShapeMultiplier = " + ToString(m_StripeGenerator.m_PleShapeMultiplier) + "\n";
+        result.m_Label += "SelectionStringParams = " + MapToString(m_SelectionStringParams) + "\n";
+        result.m_Label += "SelectionIntParams = " + MapToString(m_SelectionIntParams) + "\n";
+        result.m_Label += "RuntimeParams = " + MapToString(m_RuntimeParams) + "\n";
     }
     return result;
 }

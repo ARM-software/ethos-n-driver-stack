@@ -1003,6 +1003,7 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
     SramBuffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrPleOp)->Sram();
 
     PleSDesc pleS = {};
+    pleS.m_PleOp  = ptrPleOp;
 
     pleS.ofmZeroPoint = ethosn::utils::NumericCast<int16_t>(outputBuffer->m_QuantizationInfo.GetZeroPoint());
 
@@ -1047,14 +1048,7 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
         CommonUtils::SetTileInfoForBuffer(m_Capabilities, pleS.ifmTile0, inputBuffer0->Sram());
     }
 
-    pleS.ifmInfo0.zeroPoint  = ethosn::utils::NumericCast<int16_t>(inputBuffer0->m_QuantizationInfo.GetZeroPoint());
-    pleS.ifmInfo0.multiplier = ptrPleOp->m_Input0Multiplier;
-    pleS.ifmInfo0.shift      = ptrPleOp->m_Input0Shift;
-
-    // Note these are set even if there is only 1 input, because some PLE kernels (e.g. LeakyRelu)
-    // use these to pass extra information
-    pleS.ifmInfo1.multiplier = ptrPleOp->m_Input1Multiplier;
-    pleS.ifmInfo1.shift      = ptrPleOp->m_Input1Shift;
+    pleS.ifmInfo0.zeroPoint = ethosn::utils::NumericCast<int16_t>(inputBuffer0->m_QuantizationInfo.GetZeroPoint());
 
     if (inputBuffers.size() == 2)
     {

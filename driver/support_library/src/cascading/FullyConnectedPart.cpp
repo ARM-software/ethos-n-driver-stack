@@ -228,6 +228,10 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
 
     for (const MceAndPleInfo& info : stripeInfos.m_MceAndPleInfos)
     {
+        std::map<std::string, int> pleSelectionIntParams;
+        pleSelectionIntParams["block_width"]  = info.m_PleCompute.m_BlockConfig.m_BlockWidth();
+        pleSelectionIntParams["block_height"] = info.m_PleCompute.m_BlockConfig.m_BlockHeight();
+
         for (auto numInputStripes = info.m_Memory.m_Input.m_Range.m_Min;
              numInputStripes <= info.m_Memory.m_Input.m_Range.m_Max; ++numInputStripes)
         {
@@ -285,10 +289,10 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                     opGraph.SetProducer(pleInBuffer, sramInputAndMceOp.second);
 
                     // Create an identity ple Op
-                    std::unique_ptr<PleOp> pleOp =
-                        std::make_unique<PleOp>(PleOperation::PASSTHROUGH, info.m_MceCompute.m_BlockConfig, 1,
-                                                std::vector<TensorShape>{ info.m_PleCompute.m_Input },
-                                                info.m_PleCompute.m_Output, m_OutputDataType, true, m_Capabilities);
+                    std::unique_ptr<PleOp> pleOp = std::make_unique<PleOp>(
+                        PleOperation::PASSTHROUGH, 1, std::vector<TensorShape>{ info.m_PleCompute.m_Input },
+                        info.m_PleCompute.m_Output, true, m_Capabilities, std::map<std::string, std::string>{},
+                        pleSelectionIntParams, std::map<std::string, int>{});
                     auto outBufferAndPleOp = AddPleToOpGraph(
                         opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(pleOp),
                         m_OutputTensorShape, m_OutputQuantizationInfo, m_OutputDataType, m_CorrespondingOperationIds);

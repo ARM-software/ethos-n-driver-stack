@@ -947,7 +947,6 @@ TEST_CASE("McePart End Cascade full tensor")
                     CHECK(plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16U, 16U });
                     CHECK(plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 24, 24, 256 });
                     CHECK(plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 24, 24, 16 });
-                    CHECK(plan.m_Ple->m_BlockConfig == command_stream::BlockConfig{ 16U, 16U });
                     CHECK(plan.m_Ple->m_InputStripeShapes[0] == TensorShape{ 1, 24, 24, 16 });
                     CHECK(plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 24, 24, 16 });
 
@@ -1021,7 +1020,6 @@ TEST_CASE("McePart GetPlans Strategy3", "[slow]")
                                     plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 16, 16 } &&
                                     plan.m_Mce->m_Order == TraversalOrder::Xyz;
                     bool pleValid =
-                        plan.m_Ple->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
                         plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } } &&
                         plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 16, 16, 16 };
 
@@ -1097,7 +1095,6 @@ TEST_CASE("McePart GetPlans Strategy0", "[slow]")
                                     plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 16, 16 } &&
                                     plan.m_Mce->m_Order == TraversalOrder::Xyz;
                     bool pleValid =
-                        plan.m_Ple->m_BlockConfig == command_stream::BlockConfig{ 16u, 8u } &&
                         plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ TensorShape{ 1, 8, 16, 16 } } &&
                         plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 8, 16, 16 };
 
@@ -1158,11 +1155,6 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
                 CheckPlansParams params;
                 params.m_All = [&](const PlanDesc& plan) {
                     CHECK(plan.m_Mce->m_BlockConfig == requestedBlockConfig);
-                    if (plan.m_Ple)
-                    {
-                        CHECK(plan.m_Ple->m_BlockConfig == requestedBlockConfig);
-                    }
-
                     CHECK(plan.m_Input->m_Location == prevBuffer->m_Location);
                     CHECK(plan.m_Input->m_Format == prevBuffer->m_Format);
                     CHECK(plan.m_Input->m_QuantizationInfo == prevBuffer->m_QuantizationInfo);
@@ -1294,8 +1286,7 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
                     bool pleValid = true;
                     if (plan.m_Ple)
                     {
-                        pleValid = plan.m_Ple->m_BlockConfig == command_stream::BlockConfig{ 16u, 8u } &&
-                                   plan.m_Ple->m_InputStripeShapes ==
+                        pleValid = plan.m_Ple->m_InputStripeShapes ==
                                        std::vector<TensorShape>{ TensorShape{ 1, 8, 16, 16 } } &&
                                    plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 8, 16, 16 };
                     }

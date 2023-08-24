@@ -65,6 +65,7 @@ std::string ToString(const bool b);
 std::string ToString(const uint16_t v);
 std::string ToString(const uint32_t v);
 std::string ToString(const int32_t v);
+std::string ToString(const std::string& s);
 std::string ToStringHex(const uint32_t v);
 std::string ToString(DataType t);
 std::string ToString(const utils::ShapeMultiplier& m);
@@ -92,6 +93,23 @@ std::string ArrayToString(const C& container)
         }
     }
     ss << "]";
+    return ss.str();
+}
+
+template <typename C>
+std::string MapToString(const C& container)
+{
+    std::stringstream ss;
+    ss << "{ ";
+    for (auto it = container.begin(); it != container.end(); ++it)
+    {
+        ss << ToString(it->first) << ": " << ToString(it->second);
+        if (it != std::prev(container.end()))
+        {
+            ss << ", ";
+        }
+    }
+    ss << " }";
     return ss.str();
 }
 

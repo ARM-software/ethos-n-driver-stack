@@ -235,29 +235,34 @@ class PleOp : public Op
 {
 public:
     PleOp(PleOperation op,
-          command_stream::BlockConfig blockConfig,
           uint32_t numInputs,
           std::vector<TensorShape> inputStripeShapes,
           TensorShape outputStripeShape,
-          DataType dataType,
           bool loadKernel,
-          const HardwareCapabilities& caps);
+          const HardwareCapabilities& caps,
+          std::map<std::string, std::string> selectionStringParams,
+          std::map<std::string, int> selectionIntParams,
+          std::map<std::string, int> runtimeParams);
 
     virtual DotAttributes GetDotAttributes(DetailLevel) const override;
 
     PleOperation m_Op;
-    command_stream::BlockConfig m_BlockConfig;
     uint32_t m_NumInputs;
     std::vector<TensorShape> m_InputStripeShapes;
     TensorShape m_OutputStripeShape;
-    command_stream::PleKernelId m_PleKernelId;
-    uint32_t m_BlockMultiplier;
     bool m_LoadKernel;
     utils::Optional<uint32_t> m_Offset;
-    uint16_t m_Input0Multiplier;
-    uint16_t m_Input0Shift;
-    uint16_t m_Input1Multiplier;
-    uint16_t m_Input1Shift;
+
+    /// The set of parameters used to select which PLE kernel to use.
+    /// @{
+    std::map<std::string, std::string> m_SelectionStringParams;
+    std::map<std::string, int> m_SelectionIntParams;
+    /// @}
+    /// The set of parameters passed to the selected PLE kernel at runtime.
+    std::map<std::string, int> m_RuntimeParams;
+
+    /// The PLE kernel chosen.
+    command_stream::PleKernelId m_PleKernelId;
 };
 
 class EstimateOnlyOp : public Op

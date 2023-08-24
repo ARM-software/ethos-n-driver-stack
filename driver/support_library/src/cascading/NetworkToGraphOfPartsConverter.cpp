@@ -338,7 +338,8 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
                                         { convInfo.m_Stride.m_X * convInfo.m_Stride.m_Y } },
                 m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
                 std::set<uint32_t>{ depthwise.GetId(), depthwise.GetBias().GetId(), depthwise.GetWeights().GetId() },
-                mceOperationInput.m_DataType, mceOperationOutput.m_DataType, 0.0f, m_DebuggingContext, m_ThreadPool);
+                mceOperationInput.m_DataType, mceOperationOutput.m_DataType, m_DebuggingContext, m_ThreadPool,
+                std::map<std::string, std::string>{}, std::map<std::string, int>{}, std::map<std::string, int>{});
 
             parts.push_back(fusedPlePart.get());
             m_GraphOfParts.AddPart(std::move(fusedPlePart));
@@ -502,7 +503,8 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
                 m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
                 std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(),
                                     convolution.GetWeights().GetId() },
-                mceOperationInput.m_DataType, mceOperationOutput.m_DataType, 0.0f, m_DebuggingContext, m_ThreadPool);
+                mceOperationInput.m_DataType, mceOperationOutput.m_DataType, m_DebuggingContext, m_ThreadPool,
+                std::map<std::string, std::string>{}, std::map<std::string, int>{}, std::map<std::string, int>{});
             parts.push_back(fusedPlePart.get());
             m_GraphOfParts.AddPart(std::move(fusedPlePart));
 
@@ -696,6 +698,11 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
         TensorInfo outputInfo = pooling.GetOutput(0).GetTensorInfo();
 
         auto createFusedPoolingPart = [&](PleOperation op) {
+            std::map<std::string, std::string> selectionStringParams;
+            if (op != PleOperation::DOWNSAMPLE_2X2)    // Downsample is sign-agnostic
+            {
+                selectionStringParams["datatype"] = (outputInfo.m_DataType == DataType::INT8_QUANTIZED) ? "s8" : "u8";
+            }
             auto poolingFusedPlePart = std::make_unique<FusedPlePart>(
                 m_GraphOfParts.GeneratePartId(), pooling.GetInput(0).GetTensorInfo().m_Dimensions,
                 pooling.GetOutput(0).GetTensorInfo().m_Dimensions,
@@ -703,8 +710,8 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
                 pooling.GetOutput(0).GetTensorInfo().m_QuantizationInfo, op,
                 utils::ShapeMultiplier{ { 1, poolingInfo.m_PoolingStrideY }, { 1, poolingInfo.m_PoolingStrideX }, 1 },
                 m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-                std::set<uint32_t>{ pooling.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType, 0.0f,
-                m_DebuggingContext, m_ThreadPool);
+                std::set<uint32_t>{ pooling.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType, m_DebuggingContext,
+                m_ThreadPool, selectionStringParams, std::map<std::string, int>{}, std::map<std::string, int>{});
             parts.push_back(poolingFusedPlePart.get());
             m_GraphOfParts.AddPart(std::move(poolingFusedPlePart));
         };
@@ -742,11 +749,15 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
                 pooling.GetInput(0).GetTensorInfo().m_QuantizationInfo
             };
             const std::vector<TensorShape> inputShapes = { pooling.GetInput(0).GetTensorInfo().m_Dimensions };
-            auto poolingStandalonePlePart              = std::make_unique<StandalonePlePart>(
+            std::map<std::string, std::string> selectionStringParams = {
+                { "datatype", outputInfo.m_DataType == DataType::INT8_QUANTIZED ? "s8" : "u8" }
+            };
+            auto poolingStandalonePlePart = std::make_unique<StandalonePlePart>(
                 m_GraphOfParts.GeneratePartId(), inputShapes, pooling.GetOutput(0).GetTensorInfo().m_Dimensions,
                 inputQuantizations, pooling.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
                 PleOperation::AVGPOOL_3X3_1_1_UDMA, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-                std::set<uint32_t>{ pooling.GetId() }, pooling.GetOutput(0).GetTensorInfo().m_DataType);
+                std::set<uint32_t>{ pooling.GetId() }, pooling.GetOutput(0).GetTensorInfo().m_DataType,
+                selectionStringParams, std::map<std::string, int>{}, std::map<std::string, int>{});
             parts.push_back(poolingStandalonePlePart.get());
             m_GraphOfParts.AddPart(std::move(poolingStandalonePlePart));
         }
@@ -804,6 +815,10 @@ void NetworkToGraphOfPartsConverter::Visit(Addition& addition)
     }
     else
     {
+        std::map<std::string, std::string> selectionStringParams = {
+            { "datatype", outputInfo.m_DataType == DataType::INT8_QUANTIZED ? "s8" : "u8" }
+        };
+
         bool isQuantInfoIdentical = (quantInfoInput0 == quantInfoInput1) && (quantInfoInput0 == quantInfoOutput);
 
         // use non-scaling PLE kernel if all quant info is identical for both inputs and output
@@ -812,11 +827,37 @@ void NetworkToGraphOfPartsConverter::Visit(Addition& addition)
         const std::vector<QuantizationInfo> inputQuantizations = { quantInfoInput0, quantInfoInput1 };
         const std::vector<TensorShape> inputShapes             = { addition.GetInput(0).GetTensorInfo().m_Dimensions,
                                                        addition.GetInput(1).GetTensorInfo().m_Dimensions };
-        auto additionStandalonePlePart                         = std::make_unique<StandalonePlePart>(
+
+        // Addition still uses the definition of blocks even though it doesn't come from the MCE
+        std::map<std::string, int> selectionIntParams = {
+            { "block_width", 16 },
+            { "block_height", 16 },
+        };
+
+        const double outputScale = quantInfoOutput.GetScale();
+
+        uint16_t input0Multiplier = 0;
+        uint16_t input0Shift      = 0;
+        const double inputScale0  = quantInfoInput0.GetScale();
+        utils::CalculateRescaleMultiplierAndShift(inputScale0 / outputScale, input0Multiplier, input0Shift);
+
+        uint16_t input1Multiplier = 0;
+        uint16_t input1Shift      = 0;
+        const double inputScale1  = quantInfoInput1.GetScale();
+        utils::CalculateRescaleMultiplierAndShift(inputScale1 / outputScale, input1Multiplier, input1Shift);
+
+        std::map<std::string, int> runtimeParams = {
+            { "input0_multiplier", input0Multiplier },
+            { "input0_shift", input0Shift },
+            { "input1_multiplier", input1Multiplier },
+            { "input1_shift", input1Shift },
+        };
+
+        auto additionStandalonePlePart = std::make_unique<StandalonePlePart>(
             m_GraphOfParts.GeneratePartId(), inputShapes, addition.GetOutput(0).GetTensorInfo().m_Dimensions,
             inputQuantizations, addition.GetOutput(0).GetTensorInfo().m_QuantizationInfo, pleOp,
             m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ addition.GetId() },
-            addition.GetOutput(0).GetTensorInfo().m_DataType);
+            addition.GetOutput(0).GetTensorInfo().m_DataType, selectionStringParams, selectionIntParams, runtimeParams);
         parts.push_back(additionStandalonePlePart.get());
         m_GraphOfParts.AddPart(std::move(additionStandalonePlePart));
     }
@@ -1051,14 +1092,39 @@ void NetworkToGraphOfPartsConverter::Visit(LeakyRelu& leakyRelu)
         TensorInfo inputInfo  = leakyRelu.GetInput(0).GetTensorInfo();
         TensorInfo outputInfo = leakyRelu.GetOutput(0).GetTensorInfo();
 
+        std::map<std::string, std::string> selectionStringParams = {
+            { "datatype", outputInfo.m_DataType == DataType::INT8_QUANTIZED ? "s8" : "u8" }
+        };
+
+        const double alphaRescaleFactor =
+            leakyRelu.GetLeakyReluInfo().m_Alpha *
+            (inputInfo.m_QuantizationInfo.GetScale() / outputInfo.m_QuantizationInfo.GetScale());
+        uint16_t alphaMult;
+        uint16_t alphaShift;
+        CalculateRescaleMultiplierAndShift(alphaRescaleFactor, alphaMult, alphaShift);
+
+        const double inputToOutputRescaleFactor =
+            (inputInfo.m_QuantizationInfo.GetScale() / outputInfo.m_QuantizationInfo.GetScale());
+        uint16_t inputToOutputMult;
+        uint16_t inputToOutputShift;
+        CalculateRescaleMultiplierAndShift(inputToOutputRescaleFactor, inputToOutputMult, inputToOutputShift);
+
+        std::map<std::string, int> runtimeParams = {
+            { "input0_multiplier", inputToOutputMult },
+            { "input0_shift", inputToOutputShift },
+            // We "misuse" the input1 multiplier/shift here
+            { "input1_multiplier", alphaMult },
+            { "input1_shift", alphaShift },
+        };
+
         auto leakyReluPart = std::make_unique<FusedPlePart>(
             m_GraphOfParts.GeneratePartId(), leakyRelu.GetInput(0).GetTensorInfo().m_Dimensions,
             leakyRelu.GetOutput(0).GetTensorInfo().m_Dimensions,
             leakyRelu.GetInput(0).GetTensorInfo().m_QuantizationInfo,
             leakyRelu.GetOutput(0).GetTensorInfo().m_QuantizationInfo, PleOperation::LEAKY_RELU,
             g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-            std::set<uint32_t>{ leakyRelu.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType,
-            leakyRelu.GetLeakyReluInfo().m_Alpha, m_DebuggingContext, m_ThreadPool);
+            std::set<uint32_t>{ leakyRelu.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType, m_DebuggingContext,
+            m_ThreadPool, selectionStringParams, std::map<std::string, int>{}, runtimeParams);
         parts.push_back(leakyReluPart.get());
         m_GraphOfParts.AddPart(std::move(leakyReluPart));
     }
@@ -1073,12 +1139,44 @@ void NetworkToGraphOfPartsConverter::Visit(Sigmoid& sigmoid)
     TensorInfo inputInfo  = sigmoid.GetInput(0).GetTensorInfo();
     TensorInfo outputInfo = sigmoid.GetOutput(0).GetTensorInfo();
 
+    std::map<std::string, std::string> selectionStringParams = {
+        { "datatype", outputInfo.m_DataType == DataType::INT8_QUANTIZED ? "s8" : "u8" }
+    };
+
+    constexpr double log2e = 1.4426950408889634;
+
+    const double inputScale = inputInfo.m_QuantizationInfo.GetScale();
+
+    const double rescaleFactor = inputScale * (log2e * 256.0);
+
+    assert(outputInfo.m_QuantizationInfo.GetScale() == (1.0f / 256.0f));
+
+    uint16_t input0Multiplier = 0;
+    uint16_t input0Shift      = 0;
+    utils::CalculateRescaleMultiplierAndShift(rescaleFactor, input0Multiplier, input0Shift);
+
+    int absMax = static_cast<int>(std::ceil(std::ldexp(1.0, 15U + input0Shift) / input0Multiplier)) - 1;
+
+    if (absMax == 0)
+    {
+        absMax = 1;
+
+        input0Multiplier = INT16_MAX;
+        input0Shift      = 0;
+    }
+
+    std::map<std::string, int> runtimeParams = {
+        { "input0_multiplier", input0Multiplier },
+        { "input0_shift", input0Shift },
+    };
+
     auto sigmoidPart = std::make_unique<FusedPlePart>(
         m_GraphOfParts.GeneratePartId(), sigmoid.GetInput(0).GetTensorInfo().m_Dimensions,
         sigmoid.GetOutput(0).GetTensorInfo().m_Dimensions, sigmoid.GetInput(0).GetTensorInfo().m_QuantizationInfo,
         sigmoid.GetOutput(0).GetTensorInfo().m_QuantizationInfo, PleOperation::SIGMOID, g_IdentityShapeMultiplier,
         m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ sigmoid.GetId() },
-        inputInfo.m_DataType, outputInfo.m_DataType, 0.0f, m_DebuggingContext, m_ThreadPool);
+        inputInfo.m_DataType, outputInfo.m_DataType, m_DebuggingContext, m_ThreadPool, selectionStringParams,
+        std::map<std::string, int>{}, runtimeParams);
     parts.push_back(sigmoidPart.get());
     m_GraphOfParts.AddPart(std::move(sigmoidPart));
     ConnectParts(sigmoid, parts);
@@ -1090,18 +1188,49 @@ void NetworkToGraphOfPartsConverter::Visit(Tanh& tanh)
     // The differences are:
     // (1) Input scaling factor
     // (2) Output quantization
-    // The differences are handled later on when generating the command stream, based on the quantization info bounds.
     std::vector<BasePart*> parts;
 
     TensorInfo inputInfo  = tanh.GetInput(0).GetTensorInfo();
     TensorInfo outputInfo = tanh.GetOutput(0).GetTensorInfo();
+
+    std::map<std::string, std::string> selectionStringParams = {
+        { "datatype", outputInfo.m_DataType == DataType::INT8_QUANTIZED ? "s8" : "u8" }
+    };
+
+    constexpr double log2e = 1.4426950408889634;
+
+    const double inputScale = inputInfo.m_QuantizationInfo.GetScale();
+
+    const double rescaleFactor = inputScale * (log2e * 256.0) * 2.0;
+
+    assert(outputInfo.m_QuantizationInfo.GetScale() == (1.0f / 128));
+
+    uint16_t input0Multiplier = 0;
+    uint16_t input0Shift      = 0;
+    utils::CalculateRescaleMultiplierAndShift(rescaleFactor, input0Multiplier, input0Shift);
+
+    int absMax = static_cast<int>(std::ceil(std::ldexp(1.0, 15U + input0Shift) / input0Multiplier)) - 1;
+
+    if (absMax == 0)
+    {
+        absMax = 1;
+
+        input0Multiplier = INT16_MAX;
+        input0Shift      = 0;
+    }
+
+    std::map<std::string, int> runtimeParams = {
+        { "input0_multiplier", input0Multiplier },
+        { "input0_shift", input0Shift },
+    };
 
     auto tanhPart = std::make_unique<FusedPlePart>(
         m_GraphOfParts.GeneratePartId(), tanh.GetInput(0).GetTensorInfo().m_Dimensions,
         tanh.GetOutput(0).GetTensorInfo().m_Dimensions, tanh.GetInput(0).GetTensorInfo().m_QuantizationInfo,
         tanh.GetOutput(0).GetTensorInfo().m_QuantizationInfo, PleOperation::SIGMOID, g_IdentityShapeMultiplier,
         m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ tanh.GetId() },
-        inputInfo.m_DataType, outputInfo.m_DataType, 0.0f, m_DebuggingContext, m_ThreadPool);
+        inputInfo.m_DataType, outputInfo.m_DataType, m_DebuggingContext, m_ThreadPool, selectionStringParams,
+        std::map<std::string, int>{}, runtimeParams);
     parts.push_back(tanhPart.get());
     m_GraphOfParts.AddPart(std::move(tanhPart));
     ConnectParts(tanh, parts);
@@ -1124,12 +1253,17 @@ void NetworkToGraphOfPartsConverter::Visit(MeanXy& meanxy)
     TensorInfo inputInfo  = meanxy.GetInput(0).GetTensorInfo();
     TensorInfo outputInfo = meanxy.GetOutput(0).GetTensorInfo();
 
+    std::map<std::string, std::string> selectionStringParams = {
+        { "datatype", outputInfo.m_DataType == DataType::INT8_QUANTIZED ? "s8" : "u8" }
+    };
+
     auto meanxyPart = std::make_unique<FusedPlePart>(
         m_GraphOfParts.GeneratePartId(), meanxy.GetInput(0).GetTensorInfo().m_Dimensions,
         meanxy.GetOutput(0).GetTensorInfo().m_Dimensions, meanxy.GetInput(0).GetTensorInfo().m_QuantizationInfo,
         meanxy.GetOutput(0).GetTensorInfo().m_QuantizationInfo, pleOperation, shapeMultiplier,
         m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ meanxy.GetId() },
-        inputInfo.m_DataType, outputInfo.m_DataType, 0.0f, m_DebuggingContext, m_ThreadPool);
+        inputInfo.m_DataType, outputInfo.m_DataType, m_DebuggingContext, m_ThreadPool, selectionStringParams,
+        std::map<std::string, int>{}, std::map<std::string, int>{});
     parts.push_back(meanxyPart.get());
     m_GraphOfParts.AddPart(std::move(meanxyPart));
     ConnectParts(meanxy, parts);

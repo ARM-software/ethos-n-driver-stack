@@ -421,7 +421,6 @@ void CheckPle(PlanDesc& desc, const CheckPlansParams& params)
             CHECK(desc.m_Ple->m_OperationIds == params.m_OperationIds.value());
         }
         CHECK(desc.m_Ple->m_Op == PleOperation::PASSTHROUGH);
-        CHECK(desc.m_Ple->m_BlockConfig == command_stream::BlockConfig{ 8u, 8u });
         CHECK(desc.m_Ple->m_NumInputs == 1);
         CHECK(
             desc.m_Ple->m_InputStripeShapes.size() ==

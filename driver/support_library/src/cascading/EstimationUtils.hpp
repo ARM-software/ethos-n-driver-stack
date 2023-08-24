@@ -32,7 +32,8 @@ PleStats GetPleStats(const HardwareCapabilities& caps,
                      const TensorShape& outputShape,
                      const PleOperation& pleOperation,
                      uint32_t blockMultiplier,
-                     const ethosn::command_stream::BlockConfig& blockConfig);
+                     uint32_t blockWidth,
+                     uint32_t blockHeight);
 
 InputStats GetInputStatsCascading(const SramBuffer& ifmBuffer,
                                   const TensorShape& weightsShape,
