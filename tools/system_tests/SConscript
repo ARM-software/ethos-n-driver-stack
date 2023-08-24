@@ -21,6 +21,7 @@ env.PrependUnique(
         os.path.join(env["support_library_dir"], "include"),
         os.path.join(env["armnn_dir"], "include"),
         os.path.join(env["armnn_dir"], "profiling"),
+        os.path.join(env["unit_test_kernel_dir"], "usr", "include"),
         env["kernel_module_dir"],
     ]
 )
@@ -110,7 +111,6 @@ if os.path.isdir(internal_dir) and env["target"] == "model":
         CPPPATH=[
             env["system_tests_dir"],
             internal_dir,
-            os.path.join(env["control_unit_dir"], "include"),
         ]
     )
     print(env["system_tests_dir"])
