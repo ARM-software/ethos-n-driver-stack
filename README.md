@@ -242,6 +242,23 @@ You must follow specific steps to build the Ethos-N NPU driver. You must build t
     insmod ethosn.ko
     ```
 
+    * The kernel module supports the following parameters:
+
+        * firmware_log_severity : INTEGER.  Default value: 3. Used to set the log level of firmware. The following log levels are supported.
+            * PANIC = 0
+            * ERROR = 1
+            * WARNING = 2
+            * INFO = 3
+            * DEBUG = 4
+            * VERBOSE = 5
+
+        * firmware_log_to_kernel_log : BOOL. Default value: true. Used to enable/disable sending firmware log prints to kernel dmesg output.
+        * queue_size : INTEGER. Default value: 65536 bytes. Used to set the queue size of ethosn firmware mailbox.
+        * profiling: BOOL. Default value: false. Used to enable/disable firmware profiling. The profiling data is available in
+	    * `/sys/kernel/debug/ethosn<N>/core<X>/firmware_profiling`, where N is the ethosn device number and X is the core number.
+        * clock_frequency: INTEGER. Default value: 1000 MHz. This paramter is used only in tests and doesn't set the clock frequency of the device.
+        * stashing: BOOL. Default value: true. Used to enable/disable stashing in hardware.
+
 5. To build the user-space libraries of the Ethos-N NPU driver:
 
     * If you compile the driver natively, enter the following command:
