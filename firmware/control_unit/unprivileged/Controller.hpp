@@ -145,14 +145,17 @@ void Controller<HwAbstractionT>::UpdateProgress(const CompletedTsuEvents& tsuEve
 template <typename HwAbstractionT>
 bool Controller<HwAbstractionT>::HandleCommands()
 {
-    // The MCE HandleCommands is called first to optimise the
+    // PLE HandleCommands is called first as we want it to run
+    // as soon as allowed after the current MCE workload has completed.
+    // The MCE HandleCommands is called second to optimise the
     // execution of the inference by keeping the MCE as busy as
     // possible.
+    // DMA Write is called before Read to free up SRAM as soon as possible.
     bool madeProgress = false;
-    madeProgress |= m_MceCtrl.HandleCommands(m_Ctrl);
-    madeProgress |= m_DmaRdCtrl.HandleCommands(m_Ctrl);
     madeProgress |= m_PleCtrl.HandleCommands(m_Ctrl);
+    madeProgress |= m_MceCtrl.HandleCommands(m_Ctrl);
     madeProgress |= m_DmaWrCtrl.HandleCommands(m_Ctrl);
+    madeProgress |= m_DmaRdCtrl.HandleCommands(m_Ctrl);
 
     return madeProgress;
 }
