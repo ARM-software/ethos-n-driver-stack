@@ -113,7 +113,6 @@ if os.path.isdir(internal_dir) and env["target"] == "model":
             internal_dir,
         ]
     )
-    print(env["system_tests_dir"])
     internal_srcs = [
         os.path.join(internal_dir, f) for f in os.listdir(internal_dir) if f.endswith("cpp")
     ]
