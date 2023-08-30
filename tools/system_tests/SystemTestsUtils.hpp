@@ -797,8 +797,6 @@ std::vector<char> CreateCacheHeader(const InferenceOutputs& outputs);
 
 InferenceOutputs GetOutputTensorsFromCache(std::vector<char>& cacheHeader);
 
-void BlockInferenceTest();
-
 std::vector<uint32_t> GetBinaryDataFromHexFile(std::istream& input, uint32_t startAddress, uint32_t lengthBytes);
 OwnedTensor LoadTensorFromHexStream(std::istream& input, DataType dataType, size_t numElements);
 OwnedTensor LoadTensorFromBinaryStream(std::istream& input, DataType dataType, size_t numElements);

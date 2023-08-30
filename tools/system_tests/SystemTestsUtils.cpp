@@ -13,7 +13,6 @@
 #include <fstream>
 #include <utility>
 #if defined __unix__
-#include "../../kernel-module/tests/ethosn-tests-uapi.h"
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
@@ -674,18 +673,6 @@ bool CompareArrays<float>(const std::vector<float>& a, const std::vector<float>&
     return (maxDifference <= tolerance);
 
     return false;
-}
-
-void BlockInferenceTest()
-{
-#if defined __unix__
-    int ethosnTest = open("/dev/ethosn-tests", O_RDONLY);
-
-    if (ethosnTest >= 0)
-    {
-        ioctl(ethosnTest, ETHOS_N_TEST_IOCTL_BLOCK_INFERENCES, NULL);
-    }
-#endif
 }
 
 std::vector<uint32_t> GetBinaryDataFromHexFile(std::istream& input, uint32_t startAddress, uint32_t lengthBytes)

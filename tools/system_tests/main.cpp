@@ -238,8 +238,6 @@ int main(int argc, char* argv[])
             "Enable this option for more precise but slower compiled network."
             "If not specified then optimization for quantization operations at concat inputs will be applied and less "
             "precision results is expected ") |
-        Opt(g_BlockInferenceForDebug)["--block-inferences-debug"](
-            "Enable this option for blocking new inferences if the current inference has failed.") |
         Opt(g_SkipOutputDistributionCheck)["--skip-output-distribution-check"](
             "Skips checking that the output of the inference has a good distribution of values.");
 

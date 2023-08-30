@@ -38,7 +38,6 @@ extern std::map<std::string, float> g_ReferenceComparisonTolerances;
 extern unsigned int g_DistributionSeed;
 extern std::string g_Debug;
 extern bool g_StrictPrecision;
-extern bool g_BlockInferenceForDebug;
 extern std::vector<armnn::BackendOptions> g_ArmnnBackendOptions;
 extern bool g_SkipOutputDistributionCheck;
 

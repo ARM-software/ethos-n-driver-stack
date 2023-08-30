@@ -895,12 +895,6 @@ InferenceOutputs EthosNParseRunner::RunNetwork(int timeoutSeconds)
                     std::string res = DumpOutputToFiles(*outputData[i], *firstOutputData[i], "EthosN",
                                                         outputLayerNames[i], run + completedRuns);
 
-                    if (g_BlockInferenceForDebug)
-                    {
-                        // Blocking new inferences
-                        BlockInferenceTest();
-                    }
-
                     throw std::runtime_error(res);
                 }
             }

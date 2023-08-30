@@ -36,8 +36,7 @@ int g_EthosNTimeoutSeconds = 60;
 std::map<std::string, float> g_ReferenceComparisonTolerances = { { "*", -1.0f } };
 unsigned int g_DistributionSeed                              = std::mt19937::default_seed;
 std::string g_Debug;
-bool g_StrictPrecision        = false;
-bool g_BlockInferenceForDebug = false;
+bool g_StrictPrecision = false;
 std::vector<armnn::BackendOptions> g_ArmnnBackendOptions;
 bool g_SkipOutputDistributionCheck = false;
 
