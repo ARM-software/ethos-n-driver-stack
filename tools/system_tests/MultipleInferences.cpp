@@ -307,7 +307,6 @@ TEST_CASE("MultipleInferences")
     InferenceOutputs refOutput = CreateMultipleInferenceRef(params, *MakeTensor(inputData1), *MakeTensor(inputData2),
                                                             *MakeTensor(armnnWeightData), *MakeTensor(biasData));
     ethosn::support_library::CompilationOptions options;
-    options.m_DebugInfo.m_DumpRam = params.m_Debug;
     InferenceOutputs actual =
         CreateEthosNMultipleInferenceOutput(params, *MakeTensor(inputData1), *MakeTensor(inputData2),
                                             *MakeTensor(ethosnWeightData), *MakeTensor(biasData), options);

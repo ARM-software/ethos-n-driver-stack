@@ -226,7 +226,6 @@ int main(int argc, char* argv[])
         Opt(g_Debug, "comma separated list")["--debug-options"](
             "Enables debugging features. This is a comma-separated list of options. "
             "The following options are supported: \n"
-            "\tdump-ram\n"
             "\tdump-support-library-debug-files=[None|Medium|High]\n"
             "\tdump-inputs\n"
             "\tdump-outputs\n"

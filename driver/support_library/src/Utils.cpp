@@ -6,7 +6,7 @@
 #include "Utils.hpp"
 
 #include "Compiler.hpp"
-#include "cascading/Part.hpp"
+#include "Part.hpp"
 
 #include <iomanip>
 
@@ -174,21 +174,21 @@ uint32_t EstimateWeightSizeBytes(const TensorShape& shape, const HardwareCapabil
     const uint32_t numOfmsProducedInParallel = isHwim ? capabilities.GetNumberOfSrams() : capabilities.GetNumberOfOgs();
     uint32_t numOfmsPerIteration             = utils::DivRoundUp(numOutputChannels, numOfmsProducedInParallel);
     uint32_t numBytesPerIteration            = numBytesPerOfm * numOfmsPerIteration;
-    numBytesPerIteration = static_cast<uint32_t>(command_stream::impl::RoundUp<16>(numBytesPerIteration));
+    numBytesPerIteration = static_cast<uint32_t>(RoundUpToNearestMultiple(numBytesPerIteration, 16));
     return numBytesPerIteration * numOfmsProducedInParallel;
 }
 
-uint32_t CalculateBufferSize(const TensorShape& shape, CascadingBufferFormat dataFormat)
+uint32_t CalculateBufferSize(const TensorShape& shape, BufferFormat dataFormat)
 {
     switch (dataFormat)
     {
-        case CascadingBufferFormat::FCAF_DEEP:
+        case BufferFormat::FCAF_DEEP:
             return TotalSizeBytesFCAFDeep(shape);
-        case CascadingBufferFormat::FCAF_WIDE:
+        case BufferFormat::FCAF_WIDE:
             return TotalSizeBytesFCAFWide(shape);
-        case CascadingBufferFormat::NHWCB:
+        case BufferFormat::NHWCB:
             return TotalSizeBytesNHWCB(shape);
-        case CascadingBufferFormat::NHWC:
+        case BufferFormat::NHWC:
             return TotalSizeBytes(shape);
         default:
             assert(false);
@@ -269,21 +269,19 @@ uint32_t GetNumSubmapChannels(uint32_t nChannels,
     return result;
 }
 
-uint32_t CalculateDramOffset(const CascadingBufferFormat dataFormat,
-                             const TensorShape& tensorSize,
-                             const TensorShape& offset)
+uint32_t CalculateDramOffset(const BufferFormat dataFormat, const TensorShape& tensorSize, const TensorShape& offset)
 {
     switch (dataFormat)
     {
-        case CascadingBufferFormat::NHWCB:
+        case BufferFormat::NHWCB:
             return utils::CalculateDramOffsetNHWCB(tensorSize, offset[1], offset[2], offset[3]);
-        case CascadingBufferFormat::NHWC:
+        case BufferFormat::NHWC:
             // Deliberate fallthrough
-        case CascadingBufferFormat::NCHW:
+        case BufferFormat::NCHW:
             return utils::CalculateDramOffsetNHWC(tensorSize, offset[1], offset[2], offset[3]);
-        case CascadingBufferFormat::FCAF_DEEP:
+        case BufferFormat::FCAF_DEEP:
             return utils::CalculateDramOffsetFcafDeep(tensorSize, offset[1], offset[2], offset[3]);
-        case CascadingBufferFormat::FCAF_WIDE:
+        case BufferFormat::FCAF_WIDE:
             return utils::CalculateDramOffsetFcafWide(tensorSize, offset[1], offset[2], offset[3]);
         default:
         {
@@ -364,24 +362,6 @@ inline uint32_t
            CalculateCellIdx(tensorShape, TensorShape{ 1, offsetY, offsetX, offsetC }, g_FcafWideCellShape);
 }
 
-command_stream::DataType GetCommandDataType(const DataType supportLibraryDataType)
-{
-    switch (supportLibraryDataType)
-    {
-        case DataType::UINT8_QUANTIZED:
-            return command_stream::DataType::U8;
-        case DataType::INT8_QUANTIZED:
-            return command_stream::DataType::S8;
-        default:
-        {
-            std::string errorMessage = "Error in " + std::string(__func__) + ": type " +
-                                       std::to_string(static_cast<uint32_t>(supportLibraryDataType)) +
-                                       " is not yet supported";
-            throw std::invalid_argument(errorMessage);
-        }
-    }
-}
-
 DataTypeRange GetRangeOfDataType(const DataType type)
 {
     switch (type)
@@ -430,21 +410,20 @@ bool IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat c
     return true;
 }
 
-constexpr bool FilterToSize(const command_stream::BlockConfig& blockConfig, uint32_t width, uint32_t height)
+constexpr bool FilterToSize(const BlockConfig& blockConfig, uint32_t width, uint32_t height)
 {
-    return blockConfig == command_stream::BlockConfig{ width, height };
+    return blockConfig == BlockConfig{ width, height };
 }
 
-bool FilterToSizes(const command_stream::BlockConfig& blockConfig,
-                   const std::initializer_list<command_stream::BlockConfig>& allowedConfigs)
+bool FilterToSizes(const BlockConfig& blockConfig, const std::initializer_list<BlockConfig>& allowedConfigs)
 {
     return std::find(allowedConfigs.begin(), allowedConfigs.end(), blockConfig) != allowedConfigs.end();
 }
 
-std::vector<command_stream::BlockConfig>
-    FilterPleBlockConfigs(const PleOperation pleOp, const std::vector<command_stream::BlockConfig>& allowedBlockConfigs)
+std::vector<BlockConfig> FilterPleBlockConfigs(const PleOperation pleOp,
+                                               const std::vector<BlockConfig>& allowedBlockConfigs)
 {
-    std::vector<command_stream::BlockConfig> res = allowedBlockConfigs;
+    std::vector<BlockConfig> res = allowedBlockConfigs;
 
     if (pleOp == PleOperation::DOWNSAMPLE_2X2)
     {
@@ -488,9 +467,9 @@ std::vector<command_stream::BlockConfig>
     return res;
 }
 
-bool PleBlockConfigAllowed(const PleOperation pleOp, const command_stream::BlockConfig allowedBlockConfig)
+bool PleBlockConfigAllowed(const PleOperation pleOp, const BlockConfig& allowedBlockConfig)
 {
-    std::vector<command_stream::BlockConfig> res;
+    std::vector<BlockConfig> res;
 
     res = FilterPleBlockConfigs(pleOp, { allowedBlockConfig });
 
@@ -538,33 +517,6 @@ bool IsFullTensor(const TensorShape& tensorShape, const TensorShape& stripeShape
 {
     return GetHeight(stripeShape) >= GetHeight(tensorShape) && GetWidth(stripeShape) >= GetWidth(tensorShape) &&
            GetChannels(stripeShape) >= GetChannels(tensorShape);
-}
-
-ethosn::command_stream::DumpDram GetDumpDramCommand(
-    const TensorShape& shape, uint32_t bufferId, DataType dataType, int32_t zeroPoint, const char* format)
-{
-    std::string dumpName;
-    {
-        std::stringstream ss;
-        // Pad the buffer ID for easy sorting of dumped file names
-        ss << "EthosNIntermediateBuffer_" << std::setfill('0') << std::setw(3) << bufferId << std::setw(0);
-        ss << "_" << ToString(dataType);
-        // The zero point is needed to decode FCAF tensors, so is useful to include in the filename.
-        ss << "_" << ToString(zeroPoint);
-        ss << "_" << format;
-        ss << "_" << shape[0] << "_" << shape[1] << "_" << shape[2] << "_" << shape[3];
-        ss << ".hex";
-
-        dumpName = ss.str();
-    }
-
-    ethosn::command_stream::DumpDram cmdStrDumpDram;
-    cmdStrDumpDram.m_DramBufferId() = bufferId;
-
-    assert(dumpName.size() < cmdStrDumpDram.m_Filename().size());
-    std::copy(dumpName.begin(), dumpName.end(), cmdStrDumpDram.m_Filename().begin());
-
-    return cmdStrDumpDram;
 }
 
 bool CheckOverlap(uint32_t startA, uint32_t sizeA, uint32_t startB, uint32_t sizeB)

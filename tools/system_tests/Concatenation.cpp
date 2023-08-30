@@ -10,7 +10,6 @@
 
 #include "../../../driver/support_library/src/Compiler.hpp"
 #include <catch.hpp>
-#include <ethosn_command_stream/CommandStream.hpp>
 
 #include <algorithm>
 #include <cstdint>
@@ -28,26 +27,6 @@ namespace ethosn
 {
 namespace system_tests
 {
-
-std::vector<ethosn::command_stream::Opcode> GetOpcodes(const ethosn::support_library::CompiledNetwork* compiledNetwork)
-{
-    using namespace ethosn::command_stream;
-    const CompiledNetworkImpl* cnImpl = static_cast<const CompiledNetworkImpl*>(compiledNetwork);
-    auto& cuBufferInfo                = cnImpl->GetConstantControlUnitDataBufferInfos();
-    // The command stream buffer id is defined to be 0.
-    auto cmdStreamBufferInfo =
-        std::find_if(cuBufferInfo.begin(), cuBufferInfo.end(), [](const auto& b) { return b.m_Id == 0; });
-    assert(cmdStreamBufferInfo != cuBufferInfo.end());
-    const uint32_t* begin =
-        reinterpret_cast<const uint32_t*>(cnImpl->GetConstantControlUnitData().data() + cmdStreamBufferInfo->m_Offset);
-    const uint32_t* end     = begin + cmdStreamBufferInfo->m_Size / sizeof(uint32_t);
-    CommandStream cmdStream = CommandStream(begin, end);
-
-    std::vector<Opcode> opcodes;
-    std::transform(cmdStream.begin(), cmdStream.end(), std::back_inserter(opcodes),
-                   [](const CommandHeader& cmdHeader) { return cmdHeader.m_Opcode(); });
-    return opcodes;
-}
 
 TEST_CASE("Concatenation different quantization")
 {

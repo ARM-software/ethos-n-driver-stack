@@ -9,8 +9,6 @@
 #include "Network.hpp"
 #include "Operation.hpp"
 
-#include <ethosn_command_stream/CommandData.hpp>
-
 namespace ethosn
 {
 namespace support_library

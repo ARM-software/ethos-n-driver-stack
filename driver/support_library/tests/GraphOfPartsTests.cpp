@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "../src/Compiler.hpp"
+#include "../src/PartUtils.hpp"
 #include "../src/Utils.hpp"
-#include "../src/cascading/Cascading.hpp"
-#include "../src/cascading/PartUtils.hpp"
 #include "TestUtils.hpp"
 
 #include <catch.hpp>

@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -8,7 +8,6 @@
 #include "TestUtils.hpp"
 
 #include <catch.hpp>
-#include <ethosn_command_stream/CommandStreamBuffer.hpp>
 
 using namespace ethosn::support_library;
 

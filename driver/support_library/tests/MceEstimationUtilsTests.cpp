@@ -5,7 +5,7 @@
 
 #include "../include/ethosn_support_library/Support.hpp"
 #include "../src/CapabilitiesInternal.hpp"
-#include "../src/cascading/MceEstimationUtils.hpp"
+#include "../src/MceEstimationUtils.hpp"
 #include "TestUtils.hpp"
 
 #include <catch.hpp>

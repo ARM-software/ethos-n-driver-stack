@@ -3,15 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "../src/PartUtils.hpp"
 #include "TestUtils.hpp"
-#include "cascading/PartUtils.hpp"
-#include <ethosn_command_stream/cascading/CommandStream.hpp>
 
 #include <catch.hpp>
 
 using namespace ethosn::support_library;
 using namespace ethosn::support_library::utils;
-using namespace ethosn::command_stream::cascading;
 
 TEST_CASE("CalculateTileSize/TileClamping")
 {

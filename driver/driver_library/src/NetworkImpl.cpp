@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -11,9 +11,9 @@
 #include "BinaryParser.hpp"
 #endif
 
-#include <ethosn_command_stream/CommandStream.hpp>
-#include <ethosn_command_stream/CommandStreamBuffer.hpp>
+#include <ethosn_command_stream/CommandStreamBuilder.hpp>
 #include <ethosn_firmware.h>
+#include <ethosn_utils/Strings.hpp>
 
 #include <cassert>
 #include <cstdio>
@@ -203,6 +203,28 @@ bool ReadByteArray(Reader& reader, size_t& outOffset, size_t& outSize)
     return true;
 }
 
+bool ReadString(Reader& reader, std::string& out)
+{
+    uint32_t size;
+    if (!reader.ReadUint32(size))
+    {
+        return false;
+    }
+
+    out.clear();
+    for (uint32_t i = 0; i < size; ++i)
+    {
+        uint8_t b;
+        if (!reader.ReadUint8(b))
+        {
+            return false;
+        }
+        out += b;
+    }
+
+    return true;
+}
+
 bool ReadBufferInfoArray(Reader& reader, std::vector<BufferInfo>& outData)
 {
     uint32_t size;
@@ -214,7 +236,8 @@ bool ReadBufferInfoArray(Reader& reader, std::vector<BufferInfo>& outData)
     for (uint32_t i = 0; i < size; ++i)
     {
         BufferInfo item;
-        if (!reader.ReadUint32(item.m_Id) || !reader.ReadUint32(item.m_Offset) || !reader.ReadUint32(item.m_Size))
+        if (!reader.ReadUint32(item.m_Id) || !reader.ReadUint32(item.m_Offset) || !reader.ReadUint32(item.m_Size) ||
+            !ReadString(reader, item.m_DebugName))
         {
             return false;
         }
@@ -309,10 +332,11 @@ NetworkImpl::NetworkImpl(const char* compiledNetworkData,
     }
 }
 
-Inference* NetworkImpl::ScheduleInference(Buffer* const inputBuffers[],
-                                          uint32_t numInputBuffers,
-                                          Buffer* const[],
-                                          uint32_t) const
+NetworkImpl::~NetworkImpl()
+{}
+
+Inference*
+    NetworkImpl::ScheduleInference(Buffer* const inputBuffers[], uint32_t numInputBuffers, Buffer* const[], uint32_t)
 {
     DumpCmmBasedOnEnvVar(inputBuffers, numInputBuffers);
 
@@ -540,6 +564,78 @@ void NetworkImpl::DumpCommandStream(const char* cmdStreamFilename) const
     g_Logger.Error(
         "Command stream dump requested but feature is not enabled. Please enable this feature at build time.");
 #endif
+}
+
+void NetworkImpl::DumpIntermediateBuffersBasedOnEnvVar()
+{
+    const char* const debugEnv = std::getenv("ETHOSN_DRIVER_LIBRARY_DEBUG");
+    if (debugEnv && strstr(debugEnv, "dump-intermediate") != nullptr)
+    {
+        DumpIntermediateBuffers();
+    }
+}
+
+void NetworkImpl::DumpIntermediateBuffers()
+{
+    if (!m_CompiledNetwork)
+    {
+        throw std::runtime_error("Missing m_CompiledNetwork");
+    }
+    g_Logger.Debug("Dumping intermediate buffers...");
+
+    if (m_CompiledNetwork->m_IntermediateDataSize == 0)    // There may not be any intermediate data at all
+    {
+        g_Logger.Debug("No intermediate data to dump");
+        return;
+    }
+
+    std::vector<BufferInfo> buffers = m_CompiledNetwork->m_IntermediateDataBufferInfos;
+
+    // Check if any intermediate buffers overlap memory with each another, and warn in this case that the
+    // developer should probably modify support library to use non-overlapping intermediate buffers, otherwise
+    // the intermediate dump will likely be corrupted.
+    {
+        std::sort(buffers.begin(), buffers.end(),
+                  [](const BufferInfo& a, const BufferInfo& b) { return a.m_Offset < b.m_Offset; });
+        for (uint32_t i = 1; i < buffers.size(); ++i)
+        {
+            if (buffers[i - 1].m_Offset + buffers[i - 1].m_Size > buffers[i].m_Offset)
+            {
+                g_Logger.Warning(
+                    "Intermediate buffers are overlapping and so the data about to be dumped may "
+                    "be corrupted. Consider enabling the debugDisableBufferReuse option in the Support Library to "
+                    "prevent this.");
+            }
+        }
+    }
+
+    // Map the buffer so we can read its data. This implementation depends on the backend.
+    std::pair<const char*, size_t> mapped = MapIntermediateBuffers();
+
+    // Validate the size
+    if (mapped.second != m_CompiledNetwork->m_IntermediateDataSize)
+    {
+        throw std::runtime_error(std::string("Intermediate data was of unexpected size: CompiledNetwork: ") +
+                                 std::to_string(m_CompiledNetwork->m_IntermediateDataSize) +
+                                 ", mapped: " + std::to_string(mapped.second));
+    }
+
+    for (const BufferInfo& bufferInfo : buffers)
+    {
+        // Find where this buffer is in the intermediate data
+        // Modify the filename to include the network name, so we don't overwrite files for example when running multiple subgraphs
+        std::string dumpFilename = bufferInfo.m_DebugName;
+        dumpFilename             = utils::ReplaceAll(dumpFilename, "EthosNIntermediateBuffer_",
+                                         "EthosNIntermediateBuffer_" + m_DebugName + "_");
+
+        std::ofstream fs(dumpFilename.c_str());
+        WriteHex(fs, 0, reinterpret_cast<const uint8_t*>(mapped.first) + bufferInfo.m_Offset, bufferInfo.m_Size);
+        g_Logger.Debug("Dumped intermediate buffer %d to %s", bufferInfo.m_Id, dumpFilename.c_str());
+    }
+
+    UnmapIntermediateBuffers(mapped);
+
+    g_Logger.Debug("Finished dumping intermediate buffers");
 }
 
 }    // namespace driver_library

@@ -5,18 +5,18 @@
 
 #include "TestUtils.hpp"
 
-#include "../src/cascading/DmaRegisters.hpp"
-#include "../src/cascading/RegistersLayout.hpp"
+#include "../src/DmaRegisters.hpp"
+#include "../src/RegistersLayout.hpp"
 
-#include <ethosn_command_stream/cascading/CommandStream.hpp>
+#include <ethosn_command_stream/CommandStream.hpp>
 
 #include <catch.hpp>
 
 using namespace ethosn::support_library;
 using namespace ethosn::support_library::registers;
-using namespace ethosn::command_stream::cascading;
+using namespace ethosn::command_stream;
 
-TEST_CASE("Cascading/DmaRdCmdWeights/Emcs")
+TEST_CASE("DmaRdCmdWeights/Emcs")
 {
     HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     // Checks that the DMA_DMA_EMCS mask is set correctly for weights transfers
@@ -62,7 +62,7 @@ uint32_t ExpectedCmdRegWr(uint32_t wrIdAdd, bool weightStreaming = true)
     return wrCmd.word;
 }
 
-TEST_CASE("Cascading/Dma_Rd_Wr_CmdNhwcb")
+TEST_CASE("Dma_Rd_Wr_CmdNhwcb")
 {
     SECTION("IfmS ~ 24x50x16/0x16x0/24x34x16/8x16x32")
     {

@@ -5,19 +5,18 @@
 
 #include "TestUtils.hpp"
 
-#include "../src/cascading/MceRegisters.hpp"
-#include "../src/cascading/RegistersLayout.hpp"
+#include "../src/MceRegisters.hpp"
+#include "../src/RegistersLayout.hpp"
 
-#include <ethosn_command_stream/cascading/CommandStream.hpp>
+#include <ethosn_command_stream/CommandStream.hpp>
 
 #include <catch.hpp>
 
 using namespace ethosn::support_library;
 using namespace ethosn::support_library::registers;
-using namespace ethosn::command_stream::cascading;
 using namespace ethosn::command_stream;
 
-TEST_CASE("Cascading/MceSDesc/Depthwise")
+TEST_CASE("MceSDesc/Depthwise")
 {
     // Check that registers are setup correctly for depthwise convolution and that the expected
     // number of OG multipliers in the CEs are enabled depending on the variant.
@@ -50,7 +49,7 @@ TEST_CASE("Cascading/MceSDesc/Depthwise")
     mceS.isOfmSigned                  = false;
     mceS.upsampleType                 = MceUpsampleType::OFF;
     mceS.upsampleEdgeMode             = { MceUpsampleEdgeMode::GENERATE, MceUpsampleEdgeMode::GENERATE };
-    mceS.mceOpMode                    = ethosn::command_stream::cascading::MceOperation::DEPTHWISE_CONVOLUTION;
+    mceS.mceOpMode                    = MceOperation::DEPTHWISE_CONVOLUTION;
     mceS.algorithm                    = MceAlgorithm::DIRECT;
     mceS.isWideFilter                 = false;
     mceS.isExtraIfmStripeAtRightEdge  = false;
@@ -112,7 +111,7 @@ TEST_CASE("Cascading/MceSDesc/Depthwise")
     CheckEnabledMuls(variant4Tops, 7, 0x80, 0x8000, 0x0, 0x0);
 }
 
-TEST_CASE("Cascading/MceSDesc/WeightsAddress")
+TEST_CASE("MceSDesc/WeightsAddress")
 {
     // Check that the weights address is correctly calculated, for a case where we have multiple stripes
     // in the IFM and OFM dimensions.
@@ -145,7 +144,7 @@ TEST_CASE("Cascading/MceSDesc/WeightsAddress")
     mceS.isOfmSigned                  = false;
     mceS.upsampleType                 = MceUpsampleType::OFF;
     mceS.upsampleEdgeMode             = { MceUpsampleEdgeMode::GENERATE, MceUpsampleEdgeMode::GENERATE };
-    mceS.mceOpMode                    = ethosn::command_stream::cascading::MceOperation::CONVOLUTION;
+    mceS.mceOpMode                    = MceOperation::CONVOLUTION;
     mceS.algorithm                    = MceAlgorithm::DIRECT;
     mceS.isWideFilter                 = false;
     mceS.isExtraIfmStripeAtRightEdge  = false;
@@ -195,7 +194,7 @@ TEST_CASE("Cascading/MceSDesc/WeightsAddress")
     CheckStripe(3, 0x1100, 0x1100, 0x1180, 0x1180);
 }
 
-TEST_CASE("Cascading/MceSDesc/Edge Stripe")
+TEST_CASE("MceSDesc/Edge Stripe")
 {
     // Check that the stripe shape is correctly set for edge stripes
 
@@ -227,7 +226,7 @@ TEST_CASE("Cascading/MceSDesc/Edge Stripe")
     mceS.isOfmSigned                  = false;
     mceS.upsampleType                 = MceUpsampleType::OFF;
     mceS.upsampleEdgeMode             = { MceUpsampleEdgeMode::GENERATE, MceUpsampleEdgeMode::GENERATE };
-    mceS.mceOpMode                    = ethosn::command_stream::cascading::MceOperation::CONVOLUTION;
+    mceS.mceOpMode                    = MceOperation::CONVOLUTION;
     mceS.algorithm                    = MceAlgorithm::DIRECT;
     mceS.isWideFilter                 = false;
     mceS.isExtraIfmStripeAtRightEdge  = false;
@@ -298,7 +297,7 @@ TEST_CASE("Cascading/MceSDesc/Edge Stripe")
     CheckStripe(624, 1, 2, 3, 4);
 }
 
-TEST_CASE("Cascading/MceSDesc/Slots")
+TEST_CASE("MceSDesc/Slots")
 {
     // Check that the slot registers are correctly set
 
@@ -330,7 +329,7 @@ TEST_CASE("Cascading/MceSDesc/Slots")
     mceS.isOfmSigned                  = false;
     mceS.upsampleType                 = MceUpsampleType::OFF;
     mceS.upsampleEdgeMode             = { MceUpsampleEdgeMode::GENERATE, MceUpsampleEdgeMode::GENERATE };
-    mceS.mceOpMode                    = ethosn::command_stream::cascading::MceOperation::CONVOLUTION;
+    mceS.mceOpMode                    = MceOperation::CONVOLUTION;
     mceS.algorithm                    = MceAlgorithm::DIRECT;
     mceS.isWideFilter                 = false;
     mceS.isExtraIfmStripeAtRightEdge  = false;

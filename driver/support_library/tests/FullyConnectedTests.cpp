@@ -9,7 +9,6 @@
 #include "TestUtils.hpp"
 
 #include <catch.hpp>
-#include <ethosn_command_stream/CommandStreamBuffer.hpp>
 
 using namespace ethosn::support_library;
 

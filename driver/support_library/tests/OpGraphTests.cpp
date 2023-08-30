@@ -3,9 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "../src/cascading/OpGraph.hpp"
-
-#include <ethosn_command_stream/cascading/CommandStream.hpp>
+#include "../src/OpGraph.hpp"
 
 #include <catch.hpp>
 
@@ -13,13 +11,12 @@
 
 using namespace ethosn;
 using namespace ethosn::support_library;
-using namespace ethosn::command_stream::cascading;
 
 std::unique_ptr<DramBuffer> TestBuffer()
 {
     // Creates a valid DramBuffer for tests
     std::unique_ptr<DramBuffer> buffer =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
     return buffer;
 }
 
@@ -839,15 +836,15 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Linear")
     //                 to check that the chain search stops at the DRAM buffer above.
 
     OpGraph graph;
-    DmaOp D(CascadingBufferFormat::NHWCB);
-    DmaOp F(CascadingBufferFormat::NHWCB);
-    DmaOp H(CascadingBufferFormat::NHWCB);
-    DmaOp J(CascadingBufferFormat::NHWCB);
-    DmaOp L(CascadingBufferFormat::NHWCB);
-    DmaOp N(CascadingBufferFormat::NHWCB);
+    DmaOp D(BufferFormat::NHWCB);
+    DmaOp F(BufferFormat::NHWCB);
+    DmaOp H(BufferFormat::NHWCB);
+    DmaOp J(BufferFormat::NHWCB);
+    DmaOp L(BufferFormat::NHWCB);
+    DmaOp N(BufferFormat::NHWCB);
 
     std::unique_ptr<SramBuffer> c = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(2)
@@ -855,10 +852,10 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Linear")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> e =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
 
     std::unique_ptr<SramBuffer> g = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(2)
@@ -866,10 +863,10 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Linear")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> i =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
 
     std::unique_ptr<SramBuffer> k = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(2)
@@ -877,10 +874,10 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Linear")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> m =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
 
     std::unique_ptr<SramBuffer> o = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(2)
@@ -959,8 +956,8 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Linear")
         // Change the final DRAM buffer to NHWC, which is then incompatible with the
         // starting SRAM buffer as it would require a depth split which NHWC doesn't support.
         // This means the chain will be shortened to the previous DRAM buffer.
-        L.m_TransferFormat = CascadingBufferFormat::NHWC;
-        m->m_Format        = CascadingBufferFormat::NHWC;
+        L.m_TransferFormat = BufferFormat::NHWC;
+        m->m_Format        = BufferFormat::NHWC;
 
         graph.RemoveRedundantCopies();
 
@@ -1026,20 +1023,20 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Linear")
     //  k (Sram)
 
     OpGraph graph;
-    DmaOp B(CascadingBufferFormat::FCAF_WIDE);
-    DmaOp D(CascadingBufferFormat::NHWCB);
-    DmaOp F(CascadingBufferFormat::NHWCB);
+    DmaOp B(BufferFormat::FCAF_WIDE);
+    DmaOp D(BufferFormat::NHWCB);
+    DmaOp F(BufferFormat::NHWCB);
     // This is a bit of a hack to prevent the Sram -> Dram optimisation from kicking in first, before we have a chance for
     // the Dram -> Sram optimisation to happen.
     F.m_Offset = TensorShape{ 0, 0, 0, 32 };
-    DmaOp H(CascadingBufferFormat::NHWCB);
-    DmaOp J(CascadingBufferFormat::NHWCB);
+    DmaOp H(BufferFormat::NHWCB);
+    DmaOp J(BufferFormat::NHWCB);
 
     std::unique_ptr<DramBuffer> a =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::FCAF_WIDE).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+        DramBuffer::Build().AddFormat(BufferFormat::FCAF_WIDE).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
 
     std::unique_ptr<SramBuffer> c = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 32 })
                                         .AddNumStripes(1)
@@ -1047,10 +1044,10 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Linear")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> e =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
 
     std::unique_ptr<SramBuffer> g = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 32 })
                                         .AddNumStripes(1)
@@ -1058,10 +1055,10 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Linear")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> i =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
 
     std::unique_ptr<SramBuffer> k = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 32 })
                                         .AddNumStripes(1)
@@ -1193,16 +1190,16 @@ TEST_CASE("OpGraph RemoveRedundantCopies Reshape")
     //  i (Dram)
 
     OpGraph graph;
-    DmaOp B(CascadingBufferFormat::NHWC);
-    DmaOp D(CascadingBufferFormat::NHWC);
-    DmaOp F(CascadingBufferFormat::NHWC);
-    DmaOp H(CascadingBufferFormat::NHWC);
+    DmaOp B(BufferFormat::NHWC);
+    DmaOp D(BufferFormat::NHWC);
+    DmaOp F(BufferFormat::NHWC);
+    DmaOp H(BufferFormat::NHWC);
 
     std::unique_ptr<DramBuffer> a =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 10, 10, 30 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 10, 10, 30 });
 
     std::unique_ptr<SramBuffer> c = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 10, 10, 10 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(1)
@@ -1210,10 +1207,10 @@ TEST_CASE("OpGraph RemoveRedundantCopies Reshape")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> e =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 100, 10, 1 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 100, 10, 1 });
 
     std::unique_ptr<SramBuffer> g = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 100, 10, 1 })
                                         .AddStripeShape(TensorShape{ 1, 112, 16, 16 })
                                         .AddNumStripes(1)
@@ -1221,7 +1218,7 @@ TEST_CASE("OpGraph RemoveRedundantCopies Reshape")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> i =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 1, 1000, 1 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 1, 1000, 1 });
 
     graph.AddOp(&B);
     graph.AddOp(&D);
@@ -1303,16 +1300,16 @@ TEST_CASE("OpGraph RemoveRedundantCopies Invalid Buffers and Ops")
     //  i (Dram)
 
     OpGraph graph;
-    DmaOp B(CascadingBufferFormat::NHWC);
-    DmaOp D(CascadingBufferFormat::NHWC);
-    DmaOp F(CascadingBufferFormat::NHWC);
-    DmaOp H(CascadingBufferFormat::NHWC);
+    DmaOp B(BufferFormat::NHWC);
+    DmaOp D(BufferFormat::NHWC);
+    DmaOp F(BufferFormat::NHWC);
+    DmaOp H(BufferFormat::NHWC);
 
     std::unique_ptr<DramBuffer> a =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
 
     std::unique_ptr<SramBuffer> c = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(1)
@@ -1320,10 +1317,10 @@ TEST_CASE("OpGraph RemoveRedundantCopies Invalid Buffers and Ops")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> e =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
 
     std::unique_ptr<SramBuffer> g = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(1)
@@ -1331,7 +1328,7 @@ TEST_CASE("OpGraph RemoveRedundantCopies Invalid Buffers and Ops")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> i =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
 
     graph.AddOp(&B);
     graph.AddOp(&D);
@@ -1384,7 +1381,7 @@ TEST_CASE("OpGraph RemoveRedundantCopies Invalid Buffers and Ops")
     SECTION("Buffers not in DRAM/SRAM")
     {
         std::unique_ptr<PleInputSramBuffer> c2 = PleInputSramBuffer::Build()
-                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddFormat(BufferFormat::NHWCB)
                                                      .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                                      .AddStripeShape(TensorShape{ 1, 16, 16, 16 });
 
@@ -1395,7 +1392,7 @@ TEST_CASE("OpGraph RemoveRedundantCopies Invalid Buffers and Ops")
         graph.AddConsumer(c2.get(), &D, 0);
 
         std::unique_ptr<PleInputSramBuffer> g2 = PleInputSramBuffer::Build()
-                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddFormat(BufferFormat::NHWCB)
                                                      .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                                      .AddStripeShape(TensorShape{ 1, 16, 16, 16 });
 
@@ -1417,9 +1414,9 @@ TEST_CASE("OpGraph RemoveRedundantCopies Invalid Buffers and Ops")
     SECTION("Non-Dma Ops")
     {
         // Replace D with something that's not a DMA op
-        MceOp newD(command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                   command_stream::BlockConfig{ 8U, 8U }, TensorShape{ 1, 1, 1, 1 }, TensorShape{ 1, 1, 1, 1 },
-                   TensorShape{ 1, 1, 1, 1 }, TraversalOrder::Zxy, Stride{ 1, 1 }, 0, 0, 0, 0);
+        MceOp newD(command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 8U, 8U },
+                   TensorShape{ 1, 1, 1, 1 }, TensorShape{ 1, 1, 1, 1 }, TensorShape{ 1, 1, 1, 1 }, TraversalOrder::Zxy,
+                   Stride{ 1, 1 }, 0, 0, 0, 0);
         graph.RemoveConsumer(c.get(), &D, 0);
         graph.RemoveProducer(e.get(), &D);
         graph.RemoveAndPrune(&D);
@@ -1437,7 +1434,7 @@ TEST_CASE("OpGraph RemoveRedundantCopies Invalid Buffers and Ops")
     SECTION("Reintepreting DmaOp")
     {
         // Change the format of D so that it's doing a reinterpret (not a simple copy)
-        D.m_TransferFormat = CascadingBufferFormat::NHWCB;
+        D.m_TransferFormat = BufferFormat::NHWCB;
 
         graph.RemoveRedundantCopies();
 
@@ -1483,18 +1480,18 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Multiple Concat")
     //                i (Dram)
 
     OpGraph graph;
-    DmaOp C(CascadingBufferFormat::NHWCB);
+    DmaOp C(BufferFormat::NHWCB);
     C.m_Offset = TensorShape{ 0, 0, 0, 0 };
-    DmaOp D(CascadingBufferFormat::NHWCB);
+    DmaOp D(BufferFormat::NHWCB);
     D.m_Offset = TensorShape{ 0, 0, 0, 16 };
-    DmaOp G(CascadingBufferFormat::NHWCB);
-    DmaOp H(CascadingBufferFormat::NHWCB);
+    DmaOp G(BufferFormat::NHWCB);
+    DmaOp H(BufferFormat::NHWCB);
     H.m_Offset = TensorShape{ 0, 0, 0, 0 };
-    DmaOp K(CascadingBufferFormat::NHWCB);
+    DmaOp K(BufferFormat::NHWCB);
     K.m_Offset = TensorShape{ 0, 0, 0, 16 };
 
     std::unique_ptr<SramBuffer> a = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(1)
@@ -1502,7 +1499,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Multiple Concat")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<SramBuffer> b = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(1)
@@ -1510,10 +1507,10 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Multiple Concat")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> e =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
 
     std::unique_ptr<SramBuffer> f = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(1)
@@ -1521,10 +1518,10 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Multiple Concat")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> i =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 48 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 48 });
 
     std::unique_ptr<SramBuffer> j = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 32 })
                                         .AddNumStripes(1)
@@ -1620,7 +1617,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Multiple Concat")
     SECTION("Invalid branch")
     {
         // Add a second consumer to e, which should prevent the optimisation
-        DmaOp newConsumer(CascadingBufferFormat::NHWCB);
+        DmaOp newConsumer(BufferFormat::NHWCB);
         graph.AddOp(&newConsumer);
         graph.AddConsumer(e.get(), &newConsumer, 0);
 
@@ -1656,19 +1653,19 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Multiple Split")
     //  a (Sram)   b (Sram)
 
     OpGraph graph;
-    DmaOp C(CascadingBufferFormat::NHWCB);
+    DmaOp C(BufferFormat::NHWCB);
     C.m_Offset = TensorShape{ 0, 0, 0, 0 };
-    DmaOp D(CascadingBufferFormat::NHWCB);
+    DmaOp D(BufferFormat::NHWCB);
     D.m_Offset = TensorShape{ 0, 0, 0, 16 };
-    DmaOp G(CascadingBufferFormat::NHWCB);
-    DmaOp H(CascadingBufferFormat::NHWCB);
+    DmaOp G(BufferFormat::NHWCB);
+    DmaOp H(BufferFormat::NHWCB);
     H.m_Offset = TensorShape{ 0, 0, 0, 0 };
-    DmaOp K(CascadingBufferFormat::NHWCB);
+    DmaOp K(BufferFormat::NHWCB);
     K.m_Offset = TensorShape{ 0, 0, 0, 16 };
-    DmaOp L(CascadingBufferFormat::NHWCB);
+    DmaOp L(BufferFormat::NHWCB);
 
     std::unique_ptr<SramBuffer> a = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(1)
@@ -1676,7 +1673,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Multiple Split")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<SramBuffer> b = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(1)
@@ -1684,10 +1681,10 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Multiple Split")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> e =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 32 });
 
     std::unique_ptr<SramBuffer> f = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(1)
@@ -1695,10 +1692,10 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Multiple Split")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> i =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 48 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 48 });
 
     std::unique_ptr<SramBuffer> j = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 32 })
                                         .AddNumStripes(1)
@@ -1706,7 +1703,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Multiple Split")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<SramBuffer> m = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 48 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 48 })
                                         .AddNumStripes(1)
@@ -1814,7 +1811,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Multiple Split")
     SECTION("Invalid branch")
     {
         // Add a second producer to e, which should prevent the optimisation
-        DmaOp newProducer(CascadingBufferFormat::NHWCB);
+        DmaOp newProducer(BufferFormat::NHWCB);
         graph.AddOp(&newProducer);
         graph.AddProducer(e.get(), &newProducer);
 
@@ -1847,17 +1844,17 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Concat one branch invalid")
     //        i (Dram)
 
     OpGraph graph;
-    DmaOp C(CascadingBufferFormat::NHWC);
+    DmaOp C(BufferFormat::NHWC);
     // This DMA can always be optimised straight into buffer i, no matter its format
     C.m_Offset = TensorShape{ 0, 0, 0, 0 };
-    DmaOp D(CascadingBufferFormat::NHWC);
+    DmaOp D(BufferFormat::NHWC);
     // This DMA can't be optimised straight into buffer i, if it is NHWCB - it only works if it's NHWC
     D.m_Offset = TensorShape{ 0, 10, 0, 0 };
-    DmaOp G(CascadingBufferFormat::NHWC);
-    DmaOp K(CascadingBufferFormat::NHWC);
+    DmaOp G(BufferFormat::NHWC);
+    DmaOp K(BufferFormat::NHWC);
 
     std::unique_ptr<SramBuffer> a = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 10, 16, 16 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(1)
@@ -1865,7 +1862,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Concat one branch invalid")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<SramBuffer> b = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 6, 16, 16 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(1)
@@ -1873,10 +1870,10 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Concat one branch invalid")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> e =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
 
     std::unique_ptr<SramBuffer> j = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(1)
@@ -1884,7 +1881,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Concat one branch invalid")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> i =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
 
     graph.AddOp(&C);
     graph.AddOp(&D);
@@ -1938,8 +1935,8 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Concat one branch invalid")
     SECTION("Make one branch invalid, but the other is valid still")
     {
         // We can no longer DMA straight from b -> i, as you can't start at H offset 10 into NHWCB
-        K.m_TransferFormat = CascadingBufferFormat::NHWCB;
-        i->m_Format        = CascadingBufferFormat::NHWCB;
+        K.m_TransferFormat = BufferFormat::NHWCB;
+        i->m_Format        = BufferFormat::NHWCB;
 
         graph.RemoveRedundantCopies();
 
@@ -1972,17 +1969,17 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Split one branch invalid")
     //  a (Sram)  b (Sram)
     //
     OpGraph graph;
-    DmaOp C(CascadingBufferFormat::NHWC);
+    DmaOp C(BufferFormat::NHWC);
     // This DMA can always be optimised straight from buffer i, no matter its format
     C.m_Offset = TensorShape{ 0, 0, 0, 0 };
-    DmaOp D(CascadingBufferFormat::NHWC);
+    DmaOp D(BufferFormat::NHWC);
     // This DMA can't be optimised straight from buffer i, if it is NHWCB - it only works if it's NHWC
     D.m_Offset = TensorShape{ 0, 10, 0, 0 };
-    DmaOp G(CascadingBufferFormat::NHWC);
-    DmaOp K(CascadingBufferFormat::NHWC);
+    DmaOp G(BufferFormat::NHWC);
+    DmaOp K(BufferFormat::NHWC);
 
     std::unique_ptr<SramBuffer> a = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 10, 16, 16 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(1)
@@ -1990,7 +1987,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Split one branch invalid")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<SramBuffer> b = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 6, 16, 16 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(1)
@@ -1998,10 +1995,10 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Split one branch invalid")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> e =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
 
     std::unique_ptr<SramBuffer> j = SramBuffer::Build()
-                                        .AddFormat(CascadingBufferFormat::NHWCB)
+                                        .AddFormat(BufferFormat::NHWCB)
                                         .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                         .AddNumStripes(1)
@@ -2009,7 +2006,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Split one branch invalid")
                                         .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> i =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWC).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
 
     graph.AddOp(&C);
     graph.AddOp(&D);
@@ -2063,8 +2060,8 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Split one branch invalid")
     SECTION("Make one branch invalid, but the other is valid still")
     {
         // We can no longer DMA straight from i -> b, as you can't start at H offset 10 into NHWCB
-        K.m_TransferFormat = CascadingBufferFormat::NHWCB;
-        i->m_Format        = CascadingBufferFormat::NHWCB;
+        K.m_TransferFormat = BufferFormat::NHWCB;
+        i->m_Format        = BufferFormat::NHWCB;
 
         graph.RemoveRedundantCopies();
 
@@ -2104,7 +2101,7 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Split one branch invalid")
         CHECK(graph.GetProducers(b.get()) == std::vector<Op*>{ &D });
 
         CHECK(C.m_Offset == TensorShape{ 0, 0, 0, 0 });
-        CHECK(C.m_TransferFormat == CascadingBufferFormat::NHWCB);
+        CHECK(C.m_TransferFormat == BufferFormat::NHWCB);
         CHECK(K.m_Offset == TensorShape{ 0, 0, 0, 0 });
         CHECK(G.m_Offset == TensorShape{ 0, 0, 0, 0 });
         CHECK(D.m_Offset == TensorShape{ 0, 10, 0, 0 });

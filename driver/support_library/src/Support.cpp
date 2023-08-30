@@ -282,8 +282,6 @@ TensorInfo GetTensorInfo(const std::shared_ptr<Operand>& operand)
 
 std::vector<std::unique_ptr<CompiledNetwork>> Compile(const Network& network, const CompilationOptions& options)
 {
-    std::vector<std::unique_ptr<CompiledNetwork>> allSupportedSubgraphs;
-
     FirmwareAndHardwareCapabilities caps = GetValidCapabilities(network.GetCapabilities());
 
     if (!AreCapabilitiesSupported(caps))
@@ -291,20 +289,19 @@ std::vector<std::unique_ptr<CompiledNetwork>> Compile(const Network& network, co
         throw NotSupportedException("Support library does not support compilation for the given target capabilities");
     }
 
-    EstimationOptions estimationOptions;
-    Compiler compiler(network, caps, options, estimationOptions);
+    Compiler compiler(network, caps, options, utils::EmptyOptional());
 
-    // Here we will loop between all supported subgraphs and call Compile() on them
-    //      then add the results to allSupportedSubgraphs.
-    std::unique_ptr<CompiledNetwork> compiledNetwork = compiler.Compile();
-
-    // compiler.Compile() can fail in which case we will return nothing and skip adding to the returned subgraphs
-    if (compiledNetwork)
+    std::vector<std::unique_ptr<CompiledNetwork>> result;
+    try
     {
-        allSupportedSubgraphs.push_back(std::move(compiledNetwork));
+        result.push_back(compiler.Compile().compiledOpGraph.m_CompiledNetwork);
     }
-
-    return allSupportedSubgraphs;
+    catch (const std::runtime_error& e)
+    {
+        // Need better approach for error reporting from support library.
+        g_Logger.Error("Error: %s", e.what());
+    }
+    return result;
 }
 
 NetworkPerformanceData EstimatePerformance(const Network& network,
@@ -320,7 +317,15 @@ NetworkPerformanceData EstimatePerformance(const Network& network,
 
     Compiler compiler(network, caps, compilationOptions, estimationOptions);
 
-    return compiler.EstimatePerformance();
+    try
+    {
+        return compiler.Compile().GetLegacyNetworkPerformanceData();
+    }
+    catch (const std::exception& e)
+    {
+        g_Logger.Warning("Estimation failed with: %s", e.what());
+        throw NotSupportedException("Estimation didn't find any valid performance data to return");
+    }
 }
 
 void PrintNetworkPerformanceDataJson(std::ostream& os, uint32_t indentNumTabs, const NetworkPerformanceData& perfData)

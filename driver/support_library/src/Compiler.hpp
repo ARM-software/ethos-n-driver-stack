@@ -6,40 +6,50 @@
 #pragma once
 
 #include "BufferManager.hpp"
+#include "CombinerDFS.hpp"
+#include "CommandStreamGenerator.hpp"
 #include "DebuggingContext.hpp"
 #include "Utils.hpp"
-
-#include <ethosn_command_stream/CommandStreamBuffer.hpp>
 
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string>
 
 namespace ethosn
 {
 namespace support_library
 {
 
-class CompiledNetwork;
-class IEstimationStrategy;
+struct CompilerResult
+{
+    OpGraph opGraph;
+    /// This is necessary to keep data alive which is referenced inside `compiledOpGraph` and `opGraph`.
+    Combination combination;
+    /// Some fields of this will be empty/null if estimation was requested.
+    CompiledOpGraph compiledOpGraph;
 
-/// Compiles a user-constructed Network into a CompiledNetwork.
-/// This is done in three stages:
-///    - Conversion - converts the Network into an internal Graph.
-///    - Preparation - modifies the Graph so that it can be split into Passes.
-///    - Generation - produces the final outputs from the Graph and Passes.
+    const NetworkPerformanceData& GetLegacyNetworkPerformanceData() const
+    {
+        return compiledOpGraph.m_EstimatedOpGraph.m_LegacyPerfData;
+    }
+};
+
+/// Compiles a user-constructed Network into CompilerResult,
+/// which contains the compiled network.
 class Compiler
 {
 public:
+    /// The presence (or lack) of `estimationOptions` determines if estimation or compilation is performed.
     Compiler(const Network& network,
              const FirmwareAndHardwareCapabilities& fwAndHwCapabilities,
              const CompilationOptions& compilationOptions,
-             const EstimationOptions& estimationOptions);
+             utils::Optional<const EstimationOptions&> estimationOptions);
     Compiler(const Compiler&) = delete;
     Compiler& operator=(const Compiler&) = delete;
 
-    std::unique_ptr<CompiledNetwork> Compile();
-    NetworkPerformanceData EstimatePerformance();
+    CompilerResult Compile();
+
     ~Compiler();
 
 private:
@@ -53,15 +63,8 @@ private:
     DebuggingContext m_DebuggingContext;
     /// @}
 
-    /// Performance estimation
-    /// @{
-    const EstimationOptions& m_EstimationOptions;
-    /// @}
-
-    /// Outputs
-    /// @{
-    command_stream::CommandStreamBuffer m_CommandStream;
-    /// @}
+    /// Only present for performance estimation.
+    utils::Optional<const EstimationOptions&> m_EstimationOptions;
 };
 
 class CompiledNetworkImpl : public CompiledNetwork
@@ -70,32 +73,18 @@ public:
     struct BufferInfoInternal
     {
     public:
-        constexpr BufferInfoInternal()
-            : m_Id(0)
-            , m_Offset(0)
-            , m_Size(0)
-            , m_SourceOperationId(0)
-            , m_SourceOperationOutputIndex(0)
-        {}
-
-        constexpr BufferInfoInternal(uint32_t id, uint32_t offset, uint32_t size)
-            : m_Id(id)
-            , m_Offset(offset)
-            , m_Size(size)
-            , m_SourceOperationId(0xFFFFFFFF)
-            , m_SourceOperationOutputIndex(0xFFFFFFFF)
-        {}
-
-        constexpr BufferInfoInternal(uint32_t id,
-                                     uint32_t offset,
-                                     uint32_t size,
-                                     uint32_t sourceOperationId,
-                                     uint32_t sourceOperationOutputIndex)
+        BufferInfoInternal(uint32_t id,
+                           uint32_t offset,
+                           uint32_t size,
+                           uint32_t sourceOperationId,
+                           uint32_t sourceOperationOutputIndex,
+                           std::string debugName)
             : m_Id(id)
             , m_Offset(offset)
             , m_Size(size)
             , m_SourceOperationId(sourceOperationId)
             , m_SourceOperationOutputIndex(sourceOperationOutputIndex)
+            , m_DebugName(std::move(debugName))
         {}
 
         bool operator==(const BufferInfoInternal& rhs) const
@@ -115,6 +104,8 @@ public:
         uint32_t m_Size;
         uint32_t m_SourceOperationId;             ///< Only relevant for input and output buffer infos.
         uint32_t m_SourceOperationOutputIndex;    ///< Only relevant for input and output buffer infos.
+        /// Used for dumping buffers as files in the driver library.
+        std::string m_DebugName;
     };
 
     CompiledNetworkImpl();

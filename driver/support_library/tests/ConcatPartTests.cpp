@@ -3,16 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "../src/ConcatPart.hpp"
+#include "../src/Part.hpp"
+#include "../src/PartUtils.hpp"
+#include "../src/Plan.hpp"
+#include "../src/Visualisation.hpp"
 #include "CapabilitiesInternal.hpp"
 #include "ConcreteOperations.hpp"
 #include "GlobalParameters.hpp"
 #include "TestUtils.hpp"
 #include "Utils.hpp"
-#include "cascading/ConcatPart.hpp"
-#include "cascading/Part.hpp"
-#include "cascading/PartUtils.hpp"
-#include "cascading/Plan.hpp"
-#include "cascading/Visualisation.hpp"
 
 #include <catch.hpp>
 #include <fstream>
@@ -32,7 +32,7 @@ struct CheckPlansParams
     TensorInfo m_OutputTensorInfo;
     QuantizationInfo m_OutputQuantInfo;
     std::set<uint32_t> m_OperationIds;
-    CascadingBufferFormat m_DataFormat;
+    BufferFormat m_DataFormat;
 };
 
 void CheckConcatDram(Buffer* concatBuffer, const CheckPlansParams& params)
@@ -122,9 +122,9 @@ TEST_CASE("ConcatPart Plan Generation", "[ConcatPartTests]")
         std::vector<TensorInfo> inputTensorsInfo;
         TensorInfo inputTensorInfo1;
         TensorInfo inputTensorInfo2;
-        CascadingBufferFormat dataFormat = GENERATE(CascadingBufferFormat::NHWC, CascadingBufferFormat::FCAF_DEEP);
+        BufferFormat dataFormat = GENERATE(BufferFormat::NHWC, BufferFormat::FCAF_DEEP);
 
-        if (dataFormat == CascadingBufferFormat::NHWC)
+        if (dataFormat == BufferFormat::NHWC)
         {
             inputTensorInfo1.m_Dimensions = { 1, 15, 16, 16 };
             inputTensorInfo1.m_DataType   = DataType::INT8_QUANTIZED;
@@ -165,7 +165,7 @@ TEST_CASE("ConcatPart Plan Generation", "[ConcatPartTests]")
 
         WHEN("Asked to generate Lonely plans")
         {
-            Plans plans = concatPart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 0);
+            Plans plans = concatPart.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ConcatPart GetPlans structure Lonely");
 
             THEN("The number of generated plans >= 1")
@@ -181,7 +181,7 @@ TEST_CASE("ConcatPart Plan Generation", "[ConcatPartTests]")
 
         WHEN("Asked to generate Beginning plans")
         {
-            Plans plans = concatPart.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 0);
+            Plans plans = concatPart.GetPlans(CascadeType::Beginning, BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ConcatPart GetPlans structure Beginning");
 
             THEN("The number of generated plans = 0")
@@ -192,7 +192,7 @@ TEST_CASE("ConcatPart Plan Generation", "[ConcatPartTests]")
 
         WHEN("Asked to generate Middle plans")
         {
-            Plans plans = concatPart.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, { nullptr }, 0);
+            Plans plans = concatPart.GetPlans(CascadeType::Middle, BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ConcatPart GetPlans structure Middle");
 
             THEN("The number of generated plans = 0")
@@ -203,7 +203,7 @@ TEST_CASE("ConcatPart Plan Generation", "[ConcatPartTests]")
 
         WHEN("Asked to generate End plans")
         {
-            Plans plans = concatPart.GetPlans(CascadeType::End, command_stream::BlockConfig{}, { nullptr }, 0);
+            Plans plans = concatPart.GetPlans(CascadeType::End, BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ConcatPart GetPlans structure End");
 
             THEN("The number of generated plans = 0")

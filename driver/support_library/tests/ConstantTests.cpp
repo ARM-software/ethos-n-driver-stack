@@ -6,15 +6,14 @@
 #include "../include/ethosn_support_library/Support.hpp"
 #include "../include/ethosn_support_library/SupportQueries.hpp"
 #include "../src/Compiler.hpp"
+#include "../src/ConstantPart.hpp"
+#include "../src/NetworkToGraphOfPartsConverter.hpp"
+#include "../src/OutputPart.hpp"
 #include "../src/ThreadPool.hpp"
-#include "../src/cascading/ConstantPart.hpp"
-#include "../src/cascading/NetworkToGraphOfPartsConverter.hpp"
-#include "../src/cascading/OutputPart.hpp"
 
 #include "TestUtils.hpp"
 
 #include <catch.hpp>
-#include <ethosn_command_stream/CommandStreamBuffer.hpp>
 
 using namespace ethosn::support_library;
 

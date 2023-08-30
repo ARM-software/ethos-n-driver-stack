@@ -13,7 +13,6 @@
 
 #include "../include/ethosn_support_library/Support.hpp"
 #include "Utils.hpp"
-#include <ethosn_command_stream/CommandData.hpp>
 
 namespace ethosn
 {

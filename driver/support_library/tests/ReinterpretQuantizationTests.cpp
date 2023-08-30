@@ -240,14 +240,12 @@ SCENARIO("ReinterpretQuantization doesn't have any side effect on the command st
                 THEN("The command stream of both compiled networks is the same")
                 {
                     using namespace ethosn::command_stream;
-                    CommandStream commandStreamWithoutReinterpret =
-                        GetCommandStream(compiledNetworkWithoutReinterpret[0].get());
-                    CommandStream commandStreamWithReinterpret =
-                        GetCommandStream(compiledNetworkWithReinterpret[0].get());
+                    std::vector<uint32_t> commandStreamWithoutReinterpret =
+                        GetCommandStreamRaw(compiledNetworkWithoutReinterpret[0].get());
+                    std::vector<uint32_t> commandStreamWithReinterpret =
+                        GetCommandStreamRaw(compiledNetworkWithReinterpret[0].get());
 
-                    REQUIRE(std::equal(commandStreamWithoutReinterpret.begin(), commandStreamWithoutReinterpret.end(),
-                                       commandStreamWithReinterpret.begin(), commandStreamWithReinterpret.end(),
-                                       [](auto& lhs, auto& rhs) { return AreCommandsEqual(lhs, rhs); }));
+                    REQUIRE(commandStreamWithoutReinterpret == commandStreamWithReinterpret);
                 }
             }
         }

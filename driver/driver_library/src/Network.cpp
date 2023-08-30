@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -45,7 +45,7 @@ Network::~Network() = default;
 Inference* Network::ScheduleInference(Buffer* const inputBuffers[],
                                       uint32_t numInputBuffers,
                                       Buffer* const outputBuffers[],
-                                      uint32_t numOutputBuffers) const
+                                      uint32_t numOutputBuffers)
 {
     return m_NetworkImpl->ScheduleInference(inputBuffers, numInputBuffers, outputBuffers, numOutputBuffers);
 }

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -7,8 +7,6 @@
 
 #include "DebuggingContext.hpp"
 #include "Utils.hpp"
-
-#include <ethosn_command_stream/CommandStreamBuffer.hpp>
 
 #include <cassert>
 #include <fstream>
@@ -65,15 +63,15 @@ uint32_t BufferManager::AddSram(uint32_t size, uint32_t offset)
     return m_NextSramBufferId - 1;
 }
 
-void BufferManager::AddCommandStream(const ethosn::command_stream::CommandStreamBuffer& cmdStream)
+void BufferManager::AddCommandStream(const std::vector<uint32_t>& cmdStreamData)
 {
     assert(m_Buffers.find(0) == m_Buffers.end());
-    std::vector<uint8_t> cmdStreamData;
-    cmdStreamData.assign(reinterpret_cast<const uint8_t*>(cmdStream.GetData().data()),
-                         reinterpret_cast<const uint8_t*>(cmdStream.GetData().data() + cmdStream.GetData().size()));
-    CompilerBufferInfo buffer(BufferType::ConstantControlUnit, 0, static_cast<uint32_t>(cmdStreamData.size()),
+    std::vector<uint8_t> cmdStreamDataU8;
+    cmdStreamDataU8.assign(reinterpret_cast<const uint8_t*>(cmdStreamData.data()),
+                           reinterpret_cast<const uint8_t*>(cmdStreamData.data() + cmdStreamData.size()));
+    CompilerBufferInfo buffer(BufferType::ConstantControlUnit, 0, static_cast<uint32_t>(cmdStreamDataU8.size()),
                               BufferLocation::Dram);
-    buffer.m_ConstantData = std::move(cmdStreamData);
+    buffer.m_ConstantData = std::move(cmdStreamDataU8);
     m_Buffers.insert({ 0, buffer });    // Command stream is always buffer 0.
 }
 
@@ -103,6 +101,11 @@ uint32_t BufferManager::GetSramOffset(uint32_t bufferId)
 {
     const CompilerBufferInfo& buffer = m_Buffers.at(bufferId);
     return buffer.m_Location == BufferLocation::Sram ? buffer.m_Offset : 0;
+}
+
+void BufferManager::SetDebugName(uint32_t bufferId, std::string debugName)
+{
+    m_Buffers.at(bufferId).m_DebugName = std::move(debugName);
 }
 
 namespace

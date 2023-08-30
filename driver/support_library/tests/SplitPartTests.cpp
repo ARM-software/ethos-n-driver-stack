@@ -3,16 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "../src/Part.hpp"
+#include "../src/PartUtils.hpp"
+#include "../src/Plan.hpp"
+#include "../src/SplitPart.hpp"
+#include "../src/Visualisation.hpp"
 #include "CapabilitiesInternal.hpp"
 #include "ConcreteOperations.hpp"
 #include "GlobalParameters.hpp"
 #include "TestUtils.hpp"
 #include "Utils.hpp"
-#include "cascading/Part.hpp"
-#include "cascading/PartUtils.hpp"
-#include "cascading/Plan.hpp"
-#include "cascading/SplitPart.hpp"
-#include "cascading/Visualisation.hpp"
 
 #include <catch.hpp>
 #include <fstream>
@@ -32,7 +32,7 @@ struct CheckPlansParams
     std::vector<TensorInfo> m_OutputTensorInfos;
     QuantizationInfo m_OutputQuantInfo;
     std::set<uint32_t> m_OperationIds;
-    CascadingBufferFormat m_DataFormat;
+    BufferFormat m_DataFormat;
 };
 
 void CheckSplitDram(std::vector<Buffer*> splitBuffers, const CheckPlansParams& params)
@@ -129,10 +129,10 @@ TEST_CASE("SplitPart Plan Generation", "[SplitPartTests]")
         const PartId partId = 1;
 
         TensorInfo inputTensorInfo;
-        CascadingBufferFormat dataFormat = GENERATE(CascadingBufferFormat::NHWC, CascadingBufferFormat::FCAF_DEEP);
+        BufferFormat dataFormat = GENERATE(BufferFormat::NHWC, BufferFormat::FCAF_DEEP);
         std::vector<uint32_t> outputTensorShapes;
 
-        if (dataFormat == CascadingBufferFormat::NHWC)
+        if (dataFormat == BufferFormat::NHWC)
         {
             inputTensorInfo.m_Dimensions = { 1, 16, 16, 16 };
             inputTensorInfo.m_DataType   = DataType::INT8_QUANTIZED;
@@ -165,7 +165,7 @@ TEST_CASE("SplitPart Plan Generation", "[SplitPartTests]")
 
         WHEN("Asked to generate Lonely plans")
         {
-            Plans plans = splitPart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 0);
+            Plans plans = splitPart.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "SplitPart GetPlans structure Lonely");
 
             THEN("The number of generated plans >= 1")
@@ -181,7 +181,7 @@ TEST_CASE("SplitPart Plan Generation", "[SplitPartTests]")
 
         WHEN("Asked to generate Beginning plans")
         {
-            Plans plans = splitPart.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 0);
+            Plans plans = splitPart.GetPlans(CascadeType::Beginning, BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "SplitPart GetPlans structure Beginning");
 
             THEN("The number of generated plans = 0")
@@ -192,7 +192,7 @@ TEST_CASE("SplitPart Plan Generation", "[SplitPartTests]")
 
         WHEN("Asked to generate Middle plans")
         {
-            Plans plans = splitPart.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, { nullptr }, 0);
+            Plans plans = splitPart.GetPlans(CascadeType::Middle, BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "SplitPart GetPlans structure Middle");
 
             THEN("The number of generated plans = 0")
@@ -203,7 +203,7 @@ TEST_CASE("SplitPart Plan Generation", "[SplitPartTests]")
 
         WHEN("Asked to generate End plans")
         {
-            Plans plans = splitPart.GetPlans(CascadeType::End, command_stream::BlockConfig{}, { nullptr }, 0);
+            Plans plans = splitPart.GetPlans(CascadeType::End, BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "SplitPart GetPlans structure End");
 
             THEN("The number of generated plans = 0")

@@ -75,7 +75,7 @@ public:
     Inference* ScheduleInference(Buffer* const inputBuffers[],
                                  uint32_t numInputBuffers,
                                  Buffer* const outputBuffers[],
-                                 uint32_t numOutputBuffers) const;
+                                 uint32_t numOutputBuffers);
 
     void SetDebugName(const char* name);
 

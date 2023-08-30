@@ -5,18 +5,17 @@
 
 #include "../include/ethosn_support_library/Support.hpp"
 #include "../include/ethosn_support_library/SupportQueries.hpp"
+#include "../src/EstimateOnlyPart.hpp"
+#include "../src/InputPart.hpp"
+#include "../src/NetworkToGraphOfPartsConverter.hpp"
+#include "../src/OutputPart.hpp"
+#include "../src/Part.hpp"
+#include "../src/StandalonePlePart.hpp"
 #include "../src/ThreadPool.hpp"
-#include "../src/cascading/EstimateOnlyPart.hpp"
-#include "../src/cascading/InputPart.hpp"
-#include "../src/cascading/NetworkToGraphOfPartsConverter.hpp"
-#include "../src/cascading/OutputPart.hpp"
-#include "../src/cascading/Part.hpp"
-#include "../src/cascading/StandalonePlePart.hpp"
 #include "TestUtils.hpp"
 #include "Utils.hpp"
 
 #include <catch.hpp>
-#include <ethosn_command_stream/CommandStreamBuffer.hpp>
 
 using namespace ethosn::support_library;
 
@@ -201,8 +200,7 @@ TEST_CASE("PleOnlyAddition2Tensors")
     const InputPart* inputPart0 = dynamic_cast<const InputPart*>(&graph.GetPart(0));
     REQUIRE(inputPart0 != nullptr);
 
-    Plans plansInputPart0 =
-        inputPart0->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, { nullptr }, 1);
+    Plans plansInputPart0 = inputPart0->GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
     CHECK(plansInputPart0.size() == 1);
 
     Buffer* bufferOutputPart0 = plansInputPart0[0].GetOutputBuffer(PartOutputSlot{ inputPart0->GetPartId(), 0 });
@@ -221,8 +219,7 @@ TEST_CASE("PleOnlyAddition2Tensors")
     const InputPart* inputPart1 = dynamic_cast<const InputPart*>(&graph.GetPart(1));
     REQUIRE(inputPart1 != nullptr);
 
-    Plans plansInputPart1 =
-        inputPart1->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, { nullptr }, 1);
+    Plans plansInputPart1 = inputPart1->GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
     CHECK(plansInputPart1.size() == 1);
 
     Buffer* bufferOutputPart1 = plansInputPart1[0].GetOutputBuffer(PartOutputSlot{ inputPart1->GetPartId(), 0 });
@@ -241,8 +238,7 @@ TEST_CASE("PleOnlyAddition2Tensors")
 
     const StandalonePlePart* additionPlePart = dynamic_cast<const StandalonePlePart*>(&graph.GetPart(2));
     REQUIRE(additionPlePart != nullptr);
-    Plans additionPlans =
-        additionPlePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, { nullptr }, 1);
+    Plans additionPlans         = additionPlePart->GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
     Op* maybePleOpAdditionPlans = additionPlans[0].m_OpGraph.GetOp(0);
     REQUIRE(IsPleOp(maybePleOpAdditionPlans));
     PleOp* pleOpAdditionPlans = static_cast<PleOp*>(maybePleOpAdditionPlans);
@@ -257,8 +253,7 @@ TEST_CASE("PleOnlyAddition2Tensors")
     const OutputPart* outputPart3 = dynamic_cast<const OutputPart*>(&graph.GetPart(3));
     REQUIRE(outputPart3 != nullptr);
 
-    Plans plansOutputPart3 =
-        outputPart3->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, { nullptr }, 1);
+    Plans plansOutputPart3 = outputPart3->GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
     CHECK(plansOutputPart3.size() == 1);
 
     Buffer* bufferInputPart3 = plansOutputPart3[0].GetInputBuffer(PartInputSlot{ outputPart3->GetPartId(), 0 });

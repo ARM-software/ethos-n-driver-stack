@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "../src/ConstantPart.hpp"
+#include "../src/Part.hpp"
+#include "../src/Plan.hpp"
+#include "../src/Visualisation.hpp"
 #include "CapabilitiesInternal.hpp"
 #include "GlobalParameters.hpp"
 #include "TestUtils.hpp"
 #include "Utils.hpp"
-#include "cascading/ConstantPart.hpp"
-#include "cascading/Part.hpp"
-#include "cascading/Plan.hpp"
-#include "cascading/Visualisation.hpp"
 
 #include <catch.hpp>
 #include <fstream>
@@ -37,7 +37,7 @@ void CheckInputDram(Buffer* inputBuffer, const CheckPlansParams& params)
     if (inputBuffer)
     {
         CHECK(inputBuffer->m_Location == Location::Dram);
-        CHECK(inputBuffer->m_Format == CascadingBufferFormat::NHWCB);
+        CHECK(inputBuffer->m_Format == BufferFormat::NHWCB);
         CHECK(inputBuffer->m_QuantizationInfo == params.m_OutputQuantInfo);
         CHECK(inputBuffer->m_TensorShape == params.m_OutputShape);
         CHECK(inputBuffer->m_SizeInBytes == utils::TotalSizeBytesNHWCB(inputBuffer->m_TensorShape));
@@ -130,7 +130,7 @@ TEST_CASE("ConstantPart Plan Generation", "[ConstantPartTests]")
 
         WHEN("Asked to generate Lonely plans")
         {
-            Plans plans = constantPart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 0);
+            Plans plans = constantPart.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ConstantPart GetPlans structure Lonely");
 
             THEN("The number of generated plans = 1")
@@ -146,7 +146,7 @@ TEST_CASE("ConstantPart Plan Generation", "[ConstantPartTests]")
 
         WHEN("Asked to generate Beginning plans")
         {
-            Plans plans = constantPart.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 0);
+            Plans plans = constantPart.GetPlans(CascadeType::Beginning, BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ConstantPart GetPlans structure Beginning");
 
             THEN("The number of generated plans = 1")
@@ -162,7 +162,7 @@ TEST_CASE("ConstantPart Plan Generation", "[ConstantPartTests]")
 
         WHEN("Asked to generate Middle plans")
         {
-            Plans plans = constantPart.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, { nullptr }, 0);
+            Plans plans = constantPart.GetPlans(CascadeType::Middle, BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ConstantPart GetPlans structure Middle");
 
             THEN("The number of generated plans = 0")
@@ -173,7 +173,7 @@ TEST_CASE("ConstantPart Plan Generation", "[ConstantPartTests]")
 
         WHEN("Asked to generate End plans")
         {
-            Plans plans = constantPart.GetPlans(CascadeType::End, command_stream::BlockConfig{}, { nullptr }, 0);
+            Plans plans = constantPart.GetPlans(CascadeType::End, BlockConfig{}, { nullptr }, 0);
             SavePlansToDot(plans, "ConstantPart GetPlans structure End");
 
             THEN("The number of generated plans = 0")

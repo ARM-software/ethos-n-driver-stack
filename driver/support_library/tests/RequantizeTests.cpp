@@ -5,15 +5,14 @@
 
 #include "../include/ethosn_support_library/Support.hpp"
 #include "../include/ethosn_support_library/SupportQueries.hpp"
+#include "../src/InputPart.hpp"
+#include "../src/McePart.hpp"
+#include "../src/NetworkToGraphOfPartsConverter.hpp"
+#include "../src/OutputPart.hpp"
 #include "../src/ThreadPool.hpp"
-#include "../src/cascading/InputPart.hpp"
-#include "../src/cascading/McePart.hpp"
-#include "../src/cascading/NetworkToGraphOfPartsConverter.hpp"
-#include "../src/cascading/OutputPart.hpp"
 #include "TestUtils.hpp"
 
 #include <catch.hpp>
-#include <ethosn_command_stream/CommandStreamBuffer.hpp>
 
 using namespace ethosn;
 using namespace ethosn::support_library;
@@ -221,8 +220,7 @@ TEST_CASE("Compile a network with Requantize layer with different input/output t
     const InputPart* inputPart0 = dynamic_cast<const InputPart*>(&graph.GetPart(0));
     REQUIRE(inputPart0 != nullptr);
 
-    Plans plansInputPart0 =
-        inputPart0->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, { nullptr }, 1);
+    Plans plansInputPart0 = inputPart0->GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
     CHECK(plansInputPart0.size() == 1);
 
     Buffer* bufferOutputPart0 = plansInputPart0[0].GetOutputBuffer(PartOutputSlot{ inputPart0->GetPartId(), 0 });
@@ -255,8 +253,7 @@ TEST_CASE("Compile a network with Requantize layer with different input/output t
     const OutputPart* outputPart2 = dynamic_cast<const OutputPart*>(&graph.GetPart(2));
     REQUIRE(outputPart2 != nullptr);
 
-    Plans plansOutputPart2 =
-        outputPart2->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, { nullptr }, 1);
+    Plans plansOutputPart2 = outputPart2->GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
     CHECK(plansOutputPart2.size() == 1);
 
     Buffer* bufferInputPart2 = plansOutputPart2[0].GetInputBuffer(PartInputSlot{ outputPart2->GetPartId(), 0 });

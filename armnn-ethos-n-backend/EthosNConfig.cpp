@@ -88,7 +88,6 @@ constexpr char EthosNConfig::PERF_VARIANT_VAR[];
 constexpr char EthosNConfig::PERF_SRAM_SIZE_BYTES_OVERRIDE_VAR[];
 constexpr char EthosNConfig::PERF_OUT_DIR_VAR[];
 constexpr char EthosNConfig::DUMP_DEBUG_FILES_VAR[];
-constexpr char EthosNConfig::DUMP_RAM_VAR[];
 constexpr char EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING[];
 constexpr char EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING[];
 constexpr char EthosNConfig::PERF_CURRENT[];
@@ -185,10 +184,6 @@ std::istream& operator>>(std::istream& configFile, armnn::EthosNConfig& config)
                                            std::to_string(lineNo) + ": " + line +
                                            ". Supported values are 0/1/None/Medium/High");
                 }
-            }
-            else if (m[1] == armnn::EthosNConfig::DUMP_RAM_VAR)
-            {
-                config.m_DumpRam = TryConvertToBool(m[2], line, lineNo);
             }
             else if (m[1] == armnn::EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING)
             {

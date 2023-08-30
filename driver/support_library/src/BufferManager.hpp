@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <map>
+#include <string>
 #include <vector>
 
 namespace ethosn
@@ -68,6 +69,8 @@ public:
     /// The command index at which this buffer ends its lifetime. This is a 'one past the end' value, i.e.
     /// this is most likely the index immediately after the one for the command which last uses this buffer.
     uint32_t m_LifetimeEnd;
+    /// Used for dumping buffers as files in the driver library.
+    std::string m_DebugName;
 };
 
 /// Maintains and builds up the set of buffers required by the compiled network.
@@ -85,7 +88,7 @@ public:
     /// @}
 
     /// Adds the command stream buffer, which always has an ID of zero.
-    void AddCommandStream(const ethosn::command_stream::CommandStreamBuffer& cmdStream);
+    void AddCommandStream(const std::vector<uint32_t>& cmdStreamData);
 
     /// Changes the given buffer into an output.
     void ChangeToOutput(uint32_t bufferId, uint32_t sourceOperationId, uint32_t sourceOperationOutputIndex);
@@ -101,6 +104,8 @@ public:
     /// If the given buffer is an SRAM buffer then returns the offset in SRAM of the given buffer,
     /// otherwise returns zero.
     uint32_t GetSramOffset(uint32_t bufferId);
+
+    void SetDebugName(uint32_t bufferId, std::string debugName);
 
     /// Sets of m_Offset field of all DRAM buffers such that all buffers of each type are laid out contiguously.
     /// Also fills in m_ConstantDmaData and m_ConstantControlUnitData with the concatenated data from all

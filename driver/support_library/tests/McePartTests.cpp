@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "../src/Compiler.hpp"
+#include "../src/McePart.hpp"
+#include "../src/Visualisation.hpp"
 #include "CapabilitiesInternal.hpp"
 #include "GlobalParameters.hpp"
 #include "TestUtils.hpp"
 #include "ThreadPool.hpp"
 #include "Utils.hpp"
-#include "cascading/Cascading.hpp"
-#include "cascading/McePart.hpp"
-#include "cascading/Visualisation.hpp"
 #include "ethosn_support_library/Support.hpp"
 
 #include <catch.hpp>
@@ -229,7 +229,7 @@ void CheckInputDram(const CheckPlansParams& params, PlanDesc& desc)
     if (params.m_InputLocation == PlanInputLocation::Dram)
     {
         CHECK(desc.m_InputDram->m_Location == Location::Dram);
-        CHECK(desc.m_InputDram->m_Format == CascadingBufferFormat::NHWCB);
+        CHECK(desc.m_InputDram->m_Format == BufferFormat::NHWCB);
         if (params.m_InputQuantInfo)
         {
             CHECK(desc.m_InputDram->m_QuantizationInfo == params.m_InputQuantInfo.value());
@@ -247,7 +247,7 @@ void CheckInputSram(PlanDesc& desc, const CheckPlansParams& params)
 {
     // Check properties of Input SRAM buffer
     CHECK(desc.m_InputSram->m_Location == Location::Sram);
-    CHECK(desc.m_InputSram->m_Format == CascadingBufferFormat::NHWCB);
+    CHECK(desc.m_InputSram->m_Format == BufferFormat::NHWCB);
     if (params.m_InputQuantInfo)
     {
         CHECK(desc.m_InputSram->m_QuantizationInfo == params.m_InputQuantInfo.value());
@@ -273,7 +273,7 @@ void CheckWeightsDram(PlanDesc& desc, const CheckPlansParams& params)
 {
     // Check properties of Weights DRAM buffer
     CHECK(desc.m_WeightsDram->m_Location == Location::Dram);
-    CHECK(desc.m_WeightsDram->m_Format == CascadingBufferFormat::WEIGHT);
+    CHECK(desc.m_WeightsDram->m_Format == BufferFormat::WEIGHT);
     if (params.m_WeightsTensorInfo)
     {
         CHECK(desc.m_WeightsDram->m_QuantizationInfo == params.m_WeightsTensorInfo.value().m_QuantizationInfo);
@@ -288,7 +288,7 @@ void CheckWeightsSram(PlanDesc& desc, const CheckPlansParams& params)
 {
     // Check properties of Weights SRAM buffer
     CHECK(desc.m_WeightsSram->m_Location == Location::Sram);
-    CHECK(desc.m_WeightsSram->m_Format == CascadingBufferFormat::WEIGHT);
+    CHECK(desc.m_WeightsSram->m_Format == BufferFormat::WEIGHT);
     if (params.m_WeightsTensorInfo)
     {
         CHECK(desc.m_WeightsSram->m_QuantizationInfo == params.m_WeightsTensorInfo.value().m_QuantizationInfo);
@@ -308,7 +308,7 @@ void CheckPleInputSram(PlanDesc& desc, const CheckPlansParams& params)
 {
     // Check properties of Ple Input SRAM buffer
     CHECK(desc.m_PleInputSram->m_Location == Location::PleInputSram);
-    CHECK(desc.m_PleInputSram->m_Format == CascadingBufferFormat::NHWCB);
+    CHECK(desc.m_PleInputSram->m_Format == BufferFormat::NHWCB);
     if (params.m_OutputQuantInfo)
     {
         // Note if this isn't provided, we can still check the quant info by comparing with the m_OutputSram buffer,
@@ -330,7 +330,7 @@ void CheckOutputSram(PlanDesc& desc, const CheckPlansParams& params)
     if (desc.m_OutputSram)
     {
         CHECK(desc.m_OutputSram->m_Location == Location::Sram);
-        CHECK(desc.m_OutputSram->m_Format == CascadingBufferFormat::NHWCB);
+        CHECK(desc.m_OutputSram->m_Format == BufferFormat::NHWCB);
         if (params.m_OutputQuantInfo)
         {
             CHECK(desc.m_OutputSram->m_QuantizationInfo == params.m_OutputQuantInfo.value());
@@ -357,7 +357,7 @@ void CheckOutputDram(PlanDesc& desc, const CheckPlansParams& params)
     if (desc.m_OutputDram)
     {
         CHECK(desc.m_OutputDram->m_Location == Location::Dram);
-        CHECK(desc.m_OutputDram->m_Format == CascadingBufferFormat::NHWCB);
+        CHECK(desc.m_OutputDram->m_Format == BufferFormat::NHWCB);
         if (params.m_OutputQuantInfo)
         {
             CHECK(desc.m_OutputDram->m_QuantizationInfo == params.m_OutputQuantInfo.value());
@@ -717,7 +717,7 @@ TEST_CASE("McePart GetPlans structure")
 
         WHEN("Asked to produce Lonely plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans structure Lonely");
 
             THEN("The plans are valid, start and end in Sram")
@@ -734,7 +734,7 @@ TEST_CASE("McePart GetPlans structure")
 
         WHEN("Asked to produce Beginning plans with Sram output")
         {
-            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plans = part.GetPlans(CascadeType::Beginning, BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans structure Beginning with Sram output");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -756,7 +756,7 @@ TEST_CASE("McePart GetPlans structure")
         {
             part.SetOutputRequirements({ BoundaryRequirements{} }, { true });
 
-            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plans = part.GetPlans(CascadeType::Beginning, BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans structure Beginning with PleInputSram output");
 
             THEN("The plans are valid and start in Sram and end in PleInputSram")
@@ -775,7 +775,7 @@ TEST_CASE("McePart GetPlans structure")
         WHEN("Asked to produce Middle plans with Sram output")
         {
             std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
-                                                         .AddFormat(CascadingBufferFormat::NHWCB)
+                                                         .AddFormat(BufferFormat::NHWCB)
                                                          .AddQuantization({ 0, 1.0f })
                                                          .AddTensorShape(tsIn)
                                                          .AddStripeShape(TensorShape{ 1, 8, 16, 16 })
@@ -783,8 +783,7 @@ TEST_CASE("McePart GetPlans structure")
                                                          .AddSlotSize(8 * 16 * 16 * 1)
                                                          .AddNumStripes(1);
 
-            Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, { prevBuffer.get() }, 1);
+            Plans plans = part.GetPlans(CascadeType::Middle, BlockConfig{ 8U, 8U }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart GetPlans structure Middle with Sram output");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -804,7 +803,7 @@ TEST_CASE("McePart GetPlans structure")
             part.SetOutputRequirements({ BoundaryRequirements{} }, { true });
 
             std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
-                                                         .AddFormat(CascadingBufferFormat::NHWCB)
+                                                         .AddFormat(BufferFormat::NHWCB)
                                                          .AddQuantization({ 0, 1.0f })
                                                          .AddTensorShape(tsIn)
                                                          .AddStripeShape(TensorShape{ 1, 8, 16, 16 })
@@ -812,8 +811,7 @@ TEST_CASE("McePart GetPlans structure")
                                                          .AddSlotSize(8 * 16 * 16 * 1)
                                                          .AddNumStripes(1);
 
-            Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, { prevBuffer.get() }, 1);
+            Plans plans = part.GetPlans(CascadeType::Middle, BlockConfig{ 8U, 8U }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart GetPlans structure Middle with PleInputSram output");
 
             THEN("The plans are valid and start in Sram and end in PleInputSram")
@@ -831,7 +829,7 @@ TEST_CASE("McePart GetPlans structure")
         WHEN("Asked to produce End plans")
         {
             std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
-                                                         .AddFormat(CascadingBufferFormat::NHWCB)
+                                                         .AddFormat(BufferFormat::NHWCB)
                                                          .AddQuantization({ 0, 1.0f })
                                                          .AddTensorShape(tsIn)
                                                          .AddStripeShape(TensorShape{ 1, 8, 16, 16 })
@@ -839,8 +837,7 @@ TEST_CASE("McePart GetPlans structure")
                                                          .AddSlotSize(8 * 16 * 16 * 1)
                                                          .AddNumStripes(1);
 
-            Plans plans =
-                part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, { prevBuffer.get() }, 1);
+            Plans plans = part.GetPlans(CascadeType::End, BlockConfig{ 8U, 8U }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart GetPlans structure End");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -923,7 +920,7 @@ TEST_CASE("McePart End Cascade full tensor")
         WHEN("Asked to produce End plans")
         {
             std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
-                                                         .AddFormat(CascadingBufferFormat::NHWCB)
+                                                         .AddFormat(BufferFormat::NHWCB)
                                                          .AddQuantization({ 0, 1.0f })
                                                          .AddTensorShape(tsIn)
                                                          .AddStripeShape(TensorShape{ 1, 24, 24, 256 })
@@ -931,8 +928,7 @@ TEST_CASE("McePart End Cascade full tensor")
                                                          .AddSlotSize(24 * 24 * 256 * 1)
                                                          .AddNumStripes(1);
 
-            Plans plans =
-                part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 16U, 16U }, { prevBuffer.get() }, 1);
+            Plans plans = part.GetPlans(CascadeType::End, BlockConfig{ 16U, 16U }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart End Cascade");
 
             THEN("The plans have split the output of the mce, ple and memory buffer")
@@ -944,7 +940,7 @@ TEST_CASE("McePart End Cascade full tensor")
                 params.m_Any.push_back(
                     [](const PlanDesc& plan) { return plan.m_Output->m_Location == Location::Sram; });
                 params.m_All = [&](const PlanDesc& plan) {
-                    CHECK(plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16U, 16U });
+                    CHECK(plan.m_Mce->m_BlockConfig == BlockConfig{ 16U, 16U });
                     CHECK(plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 24, 24, 256 });
                     CHECK(plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 24, 24, 16 });
                     CHECK(plan.m_Ple->m_InputStripeShapes[0] == TensorShape{ 1, 24, 24, 16 });
@@ -983,7 +979,7 @@ TEST_CASE("McePart GetPlans Strategy3", "[slow]")
 
         WHEN("Asked to generate plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans Strategy3");
 
             THEN("The plans are valid and contain at least one plan with Strategy3 stripe shapes and properties")
@@ -1014,7 +1010,7 @@ TEST_CASE("McePart GetPlans Strategy3", "[slow]")
                                            plan.m_OutputSram->m_SizeInBytes == 16 * 16 * 16 &&
                                            plan.m_OutputSram->Sram()->m_NumStripes == 1;
                     bool mceValid = plan.m_Mce->m_Algo == CompilerMceAlgorithm::Direct &&
-                                    plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
+                                    plan.m_Mce->m_BlockConfig == BlockConfig{ 16u, 16u } &&
                                     plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 16, 16, 16 } &&
                                     plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 16, 16, 16 } &&
                                     plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 16, 16 } &&
@@ -1058,7 +1054,7 @@ TEST_CASE("McePart GetPlans Strategy0", "[slow]")
 
         WHEN("Asked to generate plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans Strategy0");
 
             THEN("The plans are valid and contain at least one plan with Strategy0 stripe shapes and properties")
@@ -1089,7 +1085,7 @@ TEST_CASE("McePart GetPlans Strategy0", "[slow]")
                                            plan.m_OutputSram->m_SizeInBytes == 8 * 16 * 16 &&
                                            plan.m_OutputSram->Sram()->m_NumStripes == 1;
                     bool mceValid = plan.m_Mce->m_Algo == CompilerMceAlgorithm::Direct &&
-                                    plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 8u } &&
+                                    plan.m_Mce->m_BlockConfig == BlockConfig{ 16u, 8u } &&
                                     plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 8, 16, 16 } &&
                                     plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 8, 16, 16 } &&
                                     plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 16, 16 } &&
@@ -1132,10 +1128,10 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
 
         WHEN("Asked to generate plans with a specific block config, Sram Buffer, and the number of weight stripes")
         {
-            command_stream::BlockConfig requestedBlockConfig = { 32u, 8u };
+            BlockConfig requestedBlockConfig = { 32u, 8u };
 
             std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
-                                                         .AddFormat(CascadingBufferFormat::NHWCB)
+                                                         .AddFormat(BufferFormat::NHWCB)
                                                          .AddQuantization({ 0, 1.0f })
                                                          .AddTensorShape(inputShape)
                                                          .AddStripeShape(TensorShape{ 1, 8, 16, 16 })
@@ -1171,10 +1167,10 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
         }
         WHEN("Asked to generate plans with a specific block config, Sram Buffer, and too many weight stripes")
         {
-            command_stream::BlockConfig requestedBlockConfig = { 32u, 8u };
+            BlockConfig requestedBlockConfig = { 32u, 8u };
 
             std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
-                                                         .AddFormat(CascadingBufferFormat::NHWCB)
+                                                         .AddFormat(BufferFormat::NHWCB)
                                                          .AddQuantization({ 0, 1.0f })
                                                          .AddTensorShape(inputShape)
                                                          .AddStripeShape(TensorShape{ 1, 8, 16, 16 })
@@ -1194,10 +1190,10 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
         }
         WHEN("Asked to generate plans with an sram buffer with too much data")
         {
-            command_stream::BlockConfig requestedBlockConfig = { 32u, 8u };
+            BlockConfig requestedBlockConfig = { 32u, 8u };
 
             std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
-                                                         .AddFormat(CascadingBufferFormat::NHWCB)
+                                                         .AddFormat(BufferFormat::NHWCB)
                                                          .AddQuantization({ 0, 1.0f })
                                                          .AddTensorShape(inputShape)
                                                          .AddStripeShape(TensorShape{ 1, 8, 16, 16 })
@@ -1247,8 +1243,7 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
         {
             const uint32_t numWeightStripes = 1;
 
-            Plans plans0 =
-                part0.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, numWeightStripes);
+            Plans plans0 = part0.GetPlans(CascadeType::Beginning, BlockConfig{}, { nullptr }, numWeightStripes);
 
             SavePlansToDot(plans0, "McePart GetPlans Filters Block Config");
 
@@ -1278,7 +1273,7 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
                                           plan.m_OutputSram->Sram()->m_NumStripes == 1;
                     }
                     bool mceValid = plan.m_Mce->m_Algo == CompilerMceAlgorithm::Direct &&
-                                    plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 8u } &&
+                                    plan.m_Mce->m_BlockConfig == BlockConfig{ 16u, 8u } &&
                                     plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 8, 16, 16 } &&
                                     plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 8, 16, 16 } &&
                                     plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 16, 16 } &&
@@ -1304,7 +1299,7 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
                 });
                 CheckPlans(plans0, params);
 
-                command_stream::BlockConfig requestedBlockConfig = { 16u, 8u };
+                BlockConfig requestedBlockConfig = { 16u, 8u };
 
                 REQUIRE(part0OutputBuffer != nullptr);
                 Plans plans1 =
@@ -1344,7 +1339,7 @@ TEST_CASE("McePart GetPlans Winograd")
 
         WHEN("Asked to generate plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans Winograd");
 
             THEN("The plans are valid and have winograd enabled where possible")
@@ -1357,9 +1352,9 @@ TEST_CASE("McePart GetPlans Winograd")
                     {
                         CHECK(plan.m_Mce->m_Algo == CompilerMceAlgorithm::Direct);
                     }
-                    else if ((plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 8U, 8U }) ||
-                             (plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 8U, 16U }) ||
-                             (plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16U, 8U }))
+                    else if ((plan.m_Mce->m_BlockConfig == BlockConfig{ 8U, 8U }) ||
+                             (plan.m_Mce->m_BlockConfig == BlockConfig{ 8U, 16U }) ||
+                             (plan.m_Mce->m_BlockConfig == BlockConfig{ 16U, 8U }))
                     {
                         CHECK(plan.m_Mce->m_Algo == CompilerMceAlgorithm::Winograd);
                     }
@@ -1394,7 +1389,7 @@ TEST_CASE("McePart GetPlans Split input in height and width in the case of block
 
         WHEN("Asked to generate plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans Split input in height and width");
 
             THEN("The plans are valid, do have expected stripe configs")
@@ -1426,9 +1421,9 @@ TEST_CASE("McePart GetPlans Split output in depth")
         DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
         ThreadPool threadPool(0);
 
-        const command_stream::BlockConfig blockConfig = { 8u, 8u };
+        const BlockConfig blockConfig = { 8u, 8u };
         const uint32_t channels =
-            utils::DivRoundUp(caps.GetTotalSramSize(), blockConfig.m_BlockWidth() * blockConfig.m_BlockHeight());
+            utils::DivRoundUp(caps.GetTotalSramSize(), blockConfig.m_Width * blockConfig.m_Height);
 
         TensorShape inputShape{ 1, 8, 8, 32 };
         TensorShape outputShape{ 1, 8, 8, channels };
@@ -1438,7 +1433,7 @@ TEST_CASE("McePart GetPlans Split output in depth")
 
         WHEN("Asked to generate plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans Split output in depth");
 
             THEN("The plans are valid and contain at least one plan with the stripe config we expect")
@@ -1524,7 +1519,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
 
             std::unique_ptr<SramBuffer> prevBuffer =
                 SramBuffer::Build()
-                    .AddFormat(CascadingBufferFormat::NHWCB)
+                    .AddFormat(BufferFormat::NHWCB)
                     .AddQuantization({ 0, 1.0f })
                     .AddTensorShape(inputShape)
                     .AddStripeShape(TensorShape{ 1, 112, 112, 64 })
@@ -1532,8 +1527,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                     .AddSlotSize(112 * 112 * 64)
                     .AddNumStripes(1);    // For strategy 1 cascading, the buffers in SRAM are always the full tensor.
 
-            Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
+            Plans plans = part.GetPlans(CascadeType::Middle, BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart GetPlans MobileNet Part 2");
             CHECK(plans.size() == 1);
             CheckPlansParams params;
@@ -1542,7 +1536,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        plan.m_InputSram->Sram()->m_NumStripes == 1 &&
                        plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 3, 3, 64, 32 } &&    // Strided
                        plan.m_WeightsSram->Sram()->m_NumStripes == 1 &&
-                       plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
+                       plan.m_Mce->m_BlockConfig == BlockConfig{ 16u, 16u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 112, 112, 64 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 3, 3, 64, 32 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 112, 112, 32 } &&
@@ -1572,7 +1566,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
 
             std::unique_ptr<SramBuffer> prevBuffer =
                 SramBuffer::Build()
-                    .AddFormat(CascadingBufferFormat::NHWCB)
+                    .AddFormat(BufferFormat::NHWCB)
                     .AddQuantization({ 0, 1.0f })
                     .AddTensorShape(inputShape)
                     .AddStripeShape(TensorShape{ 1, 112, 112, 32 })
@@ -1580,8 +1574,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                     .AddSlotSize(112 * 112 * 32)
                     .AddNumStripes(1);    // For strategy 1 cascading, the buffers in SRAM are always the full tensor.
 
-            Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
+            Plans plans = part.GetPlans(CascadeType::Middle, BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart GetPlans MobileNet Part 3");
             CHECK(plans.size() == 1);
             CheckPlansParams params;
@@ -1590,7 +1583,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        plan.m_InputSram->Sram()->m_NumStripes == 1 &&
                        plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 3, 3, 32, 1 } &&
                        plan.m_WeightsSram->Sram()->m_NumStripes == 1 &&
-                       plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
+                       plan.m_Mce->m_BlockConfig == BlockConfig{ 16u, 16u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 112, 112, 32 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 3, 3, 32, 1 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 112, 112, 32 } &&
@@ -1617,7 +1610,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
 
             std::unique_ptr<SramBuffer> prevBuffer =
                 SramBuffer::Build()
-                    .AddFormat(CascadingBufferFormat::NHWCB)
+                    .AddFormat(BufferFormat::NHWCB)
                     .AddQuantization({ 0, 1.0f })
                     .AddTensorShape(inputShape)
                     .AddStripeShape(TensorShape{ 1, 112, 112, 32 })
@@ -1625,8 +1618,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                     .AddSlotSize(112 * 112 * 32)
                     .AddNumStripes(1);    // For strategy 1 cascading, the buffers in SRAM are always the full tensor.
 
-            Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 2);
+            Plans plans = part.GetPlans(CascadeType::Middle, BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 2);
             SavePlansToDot(plans, "McePart GetPlans MobileNet Part 4");
             CHECK(plans.size() == 1);
             CheckPlansParams params;
@@ -1635,7 +1627,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        plan.m_InputSram->Sram()->m_NumStripes == 1 &&
                        plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 1, 1, 32, 32 } &&
                        plan.m_WeightsSram->Sram()->m_NumStripes == 2 &&
-                       plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
+                       plan.m_Mce->m_BlockConfig == BlockConfig{ 16u, 16u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 112, 112, 32 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 32, 32 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 112, 112, 32 } &&
@@ -1660,7 +1652,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
 
             std::unique_ptr<SramBuffer> prevBuffer =
                 SramBuffer::Build()
-                    .AddFormat(CascadingBufferFormat::NHWCB)
+                    .AddFormat(BufferFormat::NHWCB)
                     .AddQuantization({ 0, 1.0f })
                     .AddTensorShape(inputShape)
                     .AddStripeShape(TensorShape{ 1, 56, 56, 256 })
@@ -1668,8 +1660,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                     .AddSlotSize(56 * 56 * 256)
                     .AddNumStripes(1);    // For strategy 1 cascading, the buffers in SRAM are always the full tensor.
 
-            Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
+            Plans plans = part.GetPlans(CascadeType::Middle, BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart GetPlans MobileNet Part 6");
             CHECK(plans.size() == 1);
             CheckPlansParams params;
@@ -1678,7 +1669,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        plan.m_InputSram->Sram()->m_NumStripes == 1 &&
                        plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 3, 3, 256, 1 } &&
                        plan.m_WeightsSram->Sram()->m_NumStripes == 1 &&
-                       plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
+                       plan.m_Mce->m_BlockConfig == BlockConfig{ 16u, 16u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 56, 56, 256 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 3, 3, 256, 1 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 56, 56, 64 } &&
@@ -1704,7 +1695,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
 
             std::unique_ptr<SramBuffer> prevBuffer =
                 SramBuffer::Build()
-                    .AddFormat(CascadingBufferFormat::NHWCB)
+                    .AddFormat(BufferFormat::NHWCB)
                     .AddQuantization({ 0, 1.0f })
                     .AddTensorShape(inputShape)
                     .AddStripeShape(TensorShape{ 1, 56, 56, 64 })
@@ -1712,8 +1703,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                     .AddSlotSize(56 * 56 * 64)
                     .AddNumStripes(1);    // For strategy 1 cascading, the buffers in SRAM are always the full tensor.
 
-            Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 2);
+            Plans plans = part.GetPlans(CascadeType::Middle, BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 2);
             SavePlansToDot(plans, "McePart GetPlans MobileNet Part 7");
             CHECK(plans.size() == 1);
             CheckPlansParams params;
@@ -1722,7 +1712,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        plan.m_InputSram->Sram()->m_NumStripes == 1 &&
                        plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 1, 1, 64, 32 } &&
                        plan.m_WeightsSram->Sram()->m_NumStripes == 2 &&
-                       plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
+                       plan.m_Mce->m_BlockConfig == BlockConfig{ 16u, 16u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 56, 56, 64 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 64, 32 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 56, 56, 32 } &&
@@ -1749,7 +1739,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
 
             std::unique_ptr<SramBuffer> prevBuffer =
                 SramBuffer::Build()
-                    .AddFormat(CascadingBufferFormat::NHWCB)
+                    .AddFormat(BufferFormat::NHWCB)
                     .AddQuantization({ 0, 1.0f })
                     .AddTensorShape(inputShape)
                     .AddStripeShape(TensorShape{ 1, 56, 56, 128 })
@@ -1757,8 +1747,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                     .AddSlotSize(56 * 56 * 128)
                     .AddNumStripes(1);    // For strategy 1 cascading, the buffers in SRAM are always the full tensor.
 
-            Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
+            Plans plans = part.GetPlans(CascadeType::Middle, BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart GetPlans MobileNet Part 8");
             CHECK(plans.size() == 1);
             CheckPlansParams params;
@@ -1767,7 +1756,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        plan.m_InputSram->Sram()->m_NumStripes == 1 &&
                        plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 3, 3, 128, 1 } &&
                        plan.m_WeightsSram->Sram()->m_NumStripes == 1 &&
-                       plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
+                       plan.m_Mce->m_BlockConfig == BlockConfig{ 16u, 16u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 56, 56, 128 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 3, 3, 128, 1 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 56, 56, 128 } &&
@@ -1794,7 +1783,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
 
             std::unique_ptr<SramBuffer> prevBuffer =
                 SramBuffer::Build()
-                    .AddFormat(CascadingBufferFormat::NHWCB)
+                    .AddFormat(BufferFormat::NHWCB)
                     .AddQuantization({ 0, 1.0f })
                     .AddTensorShape(inputShape)
                     .AddStripeShape(TensorShape{ 1, 56, 56, 128 })
@@ -1802,8 +1791,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                     .AddSlotSize(56 * 56 * 128)
                     .AddNumStripes(1);    // For strategy 1 cascading, the buffers in SRAM are always the full tensor.
 
-            Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 2);
+            Plans plans = part.GetPlans(CascadeType::Middle, BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 2);
             SavePlansToDot(plans, "McePart GetPlans MobileNet Part 9");
             CHECK(plans.size() == 1);
             CheckPlansParams params;
@@ -1812,7 +1800,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        plan.m_InputSram->Sram()->m_NumStripes == 1 &&
                        plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 1, 1, 128, 32 } &&
                        plan.m_WeightsSram->Sram()->m_NumStripes == 2 &&
-                       plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
+                       plan.m_Mce->m_BlockConfig == BlockConfig{ 16u, 16u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 56, 56, 128 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 128, 32 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 56, 56, 32 } &&
@@ -1845,7 +1833,7 @@ TEST_CASE("McePart GetPlans Upsampling")
 
         WHEN("Asked to generate Lonely plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "McePart GetPlans Upsampling Lonely");
 
             THEN("The plans are all valid and have stripe configs that are consistent with upsampling and there is a "
@@ -1877,7 +1865,7 @@ TEST_CASE("McePart GetPlans Upsampling")
         WHEN("Asked to generate Middle plans")
         {
             std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
-                                                         .AddFormat(CascadingBufferFormat::NHWCB)
+                                                         .AddFormat(BufferFormat::NHWCB)
                                                          .AddQuantization({ 0, 1.0f })
                                                          .AddTensorShape(tsIn)
                                                          .AddStripeShape(TensorShape{ 1, 8, 64, 16 })
@@ -1885,8 +1873,7 @@ TEST_CASE("McePart GetPlans Upsampling")
                                                          .AddSlotSize(8 * 64 * 16 * 1)
                                                          .AddNumStripes(3);
 
-            Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 32u, 8u }, { prevBuffer.get() }, 1);
+            Plans plans = part.GetPlans(CascadeType::Middle, BlockConfig{ 32u, 8u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "McePart GetPlans Upsampling Middle");
 
             THEN("The plans are all valid and have stripe configs that are consistent with upsampling and there is a "

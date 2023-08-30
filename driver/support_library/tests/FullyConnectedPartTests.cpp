@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "../src/Compiler.hpp"
+#include "../src/FullyConnectedPart.hpp"
+#include "../src/Visualisation.hpp"
 #include "CapabilitiesInternal.hpp"
 #include "GlobalParameters.hpp"
 #include "TestUtils.hpp"
 #include "ThreadPool.hpp"
 #include "Utils.hpp"
-#include "cascading/Cascading.hpp"
-#include "cascading/FullyConnectedPart.hpp"
-#include "cascading/Visualisation.hpp"
 #include "ethosn_support_library/Support.hpp"
 
 #include <catch.hpp>
@@ -149,7 +149,7 @@ void CheckInputDram(const CheckPlansParams& params, PlanDesc& desc)
     if (params.m_InputLocation == PlanInputLocation::Dram)
     {
         CHECK(desc.m_InputDram->m_Location == Location::Dram);
-        CHECK(desc.m_InputDram->m_Format == CascadingBufferFormat::NHWC);
+        CHECK(desc.m_InputDram->m_Format == BufferFormat::NHWC);
         if (params.m_InputQuantInfo)
         {
             CHECK(desc.m_InputDram->m_QuantizationInfo == params.m_InputQuantInfo.value());
@@ -198,7 +198,7 @@ void CheckInputSram(PlanDesc& desc, const CheckPlansParams& params)
     };
     // Check properties of Input SRAM buffer
     CHECK(desc.m_InputSram->m_Location == Location::Sram);
-    CHECK(desc.m_InputSram->m_Format == CascadingBufferFormat::NHWCB);
+    CHECK(desc.m_InputSram->m_Format == BufferFormat::NHWCB);
     if (params.m_InputQuantInfo)
     {
         CHECK(desc.m_InputSram->m_QuantizationInfo == params.m_InputQuantInfo.value());
@@ -225,7 +225,7 @@ void CheckWeightsDram(PlanDesc& desc, const CheckPlansParams& params)
 {
     // Check properties of Weights DRAM buffer
     CHECK(desc.m_WeightsDram->m_Location == Location::Dram);
-    CHECK(desc.m_WeightsDram->m_Format == CascadingBufferFormat::WEIGHT);
+    CHECK(desc.m_WeightsDram->m_Format == BufferFormat::WEIGHT);
     if (params.m_WeightsTensorInfo)
     {
         CHECK(desc.m_WeightsDram->m_QuantizationInfo == params.m_WeightsTensorInfo.value().m_QuantizationInfo);
@@ -240,7 +240,7 @@ void CheckWeightsSram(PlanDesc& desc, const CheckPlansParams& params)
 {
     // Check properties of Weights SRAM buffer
     CHECK(desc.m_WeightsSram->m_Location == Location::Sram);
-    CHECK(desc.m_WeightsSram->m_Format == CascadingBufferFormat::WEIGHT);
+    CHECK(desc.m_WeightsSram->m_Format == BufferFormat::WEIGHT);
     if (params.m_WeightsTensorInfo)
     {
         CHECK(desc.m_WeightsSram->m_QuantizationInfo == params.m_WeightsTensorInfo.value().m_QuantizationInfo);
@@ -260,7 +260,7 @@ void CheckPleInputSram(PlanDesc& desc, const CheckPlansParams& params)
 {
     // Check properties of Ple Input SRAM buffer
     CHECK(desc.m_PleInputSram->m_Location == Location::PleInputSram);
-    CHECK(desc.m_PleInputSram->m_Format == CascadingBufferFormat::NHWCB);
+    CHECK(desc.m_PleInputSram->m_Format == BufferFormat::NHWCB);
     if (params.m_OutputQuantInfo)
     {
         // Note if this isn't provided, we can still check the quant info by comparing with the m_OutputSram buffer,
@@ -282,7 +282,7 @@ void CheckOutputSram(PlanDesc& desc, const CheckPlansParams& params)
     if (desc.m_OutputSram)
     {
         CHECK(desc.m_OutputSram->m_Location == Location::Sram);
-        CHECK(desc.m_OutputSram->m_Format == CascadingBufferFormat::NHWCB);
+        CHECK(desc.m_OutputSram->m_Format == BufferFormat::NHWCB);
         if (params.m_OutputQuantInfo)
         {
             CHECK(desc.m_OutputSram->m_QuantizationInfo == params.m_OutputQuantInfo.value());
@@ -309,7 +309,7 @@ void CheckOutputDram(PlanDesc& desc, const CheckPlansParams& params)
     if (desc.m_OutputDram)
     {
         CHECK(desc.m_OutputDram->m_Location == Location::Dram);
-        CHECK(desc.m_OutputDram->m_Format == CascadingBufferFormat::NHWCB);
+        CHECK(desc.m_OutputDram->m_Format == BufferFormat::NHWCB);
         if (params.m_OutputQuantInfo)
         {
             CHECK(desc.m_OutputDram->m_QuantizationInfo == params.m_OutputQuantInfo.value());
@@ -395,7 +395,7 @@ void CheckMce(const CheckPlansParams& params, PlanDesc& desc)
     {
         CHECK(desc.m_Mce->m_Op == params.m_MceOp.value());
     }
-    CHECK(desc.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 8u, 8u });
+    CHECK(desc.m_Mce->m_BlockConfig == BlockConfig{ 8u, 8u });
     // m_Algo, m_InputStripeShape, m_OutputStripeShape, m_WeightsStripeShape, m_Order will depend on the streaming strategy, and so cannot be checked generically
     if (params.m_Stride)
     {
@@ -634,7 +634,7 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
 
         WHEN("Asked to generate plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "FullyConnected GetPlans");
 
             THEN("The plans are valid and contain at least one plan with the full IFM and full OFM")

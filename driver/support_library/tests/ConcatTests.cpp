@@ -9,7 +9,6 @@
 #include "TestUtils.hpp"
 
 #include <catch.hpp>
-#include <ethosn_command_stream/CommandStreamBuffer.hpp>
 
 #include <cmath>
 

@@ -335,7 +335,6 @@ TEST_CASE("ZeroCopy")
         std::make_shared<ethosn::driver_library::Buffer>(std::move(bufInst2));
 
     ethosn::support_library::CompilationOptions options;
-    options.m_DebugInfo.m_DumpRam = params.m_Debug;
     InferenceOutputs actual = CreateEthosNMultipleInferenceOutput(params, ifm1, ifm2, *MakeTensor(ethosnWeightData),
                                                                   *MakeTensor(biasData), options, processMemAllocator);
 

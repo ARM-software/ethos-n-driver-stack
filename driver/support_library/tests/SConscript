@@ -24,7 +24,6 @@ srcs = [
     "ConcatTests.cpp",
     "SplitTests.cpp",
     "FullyConnectedTests.cpp",
-    "DumpTests.cpp",
     "AdditionTests.cpp",
     "PoolTests.cpp",
     "ReluTests.cpp",

@@ -7,7 +7,7 @@
 
 #include "../src/CapabilitiesInternal.hpp"
 #include "../src/Compiler.hpp"
-#include "../src/cascading/Plan.hpp"
+#include "../src/Plan.hpp"
 
 #include <cstring>
 #include <typeinfo>
@@ -19,8 +19,7 @@ namespace support_library
 
 HardwareCapabilities MockPart::ms_Capabilities = GetEthosN78HwCapabilities();
 
-ethosn::support_library::Plans
-    MockPart::GetPlans(CascadeType, ethosn::command_stream::BlockConfig, const std::vector<Buffer*>&, uint32_t) const
+ethosn::support_library::Plans MockPart::GetPlans(CascadeType, BlockConfig, const std::vector<Buffer*>&, uint32_t) const
 {
     Plans plans;
 
@@ -32,7 +31,7 @@ ethosn::support_library::Plans
     if (m_HasInput)
     {
         std::unique_ptr<DramBuffer> bufferPtr = DramBuffer::Build()
-                                                    .AddFormat(CascadingBufferFormat::NHWCB)
+                                                    .AddFormat(BufferFormat::NHWCB)
                                                     .AddTensorShape({ 1, 16, 16, 16 })
                                                     .AddSizeInBytes(16 * 16 * 16)
                                                     .AddQuantization({ 0, 1.f });
@@ -43,7 +42,7 @@ ethosn::support_library::Plans
     if (m_HasOutput)
     {
         std::unique_ptr<DramBuffer> bufferPtr = DramBuffer::Build()
-                                                    .AddFormat(CascadingBufferFormat::NHWCB)
+                                                    .AddFormat(BufferFormat::NHWCB)
                                                     .AddTensorShape({ 1, 16, 16, 16 })
                                                     .AddSizeInBytes(16 * 16 * 16)
                                                     .AddQuantization({ 0, 1.f });
@@ -118,33 +117,7 @@ bool Contains(const char* string, const char* substring)
     return strstr(string, substring) != nullptr;
 }
 
-std::vector<uint8_t> GetCommandStreamData(const ethosn::command_stream::CommandStreamBuffer& cmdStream)
-{
-    std::vector<uint8_t> data;
-    const uint8_t* begin = reinterpret_cast<const uint8_t*>(cmdStream.GetData().data());
-    const uint8_t* end   = begin + cmdStream.GetData().size() * sizeof(cmdStream.GetData()[0]);
-    data.assign(begin, end);
-    return data;
-}
-
-std::vector<uint8_t> GetCommandStreamData(const CompiledNetwork* compiledNetwork)
-{
-    const CompiledNetworkImpl* cnImpl = static_cast<const CompiledNetworkImpl*>(compiledNetwork);
-    auto& cuBufferInfo                = cnImpl->GetConstantControlUnitDataBufferInfos();
-    // The command stream buffer id is defined to be 0.
-    auto cmdStreamBufferInfo =
-        std::find_if(cuBufferInfo.begin(), cuBufferInfo.end(), [](const auto& b) { return b.m_Id == 0; });
-    if (cmdStreamBufferInfo == cuBufferInfo.end())
-    {
-        throw std::runtime_error("Can't find command stream buffer");
-    }
-
-    const uint8_t* begin = cnImpl->GetConstantControlUnitData().data() + cmdStreamBufferInfo->m_Offset;
-    const uint8_t* end   = begin + cmdStreamBufferInfo->m_Size;
-    return std::vector<uint8_t>(begin, end);
-}
-
-ethosn::command_stream::CommandStream GetCommandStream(const CompiledNetwork* compiledNetwork)
+std::vector<uint32_t> GetCommandStreamRaw(const CompiledNetwork* compiledNetwork)
 {
     const CompiledNetworkImpl* cnImpl = static_cast<const CompiledNetworkImpl*>(compiledNetwork);
     auto& cuBufferInfo                = cnImpl->GetConstantControlUnitDataBufferInfos();
@@ -159,7 +132,7 @@ ethosn::command_stream::CommandStream GetCommandStream(const CompiledNetwork* co
     const uint32_t* begin =
         reinterpret_cast<const uint32_t*>(cnImpl->GetConstantControlUnitData().data() + cmdStreamBufferInfo->m_Offset);
     const uint32_t* end = begin + cmdStreamBufferInfo->m_Size / sizeof(uint32_t);
-    return ethosn::command_stream::CommandStream(begin, end);
+    return std::vector<uint32_t>(begin, end);
 }
 
 bool IsEstimateOnlyOp(const Op* const op)

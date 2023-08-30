@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-#include <ethosn_command_stream/cascading/PleKernelIds.hpp>
+#include <ethosn_command_stream/PleKernelIds.hpp>
 
 extern const std::vector<std::pair<std::map<std::string, std::string>, ethosn::command_stream::PleKernelId>>
     g_PleKernelParamsToId =

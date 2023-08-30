@@ -4,19 +4,16 @@
 //
 
 #include "../src/DebuggingContext.hpp"
-#include "../src/cascading/Scheduler.hpp"
+#include "../src/Scheduler.hpp"
 #include "TestUtils.hpp"
 
 #include <catch.hpp>
 
 using namespace ethosn::support_library;
 using namespace ethosn::command_stream;
-using namespace ethosn::command_stream::cascading;
-using CommandVariant = ethosn::command_stream::CommandVariant;
 
 const char* CommandTypeToString(CommandType t)
 {
-    using namespace ethosn::command_stream::cascading;
     switch (t)
     {
         case CommandType::WaitForCounter:
@@ -40,7 +37,7 @@ const char* CommandTypeToString(CommandType t)
         case CommandType::StoreOfmStripe:
             return "StoreOfmStripe";
         default:
-            FAIL("Invalid cascading command type: " + std::to_string(static_cast<uint32_t>(t)));
+            FAIL("Invalid command type: " + std::to_string(static_cast<uint32_t>(t)));
             return "?";
     }
 }
@@ -185,7 +182,7 @@ OfmSDesc MakeOfmSDesc()
     return result;
 }
 
-TEST_CASE("Cascading/Scheduler/ComplexSingleLayer")
+TEST_CASE("Scheduler/ComplexSingleLayer")
 {
     HardwareCapabilities caps = GetEthosN78HwCapabilities();
     //        IfmS               WgtS                MceS                      PleL/PleS/OfmS

@@ -26,7 +26,6 @@ struct EthosNConfig
     static constexpr char PERF_SRAM_SIZE_BYTES_OVERRIDE_VAR[]   = "PERFORMANCE_SRAM_SIZE_BYTES_OVERRIDE";         // uint
     static constexpr char PERF_OUT_DIR_VAR[]                    = "PERFORMANCE_OUTPUT_DIR";                       // string
     static constexpr char DUMP_DEBUG_FILES_VAR[]                = "DUMP_DEBUG_FILES";                             // boolean
-    static constexpr char DUMP_RAM_VAR[]                        = "DUMP_RAM";                                     // boolean
     static constexpr char PERF_WEIGHT_COMPRESSION_SAVING[]      = "PERFORMANCE_WEIGHT_COMPRESSION_SAVING";        // float
     static constexpr char PERF_ACTIVATION_COMPRESSION_SAVING[]  = "PERFORMANCE_ACTIVATION_COMPRESSION_SAVING";    // float
     static constexpr char PERF_CURRENT[]                        = "PERFORMANCE_CURRENT";                          // boolean

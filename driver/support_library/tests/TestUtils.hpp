@@ -6,12 +6,10 @@
 #pragma once
 
 #include "../include/ethosn_support_library/Support.hpp"
+#include "../src/CombinerDFS.hpp"
+#include "../src/Part.hpp"
+#include "../src/Plan.hpp"
 #include "../src/Utils.hpp"
-#include "../src/cascading/CombinerDFS.hpp"
-#include "../src/cascading/Part.hpp"
-#include "../src/cascading/Plan.hpp"
-
-#include <ethosn_command_stream/CommandStreamBuffer.hpp>
 
 namespace ethosn
 {
@@ -27,11 +25,7 @@ std::vector<char> GetRawEthosN78Capabilities(EthosNVariant variant, uint32_t sra
 
 bool Contains(const char* string, const char* substring);
 
-std::vector<uint8_t> GetCommandStreamData(const ethosn::command_stream::CommandStreamBuffer& cmdStream);
-
-std::vector<uint8_t> GetCommandStreamData(const CompiledNetwork* compiledNetwork);
-
-ethosn::command_stream::CommandStream GetCommandStream(const CompiledNetwork* compiledNetwork);
+std::vector<uint32_t> GetCommandStreamRaw(const CompiledNetwork* compiledNetwork);
 
 class MockPart : public BasePart
 {
@@ -44,10 +38,7 @@ public:
         , m_HasOutput(hasOutput)
     {}
 
-    Plans GetPlans(CascadeType,
-                   ethosn::command_stream::BlockConfig,
-                   const std::vector<Buffer*>&,
-                   uint32_t) const override;
+    Plans GetPlans(CascadeType, BlockConfig, const std::vector<Buffer*>&, uint32_t) const override;
 
     utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const override
     {

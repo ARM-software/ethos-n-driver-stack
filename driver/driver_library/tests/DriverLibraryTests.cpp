@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -49,7 +49,7 @@ TEST_CASE("DeserializeCompiledNetwork")
             'E', 'N', 'C', 'N',
 
             // 4: Version (Major)
-            1, 0, 0, 0,
+            2, 0, 0, 0,
             // 8: Version (Minor)
             0, 0, 0, 0,
             // 12: Version (Patch)
@@ -68,29 +68,29 @@ TEST_CASE("DeserializeCompiledNetwork")
             // Input buffer infos (size)
             1, 0, 0, 0,
             // Input buffer info 0
-            10, 0, 0, 0, 11, 0, 0, 0, 12, 0, 0, 0,
+            10, 0, 0, 0, 11, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0,
 
             // Output buffer infos (size)
             2, 0, 0, 0,
             // Output buffer info 0
-            20, 0, 0, 0, 21, 0, 0, 0, 22, 0, 0, 0,
+            20, 0, 0, 0, 21, 0, 0, 0, 22, 0, 0, 0, 0, 0, 0, 0,
             // Output buffer info 1
-            21, 0, 0, 0, 23, 0, 0, 0, 24, 0, 0, 0,
+            21, 0, 0, 0, 23, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0,
 
             // Constant control unit data buffer infos (size)
             1, 0, 0, 0,
             // Constant control unit data buffer info 0
-            30, 0, 0, 0, 31, 0, 0, 0, 32, 0, 0, 0,
+            30, 0, 0, 0, 31, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0,
 
             // Constant DMA data buffer infos (size)
             1, 0, 0, 0,
             // Constant DMA data buffer info 0
-            40, 0, 0, 0, 41, 0, 0, 0, 42, 0, 0, 0,
+            40, 0, 0, 0, 41, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0,
 
             // Intermediate data buffer infos (size)
             1, 0, 0, 0,
             // Intermediate data buffer info 0
-            50, 0, 0, 0, 51, 0, 0, 0, 52, 0, 0, 0,
+            50, 0, 0, 0, 51, 0, 0, 0, 52, 0, 0, 0, 2, 0, 0, 0, 'H', 'I',
         };
         // clang-format on
 
@@ -113,7 +113,8 @@ TEST_CASE("DeserializeCompiledNetwork")
                 REQUIRE(compiledNetwork.m_ConstantControlUnitDataBufferInfos ==
                         std::vector<BufferInfo>{ { 30, 31, 32 } });
                 REQUIRE(compiledNetwork.m_ConstantDmaDataBufferInfos == std::vector<BufferInfo>{ { 40, 41, 42 } });
-                REQUIRE(compiledNetwork.m_IntermediateDataBufferInfos == std::vector<BufferInfo>{ { 50, 51, 52 } });
+                REQUIRE(compiledNetwork.m_IntermediateDataBufferInfos ==
+                        std::vector<BufferInfo>{ { 50, 51, 52, "HI" } });
 
                 REQUIRE(compiledNetwork.m_IntermediateDataSize == 103);
             }
@@ -131,7 +132,7 @@ TEST_CASE("DeserializeCompiledNetwork Errors")
         'E', 'N', 'C', 'N',
 
         // 4: Version (Major)
-        1, 0, 0, 0,
+        2, 0, 0, 0,
         // 8: Version (Minor)
         0, 0, 0, 0,
         // 12: Version (Patch)
@@ -150,29 +151,29 @@ TEST_CASE("DeserializeCompiledNetwork Errors")
         // Input buffer infos (size)
         1, 0, 0, 0,
         // Input buffer info 0
-        10, 0, 0, 0, 11, 0, 0, 0, 12, 0, 0, 0,
+        10, 0, 0, 0, 11, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0,
 
         // Output buffer infos (size)
         2, 0, 0, 0,
         // Output buffer info 0
-        20, 0, 0, 0, 21, 0, 0, 0, 22, 0, 0, 0,
+        20, 0, 0, 0, 21, 0, 0, 0, 22, 0, 0, 0, 0, 0, 0, 0,
         // Output buffer info 1
-        21, 0, 0, 0, 23, 0, 0, 0, 24, 0, 0, 0,
+        21, 0, 0, 0, 23, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0,
 
         // Constant control unit data buffer infos (size)
         1, 0, 0, 0,
         // Constant control unit data buffer info 0
-        30, 0, 0, 0, 31, 0, 0, 0, 32, 0, 0, 0,
+        30, 0, 0, 0, 31, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0,
 
         // Constant DMA data buffer infos (size)
         1, 0, 0, 0,
         // Constant DMA data buffer info 0
-        40, 0, 0, 0, 41, 0, 0, 0, 42, 0, 0, 0,
+        40, 0, 0, 0, 41, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0,
 
         // Intermediate data buffer infos (size)
         1, 0, 0, 0,
         // Intermediate data buffer info 0
-        50, 0, 0, 0, 51, 0, 0, 0, 52, 0, 0, 0,
+        50, 0, 0, 0, 51, 0, 0, 0, 52, 0, 0, 0, 0, 0, 0, 0,
     };
     // clang-format on
 
@@ -266,7 +267,7 @@ TEST_CASE("ProcMemAllocatorNetwork")
         'E', 'N', 'C', 'N',
 
         // 4: Version (Major)
-        1, 0, 0, 0,
+        2, 0, 0, 0,
         // 8: Version (Minor)
         0, 0, 0, 0,
         // 12: Version (Patch)
@@ -285,29 +286,29 @@ TEST_CASE("ProcMemAllocatorNetwork")
         // Input buffer infos (size)
         1, 0, 0, 0,
         // Input buffer info 0
-        3, 0, 0, 0, 11, 0, 0, 0, 12, 0, 0, 0,
+        3, 0, 0, 0, 11, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0,
 
         // Output buffer infos (size)
         2, 0, 0, 0,
         // Output buffer info 0
-        4, 0, 0, 0, 21, 0, 0, 0, 22, 0, 0, 0,
+        4, 0, 0, 0, 21, 0, 0, 0, 22, 0, 0, 0, 0, 0, 0, 0,
         // Output buffer info 1
-        5, 0, 0, 0, 23, 0, 0, 0, 24, 0, 0, 0,
+        5, 0, 0, 0, 23, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0,
 
         // Constant control unit data buffer infos (size)
         1, 0, 0, 0,
         // Constant control unit data buffer info 0 (buffer 1, offset 0, size 2)
-        1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0,
+        1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
 
         // Constant DMA data buffer infos (size)
         1, 0, 0, 0,
         // Constant DMA data buffer info 0 (buffer 0, offset 0, size 3)
-        0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
 
         // Intermediate data buffer infos (size)
         1, 0, 0, 0,
         // Intermediate data buffer info 0
-        2, 0, 0, 0, 51, 0, 0, 0, 52, 0, 0, 0,
+        2, 0, 0, 0, 51, 0, 0, 0, 52, 0, 0, 0, 0, 0, 0, 0,
     };
     // clang-format on
 

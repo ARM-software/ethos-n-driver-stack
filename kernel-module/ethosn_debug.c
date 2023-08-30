@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2021-2022 Arm Limited.
+ * (C) COPYRIGHT 2021-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -43,6 +43,13 @@ int ethosn_get_dma_view_fd(struct ethosn_device *ethosn,
 	struct ethosn_buffer *buf;
 	const struct file_operations *fops = ethosn_get_dma_view_fops();
 	int fd;
+
+	if (dma_info == NULL) {
+		dev_err(ethosn->dev,
+			"Failed to crate DMA view handle - dma_info is NULL\n");
+
+		return -EINVAL;
+	}
 
 	/* Re-use the ethosn_buffer struct as there is a lot of overlap in
 	 * functionality

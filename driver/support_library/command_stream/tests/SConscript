@@ -18,7 +18,6 @@ env.PrependUnique(
 )
 
 srcs = ["Main.cpp", "CommandStreamTests.cpp"]
-srcs += Glob("cascading/*.cpp")
 
 unitTests = env.Program("UnitTests", srcs)
 testAlias = env.Alias("command-stream-unit-tests", [unitTests], unitTests[0].abspath)

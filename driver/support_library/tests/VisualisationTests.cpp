@@ -3,34 +3,29 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "../src/CombinerDFS.hpp"
+#include "../src/CommandStreamGenerator.hpp"
+#include "../src/ConcatPart.hpp"
+#include "../src/ConstantPart.hpp"
+#include "../src/Estimation.hpp"
+#include "../src/FusedPlePart.hpp"
+#include "../src/InputPart.hpp"
+#include "../src/McePart.hpp"
+#include "../src/OutputPart.hpp"
+#include "../src/Plan.hpp"
+#include "../src/ReshapePart.hpp"
+#include "../src/StandalonePlePart.hpp"
+#include "../src/Visualisation.hpp"
 #include "Compiler.hpp"
 #include "ConcreteOperations.hpp"
 #include "TestUtils.hpp"
 #include "ThreadPool.hpp"
-#include "cascading/CascadingCommandStreamGenerator.hpp"
-#include "cascading/CombinerDFS.hpp"
-#include "cascading/ConcatPart.hpp"
-#include "cascading/ConstantPart.hpp"
-#include "cascading/Estimation.hpp"
-#include "cascading/FusedPlePart.hpp"
-#include "cascading/InputPart.hpp"
-#include "cascading/McePart.hpp"
-#include "cascading/OutputPart.hpp"
-#include "cascading/Plan.hpp"
-#include "cascading/ReshapePart.hpp"
-#include "cascading/StandalonePlePart.hpp"
-#include "cascading/Visualisation.hpp"
 
 #include <catch.hpp>
 #include <fstream>
 
-using namespace ethosn;
 using namespace ethosn::support_library;
-namespace sl       = ethosn::support_library;
-namespace utils    = ethosn::support_library::utils;
-using BlockConfig  = ethosn::command_stream::BlockConfig;
-using MceOperation = ethosn::command_stream::MceOperation;
-using PleOperation = ethosn::support_library::PleOperation;
+using namespace ethosn::command_stream;
 
 /// Checks SaveNetworkToDot produces the expected output, focusing on the overall network topology (connections
 /// between operations) rather than on the details given for each individual operation.
@@ -39,12 +34,12 @@ TEST_CASE("SaveNetworkToDot Network Topology", "[Visualisation]")
     // Build an arbitrary network, making sure to demonstrate multiple inputs, multiple outputs and multiple consumers.
     Network network(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO), true);
 
-    Input& input = network.AddInput(sl::TensorInfo({ 1, 16, 16, 32 }));
-    network.AddOutput(input.GetOutput(0), sl::DataFormat::NHWCB);
+    Input& input = network.AddInput(TensorInfo({ 1, 16, 16, 32 }));
+    network.AddOutput(input.GetOutput(0), DataFormat::NHWCB);
     Split& split          = network.AddSplit(input.GetOutput(0), SplitInfo(3, { 16, 16 }));
     Concatenation& concat = network.AddConcatenation({ &split.GetOutput(0), &split.GetOutput(1) },
                                                      ConcatenationInfo(3, QuantizationInfo()));
-    network.AddOutput(concat.GetOutput(0), sl::DataFormat::NHWCB);
+    network.AddOutput(concat.GetOutput(0), DataFormat::NHWCB);
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
     bool dumpToFile = false;
@@ -92,24 +87,24 @@ TEST_CASE("SaveNetworkToDot Details", "[Visualisation]")
     // Build a simple network of operations, to check the details are printed correctly for each one.
     Network network(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO));
 
-    Input& input   = network.AddInput(sl::TensorInfo({ 1, 16, 16, 32 }));
+    Input& input   = network.AddInput(TensorInfo({ 1, 16, 16, 32 }));
     Constant& bias = network.AddConstant(
-        sl::TensorInfo({ 1, 1, 1, 32 }, sl::DataType::INT32_QUANTIZED, sl::DataFormat::NHWC, QuantizationInfo(0, 0.5f)),
+        TensorInfo({ 1, 1, 1, 32 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 0.5f)),
         std::vector<int32_t>(32, 0).data());
-    Constant& weightsConv = network.AddConstant(sl::TensorInfo({ 3, 3, 32, 32 }, sl::DataType::UINT8_QUANTIZED,
-                                                               sl::DataFormat::HWIO, QuantizationInfo(0, 0.5f)),
-                                                std::vector<int32_t>(3 * 3 * 32 * 32, 0).data());
+    Constant& weightsConv = network.AddConstant(
+        TensorInfo({ 3, 3, 32, 32 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO, QuantizationInfo(0, 0.5f)),
+        std::vector<int32_t>(3 * 3 * 32 * 32, 0).data());
     network.AddConvolution(input.GetOutput(0), bias, weightsConv, ConvolutionInfo());
     Constant& weightsDepthwise = network.AddConstant(
-        sl::TensorInfo({ 3, 3, 32, 1 }, sl::DataType::UINT8_QUANTIZED, sl::DataFormat::HWIM, QuantizationInfo(0, 0.5f)),
+        TensorInfo({ 3, 3, 32, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM, QuantizationInfo(0, 0.5f)),
         std::vector<int32_t>(3 * 3 * 32 * 1, 0).data());
     network.AddDepthwiseConvolution(input.GetOutput(0), bias, weightsDepthwise, ConvolutionInfo());
     network.AddTransposeConvolution(input.GetOutput(0), bias, weightsConv, ConvolutionInfo({}, { 2, 2 }));
 
-    Input& inputFc      = network.AddInput(sl::TensorInfo({ 1, 1, 1, 32 }));
-    Constant& weightsFc = network.AddConstant(sl::TensorInfo({ 1, 1, 32, 32 }, sl::DataType::UINT8_QUANTIZED,
-                                                             sl::DataFormat::HWIO, QuantizationInfo(0, 0.5f)),
-                                              std::vector<int32_t>(1 * 1 * 32 * 32, 0).data());
+    Input& inputFc      = network.AddInput(TensorInfo({ 1, 1, 1, 32 }));
+    Constant& weightsFc = network.AddConstant(
+        TensorInfo({ 1, 1, 32, 32 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO, QuantizationInfo(0, 0.5f)),
+        std::vector<int32_t>(1 * 1 * 32 * 32, 0).data());
     network.AddFullyConnected(inputFc.GetOutput(0), bias, weightsFc, FullyConnectedInfo());
 
     PoolingInfo poolingInfo(3, 3, 1, 1, { 1, 1, 1, 1 }, PoolingType::AVG);
@@ -190,15 +185,15 @@ TEST_CASE("SaveOpGraphToDot Graph Topology", "[Visualisation]")
     OpGraph graph;
 
     std::unique_ptr<DramBuffer> dramIfm = DramBuffer::Build()
-                                              .AddFormat(CascadingBufferFormat::NHWCB)
+                                              .AddFormat(BufferFormat::NHWCB)
                                               .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                               .AddDebugTag("Dram Ifm");
 
-    DmaOp dmaIfm(CascadingBufferFormat::NHWCB);
+    DmaOp dmaIfm(BufferFormat::NHWCB);
     dmaIfm.m_DebugTag = "Dma Ifm";
 
     std::unique_ptr<SramBuffer> sramIfm = SramBuffer::Build()
-                                              .AddFormat(CascadingBufferFormat::NHWCB)
+                                              .AddFormat(BufferFormat::NHWCB)
                                               .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                               .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                               .AddNumStripes(1)
@@ -208,11 +203,11 @@ TEST_CASE("SaveOpGraphToDot Graph Topology", "[Visualisation]")
     std::unique_ptr<DramBuffer> dramWeights =
         DramBuffer::Build().AddTensorShape(TensorShape{ 1, 16, 16, 16 }).AddSizeInBytes(1).AddDebugTag("Dram Weights");
 
-    DmaOp dmaWeights(CascadingBufferFormat::WEIGHT);
+    DmaOp dmaWeights(BufferFormat::WEIGHT);
     dmaWeights.m_DebugTag = "Dma Weights";
 
     std::unique_ptr<SramBuffer> sramWeights = SramBuffer::Build()
-                                                  .AddFormat(CascadingBufferFormat::WEIGHT)
+                                                  .AddFormat(BufferFormat::WEIGHT)
                                                   .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                                   .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                                   .AddNumStripes(1)
@@ -224,20 +219,20 @@ TEST_CASE("SaveOpGraphToDot Graph Topology", "[Visualisation]")
     mce.m_DebugTag = "Mce";
 
     std::unique_ptr<SramBuffer> sramOfm = SramBuffer::Build()
-                                              .AddFormat(CascadingBufferFormat::NHWCB)
+                                              .AddFormat(BufferFormat::NHWCB)
                                               .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                               .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                               .AddNumStripes(1)
                                               .AddSlotSize(1 * 16 * 16 * 16)
                                               .AddDebugTag("Sram Ofm");
 
-    DmaOp dmaOfm(CascadingBufferFormat::NHWCB);
+    DmaOp dmaOfm(BufferFormat::NHWCB);
     dmaOfm.m_DebugTag = "Dma Ofm";
-    DmaOp dmaExtra(CascadingBufferFormat::NHWCB);
+    DmaOp dmaExtra(BufferFormat::NHWCB);
     dmaExtra.m_DebugTag = "Dma Extra";
 
     std::unique_ptr<DramBuffer> dramOfm = DramBuffer::Build()
-                                              .AddFormat(CascadingBufferFormat::NHWCB)
+                                              .AddFormat(BufferFormat::NHWCB)
                                               .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                               .AddDebugTag("Dram Ofm");
 
@@ -334,7 +329,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
     OpGraph graph;
 
     std::unique_ptr<PleInputSramBuffer> buffer1 = PleInputSramBuffer::Build()
-                                                      .AddFormat(CascadingBufferFormat::WEIGHT)
+                                                      .AddFormat(BufferFormat::WEIGHT)
                                                       .AddTensorShape({ 1, 2, 3, 4 })
                                                       .AddStripeShape({ 5, 6, 7, 8 })
                                                       .AddSizeInBytes(1234)
@@ -346,7 +341,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
     graph.AddBuffer(buffer1.get());
 
     std::unique_ptr<SramBuffer> buffer2 = SramBuffer::Build()
-                                              .AddFormat(CascadingBufferFormat::WEIGHT)
+                                              .AddFormat(BufferFormat::WEIGHT)
                                               .AddTensorShape({ 1, 2, 3, 4 })
                                               .AddStripeShape({ 5, 6, 7, 8 })
                                               .AddSizeInBytes(1234)
@@ -362,7 +357,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
 
     std::unique_ptr<DramBuffer> buffer3 =
         DramBuffer::Build()
-            .AddFormat(CascadingBufferFormat::WEIGHT)
+            .AddFormat(BufferFormat::WEIGHT)
             .AddTensorShape({ 1, 2, 3, 4 })
             .AddSizeInBytes(1234)
             .AddQuantization(QuantizationInfo(10, 0.1f))
@@ -383,7 +378,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
     mce.m_UpsampleType  = MceUpsampleType::NEAREST_NEIGHBOUR;
     graph.AddOp(&mce);
 
-    DmaOp dma(CascadingBufferFormat::NHWCB);
+    DmaOp dma(BufferFormat::NHWCB);
     dma.m_DebugTag = "Dma";
     graph.AddOp(&dma);
 
@@ -432,7 +427,7 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     OpGraph graph;
 
     std::unique_ptr<SramBuffer> inputBuffer = SramBuffer::Build()
-                                                  .AddFormat(CascadingBufferFormat::NHWCB)
+                                                  .AddFormat(BufferFormat::NHWCB)
                                                   .AddTensorShape({ 1, 2, 3, 4 })
                                                   .AddStripeShape({ 5, 6, 7, 8 })
                                                   .AddTraversalOrder(TraversalOrder::Xyz)
@@ -451,7 +446,7 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     graph.AddOp(&ple1);
 
     std::unique_ptr<SramBuffer> intermediateBuffer = SramBuffer::Build()
-                                                         .AddFormat(CascadingBufferFormat::NHWCB)
+                                                         .AddFormat(BufferFormat::NHWCB)
                                                          .AddTensorShape({ 1, 2, 3, 4 })
                                                          .AddStripeShape({ 5, 6, 7, 8 })
                                                          .AddTraversalOrder(TraversalOrder::Xyz)
@@ -469,7 +464,7 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     graph.AddOp(&ple2);
 
     std::unique_ptr<DramBuffer> outputBuffer = DramBuffer::Build()
-                                                   .AddFormat(CascadingBufferFormat::NHWCB)
+                                                   .AddFormat(BufferFormat::NHWCB)
                                                    .AddTensorShape({ 1, 2, 3, 4 })
                                                    .AddSizeInBytes(1)
                                                    .AddQuantization(QuantizationInfo(0, 1.0f))
@@ -600,14 +595,14 @@ TEST_CASE("SaveCompiledOpGraphToDot", "[Visualisation]")
     graph.AddOp(&ple2);
 
     std::unique_ptr<DramBuffer> buffer = DramBuffer::Build()
-                                             .AddFormat(CascadingBufferFormat::NHWCB)
+                                             .AddFormat(BufferFormat::NHWCB)
                                              .AddTensorShape(TensorShape{ 1, 16, 16, 16 })
                                              .AddDebugTag("Buffer");
 
     graph.AddBuffer(buffer.get());
 
     // Create CompiledOpGraph describing this graph
-    cascading_compiler::CompiledOpGraph compiledOpGraph;
+    CompiledOpGraph compiledOpGraph;
     PassPerformanceData legacyPass1;
     compiledOpGraph.m_EstimatedOpGraph.m_LegacyPerfData.m_Stream.push_back(legacyPass1);
     EstimatedPass pass1;
@@ -763,9 +758,9 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     // FusedPlePart
     auto fusedPlePart = std::make_unique<FusedPlePart>(
         1, TensorShape{ 1, 2, 3, 4 }, TensorShape{ 5, 6, 7, 8 }, QuantizationInfo(9, 10.0f),
-        QuantizationInfo(11, 12.0f), PleOperation::DOWNSAMPLE_2X2, support_library::utils::ShapeMultiplier{ 1, 2, 3 },
-        estOpt, compOpt, caps, std::set<uint32_t>{ 13, 14, 15 }, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED,
-        debuggingContext, threadPool, std::map<std::string, std::string>{ { "test1", "test2" } },
+        QuantizationInfo(11, 12.0f), PleOperation::DOWNSAMPLE_2X2, utils::ShapeMultiplier{ 1, 2, 3 }, estOpt, compOpt,
+        caps, std::set<uint32_t>{ 13, 14, 15 }, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED, debuggingContext,
+        threadPool, std::map<std::string, std::string>{ { "test1", "test2" } },
         std::map<std::string, int>{ { "test3", 4 } }, std::map<std::string, int>{ { "test5", 6 } });
     parts.AddPart(std::move(fusedPlePart));
 
@@ -776,30 +771,30 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     params.m_OutputTensorShape      = TensorShape{ 5, 6, 7, 8 };
     params.m_InputQuantizationInfo  = QuantizationInfo(9, 10.0f);
     params.m_OutputQuantizationInfo = QuantizationInfo(11, 12.0f);
-    params.m_WeightsInfo            = sl::TensorInfo(TensorShape{ 9, 10, 11, 12 }, sl::DataType::UINT8_QUANTIZED,
-                                          sl::DataFormat::NHWC, QuantizationInfo(11, 12.0f));
-    params.m_WeightsData            = std::vector<uint8_t>();
-    params.m_BiasInfo               = sl::TensorInfo(TensorShape{ 19, 110, 111, 112 }, sl::DataType::UINT8_QUANTIZED,
-                                       sl::DataFormat::NHWC, QuantizationInfo(111, 112.0f));
-    params.m_BiasData               = std::vector<int32_t>{};
-    params.m_Stride                 = Stride{ 2, 2 };
-    params.m_PadTop                 = 1;
-    params.m_PadLeft                = 3;
-    params.m_Op                     = MceOperation::DEPTHWISE_CONVOLUTION;
-    params.m_OperationIds           = std::set<uint32_t>{ 13, 14, 15 };
-    params.m_InputDataType          = DataType::UINT8_QUANTIZED;
-    params.m_OutputDataType         = DataType::UINT8_QUANTIZED;
-    params.m_UpscaleFactor          = 3;
-    params.m_UpsampleType           = MceUpsampleType::NEAREST_NEIGHBOUR;
-    auto mcePart                    = std::make_unique<McePart>(std::move(params));
+    params.m_WeightsInfo    = TensorInfo(TensorShape{ 9, 10, 11, 12 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC,
+                                      QuantizationInfo(11, 12.0f));
+    params.m_WeightsData    = std::vector<uint8_t>();
+    params.m_BiasInfo       = TensorInfo(TensorShape{ 19, 110, 111, 112 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC,
+                                   QuantizationInfo(111, 112.0f));
+    params.m_BiasData       = std::vector<int32_t>{};
+    params.m_Stride         = Stride{ 2, 2 };
+    params.m_PadTop         = 1;
+    params.m_PadLeft        = 3;
+    params.m_Op             = MceOperation::DEPTHWISE_CONVOLUTION;
+    params.m_OperationIds   = std::set<uint32_t>{ 13, 14, 15 };
+    params.m_InputDataType  = DataType::UINT8_QUANTIZED;
+    params.m_OutputDataType = DataType::UINT8_QUANTIZED;
+    params.m_UpscaleFactor  = 3;
+    params.m_UpsampleType   = MceUpsampleType::NEAREST_NEIGHBOUR;
+    auto mcePart            = std::make_unique<McePart>(std::move(params));
     parts.AddPart(std::move(mcePart));
 
     // ConcatPart
-    auto concatPart = std::make_unique<ConcatPart>(
-        2, std::vector<sl::TensorInfo>{ TensorShape{ 1, 2, 3, 4 } },
-        sl::TensorInfo{ TensorShape{ 5, 6, 7, 8 }, sl::DataType::UINT8_QUANTIZED, sl::DataFormat::NHWC,
-                        QuantizationInfo(9, 10.0f) },
-        3, std::vector<uint32_t>{ 0, 16 }, true, std::set<uint32_t>{ 13, 14, 15 }, estOpt, compOpt, caps);
+    auto concatPart = std::make_unique<ConcatPart>(2, std::vector<TensorInfo>{ TensorShape{ 1, 2, 3, 4 } },
+                                                   TensorInfo{ TensorShape{ 5, 6, 7, 8 }, DataType::UINT8_QUANTIZED,
+                                                               DataFormat::NHWC, QuantizationInfo(9, 10.0f) },
+                                                   3, std::vector<uint32_t>{ 0, 16 }, true,
+                                                   std::set<uint32_t>{ 13, 14, 15 }, estOpt, compOpt, caps);
     parts.AddPart(std::move(concatPart));
 
     // InputPart
@@ -937,7 +932,7 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
 
     Plan planA;
     std::unique_ptr<DramBuffer> inputDramPtr = DramBuffer::Build()
-                                                   .AddFormat(CascadingBufferFormat::NHWCB)
+                                                   .AddFormat(BufferFormat::NHWCB)
                                                    .AddTensorShape(TensorShape{ 1, 17, 16, 16 })
                                                    .AddDebugTag("InputDram");
     DramBuffer* inputDram = planA.m_OpGraph.AddBuffer(std::move(inputDramPtr));
@@ -947,7 +942,7 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     // Part consisting of node B
     Plan planB;
     SramBuffer* inputSram1    = planB.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
-    inputSram1->m_Format      = CascadingBufferFormat::NHWCB;
+    inputSram1->m_Format      = BufferFormat::NHWCB;
     inputSram1->m_TensorShape = TensorShape{ 1, 17, 16, 16 };
     inputSram1->m_StripeShape = TensorShape{ 1, 17, 16, 16 };
     inputSram1->m_Order       = TraversalOrder::Xyz;
@@ -959,7 +954,7 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     // Part consisting of node C
     Plan planC;
     SramBuffer* inputSram2    = planC.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
-    inputSram2->m_Format      = CascadingBufferFormat::NHWCB;
+    inputSram2->m_Format      = BufferFormat::NHWCB;
     inputSram2->m_TensorShape = TensorShape{ 1, 17, 16, 16 };
     inputSram2->m_StripeShape = TensorShape{ 1, 17, 16, 16 };
     inputSram2->m_Order       = TraversalOrder::Xyz;
@@ -971,27 +966,27 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     // Part consisting of nodes D and E
     Plan planDE;
     SramBuffer* intermediateSramInput1    = planDE.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
-    intermediateSramInput1->m_Format      = CascadingBufferFormat::NHWCB;
+    intermediateSramInput1->m_Format      = BufferFormat::NHWCB;
     intermediateSramInput1->m_TensorShape = TensorShape{ 1, 17, 16, 16 };
     intermediateSramInput1->m_StripeShape = TensorShape{ 1, 17, 16, 16 };
     intermediateSramInput1->m_Order       = TraversalOrder::Xyz;
     intermediateSramInput1->m_SizeInBytes = 4;
     intermediateSramInput1->m_DebugTag    = "IntermediateSramInput1";
     SramBuffer* outputSram1               = planDE.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
-    outputSram1->m_Format                 = CascadingBufferFormat::NHWCB;
+    outputSram1->m_Format                 = BufferFormat::NHWCB;
     outputSram1->m_TensorShape            = TensorShape{ 1, 17, 16, 16 };
     outputSram1->m_StripeShape            = TensorShape{ 1, 17, 16, 16 };
     outputSram1->m_Order                  = TraversalOrder::Xyz;
     outputSram1->m_DebugTag               = "OutputSram1";
     SramBuffer* intermediateSramInput2    = planDE.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
-    intermediateSramInput2->m_Format      = CascadingBufferFormat::NHWCB;
+    intermediateSramInput2->m_Format      = BufferFormat::NHWCB;
     intermediateSramInput2->m_TensorShape = TensorShape{ 1, 17, 16, 16 };
     intermediateSramInput2->m_StripeShape = TensorShape{ 1, 17, 16, 16 };
     intermediateSramInput2->m_Order       = TraversalOrder::Xyz;
     intermediateSramInput2->m_SizeInBytes = 4;
     intermediateSramInput2->m_DebugTag    = "IntermediateSramInput2";
     SramBuffer* outputSram2               = planDE.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
-    outputSram2->m_Format                 = CascadingBufferFormat::NHWCB;
+    outputSram2->m_Format                 = BufferFormat::NHWCB;
     outputSram2->m_TensorShape            = TensorShape{ 1, 17, 16, 16 };
     outputSram2->m_StripeShape            = TensorShape{ 1, 17, 16, 16 };
     outputSram2->m_Order                  = TraversalOrder::Xyz;
@@ -1011,7 +1006,7 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     // Part consisting of node F
     Plan planF;
     std::unique_ptr<DramBuffer> outputDram1Ptr = DramBuffer::Build()
-                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddFormat(BufferFormat::NHWCB)
                                                      .AddTensorShape(TensorShape{ 1, 17, 16, 16 })
                                                      .AddDebugTag("OutputDram1");
     planF.m_OpGraph.AddBuffer(std::move(outputDram1Ptr));
@@ -1021,13 +1016,13 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     // Part consisting of node G
     Plan planG;
     std::unique_ptr<DramBuffer> outputDram2Ptr = DramBuffer::Build()
-                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddFormat(BufferFormat::NHWCB)
                                                      .AddTensorShape(TensorShape{ 1, 17, 16, 16 })
                                                      .AddDebugTag("OutputDram2");
     planG.m_OpGraph.AddBuffer(std::move(outputDram2Ptr));
 
     std::unique_ptr<DramBuffer> outputDram3Ptr = DramBuffer::Build()
-                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddFormat(BufferFormat::NHWCB)
                                                      .AddTensorShape(TensorShape{ 1, 17, 16, 16 })
                                                      .AddDebugTag("OutputDram3");
     planG.m_OpGraph.AddBuffer(std::move(outputDram3Ptr));
@@ -1039,7 +1034,7 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     auto endingGlueA = std::make_shared<EndingGlue>();
 
     auto startingGlueB = std::make_shared<StartingGlue>();
-    startingGlueB->m_Graph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
+    startingGlueB->m_Graph.AddOp(std::make_unique<DmaOp>(BufferFormat::NHWCB));
     startingGlueB->m_Graph.GetOps()[0]->m_DebugTag = "InputDma";
     startingGlueB->m_ExternalConnections.m_BuffersToOps.insert(
         { planA.m_OpGraph.GetBuffers().back(), startingGlueB->m_Graph.GetOps()[0] });
@@ -1061,11 +1056,11 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
         { planDE.m_OpGraph.GetBuffers()[2], planC.m_OpGraph.GetBuffers()[0] });
 
     auto endingGlueD = std::make_shared<EndingGlue>();
-    endingGlueD->m_Graph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
+    endingGlueD->m_Graph.AddOp(std::make_unique<DmaOp>(BufferFormat::NHWCB));
     endingGlueD->m_Graph.GetOps()[0]->m_DebugTag = "OutputDma1";
     endingGlueD->m_ExternalConnections.m_BuffersToOps.insert(
         { planDE.m_OpGraph.GetBuffers()[1], endingGlueD->m_Graph.GetOps()[0] });
-    endingGlueD->m_Graph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
+    endingGlueD->m_Graph.AddOp(std::make_unique<DmaOp>(BufferFormat::NHWCB));
     endingGlueD->m_Graph.GetOps()[0]->m_DebugTag = "OutputDma2";
     endingGlueD->m_ExternalConnections.m_BuffersToOps.insert(
         { planDE.m_OpGraph.GetBuffers()[3], endingGlueD->m_Graph.GetOps()[1] });
@@ -1078,7 +1073,7 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
         { endingGlueD->m_Graph.GetOps()[1], planG.m_OpGraph.GetBuffers()[0] });
 
     auto endingGlueE = std::make_shared<EndingGlue>();
-    endingGlueE->m_Graph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
+    endingGlueE->m_Graph.AddOp(std::make_unique<DmaOp>(BufferFormat::NHWCB));
     endingGlueE->m_Graph.GetOps()[0]->m_DebugTag = "OutputDma3";
     endingGlueE->m_ExternalConnections.m_BuffersToOps.insert(
         { planDE.m_OpGraph.GetBuffers()[1], endingGlueE->m_Graph.GetOps()[0] });
@@ -1088,7 +1083,7 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
 
     auto endingGlueF                 = std::make_shared<EndingGlue>();
     std::unique_ptr<DramBuffer> xPtr = DramBuffer::Build()
-                                           .AddFormat(CascadingBufferFormat::NHWCB)
+                                           .AddFormat(BufferFormat::NHWCB)
                                            .AddTensorShape(TensorShape{ 1, 17, 16, 16 })
                                            .AddDebugTag("ReplacementBuffer");
     endingGlueF->m_Graph.AddBuffer(std::move(xPtr));
@@ -1314,7 +1309,7 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
 
     Plan planA;
     SramBuffer* bufferA    = planA.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
-    bufferA->m_Format      = CascadingBufferFormat::NHWCB;
+    bufferA->m_Format      = BufferFormat::NHWCB;
     bufferA->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
     bufferA->m_StripeShape = TensorShape{ 1, 8, 8, 32 };
     bufferA->m_Order       = TraversalOrder::Xyz;
@@ -1323,7 +1318,7 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
 
     Plan planB;
     SramBuffer* bufferB    = planB.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
-    bufferB->m_Format      = CascadingBufferFormat::NHWCB;
+    bufferB->m_Format      = BufferFormat::NHWCB;
     bufferB->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
     bufferB->m_StripeShape = TensorShape{ 1, 8, 8, 32 };
     bufferB->m_Order       = TraversalOrder::Xyz;
@@ -1332,7 +1327,7 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
 
     Plan planC;
     SramBuffer* bufferC    = planC.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
-    bufferC->m_Format      = CascadingBufferFormat::NHWCB;
+    bufferC->m_Format      = BufferFormat::NHWCB;
     bufferC->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
     bufferC->m_StripeShape = TensorShape{ 1, 8, 8, 32 };
     bufferC->m_Order       = TraversalOrder::Xyz;
@@ -1341,7 +1336,7 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
 
     Plan planD;
     std::unique_ptr<DramBuffer> xPtr = DramBuffer::Build()
-                                           .AddFormat(CascadingBufferFormat::NHWCB)
+                                           .AddFormat(BufferFormat::NHWCB)
                                            .AddTensorShape(TensorShape{ 1, 64, 64, 64 })
                                            .AddSizeInBytes(4);
     planD.m_OpGraph.AddBuffer(std::move(xPtr));

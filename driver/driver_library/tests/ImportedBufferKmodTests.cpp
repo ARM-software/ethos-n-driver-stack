@@ -184,7 +184,7 @@ TEST_CASE("Input/Output/IntermediateBuffers-ProcMemAllocImport")
         'E', 'N', 'C', 'N',
 
         // 4: Version (Major)
-        1, 0, 0, 0,
+        2, 0, 0, 0,
         // 8: Version (Minor)
         0, 0, 0, 0,
         // 12: Version (Patch)
@@ -203,29 +203,29 @@ TEST_CASE("Input/Output/IntermediateBuffers-ProcMemAllocImport")
         // Input buffer infos (size)
         1, 0, 0, 0,
         // Input buffer info 0
-        3, 0, 0, 0, 11, 0, 0, 0, 12, 0, 0, 0,
+        3, 0, 0, 0, 11, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0,
 
         // Output buffer infos (size)
         2, 0, 0, 0,
         // Output buffer info 0
-        4, 0, 0, 0, 21, 0, 0, 0, 22, 0, 0, 0,
+        4, 0, 0, 0, 21, 0, 0, 0, 22, 0, 0, 0, 0, 0, 0, 0,
         // Output buffer info 1
-        5, 0, 0, 0, 23, 0, 0, 0, 24, 0, 0, 0,
+        5, 0, 0, 0, 23, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0,
 
         // Constant control unit data buffer infos (size)
         1, 0, 0, 0,
         // Constant control unit data buffer info 0 (buffer 1, offset 0, size 2)
-        1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0,
+        1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
 
         // Constant DMA data buffer infos (size)
         1, 0, 0, 0,
         // Constant DMA data buffer info 0 (buffer 0, offset 0, size 3)
-        0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
 
         // Intermediate data buffer infos (size)
         1, 0, 0, 0,
         // Intermediate data buffer info 0
-        2, 0, 0, 0, 51, 0, 0, 0, 52, 0, 0, 0,
+        2, 0, 0, 0, 51, 0, 0, 0, 52, 0, 0, 0, 0, 0, 0, 0,
     };
     // clang-format on
 

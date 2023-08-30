@@ -64,8 +64,6 @@ struct CompilationOptions
     {
         DebugLevel m_DumpDebugFiles = DebugLevel::None;
         std::string m_DebugDir      = ".";
-        bool m_DumpRam              = false;
-        bool m_InitialSramDump      = false;
     };
 
     bool m_Strategy0                     = true;

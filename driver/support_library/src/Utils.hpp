@@ -8,9 +8,7 @@
 #include "../include/ethosn_support_library/Support.hpp"
 #include "Capabilities.hpp"
 
-#include <ethosn_command_stream/BinaryTuple.hpp>
-#include <ethosn_command_stream/CommandData.hpp>
-#include <ethosn_command_stream/cascading/CommandStream.hpp>
+#include <ethosn_command_stream/CommandStream.hpp>
 #include <ethosn_utils/Log.hpp>
 #include <ethosn_utils/Macros.hpp>
 
@@ -37,7 +35,7 @@ extern LoggerType g_Logger;
 class Node;
 class FuseOnlyPleOperationNode;
 class MceOperationNode;
-enum class CascadingBufferFormat;
+enum class BufferFormat;
 
 // These enum values must match those in the SPA code (which looks up PLE performance numbers).
 enum class PleOperation : uint8_t
@@ -74,6 +72,17 @@ enum class CompilerDataCompressedFormat
     NONE,
     FCAF_DEEP,
     FCAF_WIDE
+};
+
+struct BlockConfig
+{
+    uint32_t m_Width;
+    uint32_t m_Height;
+
+    constexpr bool operator==(const BlockConfig& rhs) const
+    {
+        return m_Width == rhs.m_Width && m_Height == rhs.m_Height;
+    }
 };
 
 bool IsCompressed(CompilerDataCompressedFormat compressedFormat);
@@ -454,7 +463,7 @@ inline uint32_t TotalSizeBytesFCAFWide(const ethosn::support_library::TensorInfo
     return TotalSizeBytesFCAF(tensorInfo.m_Dimensions, g_FcafWideCellShape);
 }
 
-uint32_t CalculateBufferSize(const TensorShape& shape, CascadingBufferFormat dataFormat);
+uint32_t CalculateBufferSize(const TensorShape& shape, BufferFormat dataFormat);
 
 uint32_t GetNumOrigChannels(uint32_t nChannels,
                             uint32_t strideX,
@@ -466,9 +475,7 @@ uint32_t GetNumSubmapChannels(uint32_t nChannels,
                               uint32_t strideY,
                               const HardwareCapabilities& capabilities);
 
-uint32_t CalculateDramOffset(const CascadingBufferFormat dataFormat,
-                             const TensorShape& tensorSize,
-                             const TensorShape& offset);
+uint32_t CalculateDramOffset(const BufferFormat dataFormat, const TensorShape& tensorSize, const TensorShape& offset);
 
 uint32_t CalculateDramOffsetNHWCB(const TensorShape& tensorShape, uint32_t offsetY, uint32_t offsetX, uint32_t offsetC);
 
@@ -688,8 +695,6 @@ inline TensorShape operator*(const TensorShape& lhs, const ShapeMultiplier& rhs)
 
 constexpr ShapeMultiplier g_IdentityShapeMultiplier = { Fraction{ 1, 1 }, Fraction{ 1, 1 }, Fraction{ 1, 1 } };
 
-command_stream::DataType GetCommandDataType(const DataType supportLibraryDataType);
-
 struct DataTypeRange
 {
     int32_t min;
@@ -723,9 +728,8 @@ inline NeedBoundary GetBoundaryRequirements(const uint32_t padBefore,
     return NeedBoundary{ padBefore > 0, ((ofmStripeSize + weightSize - padBefore - 1U) > ifmStripeSize) || isUpscale };
 }
 
-std::vector<command_stream::BlockConfig>
-    FilterPleBlockConfigs(PleOperation pleOp, const std::vector<command_stream::BlockConfig>& allowedBlockConfigs);
-bool PleBlockConfigAllowed(PleOperation pleOp, const command_stream::BlockConfig allowedBlockConfig);
+std::vector<BlockConfig> FilterPleBlockConfigs(PleOperation pleOp, const std::vector<BlockConfig>& allowedBlockConfigs);
+bool PleBlockConfigAllowed(PleOperation pleOp, const BlockConfig& allowedBlockConfig);
 
 constexpr int32_t g_IdentityWeightValue = 128;
 constexpr float g_IdentityWeightScale   = 1.f / static_cast<float>(g_IdentityWeightValue);
@@ -750,9 +754,6 @@ std::pair<uint32_t, uint32_t>
 std::tuple<bool, bool, bool> IsSplitting(const TensorShape& tensorShape, const TensorShape& stripeShape);
 
 bool IsFullTensor(const TensorShape& tensorShape, const TensorShape& stripeShape);
-
-ethosn::command_stream::DumpDram GetDumpDramCommand(
-    const TensorShape& shape, uint32_t bufferId, DataType dataType, int32_t zeroPoint, const char* format);
 
 /// Checks if two ranges overlap.
 bool CheckOverlap(uint32_t startA, uint32_t sizeA, uint32_t startB, uint32_t sizeB);

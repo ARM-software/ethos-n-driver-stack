@@ -40,7 +40,6 @@ public:
         bool m_EstimationMode                                          = false;
         ethosn::support_library::EstimationOptions m_EstimationOptions = {};
         bool m_StrictPrecision                                         = false;
-        bool m_DumpRam                                                 = false;
         ethosn::support_library::CompilationOptions::DebugLevel m_DumpDebugFiles =
             ethosn::support_library::CompilationOptions::DebugLevel::None;
         size_t m_NumberRuns   = 1;

@@ -30,7 +30,6 @@ EthosNParseRunner::CreationOptions EthosNParseRunner::CreationOptions::CreateWit
 {
     CreationOptions result(ggfFile, layerData);
     result.m_StrictPrecision = g_StrictPrecision;
-    result.m_DumpRam         = (g_Debug.find("dump-ram") != std::string::npos);
     if (g_Debug.find("dump-support-library-debug-files=None") != std::string::npos)
     {
         result.m_DumpDebugFiles = CompilationOptions::DebugLevel::None;
@@ -70,7 +69,6 @@ EthosNParseRunner::EthosNParseRunner(const EthosNParseRunner::CreationOptions& c
                                                  : CreateNetwork(fwAndHwCapabilities);
     ParseNetwork();
     m_Options.m_EnableIntermediateCompression = creationOptions.m_LayerData.GetIntermediateCompression();
-    m_Options.m_DebugInfo.m_DumpRam           = creationOptions.m_DumpRam;
     m_Options.m_DebugInfo.m_DumpDebugFiles    = creationOptions.m_DumpDebugFiles;
     m_Options.m_StrictPrecision               = creationOptions.m_StrictPrecision;
     if (creationOptions.m_LayerData.GetConvolutionAlgorithm() == ConvolutionAlgorithm::Direct)
@@ -739,6 +737,7 @@ InferenceOutputs EthosNParseRunner::RunNetwork(int timeoutSeconds)
 
     ethosn::driver_library::Network netInst =
         processMemAllocator->CreateNetwork(compiledNetworkData.data(), compiledNetworkData.size(), intermediateBuffReq);
+    netInst.SetDebugName("Ggf");
 
     // Create input buffers
     const std::vector<std::string> inputLayerNames = GetInputLayerNames();

@@ -3,15 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "../src/Compiler.hpp"
+#include "../src/FusedPlePart.hpp"
+#include "../src/Visualisation.hpp"
+#include "../src/WeightEncoderCache.hpp"
 #include "CapabilitiesInternal.hpp"
 #include "GlobalParameters.hpp"
 #include "TestUtils.hpp"
 #include "ThreadPool.hpp"
 #include "Utils.hpp"
-#include "cascading/Cascading.hpp"
-#include "cascading/FusedPlePart.hpp"
-#include "cascading/Visualisation.hpp"
-#include "cascading/WeightEncoderCache.hpp"
 #include "ethosn_support_library/Support.hpp"
 
 #include <catch.hpp>
@@ -177,7 +177,7 @@ void CheckInputDram(const CheckPlansParams& params, PlanDesc& desc)
     if (params.m_InputLocation == PlanInputLocation::Dram)
     {
         CHECK(desc.m_InputDram->m_Location == Location::Dram);
-        CHECK(desc.m_InputDram->m_Format == CascadingBufferFormat::NHWCB);
+        CHECK(desc.m_InputDram->m_Format == BufferFormat::NHWCB);
         if (params.m_InputQuantInfo)
         {
             CHECK(desc.m_InputDram->m_QuantizationInfo == params.m_InputQuantInfo.value());
@@ -197,7 +197,7 @@ void CheckInputSram(PlanDesc& desc, const CheckPlansParams& params)
     if (params.m_InputLocation != PlanInputLocation::PleInputSram)
     {
         CHECK(desc.m_InputSram->m_Location == Location::Sram);
-        CHECK(desc.m_InputSram->m_Format == CascadingBufferFormat::NHWCB);
+        CHECK(desc.m_InputSram->m_Format == BufferFormat::NHWCB);
         if (params.m_InputQuantInfo)
         {
             CHECK(desc.m_InputSram->m_QuantizationInfo == params.m_InputQuantInfo.value());
@@ -226,7 +226,7 @@ void CheckWeightsDram(PlanDesc& desc, const CheckPlansParams& params)
     if (params.m_InputLocation != PlanInputLocation::PleInputSram)
     {
         CHECK(desc.m_WeightsDram->m_Location == Location::Dram);
-        CHECK(desc.m_WeightsDram->m_Format == CascadingBufferFormat::WEIGHT);
+        CHECK(desc.m_WeightsDram->m_Format == BufferFormat::WEIGHT);
         CHECK(desc.m_WeightsDram->m_QuantizationInfo == QuantizationInfo{ 0, 0.5f });
         CHECK(desc.m_WeightsDram->m_TensorShape == TensorShape{ 1, 1, desc.m_Input->m_TensorShape[3], 1 });
         REQUIRE(desc.m_WeightsDram->Dram()->m_EncodedWeights != nullptr);
@@ -241,7 +241,7 @@ void CheckWeightsSram(PlanDesc& desc, const CheckPlansParams& params)
     if (params.m_InputLocation != PlanInputLocation::PleInputSram)
     {
         CHECK(desc.m_WeightsSram->m_Location == Location::Sram);
-        CHECK(desc.m_WeightsSram->m_Format == CascadingBufferFormat::WEIGHT);
+        CHECK(desc.m_WeightsSram->m_Format == BufferFormat::WEIGHT);
         CHECK(desc.m_WeightsSram->m_QuantizationInfo == QuantizationInfo{ 0, 0.5f });
         CHECK(desc.m_WeightsSram->m_TensorShape == TensorShape{ 1, 1, desc.m_Input->m_TensorShape[3], 1 });
         // m_StripeShape, m_Order, m_NumStripes will depend on the streaming strategy, and so cannot be checked generically
@@ -254,7 +254,7 @@ void CheckPleInputSram(PlanDesc& desc, const CheckPlansParams& params)
 {
     // Check properties of Ple Input SRAM buffer
     CHECK(desc.m_PleInputSram->m_Location == Location::PleInputSram);
-    CHECK(desc.m_PleInputSram->m_Format == CascadingBufferFormat::NHWCB);
+    CHECK(desc.m_PleInputSram->m_Format == BufferFormat::NHWCB);
     if (params.m_OutputQuantInfo)
     {
         // Note if this isn't provided, we can still check the quant info by comparing with the m_OutputSram buffer,
@@ -276,7 +276,7 @@ void CheckOutputSram(PlanDesc& desc, const CheckPlansParams& params)
     if (desc.m_OutputSram)
     {
         CHECK(desc.m_OutputSram->m_Location == Location::Sram);
-        CHECK(desc.m_OutputSram->m_Format == CascadingBufferFormat::NHWCB);
+        CHECK(desc.m_OutputSram->m_Format == BufferFormat::NHWCB);
         if (params.m_OutputQuantInfo)
         {
             CHECK(desc.m_OutputSram->m_QuantizationInfo == params.m_OutputQuantInfo.value());
@@ -299,7 +299,7 @@ void CheckOutputDram(PlanDesc& desc, const CheckPlansParams& params)
     if (desc.m_OutputDram)
     {
         CHECK(desc.m_OutputDram->m_Location == Location::Dram);
-        CHECK(desc.m_OutputDram->m_Format == CascadingBufferFormat::NHWCB);
+        CHECK(desc.m_OutputDram->m_Format == BufferFormat::NHWCB);
         if (params.m_OutputQuantInfo)
         {
             CHECK(desc.m_OutputDram->m_QuantizationInfo == params.m_OutputQuantInfo.value());
@@ -627,7 +627,7 @@ TEST_CASE("FusedPlePart GetPlans structure")
 
         WHEN("Asked to produce Lonely plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plans = part.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans structure Lonely");
 
             THEN("The plans are valid, start and end in Sram")
@@ -644,7 +644,7 @@ TEST_CASE("FusedPlePart GetPlans structure")
 
         WHEN("Asked to produce Beginning plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plans = part.GetPlans(CascadeType::Beginning, BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans structure Beginning");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -662,7 +662,7 @@ TEST_CASE("FusedPlePart GetPlans structure")
         WHEN("Asked to produce Middle plans with an input buffer in sram")
         {
             std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
-                                                         .AddFormat(CascadingBufferFormat::NHWCB)
+                                                         .AddFormat(BufferFormat::NHWCB)
                                                          .AddQuantization({ 0, 1.0f })
                                                          .AddTensorShape(tsIn)
                                                          .AddStripeShape(TensorShape{ 1, 8, 16, 16 })
@@ -670,8 +670,7 @@ TEST_CASE("FusedPlePart GetPlans structure")
                                                          .AddSlotSize(8 * 16 * 16 * 1)
                                                          .AddNumStripes(1);
 
-            Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
+            Plans plans = part.GetPlans(CascadeType::Middle, BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans structure Middle sram input");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -685,15 +684,14 @@ TEST_CASE("FusedPlePart GetPlans structure")
         WHEN("Asked to produce Middle plans with an input buffer in Ple Input Sram")
         {
             std::unique_ptr<PleInputSramBuffer> prevBuffer = PleInputSramBuffer::Build()
-                                                                 .AddFormat(CascadingBufferFormat::NHWCB)
+                                                                 .AddFormat(BufferFormat::NHWCB)
                                                                  .AddQuantization({ 0, 1.0f })
                                                                  .AddTensorShape(tsIn)
                                                                  .AddStripeShape(TensorShape{ 1, 8, 16, 16 })
                                                                  .AddSizeInBytes(8 * 16 * 16 * 1)
                                                                  .AddNumStripes(1);
 
-            Plans plans =
-                part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
+            Plans plans = part.GetPlans(CascadeType::Middle, BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans structure Middle sram input");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -707,7 +705,7 @@ TEST_CASE("FusedPlePart GetPlans structure")
         WHEN("Asked to produce End plans with an input buffer in sram")
         {
             std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
-                                                         .AddFormat(CascadingBufferFormat::NHWCB)
+                                                         .AddFormat(BufferFormat::NHWCB)
                                                          .AddQuantization({ 0, 1.0f })
                                                          .AddTensorShape(tsIn)
                                                          .AddStripeShape(TensorShape{ 1, 8, 16, 16 })
@@ -715,8 +713,7 @@ TEST_CASE("FusedPlePart GetPlans structure")
                                                          .AddSlotSize(8 * 16 * 16 * 1)
                                                          .AddNumStripes(1);
 
-            Plans plans =
-                part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
+            Plans plans = part.GetPlans(CascadeType::End, BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans structure End sram input");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -730,15 +727,14 @@ TEST_CASE("FusedPlePart GetPlans structure")
         WHEN("Asked to produce End plans with an input buffer in Ple Input Sram")
         {
             std::unique_ptr<PleInputSramBuffer> prevBuffer = PleInputSramBuffer::Build()
-                                                                 .AddFormat(CascadingBufferFormat::NHWCB)
+                                                                 .AddFormat(BufferFormat::NHWCB)
                                                                  .AddQuantization({ 0, 1.0f })
                                                                  .AddTensorShape(tsIn)
                                                                  .AddStripeShape(TensorShape{ 1, 8, 16, 16 })
                                                                  .AddSizeInBytes(8 * 16 * 16 * 1)
                                                                  .AddNumStripes(1);
 
-            Plans plans =
-                part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
+            Plans plans = part.GetPlans(CascadeType::End, BlockConfig{ 16u, 16u }, { prevBuffer.get() }, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans structure End sram input");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -807,10 +803,10 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
 
         WHEN("Asked to produce Lonely plans")
         {
-            Plans plansEven = partEven.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plansEven = partEven.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Lonely");
 
-            Plans plansOdd = partOdd.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plansOdd = partOdd.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd Lonely");
 
             THEN("The plans are valid, start and end in Sram")
@@ -859,10 +855,10 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
 
         WHEN("Asked to produce Beginning plans")
         {
-            Plans plansEven = partEven.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plansEven = partEven.GetPlans(CascadeType::Beginning, BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Beginning");
 
-            Plans plansOdd = partOdd.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plansOdd = partOdd.GetPlans(CascadeType::Beginning, BlockConfig{}, { nullptr }, 1);
             SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd Beginning");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -912,7 +908,7 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
         WHEN("Asked to produce Middle plans with split Height in Sram")
         {
             std::unique_ptr<SramBuffer> prevBufferEven = SramBuffer::Build()
-                                                             .AddFormat(CascadingBufferFormat::NHWCB)
+                                                             .AddFormat(BufferFormat::NHWCB)
                                                              .AddQuantization({ 0, 1.0f })
                                                              .AddTensorShape(tsInEven)
                                                              .AddStripeShape(TensorShape{ 1, 8, 128, 64 })
@@ -920,8 +916,8 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                                                              .AddSlotSize(1 * 8 * 128 * 64)
                                                              .AddNumStripes(1);
 
-            Plans plansEven = partEven.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U },
-                                                { prevBufferEven.get() }, 1);
+            Plans plansEven =
+                partEven.GetPlans(CascadeType::Middle, BlockConfig{ 8U, 8U }, { prevBufferEven.get() }, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Middle Sram NoFullTensorInput");
 
             THEN("The are no valid plans that start in Sram and end in Sram")
@@ -933,7 +929,7 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
         WHEN("Asked to produce Middle plans with an input buffer in Sram")
         {
             std::unique_ptr<SramBuffer> prevBufferEven = SramBuffer::Build()
-                                                             .AddFormat(CascadingBufferFormat::NHWCB)
+                                                             .AddFormat(BufferFormat::NHWCB)
                                                              .AddQuantization({ 0, 1.0f })
                                                              .AddTensorShape(tsInEven)
                                                              .AddStripeShape(TensorShape{ 1, 128, 128, 64 })
@@ -941,12 +937,12 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                                                              .AddSlotSize(1 * 128 * 128 * 64)
                                                              .AddNumStripes(1);
 
-            Plans plansEven = partEven.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U },
-                                                { prevBufferEven.get() }, 1);
+            Plans plansEven =
+                partEven.GetPlans(CascadeType::Middle, BlockConfig{ 8U, 8U }, { prevBufferEven.get() }, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Middle Sram Input");
 
             std::unique_ptr<SramBuffer> prevBufferOdd = SramBuffer::Build()
-                                                            .AddFormat(CascadingBufferFormat::NHWCB)
+                                                            .AddFormat(BufferFormat::NHWCB)
                                                             .AddQuantization({ 0, 1.0f })
                                                             .AddTensorShape(tsInOdd)
                                                             .AddStripeShape(TensorShape{ 1, 136, 136, 64 })
@@ -954,8 +950,7 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                                                             .AddSlotSize(1 * 136 * 136 * 64)
                                                             .AddNumStripes(1);
 
-            Plans plansOdd = partOdd.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U },
-                                              { prevBufferOdd.get() }, 1);
+            Plans plansOdd = partOdd.GetPlans(CascadeType::Middle, BlockConfig{ 8U, 8U }, { prevBufferOdd.get() }, 1);
             SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd Middle Sram Input");
 
             THEN("The are valid plans that start in Sram and end in Sram")
@@ -1017,27 +1012,26 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
         WHEN("Asked to produce Middle plans with an input buffer in Ple Input Sram")
         {
             std::unique_ptr<PleInputSramBuffer> prevBufferEven = PleInputSramBuffer::Build()
-                                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                                     .AddFormat(BufferFormat::NHWCB)
                                                                      .AddQuantization({ 0, 1.0f })
                                                                      .AddTensorShape(tsInEven)
                                                                      .AddStripeShape(TensorShape{ 1, 128, 128, 64 })
                                                                      .AddSizeInBytes(1 * 128 * 128 * 64)
                                                                      .AddNumStripes(1);
 
-            Plans plansEven = partEven.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U },
-                                                { prevBufferEven.get() }, 1);
+            Plans plansEven =
+                partEven.GetPlans(CascadeType::Middle, BlockConfig{ 8U, 8U }, { prevBufferEven.get() }, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Middle Ple Sram Input");
 
             std::unique_ptr<PleInputSramBuffer> prevBufferOdd = PleInputSramBuffer::Build()
-                                                                    .AddFormat(CascadingBufferFormat::NHWCB)
+                                                                    .AddFormat(BufferFormat::NHWCB)
                                                                     .AddQuantization({ 0, 1.0f })
                                                                     .AddTensorShape(tsInOdd)
                                                                     .AddStripeShape(TensorShape{ 1, 136, 136, 64 })
                                                                     .AddSizeInBytes(1 * 136 * 136 * 64)
                                                                     .AddNumStripes(1);
 
-            Plans plansOdd = partOdd.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U },
-                                              { prevBufferOdd.get() }, 1);
+            Plans plansOdd = partOdd.GetPlans(CascadeType::Middle, BlockConfig{ 8U, 8U }, { prevBufferOdd.get() }, 1);
             SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd Middle Ple Sram Input");
 
             THEN("The plans are valid and start in PleInputSram and end in Sram")
@@ -1091,7 +1085,7 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
         WHEN("Asked to produce End plans with an input buffer in Sram")
         {
             std::unique_ptr<SramBuffer> prevBufferEven = SramBuffer::Build()
-                                                             .AddFormat(CascadingBufferFormat::NHWCB)
+                                                             .AddFormat(BufferFormat::NHWCB)
                                                              .AddQuantization({ 0, 1.0f })
                                                              .AddTensorShape(tsInEven)
                                                              .AddStripeShape(TensorShape{ 1, 128, 128, 64 })
@@ -1099,12 +1093,11 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                                                              .AddSlotSize(1 * 128 * 128 * 64)
                                                              .AddNumStripes(1);
 
-            Plans plansEven =
-                partEven.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, { prevBufferEven.get() }, 1);
+            Plans plansEven = partEven.GetPlans(CascadeType::End, BlockConfig{ 8U, 8U }, { prevBufferEven.get() }, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven End Sram Input");
 
             std::unique_ptr<SramBuffer> prevBufferOdd = SramBuffer::Build()
-                                                            .AddFormat(CascadingBufferFormat::NHWCB)
+                                                            .AddFormat(BufferFormat::NHWCB)
                                                             .AddQuantization({ 0, 1.0f })
                                                             .AddTensorShape(tsInOdd)
                                                             .AddStripeShape(TensorShape{ 1, 136, 136, 64 })
@@ -1112,8 +1105,7 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                                                             .AddSlotSize(1 * 136 * 136 * 64)
                                                             .AddNumStripes(1);
 
-            Plans plansOdd =
-                partOdd.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, { prevBufferOdd.get() }, 1);
+            Plans plansOdd = partOdd.GetPlans(CascadeType::End, BlockConfig{ 8U, 8U }, { prevBufferOdd.get() }, 1);
             SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd End Sram Input");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -1175,27 +1167,25 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
         WHEN("Asked to produce End plans with an input buffer in Ple Input Sram")
         {
             std::unique_ptr<PleInputSramBuffer> prevBufferEven = PleInputSramBuffer::Build()
-                                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                                     .AddFormat(BufferFormat::NHWCB)
                                                                      .AddQuantization({ 0, 1.0f })
                                                                      .AddTensorShape(tsInEven)
                                                                      .AddStripeShape(TensorShape{ 1, 128, 128, 64 })
                                                                      .AddSizeInBytes(1 * 128 * 128 * 64)
                                                                      .AddNumStripes(1);
 
-            Plans plansEven =
-                partEven.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, { prevBufferEven.get() }, 1);
+            Plans plansEven = partEven.GetPlans(CascadeType::End, BlockConfig{ 8U, 8U }, { prevBufferEven.get() }, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven End Ple Sram Input");
 
             std::unique_ptr<PleInputSramBuffer> prevBufferOdd = PleInputSramBuffer::Build()
-                                                                    .AddFormat(CascadingBufferFormat::NHWCB)
+                                                                    .AddFormat(BufferFormat::NHWCB)
                                                                     .AddQuantization({ 0, 1.0f })
                                                                     .AddTensorShape(tsInOdd)
                                                                     .AddStripeShape(TensorShape{ 1, 136, 136, 64 })
                                                                     .AddSizeInBytes(1 * 136 * 136 * 64)
                                                                     .AddNumStripes(1);
 
-            Plans plansOdd =
-                partOdd.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, { prevBufferOdd.get() }, 1);
+            Plans plansOdd = partOdd.GetPlans(CascadeType::End, BlockConfig{ 8U, 8U }, { prevBufferOdd.get() }, 1);
             SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd End Ple Sram Input");
 
             THEN("The plans are valid and start in PleInputSram and end in Sram")
@@ -1269,7 +1259,7 @@ TEST_CASE("FusedPlePart GetPlans strategy 0 shape multiplier")
 
         WHEN("Asked to generate plans at the beginning of a cascade")
         {
-            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
+            Plans plans = part.GetPlans(CascadeType::Beginning, BlockConfig{}, { nullptr }, 1);
 
             SavePlansToDot(plans, "FusedPlePart GetPlans strategy 0 shape multiplier");
 
@@ -1322,9 +1312,9 @@ TEST_CASE("FusedPlePart GetPlans invalid previous buffer")
 
         WHEN("Asked to generate plans with the number of input stripes > 1")
         {
-            command_stream::BlockConfig blockConfig = { 8u, 8u };
-            std::unique_ptr<SramBuffer> prevBuffer  = SramBuffer::Build()
-                                                         .AddFormat(CascadingBufferFormat::NHWCB)
+            BlockConfig blockConfig                = { 8u, 8u };
+            std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
+                                                         .AddFormat(BufferFormat::NHWCB)
                                                          .AddQuantization({ 0, 1.0f })
                                                          .AddTensorShape(inputShape)
                                                          .AddStripeShape(TensorShape{ 1, 8, 16, 16 })
@@ -1366,8 +1356,8 @@ TEST_CASE("FusedPlePart GetPlans lonely height and width splits")
 
         WHEN("Asked to generate plans")
         {
-            command_stream::BlockConfig blockConfig = { 8u, 8u };
-            Plans plans                             = part.GetPlans(CascadeType::Lonely, blockConfig, { nullptr }, 1);
+            BlockConfig blockConfig = { 8u, 8u };
+            Plans plans             = part.GetPlans(CascadeType::Lonely, blockConfig, { nullptr }, 1);
 
             SavePlansToDot(plans, "FusedPlePart GetPlans Filters Sram buffer");
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2018-2022 Arm Limited.
+# Copyright (C) 2018-2023 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -15,7 +15,6 @@ common.setup_sanitize(env)
 install_dir = env["install_include_dir"] + "/ethosn_command_stream"
 
 env.Install(install_dir, Glob("include/ethosn_command_stream/*.hpp"))
-env.Install(install_dir + "/cascading", Glob("include/ethosn_command_stream/cascading/*.hpp"))
 env.Alias("install", install_dir)
 
 if env["tests"]:

@@ -28,12 +28,15 @@ public:
     Inference* ScheduleInference(Buffer* const inputBuffers[],
                                  uint32_t numInputBuffers,
                                  Buffer* const outputBuffers[],
-                                 uint32_t numOutputBuffers) const override;
+                                 uint32_t numOutputBuffers) override;
+
+protected:
+    std::pair<const char*, size_t> MapIntermediateBuffers() override;
+    void UnmapIntermediateBuffers(std::pair<const char*, size_t> mappedPtr) override;
 
 private:
-    void DumpIntermediateBuffers();
-
     int m_NetworkFd;
+    int m_IntermediateBufferFd;
 };
 
 bool IsKernelVersionMatching(const struct Version& ver);

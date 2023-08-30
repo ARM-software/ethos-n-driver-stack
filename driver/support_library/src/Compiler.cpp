@@ -5,10 +5,9 @@
 
 #include "Compiler.hpp"
 #include "ConcreteOperations.hpp"
+#include "NetworkToGraphOfPartsConverter.hpp"
 #include "SramAllocator.hpp"
-#include "cascading/Cascading.hpp"
-
-#include <ethosn_utils/Enums.hpp>
+#include "ThreadPool.hpp"
 
 #include <fstream>
 #include <numeric>
@@ -62,19 +61,51 @@ void ValidateNetworkAndThrowIfBad(const Network& network)
 
 }    // namespace
 
+FrozenGraphOfParts CreateGraphOfParts(const Network& network,
+                                      const HardwareCapabilities& capabilities,
+                                      const EstimationOptions& estOpt,
+                                      const CompilationOptions& compOpt,
+                                      DebuggingContext& debuggingContext,
+                                      ThreadPool& threadPool)
+{
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(network, capabilities, estOpt, compOpt,
+                                                                  debuggingContext, threadPool);
+    GraphOfParts g = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    // Dump the GraphOfParts both before and after we optimize it.
+    debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "PreOptimizeGraphOfParts.dot",
+                          [&](std::ofstream& s) { SaveGraphOfPartsToDot(g, s, DetailLevel::Low); });
+    debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "PreOptimizeGraphOfPartsDetailed.dot",
+                          [&](std::ofstream& s) { SaveGraphOfPartsToDot(g, s, DetailLevel::High); });
+
+    // Perform some optimizations on the GraphOfParts, to simplify it before generating any plans
+    g.MergeChannelSelectors();
+
+    g.SortAndCompact();
+
+    debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "GraphOfParts.dot",
+                          [&](std::ofstream& s) { SaveGraphOfPartsToDot(g, s, DetailLevel::Low); });
+    debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "GraphOfPartsDetailed.dot",
+                          [&](std::ofstream& s) { SaveGraphOfPartsToDot(g, s, DetailLevel::High); });
+
+    return FrozenGraphOfParts(std::move(g));
+}
+
 Compiler::Compiler(const Network& network,
                    const FirmwareAndHardwareCapabilities& fwAndHwCapabilities,
                    const CompilationOptions& compilationOptions,
-                   const EstimationOptions& estimationOptions)
+                   utils::Optional<const EstimationOptions&> estimationOptions)
     : m_Network(network)
     , m_Capabilities(fwAndHwCapabilities)
     , m_CompilationOptions(compilationOptions)
     , m_DebuggingContext(compilationOptions.m_DebugInfo)
     , m_EstimationOptions(estimationOptions)
 {
+    ValidateNetworkAndThrowIfBad(m_Network);
+
     if (m_Capabilities.GetNumberOfSrams() < 16)
     {
-        // The FCAF channel rounding (SetStripeChannelsInfo in CascadingCommandStreamGeneratorUtils.hpp)
+        // The FCAF channel rounding (SetStripeChannelsInfo in CommandStreamGeneratorUtils.hpp)
         // causes problems with small HW configs. We don't support these anyway, so disable FCAF so that
         // tests pass.
         m_CompilationOptions.m_EnableIntermediateCompression = false;
@@ -84,45 +115,123 @@ Compiler::Compiler(const Network& network,
 Compiler::~Compiler()
 {}
 
-std::unique_ptr<CompiledNetwork> Compiler::Compile()
+CompilerResult Compiler::Compile()
 {
     DumpNetwork(m_DebuggingContext, m_Network);
 
-    ValidateNetworkAndThrowIfBad(m_Network);
-
-    try
+    if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
     {
-        return RunCascading(m_Network, utils::EmptyOptional{}, m_CompilationOptions, m_Capabilities, m_DebuggingContext)
-            .compiledOpGraph.m_CompiledNetwork;
-    }
-    catch (const std::runtime_error& e)
-    {
-        // Either we failed compilation or there was not enough SRAM to convert NHWCB to NHWC
-        // NNXSW-2802: Temporary fix to print the error but need better approach  for error reporting from support library.
-        g_Logger.Error("Error: %s", e.what());
-        return std::unique_ptr<CompiledNetworkImpl>(nullptr);
-    }
-}
-
-NetworkPerformanceData Compiler::EstimatePerformance()
-{
-    DumpNetwork(m_DebuggingContext, m_Network);
-
-    NetworkPerformanceData performance;
-
-    try
-    {
-        performance =
-            RunCascading(m_Network, m_EstimationOptions, m_CompilationOptions, m_Capabilities, m_DebuggingContext)
-                .GetLegacyNetworkPerformanceData();
-    }
-    catch (const std::exception& e)
-    {
-        g_Logger.Warning("Cascading estimation failed with: %s", e.what());
-        throw NotSupportedException("Estimation didn't find any valid performance data to return");
+        MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("BestCombination").c_str());
     }
 
-    return performance;
+    // Default estimation options when none are provided (i.e. for compilation API rather than estimation API)
+    EstimationOptions estimationOptions;
+    if (m_EstimationOptions.has_value())
+    {
+        estimationOptions = m_EstimationOptions.value();
+    }
+    else
+    {
+        // We want the current numbers, as we are compiling for the current hardware
+        estimationOptions.m_Current = true;
+        // Estimate of the expected savings. We can't know this for sure as we don't have any input data.
+        estimationOptions.m_ActivationCompressionSaving = 0.5f;
+        // We have real weights, so use them rather than the override.
+        estimationOptions.m_UseWeightCompressionOverride = false;
+    }
+
+    // ThreadPool object to be shared for all parallel computation for this compilation.
+    // Uses an automatic number of threads based on environment variable
+    ThreadPool threadPool(-1);
+
+    auto startTime = std::chrono::high_resolution_clock::now();
+
+    FrozenGraphOfParts graphOfParts = CreateGraphOfParts(m_Network, m_Capabilities, estimationOptions,
+                                                         m_CompilationOptions, m_DebuggingContext, threadPool);
+
+    auto duration = std::chrono::high_resolution_clock::now() - startTime;
+    g_Logger.Debug("CreateGraphOfParts: %llu ms", duration.count() / (1000ULL * 1000ULL));
+
+    startTime = std::chrono::high_resolution_clock::now();
+
+    Combiner combiner(graphOfParts, m_Capabilities, m_CompilationOptions, estimationOptions, m_DebuggingContext);
+    combiner.Run(threadPool);
+    OpGraph opGraph = combiner.GetMergedOpGraphForBestCombination();
+
+    duration = std::chrono::high_resolution_clock::now() - startTime;
+    g_Logger.Debug("Combiner: %llu ms", duration.count() / (1000ULL * 1000ULL));
+    g_Logger.Debug("Weights encoded: stage 1: %u, stage 2: %u", g_NumWeightEncodingsStage1, g_NumWeightEncodingsStage2);
+
+    m_DebuggingContext.Save(
+        CompilationOptions::DebugLevel::Medium, "BestCombination/1_CombinationBasic.dot",
+        [&](std::ofstream& s) { SaveCombinationToDot(combiner.GetBestCombination(), s, DetailLevel::Low); });
+    m_DebuggingContext.Save(
+        CompilationOptions::DebugLevel::Medium, "BestCombination/1_CombinationDetailed.dot",
+        [&](std::ofstream& s) { SaveCombinationToDot(combiner.GetBestCombination(), s, DetailLevel::High); });
+
+    m_DebuggingContext.Save(CompilationOptions::DebugLevel::Medium, "BestCombination/2_MergedBasic.dot",
+                            [&](std::ofstream& s) { SaveOpGraphToDot(opGraph, s, DetailLevel::Low); });
+    m_DebuggingContext.Save(CompilationOptions::DebugLevel::Medium, "BestCombination/2_MergedDetailed.dot",
+                            [&](std::ofstream& s) { SaveOpGraphToDot(opGraph, s, DetailLevel::High); });
+
+    startTime = std::chrono::high_resolution_clock::now();
+
+    // Perform optimisation steps on the merged OpGraph.
+    // These optimisations would not have affected the choice of combination as they would apply equally
+    // to all combinations, and so it is much more efficient to perform them after the Combiner has finished.
+    opGraph.RemoveRedundantCopies();
+    opGraph.ReducePackedBoundaryData();
+
+    duration = std::chrono::high_resolution_clock::now() - startTime;
+    g_Logger.Debug("RemoveRedundantCopies: %llu ms", duration.count() / (1000ULL * 1000ULL));
+
+    m_DebuggingContext.Save(CompilationOptions::DebugLevel::Medium, "BestCombination/3_OptimisedBasic.dot",
+                            [&](std::ofstream& s) { SaveOpGraphToDot(opGraph, s, DetailLevel::Low); });
+    m_DebuggingContext.Save(CompilationOptions::DebugLevel::Medium, "BestCombination/3_OptimisedDetailed.dot",
+                            [&](std::ofstream& s) { SaveOpGraphToDot(opGraph, s, DetailLevel::High); });
+
+    startTime = std::chrono::high_resolution_clock::now();
+
+    EstimatedOpGraph estimatedOpGraph =
+        ethosn::support_library::EstimateOpGraph(opGraph, m_Capabilities, estimationOptions);
+
+    duration = std::chrono::high_resolution_clock::now() - startTime;
+    g_Logger.Debug("EstimateOpGraph: %llu ms", duration.count() / (1000ULL * 1000ULL));
+
+    m_DebuggingContext.Save(CompilationOptions::DebugLevel::Medium, "BestCombination/4_EstimatedBasic.dot",
+                            [&](std::ofstream& s) {
+                                SaveEstimatedOpGraphToDot(opGraph, estimatedOpGraph, s, DetailLevel::Low, {}, {}, {});
+                            });
+    m_DebuggingContext.Save(CompilationOptions::DebugLevel::Medium, "BestCombination/4_EstimatedDetailed.dot",
+                            [&](std::ofstream& s) {
+                                SaveEstimatedOpGraphToDot(opGraph, estimatedOpGraph, s, DetailLevel::High, {}, {}, {});
+                            });
+
+    if (m_EstimationOptions.has_value())
+    {
+        // Not requesting compilation, so stop here.
+        return { opGraph, combiner.GetBestCombination(), { estimatedOpGraph, {}, {}, {} } };
+    }
+
+    std::set<uint32_t> operationIds = m_Network.GetOperationIds();
+
+    startTime = std::chrono::high_resolution_clock::now();
+
+    CommandStreamGenerator commandStreamGenerator(opGraph, estimatedOpGraph, operationIds, m_Capabilities,
+                                                  m_CompilationOptions, m_DebuggingContext);
+    CompiledOpGraph compiledOpGraph = commandStreamGenerator.Generate();
+
+    duration = std::chrono::high_resolution_clock::now() - startTime;
+    g_Logger.Debug("CommandStreamGenerator: %llu ms", duration.count() / (1000ULL * 1000ULL));
+
+    m_DebuggingContext.Save(
+        CompilationOptions::DebugLevel::Medium, "BestCombination/5_CompiledBasic.dot",
+        [&](std::ofstream& s) { SaveCompiledOpGraphToDot(opGraph, compiledOpGraph, s, DetailLevel::Low); });
+    m_DebuggingContext.Save(
+        CompilationOptions::DebugLevel::Medium, "BestCombination/5_CompiledDetailed.dot",
+        [&](std::ofstream& s) { SaveCompiledOpGraphToDot(opGraph, compiledOpGraph, s, DetailLevel::High); });
+
+    return { std::move(opGraph), combiner.GetBestCombination(), std::move(compiledOpGraph) };
 }
 
 CompiledNetworkImpl::CompiledNetworkImpl()
@@ -151,7 +260,8 @@ CompiledNetworkImpl::CompiledNetworkImpl(const std::vector<uint8_t>& constantDma
         }
 
         BufferInfoInternal buffer(bufferId, compilerBuffer.m_Offset, compilerBuffer.m_Size,
-                                  compilerBuffer.m_SourceOperationId, compilerBuffer.m_SourceOperationOutputIndex);
+                                  compilerBuffer.m_SourceOperationId, compilerBuffer.m_SourceOperationOutputIndex,
+                                  compilerBuffer.m_DebugName);
         switch (compilerBuffer.m_Type)
         {
             case BufferType::Input:
@@ -231,6 +341,12 @@ void WriteByteArray(std::ostream& out, const std::vector<uint8_t>& data)
     out.write(reinterpret_cast<const char*>(data.data()), data.size());
 }
 
+void WriteString(std::ostream& out, const std::string& data)
+{
+    Write(out, static_cast<uint32_t>(data.size()));
+    out.write(reinterpret_cast<const char*>(data.data()), data.size());
+}
+
 void WriteBufferInfoArray(std::ostream& out, const std::vector<CompiledNetworkImpl::BufferInfoInternal>& data)
 {
     Write(out, static_cast<uint32_t>(data.size()));
@@ -239,6 +355,7 @@ void WriteBufferInfoArray(std::ostream& out, const std::vector<CompiledNetworkIm
         Write(out, data[i].m_Id);
         Write(out, data[i].m_Offset);
         Write(out, data[i].m_Size);
+        WriteString(out, data[i].m_DebugName);
     }
 }
 
@@ -250,7 +367,7 @@ void CompiledNetworkImpl::Serialize(std::ostream& out) const
     out.write("ENCN", 4);
 
     // Version of data structure
-    constexpr uint32_t major = 1;
+    constexpr uint32_t major = 2;
     constexpr uint32_t minor = 0;
     constexpr uint32_t patch = 0;
 

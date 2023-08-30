@@ -73,22 +73,22 @@ DebuggingContext::DebuggingContext(const CompilationOptions::DebugInfo& debugInf
                 }
             }
 
-            CascadingBufferFormat format = CascadingBufferFormat::WEIGHT;    // Something invalid
+            BufferFormat format = BufferFormat::WEIGHT;    // Something invalid
             if (formatString == "NHWCB")
             {
-                format = CascadingBufferFormat::NHWCB;
+                format = BufferFormat::NHWCB;
             }
             else if (formatString == "NHWC")
             {
-                format = CascadingBufferFormat::NHWC;
+                format = BufferFormat::NHWC;
             }
             else if (formatString == "FCAF_WIDE")
             {
-                format = CascadingBufferFormat::FCAF_WIDE;
+                format = BufferFormat::FCAF_WIDE;
             }
             else if (formatString == "FCAF_DEEP")
             {
-                format = CascadingBufferFormat::FCAF_DEEP;
+                format = BufferFormat::FCAF_DEEP;
             }
             else
             {
@@ -124,12 +124,11 @@ std::string DebuggingContext::GetAbsolutePathOutputFileName(const std::string& f
     return debugOutputFile;
 }
 
-utils::Optional<CascadingBufferFormat> DebuggingContext::GetPreferredDramFormat(const std::set<PartId>& partIds) const
+utils::Optional<BufferFormat> DebuggingContext::GetPreferredDramFormat(const std::set<PartId>& partIds) const
 {
     std::string key = ethosn::utils::Join(",", partIds, [](PartId p) { return std::to_string(p); });
     auto it         = m_PreferredDramFormats.find(key);
-    return it == m_PreferredDramFormats.end() ? utils::EmptyOptional{}
-                                              : utils::Optional<CascadingBufferFormat>(it->second);
+    return it == m_PreferredDramFormats.end() ? utils::EmptyOptional{} : utils::Optional<BufferFormat>(it->second);
 }
 
 }    // namespace support_library

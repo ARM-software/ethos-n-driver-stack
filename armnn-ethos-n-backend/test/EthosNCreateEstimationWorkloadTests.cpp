@@ -32,7 +32,6 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
         os << armnn::EthosNConfig::PERF_SRAM_SIZE_BYTES_OVERRIDE_VAR << " = 12\n";
         os << armnn::EthosNConfig::PERF_OUT_DIR_VAR << " = test\n";
         os << armnn::EthosNConfig::DUMP_DEBUG_FILES_VAR << " = 1\n";
-        os << armnn::EthosNConfig::DUMP_RAM_VAR << " = 1\n";
         os << armnn::EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING << " = 0.5\n";
         os << armnn::EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING << " = 0.5\n";
         os << armnn::EthosNConfig::PERF_CURRENT << " = 0\n";
@@ -48,7 +47,6 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
         CHECK(config.m_PerfSramSizeBytesOverride == 12);
         CHECK(config.m_PerfOutDir == "test");
         CHECK(config.m_DumpDebugFiles == ethosn::support_library::CompilationOptions::DebugLevel::High);
-        CHECK(config.m_DumpRam == true);
         CHECK(config.m_PerfActivationCompressionSaving == 0.5f);
         CHECK(config.m_PerfWeightCompressionSaving == 0.5f);
         CHECK(config.m_PerfCurrent == false);

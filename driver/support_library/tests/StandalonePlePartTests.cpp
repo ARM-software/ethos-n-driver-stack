@@ -3,15 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "../src/Part.hpp"
+#include "../src/PartUtils.hpp"
+#include "../src/Plan.hpp"
+#include "../src/StandalonePlePart.hpp"
+#include "../src/Visualisation.hpp"
 #include "CapabilitiesInternal.hpp"
 #include "GlobalParameters.hpp"
 #include "TestUtils.hpp"
 #include "Utils.hpp"
-#include "cascading/Part.hpp"
-#include "cascading/PartUtils.hpp"
-#include "cascading/Plan.hpp"
-#include "cascading/StandalonePlePart.hpp"
-#include "cascading/Visualisation.hpp"
 
 #include <catch.hpp>
 #include <fstream>
@@ -31,7 +31,7 @@ struct CheckPlansParams
     TensorInfo m_OutputTensorInfo;
     QuantizationInfo m_OutputQuantInfo;
     std::set<uint32_t> m_OperationIds;
-    CascadingBufferFormat m_DataFormat;
+    BufferFormat m_DataFormat;
 };
 
 StandalonePlePart BuildPart(const std::vector<TensorShape>& inputShapes,
@@ -172,7 +172,7 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
         params.m_PartId           = partId;
         params.m_InputTensorsInfo = { inputTensorsInfo };
         params.m_OutputTensorInfo = outputTensorsInfo;
-        params.m_DataFormat       = CascadingBufferFormat::NHWCB;
+        params.m_DataFormat       = BufferFormat::NHWCB;
 
         EstimationOptions estOpts;
         CompilationOptions compOpts;
@@ -180,15 +180,15 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
                                            PleOperation::AVGPOOL_3X3_1_1_UDMA, caps, partId, estOpts, compOpts);
 
         // A plan is returned since both input and output tensors is fit into SRAM
-        Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
+        Plans plans0 = part.GetPlans(CascadeType::Beginning, BlockConfig{}, { nullptr }, 1);
         CheckPlans(plans0, params);
 
-        Plans plans1 = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+        Plans plans1 = part.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
         CheckPlans(plans1, params);
 
         // A plan is returned since both input and output tensors is fit into SRAM
         std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
-                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddFormat(BufferFormat::NHWCB)
                                                      .AddQuantization({ 0, 1.0f })
                                                      .AddTensorShape(inputShape)
                                                      .AddStripeShape(inputShape)
@@ -196,17 +196,17 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
                                                      .AddSlotSize(1 * 32 * 32 * 192)
                                                      .AddNumStripes(1);
 
-        Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, { prevBuffer.get() }, 1);
+        Plans plans2 = part.GetPlans(CascadeType::Middle, BlockConfig{}, { prevBuffer.get() }, 1);
         CheckPlans(plans2, params);
 
         // No plan is returned since the input tensor and prev buffer's stripe shape does not match
         prevBuffer->m_StripeShape = TensorShape{ 1, 32, 16, 192 };
-        Plans plans3 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, { prevBuffer.get() }, 1);
+        Plans plans3              = part.GetPlans(CascadeType::Middle, BlockConfig{}, { prevBuffer.get() }, 1);
         REQUIRE(plans3.size() == 0);
 
         // A plan is returned since both input and output tensors is fit into SRAM
         prevBuffer->m_StripeShape = inputShape;
-        Plans plans4 = part.GetPlans(CascadeType::End, command_stream::BlockConfig{}, { prevBuffer.get() }, 1);
+        Plans plans4              = part.GetPlans(CascadeType::End, BlockConfig{}, { prevBuffer.get() }, 1);
         CheckPlans(plans4, params);
     }
 
@@ -233,22 +233,22 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
         // The input tensor will not be split to fit into SRAM
         // Therefore only the "lonely" type is expected to return a plan.
 
-        Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
+        Plans plans0 = part.GetPlans(CascadeType::Beginning, BlockConfig{}, { nullptr }, 1);
         REQUIRE(plans0.size() == 0);
 
-        Plans plans1 = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+        Plans plans1 = part.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
         REQUIRE(plans1.size() == 3);
 
         CheckPlansParams params;
         params.m_PartId           = partId;
         params.m_InputTensorsInfo = { inputTensorInfo };
         params.m_OutputTensorInfo = outputTensorInfo;
-        params.m_DataFormat       = CascadingBufferFormat::NHWCB;
+        params.m_DataFormat       = BufferFormat::NHWCB;
 
         CheckPlans(plans1, params);
 
         std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
-                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddFormat(BufferFormat::NHWCB)
                                                      .AddQuantization({ 0, 1.0f })
                                                      .AddTensorShape(inputShape)
                                                      .AddStripeShape(inputShape)
@@ -256,10 +256,10 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
                                                      .AddSlotSize(1 * 128 * 32 * 192)
                                                      .AddNumStripes(1);
 
-        Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, { prevBuffer.get() }, 1);
+        Plans plans2 = part.GetPlans(CascadeType::Middle, BlockConfig{}, { prevBuffer.get() }, 1);
         REQUIRE(plans2.size() == 0);
 
-        Plans plans4 = part.GetPlans(CascadeType::End, command_stream::BlockConfig{}, { prevBuffer.get() }, 1);
+        Plans plans4 = part.GetPlans(CascadeType::End, BlockConfig{}, { prevBuffer.get() }, 1);
         REQUIRE(plans4.size() == 0);
     }
 }
@@ -285,7 +285,7 @@ TEST_CASE("StandalonePlePart ADDITION")
         params.m_PartId           = partId;
         params.m_InputTensorsInfo = { inputTensorsInfo, inputTensorsInfo };
         params.m_OutputTensorInfo = outputTensorsInfo;
-        params.m_DataFormat       = CascadingBufferFormat::NHWCB;
+        params.m_DataFormat       = BufferFormat::NHWCB;
 
         EstimationOptions estOpts;
         CompilationOptions compOpts;
@@ -296,7 +296,7 @@ TEST_CASE("StandalonePlePart ADDITION")
         // Only the lonely part is expected to return a plan
 
         std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
-                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddFormat(BufferFormat::NHWCB)
                                                      .AddQuantization(inputQuantInfo)
                                                      .AddTensorShape(inputShape)
                                                      .AddStripeShape(inputStripe)
@@ -304,22 +304,19 @@ TEST_CASE("StandalonePlePart ADDITION")
                                                      .AddSlotSize(1 * 128 * 32 * 64)
                                                      .AddNumStripes(1);
 
-        Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
+        Plans plans0 = part.GetPlans(CascadeType::Beginning, BlockConfig{}, { nullptr }, 1);
         CheckPlans(plans0, params);
 
-        Plans plans1 = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+        Plans plans1 = part.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
         CheckPlans(plans1, params);
 
-        Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{},
-                                     { prevBuffer.get(), prevBuffer.get() }, 1);
+        Plans plans2 = part.GetPlans(CascadeType::Middle, BlockConfig{}, { prevBuffer.get(), prevBuffer.get() }, 1);
         CheckPlans(plans2, params);
 
-        Plans plans3 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{},
-                                     { prevBuffer.get(), prevBuffer.get() }, 1);
+        Plans plans3 = part.GetPlans(CascadeType::Middle, BlockConfig{}, { prevBuffer.get(), prevBuffer.get() }, 1);
         CheckPlans(plans3, params);
 
-        Plans plans4 =
-            part.GetPlans(CascadeType::End, command_stream::BlockConfig{}, { prevBuffer.get(), prevBuffer.get() }, 1);
+        Plans plans4 = part.GetPlans(CascadeType::End, BlockConfig{}, { prevBuffer.get(), prevBuffer.get() }, 1);
         CheckPlans(plans4, params);
     }
 
@@ -342,7 +339,7 @@ TEST_CASE("StandalonePlePart ADDITION")
         params.m_PartId           = partId;
         params.m_InputTensorsInfo = { inputTensorsInfo, inputTensorsInfo };
         params.m_OutputTensorInfo = outputTensorsInfo;
-        params.m_DataFormat       = CascadingBufferFormat::NHWCB;
+        params.m_DataFormat       = BufferFormat::NHWCB;
 
         EstimationOptions estOpts;
         CompilationOptions compOpts;
@@ -352,7 +349,7 @@ TEST_CASE("StandalonePlePart ADDITION")
         // Only the lonely part is expected to return a plan
 
         std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
-                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddFormat(BufferFormat::NHWCB)
                                                      .AddQuantization(inputQuantInfo)
                                                      .AddTensorShape(inputShape)
                                                      .AddStripeShape(inputStripe)
@@ -360,22 +357,19 @@ TEST_CASE("StandalonePlePart ADDITION")
                                                      .AddSlotSize(1 * 128 * 128 * 64)
                                                      .AddNumStripes(1);
 
-        Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
+        Plans plans0 = part.GetPlans(CascadeType::Beginning, BlockConfig{}, { nullptr }, 1);
         CheckPlans(plans0, params);
 
-        Plans plans1 = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+        Plans plans1 = part.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
         CheckPlans(plans1, params);
 
-        Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{},
-                                     { prevBuffer.get(), prevBuffer.get() }, 1);
+        Plans plans2 = part.GetPlans(CascadeType::Middle, BlockConfig{}, { prevBuffer.get(), prevBuffer.get() }, 1);
         CheckPlans(plans2, params);
 
-        Plans plans3 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{},
-                                     { prevBuffer.get(), prevBuffer.get() }, 1);
+        Plans plans3 = part.GetPlans(CascadeType::Middle, BlockConfig{}, { prevBuffer.get(), prevBuffer.get() }, 1);
         CheckPlans(plans3, params);
 
-        Plans plans4 =
-            part.GetPlans(CascadeType::End, command_stream::BlockConfig{}, { prevBuffer.get(), prevBuffer.get() }, 1);
+        Plans plans4 = part.GetPlans(CascadeType::End, BlockConfig{}, { prevBuffer.get(), prevBuffer.get() }, 1);
         CheckPlans(plans4, params);
     }
 }
@@ -401,7 +395,7 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
         params.m_PartId           = partId;
         params.m_InputTensorsInfo = { inputTensorsInfo, inputTensorsInfo };
         params.m_OutputTensorInfo = outputTensorsInfo;
-        params.m_DataFormat       = CascadingBufferFormat::NHWCB;
+        params.m_DataFormat       = BufferFormat::NHWCB;
 
         EstimationOptions estOpts;
         CompilationOptions compOpts;
@@ -409,7 +403,7 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
                                            PleOperation::ADDITION_RESCALE, caps, partId, estOpts, compOpts);
 
         std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
-                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddFormat(BufferFormat::NHWCB)
                                                      .AddQuantization(inputQuantInfo)
                                                      .AddTensorShape(inputShape)
                                                      .AddStripeShape(inputStripe)
@@ -417,22 +411,19 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
                                                      .AddSlotSize(1 * 128 * 32 * 64)
                                                      .AddNumStripes(1);
 
-        Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
+        Plans plans0 = part.GetPlans(CascadeType::Beginning, BlockConfig{}, { nullptr }, 1);
         CheckPlans(plans0, params);
 
-        Plans plans1 = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+        Plans plans1 = part.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
         CheckPlans(plans1, params);
 
-        Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{},
-                                     { prevBuffer.get(), prevBuffer.get() }, 1);
+        Plans plans2 = part.GetPlans(CascadeType::Middle, BlockConfig{}, { prevBuffer.get(), prevBuffer.get() }, 1);
         CheckPlans(plans2, params);
 
-        Plans plans3 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{},
-                                     { prevBuffer.get(), prevBuffer.get() }, 1);
+        Plans plans3 = part.GetPlans(CascadeType::Middle, BlockConfig{}, { prevBuffer.get(), prevBuffer.get() }, 1);
         CheckPlans(plans3, params);
 
-        Plans plans4 =
-            part.GetPlans(CascadeType::End, command_stream::BlockConfig{}, { prevBuffer.get(), prevBuffer.get() }, 1);
+        Plans plans4 = part.GetPlans(CascadeType::End, BlockConfig{}, { prevBuffer.get(), prevBuffer.get() }, 1);
         CheckPlans(plans4, params);
     }
 
@@ -455,7 +446,7 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
         params.m_PartId           = partId;
         params.m_InputTensorsInfo = { inputTensorsInfo, inputTensorsInfo };
         params.m_OutputTensorInfo = outputTensorsInfo;
-        params.m_DataFormat       = CascadingBufferFormat::NHWCB;
+        params.m_DataFormat       = BufferFormat::NHWCB;
 
         EstimationOptions estOpts;
         CompilationOptions compOpts;
@@ -465,7 +456,7 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
         // Only the lonely part is expected to return a plan
 
         std::unique_ptr<SramBuffer> prevBuffer = SramBuffer::Build()
-                                                     .AddFormat(CascadingBufferFormat::NHWCB)
+                                                     .AddFormat(BufferFormat::NHWCB)
                                                      .AddQuantization(inputQuantInfo)
                                                      .AddTensorShape(inputShape)
                                                      .AddStripeShape(inputStripe)
@@ -473,22 +464,19 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
                                                      .AddSlotSize(1 * 128 * 256 * 64)
                                                      .AddNumStripes(1);
 
-        Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, { nullptr }, 1);
+        Plans plans0 = part.GetPlans(CascadeType::Beginning, BlockConfig{}, { nullptr }, 1);
         CheckPlans(plans0, params);
 
-        Plans plans1 = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, { nullptr }, 1);
+        Plans plans1 = part.GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr }, 1);
         CheckPlans(plans1, params);
 
-        Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{},
-                                     { prevBuffer.get(), prevBuffer.get() }, 1);
+        Plans plans2 = part.GetPlans(CascadeType::Middle, BlockConfig{}, { prevBuffer.get(), prevBuffer.get() }, 1);
         CheckPlans(plans2, params);
 
-        Plans plans3 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{},
-                                     { prevBuffer.get(), prevBuffer.get() }, 1);
+        Plans plans3 = part.GetPlans(CascadeType::Middle, BlockConfig{}, { prevBuffer.get(), prevBuffer.get() }, 1);
         CheckPlans(plans3, params);
 
-        Plans plans4 =
-            part.GetPlans(CascadeType::End, command_stream::BlockConfig{}, { prevBuffer.get(), prevBuffer.get() }, 1);
+        Plans plans4 = part.GetPlans(CascadeType::End, BlockConfig{}, { prevBuffer.get(), prevBuffer.get() }, 1);
         CheckPlans(plans4, params);
     }
 }

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "../src/cascading/StripeHelper.hpp"
+#include "../src/StripeHelper.hpp"
 
 #include <catch.hpp>
 
@@ -39,7 +39,7 @@ TEST_CASE("StripeShapeLoop")
 TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
 {
     std::unique_ptr<SramBuffer> sram = SramBuffer::Build()
-                                           .AddFormat(CascadingBufferFormat::NHWCB)
+                                           .AddFormat(BufferFormat::NHWCB)
                                            .AddTensorShape(TensorShape{ 1, 16, 16, 32 })
                                            .AddStripeShape(TensorShape{ 1, 16, 16, 16 })
                                            .AddNumStripes(2)
@@ -47,13 +47,13 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
                                            .AddTraversalOrder(TraversalOrder::Xyz);
 
     std::unique_ptr<DramBuffer> dram =
-        DramBuffer::Build().AddFormat(CascadingBufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
+        DramBuffer::Build().AddFormat(BufferFormat::NHWCB).AddTensorShape(TensorShape{ 1, 16, 16, 16 });
 
     SECTION("Reshape without NHWC is invalid")
     {
         sram->m_TensorShape    = { 1, 16, 32, 16 };
         sram->m_StripeShape    = { 1, 16, 32, 16 };
-        dram->m_Format         = CascadingBufferFormat::NHWCB;
+        dram->m_Format         = BufferFormat::NHWCB;
         dram->m_TensorShape    = { 1, 16, 16, 32 };    // Reshaped from sram shape
         TensorShape dramOffset = { 0, 0, 0, 0 };
         // The order of the elements would not be correct, because of the NHWCB layout.
@@ -64,7 +64,7 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
     {
         sram->m_TensorShape    = { 1, 16, 32, 16 };
         sram->m_StripeShape    = { 1, 16, 32, 16 };
-        dram->m_Format         = CascadingBufferFormat::NHWC;
+        dram->m_Format         = BufferFormat::NHWC;
         dram->m_TensorShape    = { 1, 16, 16, 32 };    // Reshaped from sram shape
         TensorShape dramOffset = { 0, 0, 0, 0 };
         // Because NHWC is linear, the order of the elements will be correct.
@@ -75,7 +75,7 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
     {
         sram->m_TensorShape    = { 1, 16, 16, 32 };
         sram->m_StripeShape    = { 1, 16, 16, 16 };
-        dram->m_Format         = CascadingBufferFormat::NHWC;
+        dram->m_Format         = BufferFormat::NHWC;
         dram->m_TensorShape    = { 1, 16, 32, 16 };    // Reshaped from sram shape
         TensorShape dramOffset = { 0, 0, 0, 0 };
         // This is splitting the tensor in depth, as we use the SRAM tensor shape in the command
@@ -87,7 +87,7 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
     {
         sram->m_TensorShape    = { 1, 16, 32, 16 };
         sram->m_StripeShape    = { 1, 16, 16, 16 };
-        dram->m_Format         = CascadingBufferFormat::NHWC;
+        dram->m_Format         = BufferFormat::NHWC;
         dram->m_TensorShape    = { 1, 16, 16, 32 };    // Reshaped from sram shape
         TensorShape dramOffset = { 0, 0, 0, 0 };
         // This is not splitting the tensor in depth, as we use the SRAM tensor shape in the command
@@ -99,7 +99,7 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
     {
         sram->m_TensorShape    = { 1, 16, 16, 32 };
         sram->m_StripeShape    = { 1, 16, 16, 32 };
-        dram->m_Format         = CascadingBufferFormat::NHWC;
+        dram->m_Format         = BufferFormat::NHWC;
         dram->m_TensorShape    = { 1, 32, 32, 32 };
         TensorShape dramOffset = { 0, 1, 2, 0 };
         // Any offset in W or H is fine for NHWC
@@ -114,7 +114,7 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
     {
         sram->m_TensorShape    = { 1, 16, 1, 32 };
         sram->m_StripeShape    = { 1, 16, 8, 32 };
-        dram->m_Format         = CascadingBufferFormat::NHWC;
+        dram->m_Format         = BufferFormat::NHWC;
         dram->m_TensorShape    = { 1, 32, 1, 32 };
         TensorShape dramOffset = { 0, 0, 0, 3 };
         // Any offset in C is fine for NHWC as long as width is 1.
@@ -125,7 +125,7 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
     {
         sram->m_TensorShape    = { 1, 16, 16, 16 };
         sram->m_StripeShape    = { 1, 16, 16, 16 };
-        dram->m_Format         = CascadingBufferFormat::NHWCB;
+        dram->m_Format         = BufferFormat::NHWCB;
         dram->m_TensorShape    = { 1, 32, 32, 32 };
         TensorShape dramOffset = { 0, 8, 8, 16 };
         // This offset is a multiple of the brick group shape, so is OK
@@ -146,7 +146,7 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
     {
         sram->m_TensorShape    = { 1, 16, 16, 16 };
         sram->m_StripeShape    = { 1, 16, 16, 16 };
-        dram->m_Format         = CascadingBufferFormat::FCAF_WIDE;
+        dram->m_Format         = BufferFormat::FCAF_WIDE;
         dram->m_TensorShape    = { 1, 32, 32, 32 };
         TensorShape dramOffset = { 0, 8, 16, 16 };
         // This offset is a multiple of the cell shape, so is OK
@@ -167,7 +167,7 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
     {
         sram->m_TensorShape    = { 1, 16, 16, 32 };
         sram->m_StripeShape    = { 1, 16, 16, 32 };
-        dram->m_Format         = CascadingBufferFormat::FCAF_DEEP;
+        dram->m_Format         = BufferFormat::FCAF_DEEP;
         dram->m_TensorShape    = { 1, 32, 32, 64 };
         TensorShape dramOffset = { 0, 8, 8, 32 };
         // This offset is a multiple of the cell shape, so is OK
@@ -188,7 +188,7 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
     {
         sram->m_TensorShape    = { 1, 16, 16, 15 };
         sram->m_StripeShape    = { 1, 16, 16, 32 };
-        dram->m_Format         = CascadingBufferFormat::FCAF_DEEP;
+        dram->m_Format         = BufferFormat::FCAF_DEEP;
         dram->m_TensorShape    = { 1, 32, 32, 64 };
         TensorShape dramOffset = { 0, 8, 8, 0 };
         // The tensor will end at channel 15, which isn't aligned to 32 (cell depth), but this is fine
@@ -199,7 +199,7 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
     {
         sram->m_TensorShape    = { 1, 16, 16, 32 };
         sram->m_StripeShape    = { 1, 16, 16, 16 };
-        dram->m_Format         = CascadingBufferFormat::NHWC;
+        dram->m_Format         = BufferFormat::NHWC;
         dram->m_TensorShape    = { 1, 16, 16, 32 };
         TensorShape dramOffset = { 0, 0, 0, 0 };
         CHECK(impl::IsSramBufferCompatibleWithDramBuffer(*sram.get(), *dram.get(), dramOffset) == false);
@@ -212,7 +212,7 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
     {
         sram->m_TensorShape    = { 1, 16, 1, 32 };
         sram->m_StripeShape    = { 1, 16, 8, 16 };
-        dram->m_Format         = CascadingBufferFormat::NHWC;
+        dram->m_Format         = BufferFormat::NHWC;
         dram->m_TensorShape    = { 1, 16, 1, 32 };
         TensorShape dramOffset = { 0, 0, 0, 0 };
         CHECK(impl::IsSramBufferCompatibleWithDramBuffer(*sram.get(), *dram.get(), dramOffset) == true);
@@ -222,7 +222,7 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
     {
         sram->m_TensorShape    = { 1, 16, 8, 32 };
         sram->m_StripeShape    = { 1, 8, 8, 16 };
-        dram->m_Format         = CascadingBufferFormat::FCAF_WIDE;
+        dram->m_Format         = BufferFormat::FCAF_WIDE;
         dram->m_TensorShape    = { 1, 16, 8, 32 };
         TensorShape dramOffset = { 0, 0, 0, 0 };
         // Stripe shape is 8 wide, not a multiple of 16. However this is fine because there
@@ -242,7 +242,7 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
     {
         sram->m_TensorShape    = { 1, 16, 16, 16 };
         sram->m_StripeShape    = { 1, 8, 8, 16 };
-        dram->m_Format         = CascadingBufferFormat::FCAF_DEEP;
+        dram->m_Format         = BufferFormat::FCAF_DEEP;
         dram->m_TensorShape    = { 1, 16, 16, 16 };
         TensorShape dramOffset = { 0, 0, 0, 0 };
         // Stripe shape is only 16 deep, not a multiple of 32. However this is fine because
@@ -263,12 +263,12 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
         sram->m_PackedBoundaryThickness = { 8, 0, 8, 0 };
         sram->m_TensorShape             = { 1, 16, 16, 32 };
         sram->m_StripeShape             = { 1, 8, 8, 32 };
-        dram->m_Format                  = CascadingBufferFormat::NHWC;
+        dram->m_Format                  = BufferFormat::NHWC;
         dram->m_TensorShape             = { 1, 16, 16, 32 };
         TensorShape dramOffset          = { 0, 0, 0, 0 };
         CHECK(impl::IsSramBufferCompatibleWithDramBuffer(*sram.get(), *dram.get(), dramOffset) == false);
 
-        dram->m_Format = CascadingBufferFormat::NHWCB;
+        dram->m_Format = BufferFormat::NHWCB;
         CHECK(impl::IsSramBufferCompatibleWithDramBuffer(*sram.get(), *dram.get(), dramOffset) == true);
     }
 
@@ -277,7 +277,7 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
         sram->m_TensorShape    = { 1, 16, 16, 16 };
         sram->m_StripeShape    = { 1, 16, 16, 16 };
         sram->m_ForbidFcafWide = false;
-        dram->m_Format         = CascadingBufferFormat::FCAF_WIDE;
+        dram->m_Format         = BufferFormat::FCAF_WIDE;
         dram->m_TensorShape    = { 1, 32, 32, 32 };
         TensorShape dramOffset = { 0, 0, 0, 0 };
         CHECK(impl::IsSramBufferCompatibleWithDramBuffer(*sram.get(), *dram.get(), dramOffset) == true);
