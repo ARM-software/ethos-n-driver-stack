@@ -184,7 +184,7 @@ To download the components, enter the following commands:
 mkdir driver_stack
 cd driver_stack
 git clone https://github.com/Arm-software/armnn --branch v23.08
-git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 23.05
+git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 23.08
 ```
 
     _Note: The default branch on GitHub has changed to main._
@@ -419,16 +419,16 @@ There are multiple ways to exercise the Ethos-N NPU driver:
 
 5. Run the Ethos-N NPU System Tests. This program supports the running of TensorFlow Lite models, networks described in Ggf format, and contains a suite of built-in tests.
 
+    Arm NN is required to build the system tests.
+
     To build the `system-tests` executable, use the following command:
 
         ```sh
         cd <path_to>/driver_stack/ethos-n-driver-stack/driver
-        scons tests=1 ../tools/system_tests
+        scons tests=1 ../tools/system_tests LPATH=`<path_to>/driver_stack/armnn_build/build/armnn/x86_64_build/` CPATH=`<path_to_catch>/Catch2/single_include/catch2/:<path_to>/driver_stack/armnn_build/source/armnn/include/`
         ```
 
-    * If you are cross compiling the system tests, add `platform=aarch64` to the scons command.
-    * Make sure your CPATH scons variable, which is specified on the command-line, points to `<path_to_catch>/Catch2/single_include/catch2/`.
-    * Make sure that your armnn_dir scons variable, which is specified on the command line, points to `<path_to>/driver_stack/armnn_build/source/armnn/`.
+    * If you are cross compiling the system tests, add `platform=aarch64` to the scons command and change `x86_64_build` to `aarch64_build`
     * Make sure that your unit_test_kernel_dir scons variable, which is specified on the command-line, points to the Linux kernel source tree used to build the Ethos-N NPU Linux kernel module. The Linux kernel's user-space headers will be used when building and running the unit tests to determine what features are supported and should be tested.
     _Note: In order to support all the unit tests, the Linux kernel source tree used must be version 5.6 or higher. The Linux kernel source tree should be the same as the one used to compile the Linux kernel module._
     _Note: If the Linux kernel source tree does not contain the Linux kernel's generated user-space headers, scons will generate them using the Linux kernel's `headers_install` make target._

@@ -78,6 +78,8 @@
     - 2 x 2 pooling size, 2, 2 stride, SAME padding, input sizes must be odd.
     - 3 x 3 pooling size, 2, 2 stride, VALID padding, input sizes must even, maximum tensor width is 417.
     - 3 x 3 pooling size, 2, 2 stride, SAME padding, input sizes must be odd, maximum tensor width is 417.
+    - 1, 1 stride with pooling sizes up to 9x9 for VALID padding
+    - 1, 1 stride with pooling sizes up to 17x17 for SAME padding.
 - Input size must not be smaller than the pooling size.
 
 
