@@ -27,7 +27,7 @@ env.PrependUnique(
 )
 
 # The TZMP1 test kernel module is only available in a TZMP1 build
-if env["npu_security"] == "tzmp1":
+if env.get("npu_security") == "tzmp1":
     env.PrependUnique(
         CPPPATH=[
             os.path.join(env["tzmp1_test_kernel_module_dir"]),
@@ -120,7 +120,7 @@ if os.path.isdir(internal_dir) and env["target"] == "model":
 srcs.extend(internal_srcs)
 
 # Protected memory is only available in a TZMP1 build
-if env["npu_security"] == "tzmp1":
+if env.get("npu_security") == "tzmp1":
     srcs.extend(["ProtectedCustomAllocatorTest.cpp"])
 
 libs.insert(0, system_tests_lib)

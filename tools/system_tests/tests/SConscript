@@ -26,7 +26,7 @@ srcs = [
     "SystemTestsUtilsTests.cpp",
 ]
 
-if env["npu_security"] == "tzmp1":
+if env.get("npu_security") == "tzmp1":
     srcs.extend(["ProtectedAllocatorTests.cpp"])
 
 unitTests = env.Program("UnitTests", srcs, LIBS=libs)
