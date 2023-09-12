@@ -1048,14 +1048,20 @@ const QuantizationInfo LayerData::GetConcatOutputQuantInfo(std::string name,
 {
     g_Logger.Debug("LayerData::GetConcatOutputQuantInfo name=%s", name.c_str());
     auto CalculateConcatQuantInfo = [&]() {
-        float max = std::numeric_limits<float>::lowest();
-        float min = std::numeric_limits<float>::max();
+        float max  = std::numeric_limits<float>::lowest();
+        float min  = std::numeric_limits<float>::max();
+        float qmax = 0, qmin = 255;
+        if (AreInputsSigned())
+        {
+            qmax = -128;
+            qmin = 127;
+        }
         for (QuantizationInfo it : inputQuantInfos)
         {
-            max = std::max(max, GetMaxRepresentableValue(it, 255.f));
-            max = std::max(max, GetMinRepresentableValue(it, 0.f));
-            min = std::min(min, GetMaxRepresentableValue(it, 255.f));
-            min = std::min(min, GetMinRepresentableValue(it, 0.f));
+            max = std::max(max, GetMaxRepresentableValue(it, qmax));
+            max = std::max(max, GetMinRepresentableValue(it, qmin));
+            min = std::min(min, GetMaxRepresentableValue(it, qmax));
+            min = std::min(min, GetMinRepresentableValue(it, qmin));
         }
         return ChooseQuantizationParams(min, max, AreInputsSigned());
     };
