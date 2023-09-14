@@ -1,5 +1,39 @@
 # Changelog for Arm® Ethos™-N Driver Stack
 
+## 23.08
+
+### New features
+
+- Off device compilation is now supported through Arm NN.
+  - Please set OFFLINE = 1 and PERFORMANCE_VARIANT and PERFORMANCE_SRAM_SIZE_BYTES_OVERRIDE in the Ethos-N Arm NN config file when compiling. This will cause the backend to only compile the network. Use this in conjunction with the caching feature to generate a cached compiled network.
+  - Copy this cached compiled network to the target device and use it as normal.
+- Improved multithreaded performance in the support library.
+  - Configurable with the ETHOSN_SUPPORT_LIBRARY_NUM_THREADS environment variable. If unset the number of threads is automatically chosen.
+  - One can use a different allocator e.g. mimalloc for even better performance.
+- Runtime performance improvements.
+  - Cascading can now be performed over branches.
+  - Preloading weights from later layers.
+  - Improved allocation to minimise the overlap of buffers in SRAM.
+  - Sigmoid PLE kernel sped up.
+- Support up to 7 padding in Convolution type operators.
+- Support Max pooling Stride 1x1.
+- Reduce compilation memory requirements in the weight encoder.
+- Reduce cached compiled network memory requirements.
+- Better error messages reporting from the hardware in the kernel log.
+
+### Public API changes
+
+- Command stream version bumped to 6.
+- Driver Library version bumped to 7.
+- Firmware version bumped to 15.
+
+### Other changes
+
+- Fixed a crash in the kernel module when mapping smaller regions of virtual memory.
+- Fixed other bugs
+
+### Known issues
+
 ## 23.05
 
 ### New features
