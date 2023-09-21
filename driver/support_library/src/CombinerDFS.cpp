@@ -1293,21 +1293,24 @@ void Combiner::Run(ThreadPool& threadPool)
         // Retrieve the SE, SCE, SCCE, etc., combinations (calculated up-front),
         // and check the performance of each of them when combined with the rest of the tail.
         const std::vector<Combination>& sections = sectionsOfAllLengthsForStartingPart[partIdx];
-        for (int sectionLength = 2; sectionLength <= numParts - partIdx; ++sectionLength)
+        if (sections.size() >= 2)
         {
-            const Combination& section = sections[sectionLength];
-            if (section.IsEmpty())
+            for (int sectionLength = 2; sectionLength <= numParts - partIdx; ++sectionLength)
             {
-                // No valid section of this length could be found. That doesn't mean that longer ones won't work though,
-                // so keep checking the longer lengths.
-                continue;
-            }
-            Combination sectionAndRest = section + best[partIdx + sectionLength];
+                const Combination& section = sections.at(sectionLength);
+                if (section.IsEmpty())
+                {
+                    // No valid section of this length could be found. That doesn't mean that longer ones won't work though,
+                    // so keep checking the longer lengths.
+                    continue;
+                }
+                Combination sectionAndRest = section + best[partIdx + sectionLength];
 
-            // Check if this is the new best
-            if (sectionAndRest.GetMetric() < bestTail.GetMetric())
-            {
-                bestTail = sectionAndRest;
+                // Check if this is the new best
+                if (sectionAndRest.GetMetric() < bestTail.GetMetric())
+                {
+                    bestTail = sectionAndRest;
+                }
             }
         }
 
