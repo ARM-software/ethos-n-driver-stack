@@ -8,6 +8,12 @@
 
 namespace
 {
+
+// This symbol needs to be defined to avoid a link error.
+// It is used to zero out the C++ classes but we don't need those to be zero initialised and it is slow
+__attribute__((used)) extern "C" void __aeabi_memclr8(void* dest, size_t n)
+{}
+
 __noinline void SetEncodedShift(volatile Cdp2Inst& asrSat, const unsigned shift)
 {
     asrSat.SetRm(shift);
@@ -20,6 +26,7 @@ void SetEncodedShift(const unsigned shift)
     // label ASRSat_32_16_<I> to execute the correct amount of right shift.
     // This is done by modifying the Rm field of the CDP2 instruction
     volatile Cdp2Inst* asrSat;
+    // cppcheck-suppress uninitvar
     __ASM("ADR %[asrSat], ASRSat_32_16_%c[I]" : [asrSat] "=r"(asrSat) : [I] "n"(I));
     SetEncodedShift(*asrSat, shift);
 }

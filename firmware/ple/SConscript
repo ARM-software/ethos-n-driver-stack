@@ -63,15 +63,22 @@ def compile_all_kernels():
             env["PROGSUFFIX"] = None
             env.Depends(elf, linker_script)
 
+            if env["use_llvm_embedded"]:
+                dump_cmd = "llvm-objdump --mcpu=cortex-m33 --disassemble --all-headers --syms --dynamic-syms --section-headers --source $SOURCE > $TARGET"
+                binary_cmd = "llvm-objcopy -O binary --strip-all $SOURCE $TARGET"
+            else:
+                dump_cmd = "fromelf --cpu=Cortex-M33.no_fp --fpu=none -cd --output $TARGET $SOURCE"
+                binary_cmd = "fromelf --bincombined --output $TARGET $SOURCE"
+
             dump_tgt = env.Command(
                 name + ".dump",
                 elf,
-                "fromelf --cpu=Cortex-M33.no_dsp --fpu=none -cd --output $TARGET $SOURCE",
+                dump_cmd,
             )
             bin_tgt = env.Command(
                 bin_name,
                 elf,
-                "fromelf --bin --output $TARGET $SOURCE",
+                binary_cmd,
             )
 
             if not ple_clean:
@@ -787,9 +794,29 @@ if env["PLATFORM"] == "win32":
     env = env.Clone(tools=["mingw"])
     env["CCFLAGS"] = str(env["CCFLAGS"]).replace("/nologo", "")
 
-common.setup_toolchain(env, "armclang")
+if env["use_llvm_embedded"]:
+    common.setup_toolchain(env, "llvm-embedded")
 
-linker_script = File("ple.scatter")
+    if env["use_llvm_embedded"]:
+        # Add the llvm embedded toolchain to the path.
+        env.PrependENVPath("PATH", os.path.join(env["llvm_embedded_toolchain_path"], "bin"))
+
+    sysroot_path = os.path.join(
+        env["llvm_embedded_toolchain_path"],
+        "lib",
+        "clang-runtimes",
+        "arm-none-eabi",
+        "armv8m.main_soft_nofp",
+    )
+    env.AppendUnique(CCFLAGS=["--sysroot={}".format(sysroot_path)])
+else:
+    common.setup_toolchain(env, "armclang")
+    env.AppendUnique(
+        CCFLAGS=[
+            "-flto",
+        ]
+    )
+
 env.AppendUnique(
     CCFLAGS=[
         "-mcpu=Cortex-M33+nodsp",
@@ -800,9 +827,8 @@ env.AppendUnique(
         "-Wsign-conversion",
         "-Wno-missing-braces",
         "-fno-unwind-tables",
-        "-flto",
-        "-nostdlib",
         "-fno-threadsafe-statics",
+        "-nostdlib",
     ]
 )
 env.AppendUnique(
@@ -815,25 +841,41 @@ env.AppendUnique(
         "-fconstexpr-steps={}".format(200 * 1048576),
     ]
 )
-# Ordering matters here so dont use AppendUnique
-env.Append(
-    LINKFLAGS=[
-        "--cpu=Cortex-M33.no_dsp.no_fp",
-        "--scatter",
-        linker_script,
-        "--lto",
-        "--inline",
-        "--no_startup",
-        "--no_scanlib",
-        # Set the entry point to be stored in the elf file.
-        # This is needed only to satisfy a linker warning, as we do not use the elf file once we have
-        # extracted its contents. The 'real' entry point is set by the VECTOR_TABLE in boot.cpp.
-        "--entry",
-        "__start",
-        # All linker warnings should be treated as errors
-        "--diag_error=warning",
-    ]
-)
+if env["use_llvm_embedded"]:
+    linker_script = File("ple_linker_script")
+    env.Append(
+        LINKFLAGS=[
+            "-T{}".format(linker_script),
+            "--strip-all",
+            # Set the entry point to be stored in the elf file.
+            # This is needed only to satisfy a linker warning, as we do not use the elf file once we have
+            # extracted its contents. The 'real' entry point is set by the VECTOR_TABLE in boot.cpp.
+            "--entry",
+            "__start",
+            # All linker warnings should be treated as errors
+        ]
+    )
+else:
+    # Ordering matters here so dont use AppendUnique
+    linker_script = File("ple.scatter")
+    env.Append(
+        LINKFLAGS=[
+            "--cpu=Cortex-M33.no_dsp.no_fp",
+            "--scatter",
+            linker_script,
+            "--lto",
+            "--inline",
+            "--no_startup",
+            "--no_scanlib",
+            # Set the entry point to be stored in the elf file.
+            # This is needed only to satisfy a linker warning, as we do not use the elf file once we have
+            # extracted its contents. The 'real' entry point is set by the VECTOR_TABLE in boot.cpp.
+            "--entry",
+            "__start",
+            # All linker warnings should be treated as errors
+            "--diag_error=warning",
+        ]
+    )
 
 # Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on the install target
 # where the install target is also provided via CPATH.
@@ -851,12 +893,19 @@ if env["ple_logging"].upper() != "OFF":
 # Optimization level
 if env["debug"]:
     env.AppendUnique(CCFLAGS=["-Og", "-g"])
+elif env["use_llvm_embedded"]:
+    # From experiments -Os provides better performance than O3 with the llvm embedded toolchain.
+    common.remove_flags(["-O3"], env["CXXFLAGS"])
+    env.AppendUnique(CCFLAGS=["-Os"])
 else:
     env.AppendUnique(CCFLAGS=["-O3"])
 
 if env["ple_logging"] == "model":
-    env.AppendUnique(LINKFLAGS=['--predefine="-DSRAM_SIZE=0x4000"'])
-    env.AppendUnique(LINKFLAGS=['--predefine="-DSTACK_SIZE=0x400"'])
+    env.AppendUnique(CPPDEFINES=["SRAM_SIZE=0x4000"])
+    env.AppendUnique(CPPDEFINES=["STACK_SIZE=0x400"])
+else:
+    env.AppendUnique(CPPDEFINES=["SRAM_SIZE=0x1000"])
+    env.AppendUnique(CPPDEFINES=["STACK_SIZE=0x1C0"])
 
 # Disable copro pipelining for debug purposes if needed
 if env.Dictionary().get("copro_pipeline_disable"):

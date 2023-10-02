@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited.
+// Copyright © 2018-2020,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -149,7 +149,7 @@ public:
 
     void SignalFullWidthBlockFreed() const
     {
-#pragma unroll_completely
+#pragma unroll
         for (unsigned i = 0; i < BlocksAdvance; ++i)
         {
             SignalBufferFreed();

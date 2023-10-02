@@ -307,6 +307,23 @@ def setup_toolchain(env, toolchain):
         if "LINKFLAGS" in env:
             flags = ["-Wl,--enable-new-dtags"]
             remove_flags(flags, env["LINKFLAGS"])
+    elif toolchain == "llvm-embedded":
+        env.Replace(
+            CC="clang --target=arm-arm-none-eabi",
+            CXX="clang --target=arm-arm-none-eabi",
+            LINK="ld.lld",
+            AS="clang --target=arm-arm-none-eabi",
+            AR="armar",
+            RANLIB="armar -s",
+        )
+
+        # List of flags clang doesnt understand so should be removed from the inherited common set of flags
+        if "CPPFLAGS" in env:
+            flags = ["-Wlogical-op", "-Wnoexcept", "-Wstrict-null-sentinel"]
+            remove_flags(flags, env["CPPFLAGS"])
+        if "LINKFLAGS" in env:
+            flags = ["-Wl,--enable-new-dtags"]
+            remove_flags(flags, env["LINKFLAGS"])
 
 
 def validate_dir(env, path, exception_type):

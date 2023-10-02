@@ -48,15 +48,15 @@ __STATIC_FORCEINLINE void ResetReg()
     __ASM volatile("MOV r%c0, #0"
                    : /* No outputs. */
                    : "n"(I)
-                   : "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12");
+                   : "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r8", "r9", "r10", "r11", "r12");
 }
 
 STATIC_LOOP_FN_WRAPPER(ResetRegFn, ResetReg);
 }    // namespace
 
+__attribute__((used, section("STACK"))) char g_Stack[STACK_SIZE];
+
 extern "C" {
-void Image$$STACK$$ZI$$Base();
-void Image$$STACK$$ZI$$Limit();
 __NO_RETURN void main();
 
 __NO_RETURN void __start()
@@ -69,7 +69,7 @@ __NO_RETURN void __start()
     // The link register (LR/R14) is initialized in the call to main().
     For<Range<0, 13>>::Invoke(ResetRegFn{});
 
-    __set_MSPLIM(reinterpret_cast<uint32_t>(&Image$$STACK$$ZI$$Base));
+    __set_MSPLIM(reinterpret_cast<uint32_t>(&g_Stack));
 
     // Set CPACR bits 15-0 to enable CP0-CP7, and clear bits 20-23 to disable CP10-CP11
     SCB->CPACR = 0xFFFF;
@@ -89,10 +89,11 @@ __NO_RETURN void __reset()
 {
     // Even though SP is initialised automatically on first boot, we need to reset it manually on subsequent
     // resets through NmiHandler().
-    __ASM volatile("MOV sp, %0" : : "r"(&Image$$STACK$$ZI$$Limit));
+    // The bottom of the stack (which grows up) is at the end of SRAM
+    __ASM volatile("MOV sp, %0" : : "r"(SRAM_SIZE));
 
     // We may be running a new kernel now, which has a different stack size
-    __set_MSPLIM(reinterpret_cast<uint32_t>(&Image$$STACK$$ZI$$Base));
+    __set_MSPLIM(reinterpret_cast<uint32_t>(&g_Stack));
 
     main();
 }
@@ -133,22 +134,23 @@ __NO_RETURN void HangIrq()
 }
 
 const ExecFuncPtr g_InitVtor[] __attribute__((section("VECTOR_TABLE"), used)) = {
-    &Image$$STACK$$ZI$$Limit,    // Initial SP
-    &__start,                    // Initial PC, set to entry point
-    &NmiHandler,                 // NMIException
-    &FaultIrq,                   // HardFaultException
-    &FaultIrq,                   // MemManageException
-    &FaultIrq,                   // BusFaultException
-    &FaultIrq,                   // UsageFaultException
-    0,                           // Reserved
-    0,                           // Reserved
-    0,                           // Reserved
-    0,                           // Reserved
-    &HangIrq,                    // SVCHandler
-    &HangIrq,                    // DebugMonitor
-    0,                           // Reserved
-    &HangIrq,                    // PendSVC
-    &HangIrq,                    // SysTickHandler
+    reinterpret_cast<ExecFuncPtr>(
+        SRAM_SIZE),    // Initial SP is at the bottom of the stack (which grows up) is at the end of SRAM
+    &__start,          // Initial PC, set to entry point
+    &NmiHandler,       // NMIException
+    &FaultIrq,         // HardFaultException
+    &FaultIrq,         // MemManageException
+    &FaultIrq,         // BusFaultException
+    &FaultIrq,         // UsageFaultException
+    0,                 // Reserved
+    0,                 // Reserved
+    0,                 // Reserved
+    0,                 // Reserved
+    &HangIrq,          // SVCHandler
+    &HangIrq,          // DebugMonitor
+    0,                 // Reserved
+    &HangIrq,          // PendSVC
+    &HangIrq,          // SysTickHandler
 
     /* Configurable interrupts start here...*/
 

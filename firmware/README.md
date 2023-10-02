@@ -24,8 +24,10 @@ This directory contains code for post-processing operations. These are referred 
 
 _Last known working versions of each component are stated where possible_
 
-  * [`6.16.1LTS`] Arm Compiler toolchain (`armclang`) (https://developer.arm.com/downloads/view/ACOMP616).
-    * A license may be required to use Arm Compiler, please consult the Arm Compiler documentation for more details.
+  * One of the following two compiler toolchains:
+    * [`6.16.1LTS`] Arm Compiler toolchain (`armclang`) (https://developer.arm.com/downloads/view/ACOMP616).
+      * A license may be required to use Arm Compiler, please consult the Arm Compiler documentation for more details.
+    * The LLVM Embedded Toolchain for Arm. See the [section](#using-the-llvm-embedded-toolchain-for-arm) below for more details
   * [`V5.9.0`] CMSIS (https://github.com/ARM-software/CMSIS_5/releases/tag/5.9.0)
 
 ## Building the firmware and PLE
@@ -47,3 +49,13 @@ scons -C driver -j `nproc` cmsis_dir="<local_location>/cmsis/CMSIS/Core/Include"
 
 * For a list of command line parameters and more information, refer to the descriptions in `<local_location>/ethos-n-driver-stack/driver/SConstruct` file.
 
+## Using the LLVM Embedded Toolchain for Arm
+
+The LLVM Embedded Toolchain for Arm can be used to build the PLE kernels and control unit firmware instead of Armclang if a license hasn't yet been acquired. Please note that limited testing has been performed with this toolchain and the performance is worse.
+
+In order to use it download the release (https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm) and set the following command line options (or add them to your options.py) when building the control unit firmware or ple kernels.
+
+ * `use_llvm_embedded=1`
+ * `llvm_embedded_toolchain_path=<path_to_llvm_embedded_toolchain_root>`
+
+The version of the toolchain that has been tested is 16.0.0.

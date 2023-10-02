@@ -87,6 +87,17 @@ var.AddVariables(
         PathVariable.PathAccept,
     ),
     BoolVariable("profiling", "Enable performance profiling", False),
+    BoolVariable(
+        "use_llvm_embedded",
+        "Use the llvm embedded toolchain to build the control unit and ple",
+        False,
+    ),
+    PathVariable(
+        "llvm_embedded_toolchain_path",
+        "Path to the llvm embedded toolchain",
+        "",
+        PathVariable.PathAccept,
+    ),
 )
 
 env = Environment(variables=var)
@@ -131,6 +142,7 @@ common.abs_path(
         "ple_dir",
         "arch_regs_dir",
         "cmsis_dir",
+        "llvm_embedded_toolchain_path",
     ],
 )
 

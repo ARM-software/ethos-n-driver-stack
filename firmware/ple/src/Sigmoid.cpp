@@ -45,6 +45,11 @@ __attribute__((used)) extern "C" void __aeabi_memclr4()
 namespace
 {
 
+// This symbol needs to be defined to avoid a link error.
+// It is used to zero out the C++ classes but we don't need those to be zero initialised and it is slow
+__attribute__((used)) extern "C" void __aeabi_memclr8(void* dest, size_t n)
+{}
+
 class Sigmoid
 {
 public:
@@ -60,6 +65,7 @@ public:
         // Update the 4 x ASR instructions with the shift value which we only know at runtime
         const uint32_t shift = info.inputs[0].shift;
         volatile Cdp2Inst* asrSat;
+        // cppcheck-suppress uninitvar
         __ASM("ADR %[asrSat], INSTRUCTION_FOR_MODIFICATION_0" : [asrSat] "=r"(asrSat));
         asrSat->SetRm(shift);
         __ASM("ADR %[asrSat], INSTRUCTION_FOR_MODIFICATION_1" : [asrSat] "=r"(asrSat));

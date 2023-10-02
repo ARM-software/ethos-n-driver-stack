@@ -76,9 +76,15 @@ if env["backend"] == "hardware":
     env_hw = env.Clone()
     env_hw.AppendUnique(CPPDEFINES=["CONTROL_UNIT_HARDWARE"])
 
-    common.setup_toolchain(env_hw, "armclang")
+    if env_hw["use_llvm_embedded"]:
+        common.setup_toolchain(env_hw, "llvm-embedded")
+    else:
+        common.setup_toolchain(env_hw, "armclang")
 
-    linker_script = File("cu.scatter").srcnode().abspath
+    if env_hw["use_llvm_embedded"]:
+        # Add the llvm embedded toolchain to the path.
+        env_hw.PrependENVPath("PATH", os.path.join(env_hw["llvm_embedded_toolchain_path"], "bin"))
+
     env_hw.AppendUnique(
         CCFLAGS=[
             "-mcpu=Cortex-M7+nodsp",
@@ -88,6 +94,19 @@ if env["backend"] == "hardware":
             "-flto",
         ]
     )
+
+    if env_hw["use_llvm_embedded"]:
+        # From experiments -Os provides better performance than O3. O3 is the default when we setup release builds.
+        common.remove_flags(["-O3"], env_hw["CXXFLAGS"])
+        sysroot_path = os.path.join(
+            env_hw["llvm_embedded_toolchain_path"],
+            "lib",
+            "clang-runtimes",
+            "arm-none-eabi",
+            "armv7em_soft_nofp",
+        )
+        env_hw.AppendUnique(CCFLAGS=["-Os", "--sysroot={}".format(sysroot_path)])
+
     # Firmware is always loaded and executed at a fixed address, so doesn't need position-independence
     env_hw["CPPFLAGS"].remove("-fPIC")
 
@@ -98,18 +117,29 @@ if env["backend"] == "hardware":
     env_hw.AppendUnique(CXXFLAGS=["-fno-rtti", "-ffreestanding", "-fno-exceptions"])
     # Default flags are not suitable for armar
     env_hw.Replace(ARFLAGS=["-rc"])
-    # Ordering matters here so dont use AppendUnique
-    env_hw.Append(
-        LINKFLAGS=[
-            "--cpu=Cortex-M7.no_fp",
-            "--scatter",
-            linker_script,
-            "--lto",
-            "--inline",
-            # Warnings should be treated as errors
-            "--diag_error=warning",
-        ]
-    )
+    if env_hw["use_llvm_embedded"]:
+        linker_script = File("cu_linker_script").srcnode().abspath
+        # Ordering matters here so dont use AppendUnique
+        env_hw.Append(
+            LINKFLAGS=[
+                "-T{}".format(linker_script),
+                "--lto-O3",
+                "--strip-all",
+            ]
+        )
+    else:
+        linker_script = File("cu.scatter").srcnode().abspath
+        env_hw.Append(
+            LINKFLAGS=[
+                "--cpu=Cortex-M7.no_fp",
+                "--scatter",
+                linker_script,
+                "--lto",
+                "--inline",
+                # Warnings should be treated as errors
+                "--diag_error=warning",
+            ]
+        )
 
     if "size" in env_hw:
         env_hw.AppendUnique(LINKFLAGS=['--predefine="-D__rom_size=${size}"'])
@@ -165,20 +195,46 @@ if env["backend"] == "hardware":
 
         env.Execute("@" + cmd)
 
+    if env_hw["use_llvm_embedded"]:
+        # We require vsnprintf and memcpy from libraries provided by the llvm embedded toolchain
+        env_hw.PrependUnique(
+            LIBPATH=[
+                os.path.join(
+                    env_hw["llvm_embedded_toolchain_path"],
+                    "lib",
+                    "clang-runtimes",
+                    "arm-none-eabi",
+                    "armv7em_soft_nofp",
+                    "lib",
+                )
+            ]
+        )
+        libs = ["libclang_rt.builtins.a", "libc.a"]
+    else:
+        libs = []
+
     env_hw["PROGSUFFIX"] = ".elf"
-    elf = env_hw.Program("ethosn", source=srcs)
+    elf = env_hw.Program("ethosn", source=srcs, LIBS=libs)
     env_hw["PROGSUFFIX"] = None
     Depends(elf, linker_script)
+
+    if env_hw["use_llvm_embedded"]:
+        dump_cmd = "llvm-objdump --mcpu=cortex-m7 --disassemble --all-headers --syms --dynamic-syms --section-headers --source $SOURCE > $TARGET"
+        binary_cmd = "llvm-objcopy -O binary --strip-all $SOURCE $TARGET"
+    else:
+        dump_cmd = "fromelf --cpu=Cortex-M7.no_fp --fpu=none -cdsz --output $TARGET $SOURCE"
+        binary_cmd = "fromelf --bincombined --output $TARGET $SOURCE"
+
     fw_dump = env_hw.Command(
         "ethosn.dump",
         elf,
-        "fromelf --cpu=Cortex-M7.no_fp --fpu=none -cdsz --output $TARGET $SOURCE",
+        dump_cmd,
     )
     bin = env_hw.Command(
         "ethosn_raw.bin",
         elf,
         [
-            "fromelf --bincombined --output $TARGET $SOURCE",
+            binary_cmd,
             # Make sure the output is multiple of 16 bytes
             common.add_padding(16),
         ],

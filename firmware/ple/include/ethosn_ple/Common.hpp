@@ -81,7 +81,7 @@ inline StripeInfo ReadStripeInfo()
     const auto src = reinterpret_cast<const volatile uint32_t*>(PLE_REG(CE_RP, CE_PLE_SCRATCH0));
     const auto dst = reinterpret_cast<uint32_t*>(&iface);
 
-#pragma unroll_completely
+#pragma unroll
     for (unsigned i = 0; i < (sizeof(iface) / 4); ++i)
     {
         dst[i] = src[i];

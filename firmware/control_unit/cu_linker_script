@@ -1,0 +1,37 @@
+/* Ported from cu.scatter, please see this file for more detailed comments */
+
+SECTIONS
+{
+    . = 0;
+    ROM_EXEC ALIGN(64):
+    {
+        * (BOOT)
+        * (InRoot$$Sections)
+        * (*.ro)
+    }
+
+    GLOBAL_VARIABLES ABSOLUTE(.) :
+    {
+         *(.bss)
+    }
+
+    PLE_DATA ABSOLUTE(ALIGN(65536)) :
+    {
+        *(PLE_DATA)
+    }
+
+    VECTOR_TABLE ABSOLUTE(ALIGN(65536)):
+    {
+        * (VECTOR_TABLE)
+    }
+
+    UNPRIV_STACK ABSOLUTE(0x00200000):
+    {
+        * (UNPRIV_STACK)
+    }
+
+    PRIV_STACK ABSOLUTE(0x00240000):
+    {
+        * (PRIV_STACK)
+    }
+}

@@ -1,0 +1,31 @@
+/* Ported from ple.scatter, please see this file for more detailed comments */
+
+MEMORY
+{
+    PLE_MCU_RAM : ORIGIN = 0, LENGTH = 0x1000
+}
+
+
+SECTIONS
+{
+    . = 0;
+    ROM_COMMON ALIGN(16):
+    {
+        * (VECTOR_TABLE)
+        * (BOOT_BSS, BOOT_DATA, BOOT_RODATA, BOOT_TEXT)
+    } >PLE_MCU_RAM
+
+    RAM ALIGN(16) :
+    {
+        * (*.ro)
+    } >PLE_MCU_RAM
+
+    PADDING ABSOLUTE(ALIGN(16)) :
+    {
+    } >PLE_MCU_RAM
+
+    STACK ALIGN(16):
+    {
+        *(STACK)
+    } >PLE_MCU_RAM
+}
