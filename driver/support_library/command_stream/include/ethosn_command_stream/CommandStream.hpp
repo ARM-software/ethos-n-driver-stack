@@ -409,6 +409,11 @@ struct CommandStream
         const char* basePtr = reinterpret_cast<const char*>(this);
         return reinterpret_cast<const Command*>(basePtr + PleCommandsOffset);
     }
+    const char* GetEndAddress() const
+    {
+        const char* basePtr = reinterpret_cast<const char*>(this);
+        return basePtr + TotalSize;
+    }
 };
 
 class CommandStreamParser

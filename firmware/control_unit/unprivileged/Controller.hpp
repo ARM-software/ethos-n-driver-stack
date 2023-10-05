@@ -97,10 +97,10 @@ template <typename HwAbstractionT>
 Controller<HwAbstractionT>::Controller(HwAbstractionT&& hwAbstraction, const command_stream::CommandStream& cmdStream)
     : m_CmdStream(cmdStream)
     , m_Ctrl{ std::forward<HwAbstractionT>(hwAbstraction), cmdStream.GetAgentsArray(), 0, 0, 0, 0, 0, 0 }
-    , m_DmaRdCtrl(cmdStream.GetDmaRdCommandsBegin(), cmdStream.NumDmaRdCommands)
-    , m_MceCtrl(cmdStream.GetMceCommandsBegin(), cmdStream.NumMceCommands)
-    , m_PleCtrl(cmdStream.GetPleCommandsBegin(), cmdStream.NumPleCommands)
-    , m_DmaWrCtrl(cmdStream.GetDmaWrCommandsBegin(), cmdStream.NumDmaWrCommands)
+    , m_DmaRdCtrl(cmdStream.GetDmaRdCommandsBegin(), cmdStream.NumDmaRdCommands, cmdStream.GetEndAddress())
+    , m_MceCtrl(cmdStream.GetMceCommandsBegin(), cmdStream.NumMceCommands, cmdStream.GetEndAddress())
+    , m_PleCtrl(cmdStream.GetPleCommandsBegin(), cmdStream.NumPleCommands, cmdStream.GetEndAddress())
+    , m_DmaWrCtrl(cmdStream.GetDmaWrCommandsBegin(), cmdStream.NumDmaWrCommands, cmdStream.GetEndAddress())
 {}
 
 template <typename HwAbstractionT>

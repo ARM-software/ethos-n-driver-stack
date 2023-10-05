@@ -19,7 +19,7 @@ namespace ethosn::control_unit
 class MceController
 {
 public:
-    MceController(const Command* commandsBegin, uint32_t numCommands);
+    MceController(const Command* commandsBegin, uint32_t numCommands, const char* endOfCmdStream);
 
     template <typename Ctrl>
     bool HandleCommands(Ctrl& ctrl);
@@ -33,6 +33,8 @@ public:
     bool IsDone() const;
 
 private:
+    static constexpr uint32_t m_PrefetchSize = 16 * g_CacheLineSize;    // Found experimentally
+
     template <typename Ctrl>
     bool HandleCommand(Ctrl& ctrl, const Command& cmd);
 
@@ -52,8 +54,8 @@ private:
     profiling::ProfilingOnly<uint8_t> m_InProgressProfilingEntryIds[2];
 };
 
-inline MceController::MceController(const Command* commandsBegin, uint32_t numCommands)
-    : m_CmdQueue(commandsBegin, numCommands)
+inline MceController::MceController(const Command* commandsBegin, uint32_t numCommands, const char* endOfCmdStream)
+    : m_CmdQueue(commandsBegin, numCommands, m_PrefetchSize, endOfCmdStream)
     , m_NumCommandsInProgress(0)
 {}
 
@@ -68,6 +70,7 @@ bool MceController::HandleCommands(Ctrl& ctrl)
             break;
         }
         m_CmdQueue.RemoveFirst();
+        m_CmdQueue.Prefetch();
         madeProgress = true;
     }
 

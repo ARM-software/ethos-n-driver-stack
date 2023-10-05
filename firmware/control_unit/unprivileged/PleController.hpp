@@ -17,7 +17,7 @@ namespace ethosn::control_unit
 class PleController
 {
 public:
-    PleController(const Command* commandsBegin, uint32_t numCommands);
+    PleController(const Command* commandsBegin, uint32_t numCommands, const char* endOfCmdStream);
 
     template <typename Ctrl>
     bool HandleCommands(Ctrl& ctrl);
@@ -31,6 +31,8 @@ public:
     bool IsDone() const;
 
 private:
+    static constexpr uint32_t m_PrefetchSize = 4 * g_CacheLineSize;    // Found experimentally
+
     template <typename Ctrl>
     bool HandleCommand(Ctrl& ctrl, const Command& cmd);
 
@@ -40,8 +42,8 @@ private:
     profiling::ProfilingOnly<uint8_t> m_InProgressProfilingEntryId;
 };
 
-inline PleController::PleController(const Command* commandsBegin, uint32_t numCommands)
-    : m_CmdQueue(commandsBegin, numCommands)
+inline PleController::PleController(const Command* commandsBegin, uint32_t numCommands, const char* endOfCmdStream)
+    : m_CmdQueue(commandsBegin, numCommands, m_PrefetchSize, endOfCmdStream)
 {}
 
 template <typename Ctrl>
@@ -55,6 +57,7 @@ bool PleController::HandleCommands(Ctrl& ctrl)
             break;
         }
         m_CmdQueue.RemoveFirst();
+        m_CmdQueue.Prefetch();
         madeProgress = true;
     }
 

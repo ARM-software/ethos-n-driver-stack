@@ -10,6 +10,9 @@
 namespace ethosn::control_unit
 {
 
+// Cache line is 32 bytes
+constexpr uint32_t g_CacheLineSize = 32;
+
 /// A view of an existing list of variable-length Commands.
 /// This simply stores a pointer and size.
 /// The view can be shrunk by removing an element from the front, which will move up the pointer
@@ -17,10 +20,15 @@ namespace ethosn::control_unit
 class CommandList
 {
 public:
-    CommandList(const Command* data, uint32_t size)
+    CommandList(const Command* data, uint32_t size, uint32_t prefetchSize, const char* endOfCmdStream)
         : m_Data(data)
         , m_Size(size)
-    {}
+        , m_NextAddressToPrefetch(reinterpret_cast<const char*>(data))
+        , m_PrefetchSize(prefetchSize)
+        , m_EndOfCmdStream(endOfCmdStream)
+    {
+        Prefetch();
+    }
 
     uint32_t GetSize() const
     {
@@ -58,9 +66,23 @@ public:
         return result;
     }
 
+    void Prefetch()
+    {
+        const char* prefetchTo = reinterpret_cast<const char*>(m_Data) + m_PrefetchSize;
+        prefetchTo             = std::min(m_EndOfCmdStream, prefetchTo);    // Avoids warning from strict-overflow
+        while (m_NextAddressToPrefetch < prefetchTo)
+        {
+            __builtin_prefetch(m_NextAddressToPrefetch);
+            m_NextAddressToPrefetch += g_CacheLineSize;
+        }
+    }
+
 private:
     const Command* m_Data;
     uint32_t m_Size;
+    const char* m_NextAddressToPrefetch;    // char* to be able to increase address in byte increments
+    uint32_t m_PrefetchSize;
+    const char* m_EndOfCmdStream;
 };
 
 inline LoggingString CommandListToString(const CommandList& cmds, uint32_t origNumCommands)
