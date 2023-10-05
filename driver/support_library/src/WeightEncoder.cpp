@@ -1989,7 +1989,7 @@ std::vector<BitstreamRope> MergeStreamsOgAndUpdateHeaders(std::vector<EncodedOfm
         for (uint32_t streamIdxWithinGroup = 0; streamIdxWithinGroup < group.size(); ++streamIdxWithinGroup)
         {
             uint32_t streamIdx = group[streamIdxWithinGroup];
-            if (!streams[streamIdx].m_IsValid || (numBitsStream + streams[streamIdx].m_NumOfBits) >= 0x1ffff)
+            if (!streams[streamIdx].m_IsValid)
             {
                 // This encoded weight stream or the resulting sum of the combined encoded weight stream does not work.
                 // The size don't fit in the HW WeightPayload struct PLDLEN field (17 bit). return an empty object.
