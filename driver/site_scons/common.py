@@ -121,6 +121,7 @@ def load_extras(env):
         for s in scripts:
             env.SConscript(s, exports=["env"])
 
+
 def load_optional(env):
     "Load any optional dev scons scripts, specified in scons_dev_optional variable"
     scriptpath = env.get("scons_dev_optional")
@@ -128,15 +129,16 @@ def load_optional(env):
         scripts = [s for s in scriptpath.split(",") if s]  # Ignore empty entries
         for s in scripts:
             opt = os.path.split(s)
-            if ("dev_optional_params.scons" in opt):
-                root_dir = env.Dir('#').abspath
+            if "dev_optional_params.scons" in opt:
+                root_dir = env.Dir("#").abspath
                 path = os.path.join(root_dir, s)
-                if (not os.path.isfile(path)):
+                if not os.path.isfile(path):
                     return False
                 env.SConscript(s, exports=["env"])
                 return True
 
     return False
+
 
 def add_env_var(env, variable):
     """

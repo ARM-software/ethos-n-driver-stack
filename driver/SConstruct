@@ -146,11 +146,11 @@ Default(
 
 optional_var = ""
 optional_dir = ""
-if (common.load_optional(env)):
+if common.load_optional(env):
     optional_dir = env["optional_dir"]
     optional_var = env["optional_var"]
 
-if (optional_var):
+if optional_var:
     env[optional_var] = optional_dir
 
 # Process all modules which use a variant_dir
