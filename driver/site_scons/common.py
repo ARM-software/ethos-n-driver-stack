@@ -457,13 +457,13 @@ def add_padding(align):
     return add_padding_fn
 
 
-def get_control_unit_build_type(env, backend):
-    return get_build_type(env)
-
-
 def get_control_unit_build_dir(env, backend):
-    build_type = get_control_unit_build_type(env, backend)
-    config = "{}_{}".format(build_type, backend)
+    build_type = get_build_type(env)
+    if env["profiling"]:
+        profiling = "_profiling"
+    else:
+        profiling = ""
+    config = "{}_{}{}".format(build_type, backend, profiling)
     return get_build_dir(env, env["control_unit_dir"], config)
 
 

@@ -985,8 +985,8 @@ env.Alias("PleKernelBinaries.hpp", ple_kernel_binaries_header)
 def gen_ple_kernels_support_library(source, target, **kwargs):
     with open(target[0].path, "w") as outf:
         print("{", file=outf)
-        for variant, kernel_params in itertools.product(variants, kernels_params):
-            ple_kernel_id = get_string_from_variant_and_kernel_params(variant, kernel_params)
+        for variant, kernel_params in itertools.product(common.variants, kernels_params):
+            ple_kernel_id = common.get_string_from_variant_and_kernel_params(variant, kernel_params)
             # Include the variant in the params map
             kernel_params_inc_variant = kernel_params.copy()
             kernel_params_inc_variant.update(variant._asdict())
@@ -1020,8 +1020,8 @@ env.Alias("PleKernelsSupportLibrary.hpp", ple_kernels_support_library_header)
 # for inclusion in the command stream.
 def gen_ple_kernel_ids(source, target, **kwargs):
     with open(target[0].path, "w") as outf:
-        for variant, kernel_params in itertools.product(variants, kernels_params):
-            ple_kernel_id = get_string_from_variant_and_kernel_params(variant, kernel_params)
+        for variant, kernel_params in itertools.product(common.variants, kernels_params):
+            ple_kernel_id = common.get_string_from_variant_and_kernel_params(variant, kernel_params)
             # Wrap the name in X(...) as this is what we need for the command stream #include
             print("X(" + ple_kernel_id + ")", file=outf)
 
