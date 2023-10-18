@@ -35,6 +35,7 @@ SHORT_PARAMS_LOOKUP = {
     "pooling_size": "ps",
 }
 
+
 # Converts a dict of PLE kernel parameter names and values into a string that uniquely identifies it.
 # This should be safe to use as a filename or identifier. e.g.:
 #    { "operation": "ADDITION", "block_width":"16", "datatype": "u8" } => ADDITION_bw16_u8
@@ -186,6 +187,11 @@ def parse_default_vars(env):
         env.AppendUnique(CPPPATH=[os.path.abspath(x) for x in env["CPATH"].split(os.pathsep)])
     if "LPATH" in env:
         env.AppendUnique(LIBPATH=[os.path.abspath(x) for x in env["LPATH"].split(os.pathsep)])
+    # If the given path is not absolute, derive it from the current working directory.
+    if not os.path.isabs(env["install_prefix"]):
+        env.Replace(
+            install_prefix=os.path.join(os.path.abspath(os.getcwd()), env["install_prefix"])
+        )
 
 
 def setup_common_env(env):
