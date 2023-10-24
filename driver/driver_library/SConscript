@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2018-2022 Arm Limited.
+# Copyright © 2018-2023 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -57,14 +57,8 @@ else:
     srcs += [os.path.join("src", "NullKmodProfiling.cpp")]
 
 if env["target"] == "model":
-    # Compile internal-only model files, which are stored outside of this component's folder.
-    # Use a scons 'repository' so that the build artifacts (.o files) are still placed in the expected build directory.
-    # Extend CPPPATH to allow the model cpp files to include headers from the regular src folder, and to allow
-    # regular src files to include headers from the model-only folder.
     # Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on
     # the install target where the install target is also provided via CPATH.
-    env.PrependUnique(CPPPATH=[".", "src"])
-    env.Repository(os.path.join(env["driver_library_dir"], "..", "..", "internal", "driver"))
     srcs += [os.path.join("src", "ModelNetwork.cpp")]
 
 libs = []
