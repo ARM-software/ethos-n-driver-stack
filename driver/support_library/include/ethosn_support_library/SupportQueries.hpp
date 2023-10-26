@@ -185,6 +185,14 @@ public:
                                        char* reason           = nullptr,
                                        size_t reasonMaxLength = g_ReasonMaxLength) const;
 
+    // Checks whether a specific multiplication (tensor + tensor) operation configuration is supported by the NPU
+    SupportedLevel IsMultiplicationSupported(const TensorInfo& inputInfo0,
+                                             const TensorInfo& inputInfo1,
+                                             const QuantizationInfo& outputQuantizationInfo,
+                                             TensorInfo* outputInfo = nullptr,
+                                             char* reason           = nullptr,
+                                             size_t reasonMaxLength = g_ReasonMaxLength) const;
+
     // Checks whether a specific fully-connected operation configuration is supported by the NPU
     SupportedLevel IsFullyConnectedSupported(const TensorInfo& biasInfo,
                                              const TensorInfo& weightsInfo,

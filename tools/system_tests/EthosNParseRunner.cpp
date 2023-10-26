@@ -440,9 +440,21 @@ void EthosNParseRunner::AddAddition(const std::string& name,
                                            *m_OutputToOperand.find(secondInputName.c_str())->second, addQuantInfo));
 }
 
-void EthosNParseRunner::AddMultiplication(const std::string&, const std::string&, const std::string&)
+void EthosNParseRunner::AddMultiplication(const std::string& name,
+                                          const std::string& firstInputName,
+                                          const std::string& secondInputName)
 {
-    throw std::runtime_error("Compilation failed because multiplication is not natively supported in Support Library");
+    TensorInfo firstTensorInfo  = GetTensorInfo(m_OutputToOperand.at(firstInputName));
+    TensorInfo secondTensorInfo = GetTensorInfo(m_OutputToOperand.at(secondInputName));
+
+    // the quantization info from the first layer is used as default value
+    const std::vector<ethosn::support_library::QuantizationInfo> quantInfos{ firstTensorInfo.m_QuantizationInfo,
+                                                                             secondTensorInfo.m_QuantizationInfo };
+    QuantizationInfo mulQuantInfo = m_LayerData.GetMultiplicationQuantInfo(name, quantInfos);
+
+    RecordAddedLayerSingleOutput(name, ethosn::support_library::AddMultiplication(
+                                           m_Network, *m_OutputToOperand.find(firstInputName.c_str())->second,
+                                           *m_OutputToOperand.find(secondInputName.c_str())->second, mulQuantInfo));
 }
 
 void EthosNParseRunner::AddMeanXy(const std::string& name, const std::string& inputName)

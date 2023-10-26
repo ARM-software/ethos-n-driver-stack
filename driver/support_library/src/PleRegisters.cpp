@@ -115,6 +115,23 @@ command_stream::StartPleStripeCommand
         result.SCRATCH[6] = pleS.m_PleOp->m_RuntimeParams.at("pad_before");
         result.SCRATCH[7] = pleS.m_PleOp->m_RuntimeParams.at("pooling_size");
     }
+    else if (pleS.m_PleOp->m_Op == PleOperation::MULTIPLICATION)
+    {
+        // We encode the stripe size with 16 bits
+        // The stripe size should be smaller than this to fit in SRAM anyway so this is just a sanity check.
+        assert(stripeSize.height < 0x0000ffff && stripeSize.width < 0x0000ffff && stripeSize.channels < 0x0000ffff);
+        result.SCRATCH[0] = (stripeSize.width & 0x0000ffff);
+        result.SCRATCH[0] |= ((stripeSize.height & 0x0000ffff) << 16);
+        result.SCRATCH[1] = stripeSize.channels & 0x0000ffff;
+        result.SCRATCH[2] = pleS.ofmZeroPoint & 0x0000ffff;
+        result.SCRATCH[3] = pleS.m_PleOp->m_RuntimeParams.at("overall_multiplier") & 0x0000ffff;
+        result.SCRATCH[3] |= (pleS.m_PleOp->m_RuntimeParams.at("overall_shift") << 16);
+        result.SCRATCH[4] = pleS.m_PleOp->m_RuntimeParams.at("input0_zeropoint") & 0x0000ffff;
+        result.SCRATCH[4] |= (pleS.m_PleOp->m_RuntimeParams.at("input1_zeropoint") << 16);
+        result.SCRATCH[5] = SramAddr(pleS.ifmTile0, stripeId);
+        result.SCRATCH[6] = SramAddr(pleS.ifmTile1, stripeId);
+        result.SCRATCH[7] = SramAddr(pleS.ofmTile, stripeId);
+    }
     else
     {
         ncu_ple_interface::StripeInfo pleInfo = {};

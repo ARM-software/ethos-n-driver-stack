@@ -286,6 +286,25 @@ public:
     }
 };
 
+class Multiplication : public VisitableOperation<Multiplication>
+{
+public:
+    Multiplication(const detail::PosInNetwork pos,
+                   uint32_t id,
+                   Operand& layer1,
+                   Operand& layer2,
+                   const QuantizationInfo& outputQuantizationInfo);
+
+    static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo0,
+                                                const TensorInfo& inputInfo1,
+                                                const QuantizationInfo& outputQuantizationInfo);
+
+    const char* GetTypeName() final
+    {
+        return "Multiplication";
+    }
+};
+
 // Fully connected operation
 class FullyConnected : public VisitableOperation<FullyConnected>
 {

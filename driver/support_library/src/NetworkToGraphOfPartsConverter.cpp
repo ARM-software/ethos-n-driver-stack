@@ -917,6 +917,76 @@ void NetworkToGraphOfPartsConverter::Visit(Addition& addition)
     ConnectParts(addition, parts);
 }
 
+void NetworkToGraphOfPartsConverter::Visit(Multiplication& multiplication)
+{
+    std::vector<BasePart*> parts;
+
+    const auto& inputInfo0 = multiplication.GetInput(0).GetTensorInfo();
+    const auto& inputInfo1 = multiplication.GetInput(1).GetTensorInfo();
+    const auto& outputInfo = multiplication.GetOutput(0).GetTensorInfo();
+
+    const QuantizationInfo& quantInfoInput0 = inputInfo0.m_QuantizationInfo;
+    const QuantizationInfo& quantInfoInput1 = inputInfo1.m_QuantizationInfo;
+    const QuantizationInfo& quantInfoOutput = outputInfo.m_QuantizationInfo;
+
+    char reason[1024];
+
+    // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
+    const SupportedLevel supportedLevel =
+        m_Queries.IsMultiplicationSupported(inputInfo0, inputInfo1, quantInfoOutput, nullptr, reason, sizeof(reason));
+
+    if (supportedLevel == SupportedLevel::EstimateOnly)
+    {
+        auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
+            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ inputInfo0, inputInfo1 },
+            std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
+            std::set<uint32_t>{ multiplication.GetId() }, m_EstimationOptions.value(), m_CompilationOptions,
+            m_Capabilities);
+
+        parts.push_back(estimateOnlyPart.get());
+        m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
+    }
+    else
+    {
+        std::map<std::string, std::string> selectionStringParams = {
+            { "datatype", outputInfo.m_DataType == DataType::INT8_QUANTIZED ? "s8" : "u8" }
+        };
+
+        PleOperation pleOp = PleOperation::MULTIPLICATION;
+
+        const std::vector<QuantizationInfo> inputQuantizations = { quantInfoInput0, quantInfoInput1 };
+        const std::vector<TensorShape> inputShapes = { multiplication.GetInput(0).GetTensorInfo().m_Dimensions,
+                                                       multiplication.GetInput(1).GetTensorInfo().m_Dimensions };
+
+        const double outputScale  = quantInfoOutput.GetScale();
+        const double overallScale = quantInfoInput0.GetScale() * quantInfoInput1.GetScale() / outputScale;
+
+        uint16_t overallMultiplier = 0;
+        uint16_t overallShift      = 0;
+        utils::CalculateRescaleMultiplierAndShift(overallScale, overallMultiplier, overallShift);
+
+        std::map<std::string, int> runtimeParams = {
+            { "overall_multiplier", overallMultiplier },
+            { "overall_shift", overallShift },
+            { "input0_zeropoint", quantInfoInput0.GetZeroPoint() },
+            { "input1_zeropoint", quantInfoInput1.GetZeroPoint() },
+            { "output_zeropoint", quantInfoOutput.GetZeroPoint() },
+        };
+        std::map<std::string, int> selectionIntParams = {};
+
+        auto multiplicationStandalonePlePart = std::make_unique<StandalonePlePart>(
+            m_GraphOfParts.GeneratePartId(), inputShapes, multiplication.GetOutput(0).GetTensorInfo().m_Dimensions,
+            inputQuantizations, multiplication.GetOutput(0).GetTensorInfo().m_QuantizationInfo, pleOp,
+            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+            std::set<uint32_t>{ multiplication.GetId() }, multiplication.GetOutput(0).GetTensorInfo().m_DataType,
+            selectionStringParams, selectionIntParams, runtimeParams);
+        parts.push_back(multiplicationStandalonePlePart.get());
+        m_GraphOfParts.AddPart(std::move(multiplicationStandalonePlePart));
+    }
+
+    ConnectParts(multiplication, parts);
+}
+
 void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
 {
     const size_t numInputs                  = concat.GetInputs().size();

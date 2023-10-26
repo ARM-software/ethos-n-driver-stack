@@ -1474,6 +1474,138 @@ SupportedLevel SupportQueries::IsAdditionSupported(const TensorInfo& inputInfo0,
     return SupportedLevel::Supported;
 }
 
+SupportedLevel SupportQueries::IsMultiplicationSupported(const TensorInfo& inputInfo0,
+                                                         const TensorInfo& inputInfo1,
+                                                         const QuantizationInfo& outputQuantizationInfo,
+                                                         TensorInfo* outputInfo,
+                                                         char* reason,
+                                                         size_t reasonMaxLength) const
+{
+    const TensorShape& shape0 = inputInfo0.m_Dimensions;
+    const TensorShape& shape1 = inputInfo1.m_Dimensions;
+    const bool isDim1Equal    = shape0[1] == shape1[1];
+    const bool isDim2Equal    = shape0[2] == shape1[2];
+    const bool isDim3Equal    = shape0[3] == shape1[3];
+
+    // To be able to stretch along a dimension the dimension size in one of the tensors must be 1.
+    // Note that we no longer support any form of stretching, but the logic in this function has been
+    // preserved to make it easy to add back later if necessary.
+    const bool canStretchDim1 = shape0[1] == 1 || shape1[1] == 1;
+    const bool canStretchDim2 = shape0[2] == 1 || shape1[2] == 1;
+    const bool canStretchDim3 = shape0[3] == 1 || shape1[3] == 1;
+
+    const bool isDim1Compatible = isDim1Equal || canStretchDim1;
+    const bool isDim2Compatible = isDim2Equal || canStretchDim2;
+    const bool isDim3Compatible = isDim3Equal || canStretchDim3;
+
+    if ((inputInfo0.m_Dimensions[0] != 1) || (inputInfo1.m_Dimensions[0] != 1))
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo0, "Input0 to Multiplication", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo1, "Input1 to Multiplication", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo0)))
+    {
+        SetReason("Zero point out of range for input0 info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo1)))
+    {
+        SetReason("Zero point out of range for input1 info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    // From the AndroidNN spec:
+    // Two dimensions are compatible when:
+    //  they are equal, or
+    //  one of them is 1
+    if (!isDim1Compatible)
+    {
+        SetReason("Height must be either equal or one of the tensor's height must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+    if (!isDim2Compatible)
+    {
+        SetReason("Width must be either equal or one of the tensor's height must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+    if (!isDim3Compatible)
+    {
+        SetReason("Channels must be either equal or one of the tensor's height must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsInputDataTypeSupported(inputInfo0, "Input to Multiplication", reason, reasonMaxLength) ||
+        !IsInputDataTypeSupported(inputInfo1, "Input to Multiplication", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (inputInfo0.m_DataType != inputInfo1.m_DataType)
+    {
+        SetReason("Inputs to Multiplication must have the same data type", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo0.m_DataType, outputQuantizationInfo)))
+    {
+        SetReason("Zero point out of range for outputQuantizationInfo", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (((inputInfo0.m_DataFormat != DataFormat::NHWC) && (inputInfo0.m_DataFormat != DataFormat::NHWCB)) ||
+        ((inputInfo1.m_DataFormat != DataFormat::NHWC) && (inputInfo1.m_DataFormat != DataFormat::NHWCB)))
+    {
+        SetReason("Input to addition must be NHWC or NHWCB", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (HasQuantizationDim(inputInfo0) || HasQuantizationDim(inputInfo1))
+    {
+        SetReason("Quantization Dim should not be used on any Inputs of Multiplication", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (outputInfo != nullptr)
+    {
+        // Note:
+        //   Here we don't need to check IsTensorDepthSupported since addition of two layers will result in an output
+        //   tensor info that depth is the max of any of the input.
+        //   This would lead to dead code as if we don't fail with input0 or input1 we will not fail on output.
+        TensorInfo expectedOutputInfo =
+            Multiplication::CalculateOutputTensorInfo(inputInfo0, inputInfo1, outputQuantizationInfo);
+        if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)
+        {
+            SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
+            return SupportedLevel::Unsupported;
+        }
+        *outputInfo = expectedOutputInfo;
+    }
+
+    // We only support no stretching dimensions
+    using DimFlags                                       = std::array<bool, 3>;
+    DimFlags stretchDimensions                           = { !isDim1Equal, !isDim2Equal, !isDim3Equal };
+    std::array<DimFlags, 1> supportedStretchedDimensions = { DimFlags{ false, false, false } };
+    if (!utils::Find(supportedStretchedDimensions, stretchDimensions).first)
+    {
+        SetReason("Cannot stretch along the requested dimensions.", reason, reasonMaxLength);
+        return SupportedLevel::EstimateOnly;
+    }
+
+    return SupportedLevel::Supported;
+}
+
 SupportedLevel SupportQueries::IsFullyConnectedSupported(const TensorInfo& biasInfo,
                                                          const TensorInfo& weightsInfo,
                                                          const FullyConnectedInfo& fullyConnectedInfo,

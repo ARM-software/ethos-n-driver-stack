@@ -126,6 +126,21 @@ Addition& Network::AddAddition(Operand& layer1, Operand& layer2, const Quantizat
     return AddOperationWithId<Addition>(layer1, layer2, outputQuantizationInfo);
 }
 
+Multiplication&
+    Network::AddMultiplication(Operand& layer1, Operand& layer2, const QuantizationInfo& outputQuantizationInfo)
+{
+    char reason[1024];
+
+    SupportedLevel supportedLevel = m_Queries.IsMultiplicationSupported(
+        layer1.GetTensorInfo(), layer2.GetTensorInfo(), outputQuantizationInfo, nullptr, reason, sizeof(reason));
+    if (!CheckSupportedLevel(supportedLevel))
+    {
+        throw NotSupportedException(reason);
+    }
+
+    return AddOperationWithId<Multiplication>(layer1, layer2, outputQuantizationInfo);
+}
+
 FullyConnected& Network::AddFullyConnected(Operand& input,
                                            Constant& bias,
                                            Constant& weights,

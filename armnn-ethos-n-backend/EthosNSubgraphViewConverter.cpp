@@ -299,6 +299,22 @@ void EthosNSubgraphViewConverter::AddAdditionLayer(const IConnectableLayer* laye
         layer, ethosn_lib::AddAddition(m_Network, *input1.tensor, *input2.tensor, outputQuantInfo));
 }
 
+void EthosNSubgraphViewConverter::AddMultiplicationLayer(const IConnectableLayer* layer)
+{
+    ARMNN_ASSERT(layer != nullptr);
+    ARMNN_ASSERT(layer->GetType() == LayerType::ElementwiseBinary);
+    ARMNN_ASSERT(PolymorphicDowncast<const ElementwiseBinaryDescriptor*>(&(layer->GetParameters()))->m_Operation ==
+                 BinaryOperation::Mul);
+
+    auto input1                  = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
+    auto input2                  = AddOrRetrieveEthosNOperand(layer->GetInputSlot(1).GetConnection());
+    const TensorInfo& outputInfo = layer->GetOutputSlot(0).GetTensorInfo();
+    ethosn_lib::QuantizationInfo outputQuantInfo(outputInfo.GetQuantizationOffset(), outputInfo.GetQuantizationScale());
+
+    InsertConvertedLayerSingleOutput(
+        layer, ethosn_lib::AddMultiplication(m_Network, *input1.tensor, *input2.tensor, outputQuantInfo));
+}
+
 void EthosNSubgraphViewConverter::AddConstantLayer(const IConnectableLayer* layer)
 {
     ARMNN_ASSERT(layer != nullptr);
@@ -764,8 +780,8 @@ EthosNOperand EthosNSubgraphViewConverter::AddOrRetrieveEthosNOperand(const IOut
                     AddAdditionLayer(&layer);
                     break;
                 case BinaryOperation::Mul:
-                    // Multiply is either not supported or should have been replaced with an equivalent operation
-                    // Fall-through
+                    AddMultiplicationLayer(&layer);
+                    break;
                 default:
                     std::string string(layer.GetName());
                     std::string reason = "ElementwiseBinary operation " + string + " is not currently supported.";

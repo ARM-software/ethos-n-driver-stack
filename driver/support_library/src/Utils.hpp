@@ -56,6 +56,7 @@ enum class PleOperation : uint8_t
     DOWNSAMPLE_2X2       = 14U,
     // After this point they are not in SPA so can be whatever
     MAXPOOL1D,
+    MULTIPLICATION,
 };
 
 enum class CompilerDataFormat

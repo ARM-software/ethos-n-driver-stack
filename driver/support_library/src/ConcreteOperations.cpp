@@ -218,6 +218,33 @@ TensorInfo Addition::CalculateOutputTensorInfo(const TensorInfo& inputInfo0,
     return outputInfo;
 }
 
+Multiplication::Multiplication(const detail::PosInNetwork pos,
+                               uint32_t id,
+                               Operand& layer1,
+                               Operand& layer2,
+                               const QuantizationInfo& outputQuantizationInfo)
+    : VisitableOperation<Multiplication>(
+          pos,
+          id,
+          { &layer1, &layer2 },
+          { CalculateOutputTensorInfo(layer1.GetTensorInfo(), layer2.GetTensorInfo(), outputQuantizationInfo) })
+{}
+
+TensorInfo Multiplication::CalculateOutputTensorInfo(const TensorInfo& inputInfo0,
+                                                     const TensorInfo& inputInfo1,
+                                                     const QuantizationInfo& outputQuantizationInfo)
+{
+    TensorShape outputShape;
+    for (uint32_t i = 0; i < outputShape.size(); ++i)
+    {
+        outputShape[i] = std::max(inputInfo0.m_Dimensions[i], inputInfo1.m_Dimensions[i]);
+    }
+    assert(inputInfo0.m_DataType == inputInfo1.m_DataType);    // Checked by IsMultiplicationSupported
+
+    TensorInfo outputInfo(outputShape, inputInfo0.m_DataType, DataFormat::NHWC, outputQuantizationInfo);
+    return outputInfo;
+}
+
 FullyConnected::FullyConnected(const detail::PosInNetwork pos,
                                uint32_t id,
                                Operand& input,

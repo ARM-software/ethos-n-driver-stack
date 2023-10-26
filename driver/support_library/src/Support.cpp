@@ -186,6 +186,14 @@ TensorAndId<Operand> AddAddition(const std::shared_ptr<Network>& network,
     return GetSingleOutputResult(network, network->AddAddition(layer1, layer2, outputQuantizationInfo));
 }
 
+TensorAndId<Operand> AddMultiplication(const std::shared_ptr<Network>& network,
+                                       Operand& layer1,
+                                       Operand& layer2,
+                                       const QuantizationInfo& outputQuantizationInfo)
+{
+    return GetSingleOutputResult(network, network->AddMultiplication(layer1, layer2, outputQuantizationInfo));
+}
+
 TensorAndId<Operand> AddFullyConnected(const std::shared_ptr<Network>& network,
                                        Operand& input,
                                        Constant& bias,

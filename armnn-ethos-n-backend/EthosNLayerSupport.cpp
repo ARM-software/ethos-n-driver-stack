@@ -1525,6 +1525,18 @@ armnn::EthosNLayerSupport::MultiplicationSupportedMode
         return MultiplicationSupportedMode::None;
     }
 
+    auto ethosnInput0 = BuildEthosNTensorInfo(input0, DataLayout::NHWC);
+    auto ethosnInput1 = BuildEthosNTensorInfo(input1, DataLayout::NHWC);
+    auto ethosnOutput = BuildEthosNTensorInfo(output, DataLayout::NHWC);
+
+    // First try checking for support using a native addition
+    ReasonMessageHelper messageHelper;
+    SupportedLevel nativeSupportedLevel =
+        m_Queries.IsMultiplicationSupported(ethosnInput0, ethosnInput1, ethosnOutput.m_QuantizationInfo, &ethosnOutput,
+                                            messageHelper.GetBuffer(), messageHelper.GetBufferSize());
+
+    bool nativeSupported = CheckSupportedLevel(nativeSupportedLevel, m_Config.m_PerfOnly);
+
     // Check first if multiplication is supported by depthwise replacement or not.
     if (IsMultiplicationSupportedByDepthwiseReplacement(input0, input1, output, reasonIfUnsupported))
     {
@@ -1536,6 +1548,11 @@ armnn::EthosNLayerSupport::MultiplicationSupportedMode
     if (IsMultiplicationSupportedByReinterpretQuantizationReplacement(input0, input1, output, reasonIfUnsupported))
     {
         return MultiplicationSupportedMode::ReplaceWithReinterpretQuantize;
+    }
+
+    if (nativeSupported)
+    {
+        return MultiplicationSupportedMode::Native;
     }
 
     // If none of the replacements work, we check for estimate only support.

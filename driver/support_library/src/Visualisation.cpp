@@ -191,6 +191,8 @@ std::string ToString(PleOperation o)
             return "ADDITION";
         case PleOperation::ADDITION_RESCALE:
             return "ADDITION_RESCALE";
+        case PleOperation::MULTIPLICATION:
+            return "MULTIPLICATION";
         case PleOperation::AVGPOOL_3X3_1_1_UDMA:
             return "AVGPOOL_3X3_1_1_UDMA";
         case PleOperation::DOWNSAMPLE_2X2:

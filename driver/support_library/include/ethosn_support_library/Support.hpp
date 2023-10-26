@@ -1100,6 +1100,12 @@ TensorAndId<Operand> AddAddition(const std::shared_ptr<Network>& network,
                                  Operand& layer2,
                                  const QuantizationInfo& outputQuantizationInfo);
 
+// Add Multiplication to a Network. The returned shared_ptr ref-counts the network.
+TensorAndId<Operand> AddMultiplication(const std::shared_ptr<Network>& network,
+                                       Operand& layer1,
+                                       Operand& layer2,
+                                       const QuantizationInfo& outputQuantizationInfo);
+
 // Add FullyConnected to a Network. The returned shared_ptr ref-counts the network.
 TensorAndId<Operand> AddFullyConnected(const std::shared_ptr<Network>& network,
                                        Operand& input,

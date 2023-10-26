@@ -248,6 +248,9 @@ bool ReplaceMultiplication(SubgraphView& subgraph,
             case EthosNLayerSupport::MultiplicationSupportedMode::None:
                 return false;
                 break;
+            case EthosNLayerSupport::MultiplicationSupportedMode::Native:
+                return false;
+                break;
             case EthosNLayerSupport::MultiplicationSupportedMode::EstimateOnly:
                 return false;
                 break;

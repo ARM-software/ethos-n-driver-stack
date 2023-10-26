@@ -28,6 +28,7 @@ class TransposeConvolution;
 class Concatenation;
 class Split;
 class Addition;
+class Multiplication;
 class FullyConnected;
 class ReinterpretQuantization;
 class Relu;
@@ -83,6 +84,7 @@ public:
     virtual void Visit(Concatenation& concatenation)                     = 0;
     virtual void Visit(Split& split)                                     = 0;
     virtual void Visit(Addition& addition)                               = 0;
+    virtual void Visit(Multiplication& multiplication)                   = 0;
     virtual void Visit(FullyConnected& fullyConnected)                   = 0;
     virtual void Visit(ReinterpretQuantization& reinterpretQuantization) = 0;
     virtual void Visit(Relu& relu)                                       = 0;
@@ -126,6 +128,8 @@ public:
     void Visit(Split&) override
     {}
     void Visit(Addition&) override
+    {}
+    void Visit(Multiplication&) override
     {}
     void Visit(FullyConnected&) override
     {}

@@ -1195,7 +1195,7 @@ TEST_SUITE("EthosNSupport")
             layerSupport.GetMultiplicationSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
                                                         TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, 0.009f, 0, true),
                                                         TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
-            EthosNLayerSupport::MultiplicationSupportedMode::EstimateOnly);
+            EthosNLayerSupport::MultiplicationSupportedMode::Native);
     }
 
     TEST_CASE("IsAdditionSupported")

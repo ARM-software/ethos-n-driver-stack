@@ -28,6 +28,7 @@ class TransposeConvolution;
 class Concatenation;
 class Split;
 class Addition;
+class Multiplication;
 class FullyConnected;
 class ReinterpretQuantization;
 class Relu;
@@ -140,6 +141,8 @@ public:
     Split& AddSplit(Operand& input, const SplitInfo& splitInfo);
 
     Addition& AddAddition(Operand& layer1, Operand& layer2, const QuantizationInfo& outputQuantizationInfo);
+
+    Multiplication& AddMultiplication(Operand& layer1, Operand& layer2, const QuantizationInfo& outputQuantizationInfo);
 
     FullyConnected& AddFullyConnected(Operand& input,
                                       Constant& bias,

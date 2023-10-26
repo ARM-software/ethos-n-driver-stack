@@ -90,6 +90,7 @@ private:
 
     void AddActivationLayer(const IConnectableLayer* layer);
     void AddAdditionLayer(const IConnectableLayer* layer);
+    void AddMultiplicationLayer(const IConnectableLayer* layer);
     void AddConstantLayer(const IConnectableLayer* layer);
     void AddConvolution2dLayer(const IConnectableLayer* layer);
     void AddDepthwiseConvolution2dLayer(const IConnectableLayer* layer);

@@ -49,6 +49,7 @@ public:
     void Visit(MeanXy& meanxy) final;
     void Visit(EstimateOnly& estimateOnly) final;
     void Visit(Addition& addition) final;
+    void Visit(Multiplication& multiplication) final;
     void Visit(Resize& resize) final;
     void Visit(Relu& relu) final;
     void Visit(TransposeConvolution& transposeConvolution) final;

@@ -29,7 +29,8 @@ public:
 
     enum class MultiplicationSupportedMode
     {
-        None,                    ///<Multiplication cannot be supported by this backend at all.
+        None,    ///<Multiplication cannot be supported by this backend at all.
+        Native,    ///<Multiplication can be supported by this backend, by using an Addition operation in the support library.
         ReplaceWithDepthwise,    ///<Multiplication can be supported by this backend, by replacing Multiplication operation with a DepthwiseConvolution operation in the support library.
         ReplaceWithReinterpretQuantize,    ///<Multiplication can be supported by this backend, by replacing Multiplication operation with a ReinterpretQuantize operation in the Support Library.
         EstimateOnly,                      //<Estimate only support

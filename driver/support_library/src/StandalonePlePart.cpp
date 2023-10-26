@@ -78,6 +78,7 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
     {
         case PleOperation::ADDITION:
         case PleOperation::ADDITION_RESCALE:
+        case PleOperation::MULTIPLICATION:
             // All split are possible as these operations are elementwise
             break;
         case PleOperation::AVGPOOL_3X3_1_1_UDMA:
