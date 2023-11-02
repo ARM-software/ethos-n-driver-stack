@@ -338,13 +338,13 @@ TEST_SUITE("EthosNCaching")
             BackendOptions backendOptions(EthosNBackend::GetIdStatic(),
                                           { { "SaveCachedNetwork", false }, { "CachedNetworkFilePath", filePath } });
             cache.SetEthosNCachingOptions({ backendOptions });
-            cache.Load();
+            REQUIRE(cache.Load());
             armnn::Optional<const EthosNCaching::CachedNetwork&> network = cache.GetCachedNetwork(0);
             REQUIRE(network.has_value());
             CHECK(network.value().m_CompiledNetwork == cachedNetwork.m_CompiledNetwork);
             CHECK(network.value().m_IntermediateDataSize == cachedNetwork.m_IntermediateDataSize);
         }
-        // Testing loading fails - non-existewnt file
+        // Testing loading fails - non-existent file
         {
             EthosNCaching cache;
             BackendOptions backendOptions(

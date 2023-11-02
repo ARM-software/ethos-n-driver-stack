@@ -247,7 +247,7 @@ bool EthosNCaching::LoadCachedSubgraphs()
             return false;
         }
 
-        uint32_t intermediateDataSize;
+        size_t intermediateDataSize;
         in.read(reinterpret_cast<char*>(&intermediateDataSize), sizeof(intermediateDataSize));
 
         if (!in)
@@ -256,9 +256,15 @@ bool EthosNCaching::LoadCachedSubgraphs()
             return false;
         }
 
-        cachedNetwork.m_IntermediateDataSize = intermediateDataSize;
+        cachedNetwork.m_IntermediateDataSize = static_cast<uint32_t>(intermediateDataSize);
 
         m_CachedNetworks.emplace(compiledNetworkSubgraphIdxs[i], std::move(cachedNetwork));
+    }
+
+    if (in.peek() != EOF)
+    {
+        ARMNN_LOG(error) << "Leftover data in cached network file";
+        return false;
     }
 
     return true;
