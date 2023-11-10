@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2023 Arm Limited.
+ * (C) COPYRIGHT 2018-2023 Arm Limited, Axis Communications AB
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1614,6 +1614,7 @@ static int ethosn_pdev_enum_interrupts(struct platform_device *pdev,
 	int num_irqs = 0;
 	int irq_count = platform_irq_count(pdev);
 	int irq_idx;
+	bool force_level_interrupts = true;
 
 	if (irq_count > ETHOSN_MAX_NUM_IRQS) {
 		dev_err(&pdev->dev, "Invalid number of IRQs %d > %d", irq_count,
@@ -1633,6 +1634,7 @@ static int ethosn_pdev_enum_interrupts(struct platform_device *pdev,
 	     ++irq_idx) {
 		int irq_idx_existing;
 		int irq_number;
+		unsigned long flags = IRQF_SHARED;
 		struct resource *resource =
 			platform_get_resource(pdev, IORESOURCE_IRQ,
 					      irq_idx);
@@ -1641,6 +1643,17 @@ static int ethosn_pdev_enum_interrupts(struct platform_device *pdev,
 				"platform_get_resource failed for IRQ index %d.\n",
 				irq_idx);
 
+			return -EINVAL;
+		}
+		if (resource->flags & IORESOURCE_IRQ_HIGHEDGE) {
+			flags |= IRQF_TRIGGER_RISING;
+			force_level_interrupts = false;
+		} else if (resource->flags & IORESOURCE_IRQ_HIGHLEVEL) {
+			flags |= IRQF_TRIGGER_HIGH;
+		} else {
+			dev_err(&pdev->dev,
+				"Invalid interrupt configuration for IRQ index %d.\n",
+				irq_idx);
 			return -EINVAL;
 		}
 
@@ -1665,33 +1678,16 @@ static int ethosn_pdev_enum_interrupts(struct platform_device *pdev,
 		if (irq_idx_existing == num_irqs) {
 			/* Not a shared line.
 			 * Store the irq number and flags for use by
-			 * ethosn_driver_probe. The flags (i.e. edge
-			 * or level) depends on the interrupt name,
-			 * as different Ethos-N interrupts use
-			 * different types
+			 * ethosn_driver_probe.
 			 */
 			irq_numbers[num_irqs] = irq_number;
 			if (strcmp(resource->name, "job") == 0) {
-				/* Spec defines JOB interrupt to be
-				 * EDGE
-				 */
-				irq_flags[num_irqs] =
-					IRQF_SHARED |
-					IRQF_TRIGGER_RISING;
+				irq_flags[num_irqs] = flags;
 			} else if (strcmp(resource->name, "err") == 0) {
-				/* Spec defines ERR interrupt to be
-				 * LEVEL
-				 */
-				irq_flags[num_irqs] = IRQF_SHARED |
-						      IRQF_TRIGGER_HIGH;
+				irq_flags[num_irqs] = flags;
 			} else if (strcmp(resource->name, "debug") ==
 				   0) {
-				/* Spec defines DEBUG interrupt to be
-				 * EDGE
-				 */
-				irq_flags[num_irqs] =
-					IRQF_SHARED |
-					IRQF_TRIGGER_RISING;
+				irq_flags[num_irqs] = flags;
 			} else {
 				dev_err(&pdev->dev,
 					"Unknown interrupt name '%s'.\n",
@@ -1711,9 +1707,10 @@ static int ethosn_pdev_enum_interrupts(struct platform_device *pdev,
 			 */
 			irq_flags[irq_idx_existing] =
 				IRQF_SHARED | IRQF_TRIGGER_HIGH;
-			*force_firmware_level_interrupts = true;
+			force_level_interrupts = true;
 		}
 	}
+	*force_firmware_level_interrupts = force_level_interrupts;
 
 	return num_irqs;
 }
