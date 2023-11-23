@@ -9,7 +9,6 @@
 import os
 import common
 import subprocess
-import internal
 from common import setup_plelib_dependency
 
 Import("env")
