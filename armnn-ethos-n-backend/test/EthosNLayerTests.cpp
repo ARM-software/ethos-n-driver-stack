@@ -660,10 +660,10 @@ LayerTestResult<uint8_t, 4>
                                                 const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
 {
     // Define tensors
-    TensorInfo inputInfo({ 1, 1, 1, 2 }, DataType::QAsymmU8, 1.0f, 0);
+    TensorInfo inputInfo({ 1, 1, 1, 2 }, DataType::QSymmS8, 1.0f, 0);
     std::vector<uint8_t> inputData{ 1, 2 };    // Representing 1.0, 2.0
 
-    TensorInfo weightsInfo({ 2, 1, 1, 2 }, DataType::QAsymmS8);    // OHWI
+    TensorInfo weightsInfo({ 2, 1, 1, 2 }, DataType::QSymmS8);    // OHWI
     weightsInfo.SetQuantizationDim(0);
     weightsInfo.SetQuantizationScales({ 2.0f, 3.0f });
     weightsInfo.SetConstant(true);
@@ -677,7 +677,7 @@ LayerTestResult<uint8_t, 4>
     std::vector<int32_t> biasData{ 0, 10 };    // Representing 0.0, 30.0
     ConstTensor bias(biasInfo, biasData);
 
-    TensorInfo outputInfo({ 1, 1, 1, 2 }, DataType::QAsymmU8, 5.0f, 0);
+    TensorInfo outputInfo({ 1, 1, 1, 2 }, DataType::QSymmS8, 5.0f, 0);
     std::vector<uint8_t> expectedOutputData = { 2, 13 };    // Representing 10.0, 65.0
     // Hardware rounds the output values by the quantization scale, so real exact output value here
     // is (10.0, 63.0), which is rounded to real value of (10.0, 65.0), which is represented by the
@@ -708,10 +708,10 @@ LayerTestResult<uint8_t, 4>
                                                          const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
 {
     // Define tensors
-    TensorInfo inputInfo({ 1, 1, 1, 2 }, DataType::QAsymmU8, 1.0f, 0);
+    TensorInfo inputInfo({ 1, 1, 1, 2 }, DataType::QSymmS8, 1.0f, 0);
     std::vector<uint8_t> inputData{ 1, 2 };    // Representing 1.0, 2.0
 
-    TensorInfo weightsInfo({ 1, 1, 1, 2 }, DataType::QAsymmS8);    // 1HW(I*M)
+    TensorInfo weightsInfo({ 1, 1, 1, 2 }, DataType::QSymmS8);    // 1HW(I*M)
     weightsInfo.SetQuantizationDim(3);
     weightsInfo.SetQuantizationScales({ 2.0f, 3.0f });
     weightsInfo.SetConstant(true);
@@ -725,7 +725,7 @@ LayerTestResult<uint8_t, 4>
     std::vector<int32_t> biasData{ 9, 10 };    // Representing 18.0, 30.0
     ConstTensor bias(biasInfo, biasData);
 
-    TensorInfo outputInfo({ 1, 1, 1, 2 }, DataType::QAsymmU8, 5.0f, 0);
+    TensorInfo outputInfo({ 1, 1, 1, 2 }, DataType::QSymmS8, 5.0f, 0);
     std::vector<uint8_t> expectedOutputData = { 4, 8 };    // Representing 20.0, 42.0
 
     // Construct the network
@@ -764,10 +764,10 @@ LayerTestResult<uint8_t, 4>
                                                          const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
 {
     // Define tensors
-    TensorInfo inputInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, 2.0f, 0);
+    TensorInfo inputInfo({ 1, 2, 2, 1 }, DataType::QSymmS8, 2.0f, 0);
     std::vector<uint8_t> inputData{ 3, 1, 1, 2 };    // Representing 6.0, 2.0, 2.0, 4.0
 
-    TensorInfo weightsInfo({ 2, 2, 2, 1 }, DataType::QAsymmU8);
+    TensorInfo weightsInfo({ 2, 2, 2, 1 }, DataType::QSymmS8);
     weightsInfo.SetQuantizationDim(0);
     weightsInfo.SetQuantizationScales({ 2.0f, 3.0f });
     weightsInfo.SetConstant(true);
@@ -787,7 +787,7 @@ LayerTestResult<uint8_t, 4>
     std::vector<int32_t> biasData{ 1, 2 };    // Representing 4.0, 12.0
     ConstTensor bias(biasInfo, biasData);
 
-    TensorInfo outputInfo({ 1, 3, 3, 2 }, DataType::QAsymmU8, 10.0f, 0);
+    TensorInfo outputInfo({ 1, 3, 3, 2 }, DataType::QSymmS8, 10.0f, 0);
     std::vector<uint8_t> expectedOutputData = { 5, 8, 2, 3, 2, 4, 1, 2, 1, 2, 2, 4, 2, 4, 3, 5, 4, 6 };
     // The quantized values are the real values divided by the scale and rounded to the nearest int
     // They represent real values at 1st channel:
