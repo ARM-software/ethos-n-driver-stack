@@ -134,6 +134,7 @@ ple_kernel_cpps = {
     "SIGMOID": "Sigmoid.cpp",
     "TRANSPOSE_XY": "Transpose_XY.cpp",
     "MAXPOOL1D": "MaxPool1D.cpp",
+    "MULTIPLICATION": "Multiplication.cpp",
 }
 
 # Defines the set of PLE kernels which we compile
@@ -775,6 +776,14 @@ kernels_params = [
         "operation": "MAXPOOL1D",
         "datatype": "s8",
         "is_direction_y": "1",
+    },
+    {
+        "operation": "MULTIPLICATION",
+        "datatype": "u8",
+    },
+    {
+        "operation": "MULTIPLICATION",
+        "datatype": "s8",
     },
 ]
 

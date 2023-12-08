@@ -93,10 +93,9 @@ extern "C" void Task(const TaskConfig* config)
             }
             case TaskMessageType::POST_INFERENCE_CLEANUP:
             {
-                // Even when profiling is disabled we still report some limited stats.
-                logger.Info("Total inference cycle count: %" PRIu64, latestInferenceResult.cycleCount);
+                logger.Debug("Total inference cycle count: %" PRIu64, latestInferenceResult.cycleCount);
 #if defined(CONTROL_UNIT_PROFILING)
-                logger.Info("%u profiling entries written.", latestInferenceResult.numProfilingEntries.nonOverflow);
+                logger.Debug("%u profiling entries written.", latestInferenceResult.numProfilingEntries.nonOverflow);
                 if (latestInferenceResult.numProfilingEntries.overflow > 0)
                 {
                     size_t numEntriesRequired = latestInferenceResult.numProfilingEntries.nonOverflow +

@@ -243,7 +243,7 @@ void EthosNPreCompiledWorkload::Execute() const
         result = inference->Wait(timeoutMs);
     }
 
-    ARMNN_LOG(debug) << "Ethos-N cycle count: " << inference->GetCycleCount();
+    ARMNN_LOG(info) << "Ethos-N cycle count: " << inference->GetCycleCount();
     if (EthosNBackendProfilingService::Instance().IsProfilingEnabled())
     {
         SendProfilingEvents();
