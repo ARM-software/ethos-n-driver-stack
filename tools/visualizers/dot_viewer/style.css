@@ -1,0 +1,28 @@
+#loading {
+    font: 96px Arial; 
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+#search-container {
+    border: 1px solid black;
+    max-width: 50%;
+}
+
+.search-result {
+    border: 1px solid black;
+    cursor: pointer;
+}
+.search-result:hover {
+    border: 1px solid red;
+}
+
+.error {
+    background-color: lightcoral;
+}
+
+#canvas-container {
+    flex-grow: 1;
+}

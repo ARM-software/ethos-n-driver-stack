@@ -1,0 +1,39 @@
+<html>
+    <head>
+        <title>Dot File Viewer</title>
+        <link rel="icon" type="image/x-icon" href="DotViewer.png">
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body style="display: flex; flex-direction: row; height:100%; margin: 0px;">
+        <!-- Loading div has fixed position so it doesn't mess up the canvas width/height calculations on load-->
+        <div id="loading">Loading...</div>
+
+        <div id="search-container" style="display: flex; flex-direction: column;">
+            <fieldset>
+                <legend>Search</legend>
+                <textarea id="search-query" rows="2" placeholder="search query..."></textarea>
+                <div>
+                    <input type="checkbox" id="search-case-sensitive" /><label for="search-case-sensitive">Case sensitive?</label>
+                </div>
+                <div>
+                    <input type="checkbox" id="search-regex" /><label for="search-regex">Regex?</label>
+                </div>
+            </fieldset>
+            <div id="search-results" style="display: flex; flex-direction: column; overflow: auto;">
+            </div>
+            
+        </div>
+        
+        <div id="canvas-container" >
+            <!-- Width and height set to 100% so that when we set the .width and .height in the resize
+                 handler, it doesn't affect the width/height of the box model. -->
+            <canvas id="canvas" tabindex="10" style="width: 100%; height: 100%"></canvas>
+        </div>
+
+        <!-- The SVG element (which is dynamically loaded into this container) must be part of the layout so that the bboxes are calculated, but we hide it as we draw it ourselves-->
+        <div id="svg-source-container" style="position: fixed; opacity: 0%">
+        </div>
+     
+        <script src="script.js"></script>
+    </body>
+</html>

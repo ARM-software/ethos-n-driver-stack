@@ -1,0 +1,162 @@
+<html>
+    <head>
+        <title>Dependency Viewer</title>
+        <link rel="icon" type="image/x-icon" href="DependencyViewer.png">
+    </head>
+    <body style="display: flex; flex-direction: column; height:100%; margin: 0px;">
+        <div style="display:flex">
+            <div style="flex-grow: 1;">
+                <textarea id="cmdStreamText" style="width: 100%" rows="20">
+<?xml version="1.0" encoding="utf-8"?>
+<STREAM><CASCADE>
+<NUM_AGENTS>6</NUM_AGENTS>
+    <AGENT> <!-- Agent 0 -->
+    <IFM_STREAMER>
+        <TILE><NUM_SLOTS>2</NUM_SLOTS></TILE>
+    </IFM_STREAMER>
+    <NUM_STRIPES_TOTAL>12</NUM_STRIPES_TOTAL>
+    <DEPENDENCY>
+        <OTHER_AGENT_ID>3</OTHER_AGENT_ID>
+        <OUTER_RATIO><OTHER>3</OTHER><SELF>3</SELF></OUTER_RATIO>
+        <INNER_RATIO><OTHER>1</OTHER><SELF>1</SELF></INNER_RATIO>
+        <BOUNDARY>0</BOUNDARY>
+        <WRITES_TO_TILE_SIZE>2</WRITES_TO_TILE_SIZE>
+        <USE_FOR_SCHEDULING>1</USE_FOR_SCHEDULING>
+        <USE_FOR_COMMAND_STREAM>1</USE_FOR_COMMAND_STREAM>
+    </DEPENDENCY>
+    <DEPENDENCY>
+        <OTHER_AGENT_ID>2</OTHER_AGENT_ID>
+        <OUTER_RATIO><OTHER>1</OTHER><SELF>12</SELF></OUTER_RATIO>
+        <INNER_RATIO><OTHER>1</OTHER><SELF>1</SELF></INNER_RATIO>
+        <BOUNDARY>0</BOUNDARY>
+        <WRITES_TO_TILE_SIZE>-1</WRITES_TO_TILE_SIZE>
+        <USE_FOR_SCHEDULING>1</USE_FOR_SCHEDULING>
+        <USE_FOR_COMMAND_STREAM>0</USE_FOR_COMMAND_STREAM>
+    </DEPENDENCY>
+    </AGENT>
+    <AGENT> <!-- Agent 1 -->
+    <WGT_STREAMER>
+        <TILE><NUM_SLOTS>2</NUM_SLOTS></TILE>
+    </WGT_STREAMER>
+    <NUM_STRIPES_TOTAL>4</NUM_STRIPES_TOTAL>
+    <DEPENDENCY>
+        <OTHER_AGENT_ID>3</OTHER_AGENT_ID>
+        <OUTER_RATIO><OTHER>12</OTHER><SELF>4</SELF></OUTER_RATIO>
+        <INNER_RATIO><OTHER>3</OTHER><SELF>1</SELF></INNER_RATIO>
+        <BOUNDARY>0</BOUNDARY>
+        <WRITES_TO_TILE_SIZE>2</WRITES_TO_TILE_SIZE>
+        <USE_FOR_SCHEDULING>1</USE_FOR_SCHEDULING>
+        <USE_FOR_COMMAND_STREAM>1</USE_FOR_COMMAND_STREAM>
+    </DEPENDENCY>
+    <DEPENDENCY>
+        <OTHER_AGENT_ID>2</OTHER_AGENT_ID>
+        <OUTER_RATIO><OTHER>1</OTHER><SELF>4</SELF></OUTER_RATIO>
+        <INNER_RATIO><OTHER>1</OTHER><SELF>1</SELF></INNER_RATIO>
+        <BOUNDARY>0</BOUNDARY>
+        <WRITES_TO_TILE_SIZE>-1</WRITES_TO_TILE_SIZE>
+        <USE_FOR_SCHEDULING>1</USE_FOR_SCHEDULING>
+        <USE_FOR_COMMAND_STREAM>0</USE_FOR_COMMAND_STREAM>
+    </DEPENDENCY>
+    </AGENT>
+    <AGENT> <!-- Agent 2 -->
+    <PLE_LOADER>
+    </PLE_LOADER>
+    <NUM_STRIPES_TOTAL>1</NUM_STRIPES_TOTAL>
+    </AGENT>
+    <AGENT> <!-- Agent 3 -->
+    <MCE_SCHEDULER>
+    </MCE_SCHEDULER>
+    <NUM_STRIPES_TOTAL>12</NUM_STRIPES_TOTAL>
+    <DEPENDENCY>
+        <OTHER_AGENT_ID>0</OTHER_AGENT_ID>
+        <OUTER_RATIO><OTHER>3</OTHER><SELF>3</SELF></OUTER_RATIO>
+        <INNER_RATIO><OTHER>1</OTHER><SELF>1</SELF></INNER_RATIO>
+        <BOUNDARY>0</BOUNDARY>
+        <WRITES_TO_TILE_SIZE>-1</WRITES_TO_TILE_SIZE>
+        <USE_FOR_SCHEDULING>1</USE_FOR_SCHEDULING>
+        <USE_FOR_COMMAND_STREAM>1</USE_FOR_COMMAND_STREAM>
+    </DEPENDENCY>
+    <DEPENDENCY>
+        <OTHER_AGENT_ID>1</OTHER_AGENT_ID>
+        <OUTER_RATIO><OTHER>4</OTHER><SELF>12</SELF></OUTER_RATIO>
+        <INNER_RATIO><OTHER>1</OTHER><SELF>3</SELF></INNER_RATIO>
+        <BOUNDARY>0</BOUNDARY>
+        <WRITES_TO_TILE_SIZE>-1</WRITES_TO_TILE_SIZE>
+        <USE_FOR_SCHEDULING>1</USE_FOR_SCHEDULING>
+        <USE_FOR_COMMAND_STREAM>1</USE_FOR_COMMAND_STREAM>
+    </DEPENDENCY>
+    </AGENT>
+    <AGENT> <!-- Agent 4 -->
+    <PLE_SCHEDULER>
+        <OFM_TILE><NUM_SLOTS>2</NUM_SLOTS></OFM_TILE>
+    </PLE_SCHEDULER>
+    <NUM_STRIPES_TOTAL>12</NUM_STRIPES_TOTAL>
+    <DEPENDENCY>
+        <OTHER_AGENT_ID>3</OTHER_AGENT_ID>
+        <OUTER_RATIO><OTHER>12</OTHER><SELF>12</SELF></OUTER_RATIO>
+        <INNER_RATIO><OTHER>1</OTHER><SELF>1</SELF></INNER_RATIO>
+        <BOUNDARY>0</BOUNDARY>
+        <WRITES_TO_TILE_SIZE>-1</WRITES_TO_TILE_SIZE>
+        <USE_FOR_SCHEDULING>1</USE_FOR_SCHEDULING>
+        <USE_FOR_COMMAND_STREAM>0</USE_FOR_COMMAND_STREAM>
+    </DEPENDENCY>
+    <DEPENDENCY>
+        <OTHER_AGENT_ID>2</OTHER_AGENT_ID>
+        <OUTER_RATIO><OTHER>1</OTHER><SELF>12</SELF></OUTER_RATIO>
+        <INNER_RATIO><OTHER>1</OTHER><SELF>1</SELF></INNER_RATIO>
+        <BOUNDARY>0</BOUNDARY>
+        <WRITES_TO_TILE_SIZE>-1</WRITES_TO_TILE_SIZE>
+        <USE_FOR_SCHEDULING>1</USE_FOR_SCHEDULING>
+        <USE_FOR_COMMAND_STREAM>1</USE_FOR_COMMAND_STREAM>
+    </DEPENDENCY>
+    <DEPENDENCY>
+        <OTHER_AGENT_ID>5</OTHER_AGENT_ID>
+        <OUTER_RATIO><OTHER>8</OTHER><SELF>12</SELF></OUTER_RATIO>
+        <INNER_RATIO><OTHER>1</OTHER><SELF>1</SELF></INNER_RATIO>
+        <BOUNDARY>0</BOUNDARY>
+        <WRITES_TO_TILE_SIZE>2</WRITES_TO_TILE_SIZE>
+        <USE_FOR_SCHEDULING>1</USE_FOR_SCHEDULING>
+        <USE_FOR_COMMAND_STREAM>1</USE_FOR_COMMAND_STREAM>
+    </DEPENDENCY>
+    </AGENT>
+    <AGENT> <!-- Agent 5 -->
+    <OFM_STREAMER>
+    </OFM_STREAMER>
+    <NUM_STRIPES_TOTAL>8</NUM_STRIPES_TOTAL>
+    <DEPENDENCY>
+        <OTHER_AGENT_ID>4</OTHER_AGENT_ID>
+        <OUTER_RATIO><OTHER>3</OTHER><SELF>2</SELF></OUTER_RATIO>
+        <INNER_RATIO><OTHER>1</OTHER><SELF>1</SELF></INNER_RATIO>
+        <BOUNDARY>1</BOUNDARY>
+        <WRITES_TO_TILE_SIZE>-1</WRITES_TO_TILE_SIZE>
+        <USE_FOR_SCHEDULING>1</USE_FOR_SCHEDULING>
+        <USE_FOR_COMMAND_STREAM>1</USE_FOR_COMMAND_STREAM>
+    </DEPENDENCY>
+    </AGENT>
+</CASCADE></STREAM>
+                </textarea>
+                <div>
+                    <button id="goButton">Go</button>
+                </div>
+            </div>
+
+            <div style="flex-grow: 1;">
+                <div>
+                    <div style="color: blue;">Command stream & scheduling</div>
+                    <div style="color: red;">Scheduling only</div>
+                    <div style="color: green;">Command stream only</div>
+                </div>
+                <div>
+                    <label><input type="checkbox" id="forAllStripesCheck" checked="true">For all stripes</label>
+                </div>
+            </div>
+        </div>
+
+        <div id="canvas-container" style="flex-grow: 1; min-height: 0px;" >
+            <canvas id="canvas" tabindex="10"></canvas>
+        </div>
+
+        <script src="dependencies.js"></script>
+        <script src="script.js"></script>
+    </body>
+</html>
