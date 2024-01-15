@@ -1,5 +1,38 @@
 # Changelog for Arm® Ethos™-N Driver Stack
 
+## 23.11
+
+### New features
+
+- Add the ability to use llvm-embedded toolchain:
+  - Please specify the following SCons parameters or place them in your options.py:
+    - use_llvm_embedded=1
+    - llvm_embedded_toolchain_path=<path_to_llvm_binaries>
+  - Add support for elementwise multiplication.
+
+### Public API changes
+
+- Remove the 'cascading' prefix from the driver stack components.
+- Make firmware, model interface, and PLE source code public.
+- Command stream version bumped to 7.
+- Driver Library version bumped to 8.
+- Support Library version bumped to 5.
+
+### Other changes
+
+- Remove the '-block-inferences-debug' option from system tests.
+- Improve the ordering of commands in the control unit controller.
+- Improve performance under higher system latencies.
+- Fix bugs related to:
+  - Handling relative paths when installing the library.
+  - Caching networks with multiple subgraphs.
+- Some IRQ flags are now fetched from the device tree instead of being hardcoded.
+- Make sure weight streams payload size fit in the Ethos-N hardware struct.
+- Add some useful devloper tools to the repository.
+
+### Known issues
+- Standalone padding and convolution layers of certain dimensions with padding might trigger a cyclic dependency during graph compilation.
+
 ## 23.08
 
 ### New features
