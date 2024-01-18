@@ -14,9 +14,9 @@
 
 - Remove the 'cascading' prefix from the driver stack components.
 - Make firmware, model interface, and PLE source code public.
-- Command stream version bumped to 7.
-- Driver Library version bumped to 8.
-- Support Library version bumped to 5.
+- Command stream version increased to 7.
+- Driver Library version increased to 8.
+- Support Library version increased to 5.
 
 ### Other changes
 
