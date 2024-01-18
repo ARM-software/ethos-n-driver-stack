@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2023 Arm Limited.
+ * (C) COPYRIGHT 2018-2024 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1607,6 +1607,8 @@ static int firmware_load(struct ethosn_core *core)
 		ret = -ENOMEM;
 		goto release_fw;
 	}
+
+	ethosn_dma_sync_for_cpu(core->main_allocator, core->firmware);
 
 	/* Copy firmware binary into the allocation */
 	memcpy(core->firmware->cpu_addr,
