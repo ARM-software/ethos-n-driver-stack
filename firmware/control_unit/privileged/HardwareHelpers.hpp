@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2022,2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -42,6 +42,8 @@ void DCleanInvalidate();
 void IEnable();
 
 void DEnable();
+
+void DisableDynamicReadAllocateMode();
 
 }    // namespace Cache
 

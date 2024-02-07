@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2023 Arm Limited.
+// Copyright © 2018-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -466,6 +466,7 @@ __attribute__((section("BOOT"), noreturn, used)) void __start()
     __ASM volatile("msr psp, %0;" : : "r"(taskContextFrame));
 
     // Caches
+    Cache::DisableDynamicReadAllocateMode();
     Cache::IEnable();
     Cache::DEnable();
 
