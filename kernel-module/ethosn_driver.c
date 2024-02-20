@@ -1,7 +1,7 @@
 /*
  *
  * (C) COPYRIGHT 2018-2023 Arm Limited.
- * (C) COPYRIGHT 2023 Axis Communications AB.
+ * (C) COPYRIGHT 2023-2024 Axis Communications AB.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1240,7 +1240,6 @@ static void ethosn_device_release(void *const opaque)
 	int i = 0;
 
 	while (i < ethosn->num_cores) {
-		ethosn_set_power_ctrl(ethosn->core[i], false);
 		if (ethosn->core[i]->irq_wq)
 			destroy_workqueue(ethosn->core[i]->irq_wq);
 
@@ -1729,6 +1728,7 @@ static int ethosn_pdev_remove(struct platform_device *pdev)
 {
 	struct ethosn_device *ethosn =
 		dev_get_drvdata(&pdev->dev);
+	int i = 0;
 
 	dev_dbg(&pdev->dev, "Depopulating children");
 	/* Force depopulating children */
@@ -1739,6 +1739,11 @@ static int ethosn_pdev_remove(struct platform_device *pdev)
 	 */
 	if (ethosn && !ethosn->smmu_available)
 		ethosn_destroy_carveout_asset_allocators(ethosn);
+
+	while (ethosn && i < ethosn->num_cores) {
+		ethosn_set_power_ctrl(ethosn->core[i], false);
+		++i;
+	}
 
 	return 0;
 }
