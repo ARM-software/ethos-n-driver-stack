@@ -280,7 +280,6 @@ struct PassDebugStats
     uint32_t numPleStripes;
 };
 
-
 /// Performance data for a single pass pairs performance stats with network topology meta-data.
 struct PassPerformanceData
 {

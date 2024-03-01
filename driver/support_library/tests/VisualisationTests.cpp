@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2023 Arm Limited.
+// Copyright © 2018-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -491,20 +491,22 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     legacyPass1.m_Stats.m_Ple.m_NumOfPatches = 10;
     estimatedOpGraph.m_LegacyPerfData.m_Stream.push_back(legacyPass1);
     EstimatedPass pass1;
-    pass1.m_Metric      = 30.0;
-    pass1.m_DebugInfo   = "Some calculations";
-    pass1.m_LegacyStats = legacyPass1.m_Stats;
-    pass1.m_Ops         = { &ple1 };
+    pass1.m_Metric              = 30.0;
+    pass1.m_DebugInfo           = "Some calculations";
+    pass1.m_LegacyStats         = legacyPass1.m_Stats;
+    pass1.m_Ops                 = { &ple1 };
+    pass1.m_PassDebugStat.valid = 0;
     estimatedOpGraph.m_Passes.push_back(pass1);
 
     PassPerformanceData legacyPass2;
     legacyPass2.m_Stats.m_Ple.m_NumOfPatches = 20;
     estimatedOpGraph.m_LegacyPerfData.m_Stream.push_back(legacyPass2);
     EstimatedPass pass2;
-    pass2.m_Metric      = 27.2;
-    pass2.m_DebugInfo   = "Some more calculations";
-    pass2.m_LegacyStats = legacyPass2.m_Stats;
-    pass2.m_Ops         = { &ple2 };
+    pass2.m_Metric              = 27.2;
+    pass2.m_DebugInfo           = "Some more calculations";
+    pass2.m_LegacyStats         = legacyPass2.m_Stats;
+    pass2.m_Ops                 = { &ple2 };
+    pass2.m_PassDebugStat.valid = 0;
     estimatedOpGraph.m_Passes.push_back(pass2);
 
     estimatedOpGraph.m_OpToPass[&ple1] = 0;

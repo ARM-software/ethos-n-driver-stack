@@ -1,5 +1,5 @@
 //
-// Copyright © 2020-2023 Arm Limited.
+// Copyright © 2020-2024 Arm Limited.
 // Copyright © 2024 Axis Communications AB.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -591,29 +591,29 @@ double CalculateMetric(const PassStats& legacyPerfData, const PassDesc& passDesc
     /* Save the metrics so we can print it later if needed */
     if (passStat != nullptr)
     {
-        passStat->numInputStripes = numInputStripes;
-        passStat->inputBytes = inputBytes;
-        passStat->inputCycles = inputCycles;
-        passStat->inputParallelCycles = inputParallelCycles;
-        passStat->inputNonParallelCycles = inputNonParallelCycles;
-        passStat->numWeightStripes = numWeightStripes;
-        passStat->weightBytes = weightBytes;
-        passStat->weightCycles = weightCycles;
-        passStat->weightParallelCycles = weightParallelCycles;
-        passStat->weightNonParallelCycles = weightNonParallelCycles;
-        passStat->dmaReadParallelCycles = dmaReadParallelCycles;
-        passStat->dmaReadNonParallelCycles = dmaReadNonParallelCycles;
-        passStat->numOutputStripes = numOutputStripes;
-        passStat->outputBytes = outputBytes;
-        passStat->outputCycles = outputCycles;
-        passStat->outputParallelCycles = outputParallelCycles;
-        passStat->outputNonParallelCycles = outputNonParallelCycles;
-        passStat->dmaWriteParallelCycles = dmaWriteParallelCycles;
+        passStat->numInputStripes           = numInputStripes;
+        passStat->inputBytes                = inputBytes;
+        passStat->inputCycles               = inputCycles;
+        passStat->inputParallelCycles       = inputParallelCycles;
+        passStat->inputNonParallelCycles    = inputNonParallelCycles;
+        passStat->numWeightStripes          = numWeightStripes;
+        passStat->weightBytes               = weightBytes;
+        passStat->weightCycles              = weightCycles;
+        passStat->weightParallelCycles      = weightParallelCycles;
+        passStat->weightNonParallelCycles   = weightNonParallelCycles;
+        passStat->dmaReadParallelCycles     = dmaReadParallelCycles;
+        passStat->dmaReadNonParallelCycles  = dmaReadNonParallelCycles;
+        passStat->numOutputStripes          = numOutputStripes;
+        passStat->outputBytes               = outputBytes;
+        passStat->outputCycles              = outputCycles;
+        passStat->outputParallelCycles      = outputParallelCycles;
+        passStat->outputNonParallelCycles   = outputNonParallelCycles;
+        passStat->dmaWriteParallelCycles    = dmaWriteParallelCycles;
         passStat->dmaWriteNonParallelCycles = dmaWriteNonParallelCycles;
-        passStat->mceCycles = mceCycles;
-        passStat->numMceStripes = numMceStripes;
-        passStat->pleCycles = pleCycles;
-        passStat->numPleStripes = numPleStripes;
+        passStat->mceCycles                 = mceCycles;
+        passStat->numMceStripes             = numMceStripes;
+        passStat->pleCycles                 = pleCycles;
+        passStat->numPleStripes             = numPleStripes;
 
         passStat->valid = true;
     }
@@ -655,9 +655,10 @@ void GenerateDebug(const PassDebugStats& passStat, std::string* outDebugInfo)
         ss << "    dmaReadNonParallelCycles = " << passStat.dmaReadNonParallelCycles << std::endl;
         ss << "    dmaWriteNonParallelCycles = " << passStat.dmaWriteNonParallelCycles << std::endl;
         ss << "    max(dmaRead, dmaWrite, mce, ple) = "
-           << std::max({ passStat.dmaReadParallelCycles, passStat.dmaWriteParallelCycles, passStat.mceCycles, passStat.pleCycles }) << "("
-           << passStat.dmaReadParallelCycles << ", " << passStat.dmaWriteParallelCycles << ", " << passStat.mceCycles << ", " << passStat.pleCycles << ")"
-           << std::endl;
+           << std::max({ passStat.dmaReadParallelCycles, passStat.dmaWriteParallelCycles, passStat.mceCycles,
+                         passStat.pleCycles })
+           << "(" << passStat.dmaReadParallelCycles << ", " << passStat.dmaWriteParallelCycles << ", "
+           << passStat.mceCycles << ", " << passStat.pleCycles << ")" << std::endl;
 
         *outDebugInfo = ss.str();
     }
