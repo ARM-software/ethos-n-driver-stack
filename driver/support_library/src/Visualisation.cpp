@@ -1,5 +1,6 @@
 //
 // Copyright © 2018-2023 Arm Limited.
+// Copyright © 2024 Axis Communications AB.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -961,8 +962,19 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
 
         // Add a "dummy" node showing the metric and debug info for this pass
         std::stringstream perfDetails;
+        std::string outDebugInfo;
+
+        if (estimationDetails.m_Passes[passIdx].m_PassDebugStat.valid)
+        {
+            GenerateDebug(estimationDetails.m_Passes[passIdx].m_PassDebugStat, &outDebugInfo);
+        }
+        else
+        {
+            outDebugInfo = estimationDetails.m_Passes[passIdx].m_DebugInfo;
+        }
+
         perfDetails << "Metric = " << estimationDetails.m_Passes[passIdx].m_Metric << "\n\n";
-        perfDetails << estimationDetails.m_Passes[passIdx].m_DebugInfo << "\n\n";
+        perfDetails << outDebugInfo << "\n\n";
         PrintPassPerformanceData(perfDetails, ethosn::utils::Indent(0),
                                  estimationDetails.m_LegacyPerfData.m_Stream[passIdx]);
         DotAttributes perfAttr(passId + "_Perf", perfDetails.str(), "");

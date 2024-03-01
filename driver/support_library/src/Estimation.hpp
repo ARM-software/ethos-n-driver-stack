@@ -1,5 +1,6 @@
 //
 // Copyright © 2020-2023 Arm Limited.
+// Copyright © 2024 Axis Communications AB.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -22,6 +23,7 @@ struct EstimatedPass
     /// The estimated cycle count for this pass.
     double m_Metric;
     /// Additional information helpful for debugging the performance estimation, shown in dot files.
+    PassDebugStats m_PassDebugStat;
     std::string m_DebugInfo;
     /// The Ops included in this pass.
     std::vector<Op*> m_Ops;
