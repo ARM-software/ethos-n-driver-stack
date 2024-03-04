@@ -1,5 +1,6 @@
 //
 // Copyright © 2020-2023 Arm Limited.
+// Copyright © 2024 Axis Communications AB.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -484,7 +485,7 @@ StripesStats AccountForDmaChunking(StripesStats stats,
     return result;
 }
 
-double CalculateMetric(const PassStats& legacyPerfData, const PassDesc& passDesc, std::string* outDebugInfo)
+double CalculateMetric(const PassStats& legacyPerfData, const PassDesc& passDesc, PassDebugStats* passStat)
 {
     using namespace utils;
 
@@ -587,46 +588,79 @@ double CalculateMetric(const PassStats& legacyPerfData, const PassDesc& passDesc
     double metric = dmaReadNonParallelCycles + dmaWriteNonParallelCycles +
                     std::max({ dmaReadParallelCycles, dmaWriteParallelCycles, mceCycles, pleCycles });
 
+    /* Save the metrics so we can print it later if needed */
+    if (passStat != nullptr)
+    {
+        passStat->numInputStripes = numInputStripes;
+        passStat->inputBytes = inputBytes;
+        passStat->inputCycles = inputCycles;
+        passStat->inputParallelCycles = inputParallelCycles;
+        passStat->inputNonParallelCycles = inputNonParallelCycles;
+        passStat->numWeightStripes = numWeightStripes;
+        passStat->weightBytes = weightBytes;
+        passStat->weightCycles = weightCycles;
+        passStat->weightParallelCycles = weightParallelCycles;
+        passStat->weightNonParallelCycles = weightNonParallelCycles;
+        passStat->dmaReadParallelCycles = dmaReadParallelCycles;
+        passStat->dmaReadNonParallelCycles = dmaReadNonParallelCycles;
+        passStat->numOutputStripes = numOutputStripes;
+        passStat->outputBytes = outputBytes;
+        passStat->outputCycles = outputCycles;
+        passStat->outputParallelCycles = outputParallelCycles;
+        passStat->outputNonParallelCycles = outputNonParallelCycles;
+        passStat->dmaWriteParallelCycles = dmaWriteParallelCycles;
+        passStat->dmaWriteNonParallelCycles = dmaWriteNonParallelCycles;
+        passStat->mceCycles = mceCycles;
+        passStat->numMceStripes = numMceStripes;
+        passStat->pleCycles = pleCycles;
+        passStat->numPleStripes = numPleStripes;
+
+        passStat->valid = true;
+    }
+
+    return metric;
+}
+
+void GenerateDebug(const PassDebugStats& passStat, std::string* outDebugInfo)
+{
     if (outDebugInfo != nullptr)
     {
         std::stringstream ss;
         ss << "Dma Read:" << std::endl;
-        ss << "    numInputStripes = " << numInputStripes << std::endl;
-        ss << "    inputBytes = " << inputBytes << std::endl;
-        ss << "    inputCycles = " << inputCycles << std::endl;
-        ss << "    inputParallelCycles = " << inputParallelCycles << std::endl;
-        ss << "    inputNonParallelCycles = " << inputNonParallelCycles << std::endl;
-        ss << "    numWeightStripes = " << numWeightStripes << std::endl;
-        ss << "    weightBytes = " << weightBytes << std::endl;
-        ss << "    weightCycles = " << weightCycles << std::endl;
-        ss << "    weightParallelCycles = " << weightParallelCycles << std::endl;
-        ss << "    weightNonParallelCycles = " << weightNonParallelCycles << std::endl;
+        ss << "    numInputStripes = " << passStat.numInputStripes << std::endl;
+        ss << "    inputBytes = " << passStat.inputBytes << std::endl;
+        ss << "    inputCycles = " << passStat.inputCycles << std::endl;
+        ss << "    inputParallelCycles = " << passStat.inputParallelCycles << std::endl;
+        ss << "    inputNonParallelCycles = " << passStat.inputNonParallelCycles << std::endl;
+        ss << "    numWeightStripes = " << passStat.numWeightStripes << std::endl;
+        ss << "    weightBytes = " << passStat.weightBytes << std::endl;
+        ss << "    weightCycles = " << passStat.weightCycles << std::endl;
+        ss << "    weightParallelCycles = " << passStat.weightParallelCycles << std::endl;
+        ss << "    weightNonParallelCycles = " << passStat.weightNonParallelCycles << std::endl;
 
         ss << "Dma Write:" << std::endl;
-        ss << "    numOutputStripes = " << numOutputStripes << std::endl;
-        ss << "    outputBytes = " << outputBytes << std::endl;
-        ss << "    outputCycles = " << outputCycles << std::endl;
-        ss << "    outputParallelCycles = " << outputParallelCycles << std::endl;
-        ss << "    outputNonParallelCycles = " << outputNonParallelCycles << std::endl;
+        ss << "    numOutputStripes = " << passStat.numOutputStripes << std::endl;
+        ss << "    outputBytes = " << passStat.outputBytes << std::endl;
+        ss << "    outputCycles = " << passStat.outputCycles << std::endl;
+        ss << "    outputParallelCycles = " << passStat.outputParallelCycles << std::endl;
+        ss << "    outputNonParallelCycles = " << passStat.outputNonParallelCycles << std::endl;
 
         ss << "MCE:" << std::endl;
-        ss << "    numMceStripes = " << numMceStripes << std::endl;
+        ss << "    numMceStripes = " << passStat.numMceStripes << std::endl;
 
         ss << "PLE:" << std::endl;
-        ss << "    numPleStripes = " << numPleStripes << std::endl;
+        ss << "    numPleStripes = " << passStat.numPleStripes << std::endl;
 
         ss << "Metric:" << std::endl;
-        ss << "    dmaReadNonParallelCycles = " << dmaReadNonParallelCycles << std::endl;
-        ss << "    dmaWriteNonParallelCycles = " << dmaWriteNonParallelCycles << std::endl;
+        ss << "    dmaReadNonParallelCycles = " << passStat.dmaReadNonParallelCycles << std::endl;
+        ss << "    dmaWriteNonParallelCycles = " << passStat.dmaWriteNonParallelCycles << std::endl;
         ss << "    max(dmaRead, dmaWrite, mce, ple) = "
-           << std::max({ dmaReadParallelCycles, dmaWriteParallelCycles, mceCycles, pleCycles }) << "("
-           << dmaReadParallelCycles << ", " << dmaWriteParallelCycles << ", " << mceCycles << ", " << pleCycles << ")"
+           << std::max({ passStat.dmaReadParallelCycles, passStat.dmaWriteParallelCycles, passStat.mceCycles, passStat.pleCycles }) << "("
+           << passStat.dmaReadParallelCycles << ", " << passStat.dmaWriteParallelCycles << ", " << passStat.mceCycles << ", " << passStat.pleCycles << ")"
            << std::endl;
 
         *outDebugInfo = ss.str();
     }
-
-    return metric;
 }
 
 }    // namespace support_library
