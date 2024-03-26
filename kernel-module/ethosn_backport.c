@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2021-2023 Arm Limited.
+ * (C) COPYRIGHT 2021-2024 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -142,7 +142,7 @@ retry:
 		if (!extend_bitmap)
 			return -ENOMEM;
 
-		tmp_bitmap_ptr = devm_kzalloc(dev, bitmap_size, GFP_KERNEL);
+		tmp_bitmap_ptr = devm_kzalloc(dev, bitmap_size, GFP_ATOMIC);
 		if (!tmp_bitmap_ptr)
 			return -ENOMEM;
 
