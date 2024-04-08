@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2023 Arm Limited.
+// Copyright © 2018-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -273,7 +273,34 @@ TensorAndId<Operand>
 
 TensorAndId<Operand> AddResize(const std::shared_ptr<Network>& network, Operand& input, const ResizeInfo& resizeInfo)
 {
-    return GetSingleOutputResult(network, network->AddResize(input, resizeInfo));
+    if (resizeInfo.m_Algo == ResizeAlgorithm::BILINEAR && input.GetTensorInfo().m_DataType == DataType::INT8_QUANTIZED)
+    {
+        /* Workaround for an MCE issue where, for bilinear resizing, regardless of input type the input is treated as unsigned.
+         * This results in errors when dealing with negative numbers. To fix this the input is shifted into unsigned range
+         * before resizing, and shifted back to int8 range after resizing. */
+        QuantizationInfo inputInfo = input.GetTensorInfo().m_QuantizationInfo;
+        int32_t newZeroPoint       = inputInfo.GetZeroPoint() + 128;
+
+        RequantizeInfo uintQuantInfo     = RequantizeInfo(QuantizationInfo(newZeroPoint, inputInfo.GetScale()));
+        uintQuantInfo.m_OutputDataType   = DataType::UINT8_QUANTIZED;
+        TensorAndId<Operand> resizeInput = GetSingleOutputResult(network, network->AddRequantize(input, uintQuantInfo));
+
+        ResizeInfo newInfo(resizeInfo);
+        newInfo.m_OutputQuantizationInfo.SetZeroPoint(newZeroPoint);
+        TensorAndId<Operand> intQuantInput =
+            GetSingleOutputResult(network, network->AddResize(*resizeInput.tensor, newInfo));
+
+        RequantizeInfo intQuantInfo = RequantizeInfo(QuantizationInfo(inputInfo.GetZeroPoint(), inputInfo.GetScale()));
+        intQuantInfo.m_OutputDataType = DataType::INT8_QUANTIZED;
+        TensorAndId<Operand> operationOutput =
+            GetSingleOutputResult(network, network->AddRequantize(*intQuantInput.tensor, intQuantInfo));
+
+        return operationOutput;
+    }
+    else
+    {
+        return GetSingleOutputResult(network, network->AddResize(input, resizeInfo));
+    }
 }
 
 TensorsAndId AddEstimateOnly(const std::shared_ptr<Network>& network,
