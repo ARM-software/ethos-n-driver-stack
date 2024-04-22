@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2023 Arm Limited.
+// Copyright © 2018-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -212,8 +212,9 @@ armnn::TensorInfo GetEthosNConvolutionWeightsPermutationTensorInfo(const armnn::
 
         TensorInfo weightsInfoPermuted = weightsInfo;
         auto weightsShape              = weightsInfo.GetShape();
-        unsigned int depthMultiplier   = weightsShape[3] / inputInfo.GetShape()[3];
-        weightsInfoPermuted.SetShape({ weightsShape[1], weightsShape[2], inputInfo.GetShape()[3], depthMultiplier });
+        unsigned int inputChannels     = inputInfo.GetNumDimensions() > 2 ? inputInfo.GetShape()[3] : 1;
+        unsigned int depthMultiplier   = weightsShape[3] / inputChannels;
+        weightsInfoPermuted.SetShape({ weightsShape[1], weightsShape[2], inputChannels, depthMultiplier });
 
         // The quantization dim also needs permuting, but this can only be done if M=1 otherwise we'd need to
         // have multiple quantization dims for the result, which isn't representable

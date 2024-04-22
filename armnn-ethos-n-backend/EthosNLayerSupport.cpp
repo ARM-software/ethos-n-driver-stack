@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2023 Arm Limited.
+// Copyright © 2018-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -1596,9 +1596,13 @@ bool EthosNLayerSupport::IsMultiplicationSupportedByDepthwiseReplacement(
         desc.m_DataLayout  = DataLayout::NHWC;
         desc.m_BiasEnabled = false;
 
-        TensorInfo weightsInfo = constantInfo;
-        unsigned int M         = output.GetShape()[3] / inputInfo.GetShape()[3];
-        weightsInfo.SetShape({ 1, 1, 1, constantInfo.GetShape()[3] * M });    //1HW(I*M)
+        TensorInfo weightsInfo        = constantInfo;
+        unsigned int outputChannels   = output.GetNumDimensions() > 2 ? output.GetShape()[3] : 1;
+        unsigned int inputChannels    = inputInfo.GetNumDimensions() > 2 ? inputInfo.GetShape()[3] : 1;
+        unsigned int constantChannels = constantInfo.GetNumDimensions() > 2 ? constantInfo.GetShape()[3] : 1;
+
+        unsigned int M = outputChannels / inputChannels;
+        weightsInfo.SetShape({ 1, 1, 1, constantChannels * M });    //1HW(I*M)
 
         std::string depthwiseReasonIfUnsupported;
         bool supported = EthosNLayerSupport::IsDepthwiseConvolutionSupportedImpl(
