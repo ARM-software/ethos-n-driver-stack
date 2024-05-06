@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2023 Arm Limited.
+// Copyright © 2018-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -1173,7 +1173,7 @@ std::vector<EthosNPreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
                 ethosn::utils::VectorStream compiledNetworkStream(compiledNetworkData);
                 compiledNetwork->Serialize(compiledNetworkStream);
             }
-            compiledNetwork.release();    // No longer need this, so save the memory
+            compiledNetwork.reset();    // No longer need this, so save the memory
 
             // If saving options are specified, add to stored map to save once complete.
             if (caching->IsSaving())
