@@ -1,5 +1,28 @@
 # Changelog for Arm® Ethos™-N Driver Stack
 
+## 24.05
+
+### New features
+
+- Support for Arm NN 24.02
+
+### Public API changes
+
+- None
+
+### Other changes
+
+- Fix a potential crash when the device power is cut prematurely by the kernel module.
+- Disable dynamic read allocate mode in the NCU MCU.
+- Fix a crash where the sleeping function is called from an invalid context in the kernel module.
+- Fix int8 bilinear resizing by introducing a support library workaround.
+- Fix multiplication tensor addressing for 2d and 1d tensors in the Ethos-N Arm NN backend.
+- Fix a memory leak in the Ethos-N Arm NN backend.
+
+### Known issues
+
+- Standalone padding and convolution layers of certain dimensions with padding might trigger a cyclic dependency during graph compilation.
+
 ## 23.11
 
 ### New features
