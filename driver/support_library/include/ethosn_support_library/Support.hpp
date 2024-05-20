@@ -1,5 +1,6 @@
 //
 // Copyright © 2018-2024 Arm Limited.
+// Copyright © 2024 Axis Communications AB.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -25,7 +26,7 @@
 // Version information
 #define ETHOSN_SUPPORT_LIBRARY_VERSION_MAJOR 5
 #define ETHOSN_SUPPORT_LIBRARY_VERSION_MINOR 0
-#define ETHOSN_SUPPORT_LIBRARY_VERSION_PATCH 0
+#define ETHOSN_SUPPORT_LIBRARY_VERSION_PATCH 1
 
 namespace ethosn
 {
@@ -249,6 +250,36 @@ struct PassStats
     MceStats m_Mce;
     PleStats m_Ple;
 };
+
+// Some extra stats only used for debug
+struct PassDebugStats
+{
+    bool valid;
+    uint32_t numInputStripes;
+    double inputBytes;
+    double inputCycles;
+    double inputParallelCycles;
+    double inputNonParallelCycles;
+    uint32_t numWeightStripes;
+    double weightBytes;
+    double weightCycles;
+    double weightParallelCycles;
+    double weightNonParallelCycles;
+    double dmaReadParallelCycles;
+    double dmaReadNonParallelCycles;
+    uint32_t numOutputStripes;
+    double outputBytes;
+    double outputCycles;
+    double outputParallelCycles;
+    double outputNonParallelCycles;
+    double dmaWriteParallelCycles;
+    double dmaWriteNonParallelCycles;
+    double mceCycles;
+    uint32_t numMceStripes;
+    double pleCycles;
+    uint32_t numPleStripes;
+};
+
 
 /// Performance data for a single pass pairs performance stats with network topology meta-data.
 struct PassPerformanceData

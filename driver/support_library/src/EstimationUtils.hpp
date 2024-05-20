@@ -1,5 +1,6 @@
 //
 // Copyright © 2020-2023 Arm Limited.
+// Copyright © 2024 Axis Communications AB.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -76,7 +77,8 @@ struct PassDesc
     Buffer* m_Output     = nullptr;    ///< Either an SRAM or DRAM buffer
 };
 
-double CalculateMetric(const PassStats& legacyPerfData, const PassDesc& passDesc, std::string* outDebugInfo = nullptr);
+double CalculateMetric(const PassStats& legacyPerfData, const PassDesc& passDesc, PassDebugStats* passStat = nullptr);
+void GenerateDebug(const PassDebugStats& passStat, std::string* outDebugInfo);
 
 }    //namespace support_library
 }    //namespace ethosn
