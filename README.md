@@ -183,7 +183,7 @@ To download the components, enter the following commands:
 ```sh
 mkdir driver_stack
 cd driver_stack
-git clone https://github.com/Arm-software/armnn --branch v24.02
+git clone https://github.com/Arm-software/armnn --branch v24.05
 git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 23.11
 ```
 
