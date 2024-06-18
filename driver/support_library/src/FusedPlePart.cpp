@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -54,8 +54,7 @@ FusedPlePart::FusedPlePart(PartId id,
                         m_OutputTensorShape,
                         1,
                         1,
-                        0,
-                        0,
+                        Padding(),
                         1,
                         command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
                         op,

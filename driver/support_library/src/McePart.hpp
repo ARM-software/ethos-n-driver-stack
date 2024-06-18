@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -42,8 +42,7 @@ public:
         TensorInfo m_BiasInfo;
         std::vector<int32_t> m_BiasData;
         Stride m_Stride;
-        uint32_t m_PadTop                 = 0;
-        uint32_t m_PadLeft                = 0;
+        Padding m_Padding;
         command_stream::MceOperation m_Op = command_stream::MceOperation::CONVOLUTION;
         const EstimationOptions& m_EstOpt;
         const CompilationOptions& m_CompOpt;
@@ -149,8 +148,7 @@ protected:
     Stride m_Stride;
     uint32_t m_UpscaleFactor;
     MceUpsampleType m_UpsampleType;
-    uint32_t m_PadTop;
-    uint32_t m_PadLeft;
+    Padding m_Padding;
     command_stream::MceOperation m_Operation;
     impl::StripeConfig m_StripeConfig;
     impl::StripeGenerator m_StripeGenerator;

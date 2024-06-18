@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -50,7 +50,8 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
                                        const BlockConfig& blockConfig,
                                        CascadeType cascadeType,
                                        const StripeConfig& stripeConfig,
-                                       BoundaryRequirements outputBoundaryRequirements)
+                                       BoundaryRequirements outputBoundaryRequirements,
+                                       Padding padding)
 {
     assert(cascadeType == CascadeType::Middle || cascadeType == CascadeType::End);
     const TensorShape& mceInputStripe = sramBuffer->m_StripeShape;
@@ -193,6 +194,21 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
         numStripes.m_Output = { 1, 2 };
     }
 
+    if ((padding.GetHorizontalPadding() > 0 || padding.GetVerticalPadding() > 0) && !fullTensor &&
+        (GetNumElements(sramBuffer->m_TensorShape) < GetNumElements(outputTensorShape)))
+    {
+        uint32_t numInputHStripes = utils::GetNumStripesH(sramBuffer->m_TensorShape, sramBuffer->m_StripeShape);
+        uint32_t numInputWStripes = utils::GetNumStripesW(sramBuffer->m_TensorShape, sramBuffer->m_StripeShape);
+
+        uint32_t numOutputHStripes = utils::GetNumStripesH(outputTensorShape, mceOutputStripe);
+        uint32_t numOutputWStripes = utils::GetNumStripesW(outputTensorShape, mceOutputStripe);
+
+        if ((numInputHStripes != numOutputHStripes) || (numInputWStripes != numOutputWStripes))
+        {
+            return {};
+        }
+    }
+
     PackedBoundaryThickness packedBoundaryThickness = { 0, 0, 0, 0 };
     const uint32_t numIfmLoads                      = 1;
     const uint32_t numWeightLoads                   = 1;
@@ -248,8 +264,7 @@ McePart::McePart(ConstructionParams&& params)
     , m_Stride(params.m_Stride)
     , m_UpscaleFactor(params.m_UpscaleFactor)
     , m_UpsampleType(params.m_UpsampleType)
-    , m_PadTop(params.m_PadTop)
-    , m_PadLeft(params.m_PadLeft)
+    , m_Padding(params.m_Padding)
     , m_Operation(params.m_Op)
     , m_StripeConfig(GetDefaultStripeConfig(params.m_CompOpt, m_DebugTag.c_str()))
     , m_StripeGenerator(m_InputTensorShape,
@@ -257,8 +272,7 @@ McePart::McePart(ConstructionParams&& params)
                         m_OutputTensorShape,
                         m_WeightsInfo.m_Dimensions[0],
                         m_WeightsInfo.m_Dimensions[1],
-                        m_PadTop,
-                        m_PadLeft,
+                        m_Padding,
                         m_UpscaleFactor,
                         params.m_Op,
                         PleOperation::PASSTHROUGH,
@@ -297,8 +311,8 @@ Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
     wp.m_StripeDepth            = weightStripeDepth;
     wp.m_StrideY                = m_Stride.m_Y;
     wp.m_StrideX                = m_Stride.m_X;
-    wp.m_PaddingTop             = m_PadTop;
-    wp.m_PaddingLeft            = m_PadLeft;
+    wp.m_PaddingTop             = m_Padding.m_Top;
+    wp.m_PaddingLeft            = m_Padding.m_Left;
     wp.m_IterationSize          = weightStripeSize;
     wp.m_Operation              = m_Operation;
     wp.m_Algorithm              = mceOpAlgo;
@@ -408,7 +422,7 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
     auto mceOp =
         std::make_unique<MceOp>(m_Operation, mceOpAlgo, mceStripeInfo.m_BlockConfig, mceStripeInfo.m_Input,
                                 mceStripeInfo.m_Output, memoryStripesInfo.m_Weight.m_Shape, TraversalOrder::Xyz,
-                                m_Stride, m_PadLeft, m_PadTop, m_LowerBound, m_UpperBound);
+                                m_Stride, m_Padding.m_Left, m_Padding.m_Top, m_LowerBound, m_UpperBound);
     mceOp->m_UpscaleFactor = m_UpscaleFactor;
     mceOp->m_UpsampleType  = m_UpsampleType;
     if (m_UninterleavedInputShape.has_value())
@@ -626,7 +640,7 @@ Plans McePart::GetMiddlePlans(BlockConfig blockConfig, const SramBuffer* sramBuf
     auto stripeInfos = GenerateContinueSectionStripeInfos(
         numStripes, sramBuffer, numWeightStripes, isDepthwise, m_Capabilities, m_OutputTensorShape, kernelHeight,
         kernelWidth, strideMultiplier, m_StripeGenerator.m_MceShapeMultiplier, blockConfig, CascadeType::Middle,
-        m_StripeConfig, m_OutputBoundaryRequirements.at(0));
+        m_StripeConfig, m_OutputBoundaryRequirements.at(0), m_Padding);
 
     if (!stripeInfos.has_value())
     {
@@ -674,7 +688,7 @@ Plans McePart::GetEndPlans(BlockConfig blockConfig, const SramBuffer* sramBuffer
     auto stripeInfos = GenerateContinueSectionStripeInfos(
         numStripes, sramBuffer, numWeightStripes, isDepthwise, m_Capabilities, m_OutputTensorShape, kernelHeight,
         kernelWidth, strideMultiplier, m_StripeGenerator.m_MceShapeMultiplier, blockConfig, CascadeType::End,
-        m_StripeConfig, m_OutputBoundaryRequirements.at(0));
+        m_StripeConfig, m_OutputBoundaryRequirements.at(0), m_Padding);
 
     if (!stripeInfos.has_value())
     {
@@ -769,8 +783,10 @@ ethosn::support_library::DotAttributes McePart::GetDotAttributes(DetailLevel det
         result.m_Label += "Stride = " + ToString(m_Stride) + "\n";
         result.m_Label += "UpscaleFactor = " + ToString(m_UpscaleFactor) + "\n";
         result.m_Label += "UpsampleType = " + ToString(m_UpsampleType) + "\n";
-        result.m_Label += "PadTop = " + ToString(m_PadTop) + "\n";
-        result.m_Label += "PadLeft = " + ToString(m_PadLeft) + "\n";
+        result.m_Label += "PadTop = " + ToString(m_Padding.m_Top) + "\n";
+        result.m_Label += "PadBottom = " + ToString(m_Padding.m_Bottom) + "\n";
+        result.m_Label += "PadLeft = " + ToString(m_Padding.m_Left) + "\n";
+        result.m_Label += "PadRight = " + ToString(m_Padding.m_Right) + "\n";
         result.m_Label += "Operation = " + ToString(m_Operation) + "\n";
 
         result.m_Label +=
@@ -1052,8 +1068,8 @@ void McePart::PreprocessWeightsAsync() const
     request.m_StripeDepth            = 0;
     request.m_StrideY                = m_Stride.m_Y;
     request.m_StrideX                = m_Stride.m_X;
-    request.m_PaddingTop             = m_PadTop;
-    request.m_PaddingLeft            = m_PadLeft;
+    request.m_PaddingTop             = m_Padding.m_Top;
+    request.m_PaddingLeft            = m_Padding.m_Left;
     request.m_IterationSize          = 0;
     request.m_Operation              = m_Operation;
     request.m_Algorithm              = CompilerMceAlgorithm::Direct;

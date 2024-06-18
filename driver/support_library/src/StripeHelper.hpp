@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -437,8 +437,7 @@ public:
                     const TensorShape& pleOutput,
                     uint32_t kernelHeight,
                     uint32_t kernelWidth,
-                    uint32_t padTop,
-                    uint32_t padLeft,
+                    Padding padding,
                     uint32_t upscaleFactor,
                     command_stream::MceOperation op,
                     PleOperation pleOp,
@@ -468,8 +467,7 @@ public:
     TensorShape m_PleOutputTensorShape;
     uint32_t m_KernelHeight;
     uint32_t m_KernelWidth;
-    uint32_t m_PadTop;
-    uint32_t m_PadLeft;
+    Padding m_Padding;
     uint32_t m_UpscaleFactor;
     command_stream::MceOperation m_Operation;
     PleOperation m_KernelOperation;

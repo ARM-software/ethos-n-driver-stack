@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -659,8 +659,7 @@ StripeGenerator::StripeGenerator(const TensorShape& mceInput,
                                  const TensorShape& pleOutput,
                                  uint32_t kernelHeight,
                                  uint32_t kernelWidth,
-                                 uint32_t padTop,
-                                 uint32_t padLeft,
+                                 Padding padding,
                                  uint32_t upscaleFactor,
                                  command_stream::MceOperation op,
                                  PleOperation pleOp,
@@ -673,8 +672,7 @@ StripeGenerator::StripeGenerator(const TensorShape& mceInput,
     , m_PleOutputTensorShape(pleOutput)
     , m_KernelHeight(kernelHeight)
     , m_KernelWidth(kernelWidth)
-    , m_PadTop(padTop)
-    , m_PadLeft(padLeft)
+    , m_Padding(padding)
     , m_UpscaleFactor(upscaleFactor)
     , m_Operation(op)
     , m_KernelOperation(pleOp)
@@ -770,6 +768,29 @@ StripeInfos StripeGenerator::GenerateStripes(CascadeType cascadeType,
     return result;
 }
 
+int32_t checkForPOSB(uint32_t tensor_size, uint32_t stripe_size, uint32_t padding, uint32_t block_config)
+{
+    if (stripe_size > tensor_size || padding == 0)
+    {
+        return 0;
+    }
+
+    uint32_t new_stripe_size = stripe_size;
+    while (new_stripe_size < 2 * stripe_size && tensor_size % new_stripe_size < padding)
+    {
+        new_stripe_size += block_config;
+        if (tensor_size % new_stripe_size > padding)
+        {
+            break;
+        }
+    }
+    if (new_stripe_size >= 2 * stripe_size)
+    {
+        return -1;
+    }
+    return static_cast<int32_t>(new_stripe_size - stripe_size);
+}
+
 void StripeGenerator::GenerateStripes(const BlockConfig blockConfig,
                                       CascadeType cascadeType,
                                       BoundaryRequirements outputBoundaryRequirements,
@@ -785,7 +806,18 @@ void StripeGenerator::GenerateStripes(const BlockConfig blockConfig,
     StripeConfig stripeConfig = ApplyPleKernelSplitRestrictions(cascadeType);
 
     const bool isDepthwise           = m_Operation == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
+    const bool isConv2d              = m_Operation == ethosn::command_stream::MceOperation::CONVOLUTION;
     const TensorShape mceOutputShape = m_MceOutputTensorShape;
+
+    const bool isHeightIncreased =
+        GetHeight(m_PleOutputTensorShape) > (GetHeight(m_MceInputTensorShape) * m_UpscaleFactor);
+    const bool isWidthIncreased =
+        GetWidth(m_PleOutputTensorShape) > (GetWidth(m_MceInputTensorShape) * m_UpscaleFactor);
+
+    // Indicates that checks for padding over stripe boundaries should be performed.
+    bool shouldCheckForPOSB =
+        (isDepthwise || isConv2d) && (((m_Padding.GetVerticalPadding() > 0) && isHeightIncreased) ||
+                                      ((m_Padding.GetHorizontalPadding() > 0) && isWidthIncreased));
 
     // This method is intended to be called first with PlanPriority::High and after and only if needed
     // with PlanPriority::Low.
@@ -818,13 +850,15 @@ void StripeGenerator::GenerateStripes(const BlockConfig blockConfig,
         NumStripes weightRange;
         NumStripes pleInputRange;
 
-        const NeedBoundary needBoundaryY = utils::GetBoundaryRequirements(
-            m_PadTop, GetHeight(mceInputStripe), GetHeight(mceOutputStripe), m_KernelHeight, m_UpscaleFactor > 1);
+        const NeedBoundary needBoundaryY =
+            utils::GetBoundaryRequirements(m_Padding.m_Top, GetHeight(mceInputStripe), GetHeight(mceOutputStripe),
+                                           m_KernelHeight, m_UpscaleFactor > 1);
         const NeedBoundary needBoundaryX = utils::GetBoundaryRequirements(
-            m_PadLeft, GetWidth(mceInputStripe), GetWidth(mceOutputStripe), m_KernelWidth, m_UpscaleFactor > 1);
+            m_Padding.m_Left, GetWidth(mceInputStripe), GetWidth(mceOutputStripe), m_KernelWidth, m_UpscaleFactor > 1);
         // IFM is traversed ZXY order (XYZ for depthwise though).
         // If the first dimension with more than one stripe needs boundary data, we need at least this many stripes in the tile.
         uint32_t minStripesInTile = 1;
+
         if (isDepthwise || GetChannels(mceInputStripe) >= GetChannels(inputShape))
         {
             // X first?
@@ -1062,7 +1096,19 @@ void StripeGenerator::GenerateStripes(const BlockConfig blockConfig,
         // Exclusive loop as we already have a no-split plan further down
         for (uint32_t mceInputStripeHeight : mceInputHeightLoopExcl)
         {
-            TensorShape mceInputEncoding  = { 0, mceInputStripeHeight, 0, 0 };
+            uint32_t inputHeight = mceInputStripeHeight;
+
+            if (shouldCheckForPOSB)
+            {
+                int32_t heightDelta = checkForPOSB(GetHeight(m_MceInputTensorShape), inputHeight,
+                                                   m_Padding.GetVerticalPadding(), blockConfig.m_Height);
+                if (heightDelta < 0)
+                {
+                    continue;
+                }
+                inputHeight += heightDelta;
+            }
+            TensorShape mceInputEncoding  = { 0, inputHeight, 0, 0 };
             const TensorShape& inputShape = m_MceInputTensorShape;
             TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);
 
@@ -1086,7 +1132,19 @@ void StripeGenerator::GenerateStripes(const BlockConfig blockConfig,
         // Exclusive loop as we already have a no-split plan further down
         for (uint32_t mceInputStripeHeight : mceInputHeightLoopExcl)
         {
-            TensorShape mceInputEncoding  = { 0, mceInputStripeHeight, 0, 0 };
+            uint32_t inputHeight = mceInputStripeHeight;
+
+            if (shouldCheckForPOSB)
+            {
+                int32_t heightDelta = checkForPOSB(GetHeight(m_MceInputTensorShape), inputHeight,
+                                                   m_Padding.GetVerticalPadding(), blockConfig.m_Height);
+                if (heightDelta < 0)
+                {
+                    continue;
+                }
+                inputHeight += heightDelta;
+            }
+            TensorShape mceInputEncoding  = { 0, inputHeight, 0, 0 };
             const TensorShape& inputShape = m_MceInputTensorShape;
             TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);
 
@@ -1098,7 +1156,13 @@ void StripeGenerator::GenerateStripes(const BlockConfig blockConfig,
             TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, channelRounding);
 
             TensorShape memoryOutputEncoding = { 0, 0, 0, 0 };
-            TensorShape memoryOutputStripe   = CreateStripe(outputShape, memoryOutputEncoding, channelRounding);
+
+            if (shouldCheckForPOSB)
+            {
+                memoryOutputEncoding = pleOutputEncoding;
+            }
+
+            TensorShape memoryOutputStripe = CreateStripe(outputShape, memoryOutputEncoding, channelRounding);
 
             AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, mceInputStripe,
                            memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
@@ -1111,7 +1175,19 @@ void StripeGenerator::GenerateStripes(const BlockConfig blockConfig,
         // Exclusive loop as we already have a no-split plan further down
         for (uint32_t mceInputStripeWidth : mceInputWidthLoopExcl)
         {
-            TensorShape mceInputEncoding  = { 0, 0, mceInputStripeWidth, 0 };
+            uint32_t inputWidth = mceInputStripeWidth;
+
+            if (shouldCheckForPOSB)
+            {
+                int32_t widthDelta = checkForPOSB(GetWidth(m_MceInputTensorShape), mceInputStripeWidth,
+                                                  m_Padding.GetHorizontalPadding(), blockConfig.m_Width);
+                if (widthDelta < 0)
+                {
+                    continue;
+                }
+                inputWidth += widthDelta;
+            }
+            TensorShape mceInputEncoding  = { 0, 0, inputWidth, 0 };
             const TensorShape& inputShape = m_MceInputTensorShape;
             TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);
 
@@ -1140,7 +1216,28 @@ void StripeGenerator::GenerateStripes(const BlockConfig blockConfig,
                 // Try splitting width and height.
                 if (stripeConfig.splits.widthHeight)
                 {
-                    TensorShape mceInputEncoding  = { 0, mceInputStripeHeight, mceInputStripeWidth, 0 };
+                    uint32_t inputWidth  = mceInputStripeWidth;
+                    uint32_t inputHeight = mceInputStripeHeight;
+
+                    if (shouldCheckForPOSB)
+                    {
+                        int32_t widthDelta = checkForPOSB(GetWidth(m_MceInputTensorShape), mceInputStripeWidth,
+                                                          m_Padding.GetHorizontalPadding(), blockConfig.m_Width);
+                        if (widthDelta < 0)
+                        {
+                            continue;
+                        }
+                        inputWidth += widthDelta;
+                        int32_t heightDelta = checkForPOSB(GetHeight(m_MceInputTensorShape), mceInputStripeHeight,
+                                                           m_Padding.GetVerticalPadding(), blockConfig.m_Height);
+                        if (heightDelta < 0)
+                        {
+                            continue;
+                        }
+                        inputHeight += heightDelta;
+                    }
+
+                    TensorShape mceInputEncoding  = { 0, inputHeight, inputWidth, 0 };
                     const TensorShape& inputShape = m_MceInputTensorShape;
                     TensorShape mceInputStripe = CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);
 
@@ -1202,8 +1299,29 @@ void StripeGenerator::GenerateStripes(const BlockConfig blockConfig,
                     {
                         for (uint32_t mceIfmStripeDepth : mceIfmLoopIncl)
                         {
-                            TensorShape mceInputEncoding  = { 0, mceInputStripeHeight, mceInputStripeWidth,
-                                                             mceIfmStripeDepth };
+                            uint32_t inputWidth  = mceInputStripeWidth;
+                            uint32_t inputHeight = mceInputStripeHeight;
+
+                            if (shouldCheckForPOSB)
+                            {
+                                int32_t widthDelta =
+                                    checkForPOSB(GetWidth(m_MceInputTensorShape), mceInputStripeWidth,
+                                                 m_Padding.GetHorizontalPadding(), blockConfig.m_Width);
+                                if (widthDelta < 0)
+                                {
+                                    continue;
+                                }
+                                inputWidth += widthDelta;
+                                int32_t heightDelta =
+                                    checkForPOSB(GetHeight(m_MceInputTensorShape), mceInputStripeHeight,
+                                                 m_Padding.GetVerticalPadding(), blockConfig.m_Height);
+                                if (heightDelta < 0)
+                                {
+                                    continue;
+                                }
+                                inputHeight += heightDelta;
+                            }
+                            TensorShape mceInputEncoding  = { 0, inputHeight, inputWidth, mceIfmStripeDepth };
                             const TensorShape& inputShape = m_MceInputTensorShape;
                             TensorShape mceInputStripe =
                                 CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);

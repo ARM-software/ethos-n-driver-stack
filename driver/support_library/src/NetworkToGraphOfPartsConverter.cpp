@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -373,8 +373,7 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
         params.m_OperationIds =
             std::set<uint32_t>{ depthwise.GetId(), depthwise.GetBias().GetId(), depthwise.GetWeights().GetId() };
         params.m_Stride            = depthwise.GetConvolutionInfo().m_Stride;
-        params.m_PadTop            = depthwise.GetConvolutionInfo().m_Padding.m_Top;
-        params.m_PadLeft           = depthwise.GetConvolutionInfo().m_Padding.m_Left;
+        params.m_Padding           = depthwise.GetConvolutionInfo().m_Padding;
         params.m_UpscaleFactor     = 1;
         params.m_UpsampleType      = MceUpsampleType::OFF;
         params.m_InputDataType     = mceOperationInput.m_DataType;
@@ -425,8 +424,7 @@ void NetworkToGraphOfPartsConverter::Visit(StandalonePadding& padding)
     params.m_WeightsData            = std::vector<uint8_t>(1 * 1 * 1 * numIfm, 2);
     params.m_BiasInfo               = identityBiasInfo;
     params.m_BiasData               = std::vector<int32_t>(numIfm, 0);
-    params.m_PadTop                 = paddingInfo.m_Top;
-    params.m_PadLeft                = paddingInfo.m_Left;
+    params.m_Padding                = paddingInfo;
     params.m_Op                     = command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
     params.m_OperationIds           = std::set<uint32_t>{ padding.GetId() };
     params.m_UpscaleFactor          = 1;
@@ -533,8 +531,7 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
         params.m_OperationIds =
             std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(), convolution.GetWeights().GetId() };
         params.m_Stride            = convolution.GetConvolutionInfo().m_Stride;
-        params.m_PadTop            = convolution.GetConvolutionInfo().m_Padding.m_Top;
-        params.m_PadLeft           = convolution.GetConvolutionInfo().m_Padding.m_Left;
+        params.m_Padding           = convolution.GetConvolutionInfo().m_Padding;
         params.m_UpscaleFactor     = 1;
         params.m_UpsampleType      = MceUpsampleType::OFF;
         params.m_InputDataType     = mceOperationInput.m_DataType;
@@ -1600,8 +1597,7 @@ std::vector<BasePart*> NetworkToGraphOfPartsConverter::CreateTransposeConv(const
         params.m_BiasInfo               = biasInfo;
         params.m_BiasData               = std::move(biasData);
         params.m_Stride                 = Stride(1, 1);
-        params.m_PadTop                 = 0;
-        params.m_PadLeft                = 0;
+        params.m_Padding                = Padding();
         params.m_Op                     = command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
         params.m_OperationIds           = operationIds;
         params.m_InputDataType          = inputInfo.m_DataType;
@@ -1649,8 +1645,7 @@ std::vector<BasePart*> NetworkToGraphOfPartsConverter::CreateTransposeConv(const
     params.m_BiasInfo               = biasInfo;
     params.m_BiasData               = std::move(biasData);
     params.m_Stride                 = Stride(1, 1);
-    params.m_PadTop                 = topMcePadding;
-    params.m_PadLeft                = leftMcePadding;
+    params.m_Padding                = Padding(topMcePadding, 0, leftMcePadding, 0);
     params.m_Op                     = command_stream::MceOperation::CONVOLUTION;
     params.m_OperationIds           = operationIds;
     params.m_InputDataType          = inputInfo.m_DataType;

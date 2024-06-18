@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -64,8 +64,7 @@ McePart BuildPart(TensorShape inputShape,
     params.m_BiasInfo                       = TensorShape{ 1, 1, 1, outputShape[3] };
     params.m_BiasData                       = std::vector<int32_t>(outputShape[3], 0);
     params.m_Stride                         = stride;
-    params.m_PadTop                         = padTop;
-    params.m_PadLeft                        = padLeft;
+    params.m_Padding                        = Padding(padTop, 0, padLeft, 0);
     params.m_Op                             = op;
     params.m_OperationIds                   = { 1 };
     params.m_InputDataType                  = DataType::UINT8_QUANTIZED;
@@ -690,8 +689,7 @@ TEST_CASE("McePart GetPlans structure")
         mcePartParams.m_Op                     = csOp;
         mcePartParams.m_OperationIds           = operationIds;
         mcePartParams.m_Stride                 = stride;
-        mcePartParams.m_PadTop                 = padTop;
-        mcePartParams.m_PadLeft                = padLeft;
+        mcePartParams.m_Padding                = Padding(padTop, 0, padLeft, 0);
         mcePartParams.m_UpscaleFactor          = 1;
         mcePartParams.m_UpsampleType           = MceUpsampleType::OFF;
         mcePartParams.m_InputDataType          = DataType::UINT8_QUANTIZED;
@@ -876,8 +874,6 @@ TEST_CASE("McePart End Cascade full tensor")
         const std::set<uint32_t> operationIds   = { 1, 2, 3 };
         const command_stream::MceOperation csOp = command_stream::MceOperation::CONVOLUTION;
         const Stride stride                     = {};
-        const uint32_t padTop                   = 0;
-        const uint32_t padLeft                  = 0;
 
         McePart::ConstructionParams mcePartParams(estOps, compOpt, caps, debuggingContext, threadPool);
         mcePartParams.m_Id                     = partId;
@@ -892,8 +888,7 @@ TEST_CASE("McePart End Cascade full tensor")
         mcePartParams.m_Op                     = csOp;
         mcePartParams.m_OperationIds           = operationIds;
         mcePartParams.m_Stride                 = stride;
-        mcePartParams.m_PadTop                 = padTop;
-        mcePartParams.m_PadLeft                = padLeft;
+        mcePartParams.m_Padding                = Padding();
         mcePartParams.m_UpscaleFactor          = 1;
         mcePartParams.m_UpsampleType           = MceUpsampleType::OFF;
         mcePartParams.m_InputDataType          = DataType::UINT8_QUANTIZED;
@@ -913,8 +908,8 @@ TEST_CASE("McePart End Cascade full tensor")
         params.m_WeightsTensorInfo = weightsTensorInfo;
         params.m_MceOp             = csOp;
         params.m_Stride            = stride;
-        params.m_PadTop            = padTop;
-        params.m_PadLeft           = padLeft;
+        params.m_PadTop            = 0;
+        params.m_PadLeft           = 0;
         params.m_OperationIds      = operationIds;
 
         WHEN("Asked to produce End plans")
@@ -1956,8 +1951,7 @@ TEST_CASE("McePart/MergeWithChannelSelectorBefore/Success")
     params.m_BiasInfo       = TensorShape{ 1, 1, 1, 5 };
     params.m_BiasData       = std::vector<int32_t>(5, 0);
     params.m_Stride         = { 1, 1 };
-    params.m_PadTop         = 0;
-    params.m_PadLeft        = 0;
+    params.m_Padding        = Padding();
     params.m_Op             = command_stream::MceOperation::CONVOLUTION;
     params.m_InputDataType  = DataType::UINT8_QUANTIZED;
     params.m_OutputDataType = DataType::UINT8_QUANTIZED;
@@ -2050,8 +2044,7 @@ TEST_CASE("McePart/MergeWithChannelSelectorAfter/Success")
     params.m_BiasInfo.m_QuantizationInfo = { 0, QuantizationScales{ 1.0f, 2.0f, 3.0f, 4.0f }, 3 };
     params.m_BiasData                    = { 1, 2, 3, 4 };
     params.m_Stride                      = { 1, 1 };
-    params.m_PadTop                      = 0;
-    params.m_PadLeft                     = 0;
+    params.m_Padding                     = Padding();
     params.m_Op                          = command_stream::MceOperation::CONVOLUTION;
     params.m_InputDataType               = DataType::UINT8_QUANTIZED;
     params.m_OutputDataType              = DataType::UINT8_QUANTIZED;

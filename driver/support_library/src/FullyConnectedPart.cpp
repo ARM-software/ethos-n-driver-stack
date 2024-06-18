@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -35,8 +35,7 @@ McePart::ConstructionParams ConvertConstructionParams(FullyConnectedPart::Constr
     mceParams.m_BiasInfo               = std::move(fcParams.m_BiasInfo);
     mceParams.m_BiasData               = std::move(fcParams.m_BiasData);
     mceParams.m_Stride                 = { 1, 1 };
-    mceParams.m_PadLeft                = 0;
-    mceParams.m_PadTop                 = 0;
+    mceParams.m_Padding                = Padding();
     mceParams.m_Op                     = command_stream::MceOperation::FULLY_CONNECTED;
     mceParams.m_OperationIds           = std::move(fcParams.m_OperationIds);
     mceParams.m_InputDataType          = std::move(fcParams.m_InputDataType);
@@ -322,8 +321,8 @@ void FullyConnectedPart::PreprocessWeightsAsync() const
     request.m_StripeDepth            = 0;
     request.m_StrideY                = m_Stride.m_Y;
     request.m_StrideX                = m_Stride.m_X;
-    request.m_PaddingTop             = m_PadTop;
-    request.m_PaddingLeft            = m_PadLeft;
+    request.m_PaddingTop             = m_Padding.m_Top;
+    request.m_PaddingLeft            = m_Padding.m_Left;
     request.m_IterationSize          = 0;
     request.m_Operation              = m_Operation;
     request.m_Algorithm              = CompilerMceAlgorithm::Direct;

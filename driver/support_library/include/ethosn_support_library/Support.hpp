@@ -521,6 +521,16 @@ struct Padding
         return !(*this == rhs);
     }
 
+    uint32_t GetHorizontalPadding() const
+    {
+        return m_Left + m_Right;
+    }
+
+    uint32_t GetVerticalPadding() const
+    {
+        return m_Bottom + m_Top;
+    }
+
     uint32_t m_Top;
     uint32_t m_Bottom;
     uint32_t m_Left;
