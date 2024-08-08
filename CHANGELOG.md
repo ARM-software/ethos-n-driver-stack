@@ -1,5 +1,23 @@
 # Changelog for Arm® Ethos™-N Driver Stack
 
+## 24.07
+
+### New features
+
+- Support for Arm NN 24.05
+
+### Public API changes
+
+- Add a possibility to get total vertical / horizontal padding from a padding structure.
+
+### Other changes
+
+- Fix a cyclic dependency issue when using standalone padding for certain dimensions.
+- Fix a precision issue when using standalone padding for certain dimensions.
+- Move debug formatting data usage in estimation utilities to improve compilation time.
+
+### Known issues
+
 ## 24.05
 
 ### New features
@@ -54,6 +72,7 @@
 - Add some useful devloper tools to the repository.
 
 ### Known issues
+
 - Standalone padding and convolution layers of certain dimensions with padding might trigger a cyclic dependency during graph compilation.
 
 ## 23.08
