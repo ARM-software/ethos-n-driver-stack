@@ -1,5 +1,5 @@
 //
-// Copyright © 2022-2023 Arm Limited.
+// Copyright © 2022-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -1324,9 +1324,11 @@ bool CommandStreamGenerator::FillConsumerAgentDependency(Dependency& consumerAge
 
                 if (consumerAgentData.mce.numStripes.ofmWidth * consumerAgentData.mce.numStripes.ofmHeight == 1)
                 {
-                    consumerAgentDependency.innerRatio.other = ethosn::utils::NumericCast<uint16_t>(
-                        producerAgentData.pleS.numStripes.width * producerAgentData.pleS.numStripes.height *
-                        producerAgentData.pleS.numStripes.channels);
+                    uint16_t channelRatio = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                        consumerAgentData.mce.numStripes.ofmChannels, producerAgentData.pleS.numStripes.channels));
+                    consumerAgentDependency.innerRatio.other =
+                        ethosn::utils::NumericCast<uint16_t>(producerAgentData.pleS.numStripes.width *
+                                                             producerAgentData.pleS.numStripes.height * channelRatio);
                     consumerAgentDependency.innerRatio.self = 1;
                 }
                 else
@@ -1706,9 +1708,12 @@ bool CommandStreamGenerator::FillProducerAgentDependency(Dependency& producerAge
 
                 if (consumerAgentData.mce.numStripes.ofmWidth * consumerAgentData.mce.numStripes.ofmHeight == 1)
                 {
-                    producerAgentDependency.innerRatio.self = ethosn::utils::NumericCast<uint16_t>(
-                        producerAgentData.pleS.numStripes.width * producerAgentData.pleS.numStripes.height *
-                        producerAgentData.pleS.numStripes.channels);
+                    uint16_t channelRatio = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                        consumerAgentData.mce.numStripes.ofmChannels, producerAgentData.pleS.numStripes.channels));
+
+                    producerAgentDependency.innerRatio.self =
+                        ethosn::utils::NumericCast<uint16_t>(producerAgentData.pleS.numStripes.width *
+                                                             producerAgentData.pleS.numStripes.height * channelRatio);
                     producerAgentDependency.innerRatio.other = 1;
                 }
                 else
