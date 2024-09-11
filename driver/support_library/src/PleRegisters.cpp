@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -69,7 +69,9 @@ struct alignas(uint32_t) StripeInfo
 uint16_t PleDfcAddr(Tile tile, uint32_t stripeId)
 {
     constexpr uint32_t numBytesPerBeat = 16;
-    return static_cast<uint16_t>(SramAddr(tile, stripeId) / numBytesPerBeat);
+    const uint32_t addr                = SramAddr(tile, stripeId);
+    assert(addr % numBytesPerBeat == 0);
+    return static_cast<uint16_t>(addr / numBytesPerBeat);
 }
 
 }    // namespace

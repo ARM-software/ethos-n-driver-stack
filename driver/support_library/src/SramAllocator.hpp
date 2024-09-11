@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2023 Arm Limited.
+// Copyright © 2018-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -48,8 +48,10 @@ public:
 
     /// Attempts to allocate the given size.
     /// Returns whether allocating was successful and the offset of the requested size
-    std::pair<bool, uint32_t>
-        Allocate(uint32_t size, AllocationPreference pref = AllocationPreference::Start, std::string debugName = "");
+    std::pair<bool, uint32_t> Allocate(uint32_t size,
+                                       AllocationPreference pref = AllocationPreference::Start,
+                                       std::string debugName     = "",
+                                       uint32_t alignment        = 1);
 
     /// Frees the allocation at the given offset.
     /// If there is no allocation at the given offset then the behaviour is undefined (assert).

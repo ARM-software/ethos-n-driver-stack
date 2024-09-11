@@ -1,4 +1,4 @@
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -136,6 +136,12 @@ public:
     }
 };
 
+constexpr uint32_t numBytesPerBeat = 16;
+uint32_t GetOverhead(uint32_t start, uint32_t size, uint32_t alignment)
+{
+    uint32_t remainder = (start + size) % alignment;
+    return (alignment - remainder) % alignment;
+}
 // Manually creates a 3-part network consisting of MockParts without weights, to test the double buffering logic of the Combiner.
 // The topology is chosen to test cases including:
 //      * StandalonePle kernels without weights.
@@ -3466,14 +3472,29 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
             REQUIRE(actualPleOp->m_Offset.has_value() == true);
             REQUIRE(actualPleOp->m_Offset.value() == currentSramOffset);
 
-            currentSramOffset += hwCaps.GetMaxPleSize();
+            // Increase by size and alignment
+            auto size     = hwCaps.GetMaxPleSize();
+            auto overhead = GetOverhead(currentSramOffset, size, numBytesPerBeat * hwCaps.GetNumberOfSrams());
+            currentSramOffset += size + overhead;
+
             REQUIRE(bufferA->m_Offset.has_value() == true);
             REQUIRE(bufferA->m_Offset.value() == currentSramOffset);
-            currentSramOffset += bufferA->m_SizeInBytes / hwCaps.GetNumberOfSrams();
+
+            size = bufferA->m_SizeInBytes / hwCaps.GetNumberOfSrams();
+
+            // Increase by size and alignment
+            overhead = GetOverhead(currentSramOffset, size, numBytesPerBeat * hwCaps.GetNumberOfSrams());
+            currentSramOffset += size + overhead;
+
             // Note that Buffer 1 is the output from MceOp where its location is in PleInputSRAM not SRAM
             REQUIRE(outBufferAndPleOp.first->m_Offset.has_value() == true);
             REQUIRE(outBufferAndPleOp.first->m_Offset.value() == currentSramOffset);
-            currentSramOffset += outBufferAndPleOp.first->m_SizeInBytes / hwCaps.GetNumberOfSrams();
+
+            // Increase by size and alignment
+            size     = outBufferAndPleOp.first->m_SizeInBytes / hwCaps.GetNumberOfSrams();
+            overhead = GetOverhead(currentSramOffset, size, numBytesPerBeat * hwCaps.GetNumberOfSrams());
+            currentSramOffset += size + overhead;
+
             REQUIRE(context.pleOps.size() == 1);
         }
     }
@@ -3584,14 +3605,25 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
             REQUIRE(actualPleOp->m_Offset.has_value() == true);
             REQUIRE(actualPleOp->m_Offset.value() == currentSramOffset);
 
-            currentSramOffset += hwCaps.GetMaxPleSize();
+            auto size     = hwCaps.GetMaxPleSize();
+            auto overhead = GetOverhead(currentSramOffset, size, numBytesPerBeat * hwCaps.GetNumberOfSrams());
+            currentSramOffset += size + overhead;
+
             REQUIRE(bufferA1->m_Offset.has_value() == true);
             REQUIRE(bufferA1->m_Offset.value() == currentSramOffset);
-            currentSramOffset += bufferA1->m_SizeInBytes / hwCaps.GetNumberOfSrams();
+
+            size     = bufferA1->m_SizeInBytes / hwCaps.GetNumberOfSrams();
+            overhead = GetOverhead(currentSramOffset, size, numBytesPerBeat * hwCaps.GetNumberOfSrams());
+            currentSramOffset += size + overhead;
+
             // Note that Buffer 1 is the output from MceOp where its location is in PleInputSRAM not SRAM
             REQUIRE(outBufferAndPleOp.first->m_Offset.has_value() == true);
             REQUIRE(outBufferAndPleOp.first->m_Offset.value() == currentSramOffset);
-            currentSramOffset += outBufferAndPleOp.first->m_SizeInBytes / hwCaps.GetNumberOfSrams();
+
+            size     = outBufferAndPleOp.first->m_SizeInBytes / hwCaps.GetNumberOfSrams();
+            overhead = GetOverhead(currentSramOffset, size, numBytesPerBeat * hwCaps.GetNumberOfSrams());
+            currentSramOffset += size + overhead;
+
             REQUIRE(context.pleOps.size() == 1);
 
             Plan planB;
@@ -3702,7 +3734,12 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                 REQUIRE(actualPleOpB->m_LoadKernel == true);
                 REQUIRE(actualPleOpB->m_Offset == currentSramOffset);
 
-                currentSramOffset += hwCaps.GetMaxPleSize();
+                size = hwCaps.GetMaxPleSize();
+
+                // Increase by size and alignment
+                overhead = GetOverhead(currentSramOffset, size, numBytesPerBeat * hwCaps.GetNumberOfSrams());
+                currentSramOffset += size + overhead;
+
                 REQUIRE(outBufferAndPleOp.first->m_Offset.value() == currentSramOffset);
                 currentSramOffset += outBufferAndPleOp.first->m_SizeInBytes / hwCaps.GetNumberOfSrams();
 
@@ -3823,7 +3860,12 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
 
                     REQUIRE(actualPleOpC->m_Offset == currentSramOffset);
 
-                    currentSramOffset += hwCaps.GetMaxPleSize();
+                    size = hwCaps.GetMaxPleSize();
+
+                    // Increase by size and alignment
+                    overhead = GetOverhead(currentSramOffset, size, numBytesPerBeat * hwCaps.GetNumberOfSrams());
+                    currentSramOffset += size + overhead;
+
                     REQUIRE(outBufferAndPleOp.first->m_Offset.value() == currentSramOffset);
                     currentSramOffset += outBufferAndPleOp.first->m_SizeInBytes / hwCaps.GetNumberOfSrams();
                 }

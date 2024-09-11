@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2023 Arm Limited.
+// Copyright © 2018-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -25,17 +25,21 @@ SramAllocator& SramAllocator::operator=(const SramAllocator& s)
     return *this;
 }
 
-std::pair<bool, uint32_t> SramAllocator::Allocate(uint32_t size, AllocationPreference pref, std::string debugName)
+std::pair<bool, uint32_t>
+    SramAllocator::Allocate(uint32_t size, AllocationPreference pref, std::string debugName, uint32_t alignment)
 {
     if (pref == AllocationPreference::Start)
     {
         for (auto range = m_FreeMemory.begin(); range != m_FreeMemory.end(); ++range)
         {
-            if (size <= range->m_End - range->m_Begin)
+            uint32_t remainder = size % alignment;
+            uint32_t overhead  = (alignment - remainder) % alignment;
+
+            if (size + overhead <= range->m_End - range->m_Begin)
             {
-                MemoryChunk chunk = { range->m_Begin, range->m_Begin + size, debugName };
+                MemoryChunk chunk = { range->m_Begin, range->m_Begin + size + overhead, debugName };
                 m_UsedMemory.emplace_back(chunk);
-                range->m_Begin += size;
+                range->m_Begin += size + overhead;
                 if (range->m_Begin == range->m_End)
                 {
                     m_FreeMemory.erase(range);
@@ -50,11 +54,14 @@ std::pair<bool, uint32_t> SramAllocator::Allocate(uint32_t size, AllocationPrefe
         // and allocate at the end of the region
         for (auto range = m_FreeMemory.rbegin(); range != m_FreeMemory.rend(); ++range)
         {
-            if (size <= range->m_End - range->m_Begin)
+            uint32_t remainder = size % alignment;
+            uint32_t overhead  = (alignment - remainder) % alignment;
+
+            if (size + overhead <= range->m_End - range->m_Begin)
             {
-                MemoryChunk chunk = { range->m_End - size, range->m_End, debugName };
+                MemoryChunk chunk = { range->m_End - size - overhead, range->m_End, debugName };
                 m_UsedMemory.emplace_back(chunk);
-                range->m_End -= size;
+                range->m_End -= size + overhead;
                 if (range->m_Begin == range->m_End)
                 {
                     m_FreeMemory.erase(std::next(range).base());

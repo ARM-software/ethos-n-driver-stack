@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -178,11 +178,11 @@ bool Combiner::AllocateSram(SectionContext& context,
     {
         return true;
     }
-
-    PleKernelInfo pleKernelInfo = plan.GetPleKernelInfo(m_Caps);
-    uint32_t pleKernelSize      = 0;
-    bool newPleKernel           = false;
-    bool isSramAllocated        = true;
+    constexpr uint32_t numBytesPerBeat = 16;
+    PleKernelInfo pleKernelInfo        = plan.GetPleKernelInfo(m_Caps);
+    uint32_t pleKernelSize             = 0;
+    bool newPleKernel                  = false;
+    bool isSramAllocated               = true;
 
     using Allocated = std::pair<bool, uint32_t>;
     Allocated bufferAllocated, pleKernelAllocated;
@@ -215,7 +215,8 @@ bool Combiner::AllocateSram(SectionContext& context,
             assert(pleKernelSize <= m_Caps.GetMaxPleSize());
 
             // Allocate the PleKernel
-            pleKernelAllocated = localAlloc.Allocate(pleKernelSize, allocPref, pleKernelInfo.m_PleOp->m_DebugTag);
+            pleKernelAllocated = localAlloc.Allocate(pleKernelSize, allocPref, pleKernelInfo.m_PleOp->m_DebugTag,
+                                                     numBytesPerBeat * m_Caps.GetNumberOfSrams());
 
             isSramAllocated = pleKernelAllocated.first;
 
@@ -256,8 +257,8 @@ bool Combiner::AllocateSram(SectionContext& context,
                 {
                     assert(bufferSize != 0);
 
-                    bufferAllocated =
-                        localAlloc.Allocate(bufferSize / m_Caps.GetNumberOfSrams(), allocPref, buf->m_DebugTag);
+                    bufferAllocated = localAlloc.Allocate(bufferSize / m_Caps.GetNumberOfSrams(), allocPref,
+                                                          buf->m_DebugTag, numBytesPerBeat * m_Caps.GetNumberOfSrams());
 
                     isSramAllocated = bufferAllocated.first;
 
