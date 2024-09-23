@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2023 Arm Limited.
+// Copyright © 2018-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -767,10 +767,19 @@ const QuantizationInfo
     LayerData::GetMultiplicationQuantInfo(std::string name,
                                           const std::vector<ethosn::support_library::QuantizationInfo>& inputQuantInfos)
 {
+    if (GetUserOutputQuantScale() && GetUserOutputQuantZeroPoint())
+    {
+        g_Logger.Debug("LayerData::GetOutputQuantInfo user defined value name=%s zeroPoint=%d scale=%f ", name.c_str(),
+                       GetOutputQuantZeroPoint(), GetOutputQuantScale());
+
+        return { GetOutputQuantZeroPoint(), GetOutputQuantScale() };
+    }
+
     auto maxScalePredicate = [](const ethosn::support_library::QuantizationInfo& lhs,
                                 const ethosn::support_library::QuantizationInfo& rhs) {
         return lhs.GetScale() < rhs.GetScale();
     };
+
     ethosn::support_library::QuantizationInfo quantInfo =
         *std::max_element(inputQuantInfos.begin(), inputQuantInfos.end(), maxScalePredicate);
 

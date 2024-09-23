@@ -1,5 +1,5 @@
 //
-// Copyright © 2023 Arm Limited.
+// Copyright © 2023-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -21,19 +21,6 @@
 namespace
 {
 
-template <unsigned Dst, unsigned Src1, unsigned Src2, unsigned int post_cc = 0>
-void Mul8()
-{
-    if (k_IsSigned)
-    {
-        ve_smul_8<Dst, Src1, Src2, post_cc>();
-    }
-    else
-    {
-        ve_umul_8<Dst, Src1, Src2, post_cc>();
-    }
-}
-
 ncu_ple_interface::PleMsg::StripeDone ProcessStripe(EnumBitset<Event>& activeEvents)
 {
     // Read stripe parameters from scratch registers
@@ -48,8 +35,6 @@ ncu_ple_interface::PleMsg::StripeDone ProcessStripe(EnumBitset<Event>& activeEve
     uint32_t numChannels = DivRoundUp(std::max(outputSizeInElements.z, g_CeId) - g_CeId, NUM_CES);
     Xy inputSizeInGroups = DivRoundUp(Xy(inputSizeInElements), Xy::Dup(ELEMENTS_PER_GROUP_1D));
 
-    uint16_t overallMultiplier =
-        static_cast<uint16_t>(*reinterpret_cast<volatile uint32_t*>(PLE_REG(CE_RP, CE_PLE_SCRATCH3)) & 0x0000ffff);
     uint16_t overallShift = static_cast<uint16_t>(
         (*reinterpret_cast<volatile uint32_t*>(PLE_REG(CE_RP, CE_PLE_SCRATCH3)) & 0xffff0000) >> 16);
     int16_t input0Zeropoint =
@@ -161,6 +146,8 @@ ncu_ple_interface::PleMsg::StripeDone ProcessStripe(EnumBitset<Event>& activeEve
                     SR16<12, 12, 8>();
                     SR16<14, 14, 8>();
 
+                    nop<2>();
+
                     // out = (s_i0 * s_i1 * 1/s_out) * (i0 - z_i0) * (i1 - z_i1) + z_out
                     // Subtract the zero points (i0 - z_i0) and (i1 - z_i1)
                     // Register 16 and 18 holds the zero points
@@ -185,28 +172,39 @@ ncu_ple_interface::PleMsg::StripeDone ProcessStripe(EnumBitset<Event>& activeEve
                     // e.g. zero point of 255 (if unsigned) with inputs of 255 * 255, means a real value of
                     // 510*510 = 260100. This requires 18 bits of precision (262143).
                     nop<2>();
-                    ve_smul_16<8, 0, 8>();
-                    nop<2>();
-                    ve_smul_16<10, 2, 10>();
-                    nop<2>();
-                    ve_smul_16<12, 4, 12>();
-                    nop<2>();
-                    ve_smul_16<14, 6, 14>();
-                    nop<2>();
+                    Mul16<8, 0, 8>();
+                    nop<3>();
+                    Mul16<10, 2, 10>();
+                    nop<3>();
+                    Mul16<12, 4, 12>();
+                    nop<3>();
+                    Mul16<14, 6, 14>();
+                    nop<4>();
 
                     // Scale to the output quantization space
                     // First half of (s_i0 * s_i1) / s_out is the multipler
                     // Register 18 holds the multiplier#
                     // 0-4, 4-7, 8-11, 12-15 hold the 32 bit results
-                    ve_regrep_16<18>(static_cast<uint32_t>(overallMultiplier));
+                    if (k_IsSigned)
+                    {
+                        int16_t overallMultiplier = static_cast<int16_t>(
+                            *reinterpret_cast<volatile uint32_t*>(PLE_REG(CE_RP, CE_PLE_SCRATCH3)) & 0x0000ffff);
+                        ve_regrep_16<18>(static_cast<uint32_t>(overallMultiplier));
+                    }
+                    else
+                    {
+                        uint16_t overallMultiplier = static_cast<uint16_t>(
+                            *reinterpret_cast<volatile uint32_t*>(PLE_REG(CE_RP, CE_PLE_SCRATCH3)) & 0x0000ffff);
+                        ve_regrep_16<18>(static_cast<uint32_t>(overallMultiplier));
+                    }
                     nop<2>();
-                    ve_umull_16<0, 8, 18>();
+                    Mull16<0, 8, 18>();
                     nop<3>();
-                    ve_umull_16<4, 10, 18>();
+                    Mull16<4, 10, 18>();
                     nop<3>();
-                    ve_umull_16<8, 12, 18>();
+                    Mull16<8, 12, 18>();
                     nop<3>();
-                    ve_umull_16<12, 14, 18>();
+                    Mull16<12, 14, 18>();
                     nop<2>();
 
                     // Shift right and saturate to 16-bit is the second half of the scale.

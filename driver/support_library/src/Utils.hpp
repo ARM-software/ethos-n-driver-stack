@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2023 Arm Limited.
+// Copyright © 2018-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -340,7 +340,10 @@ inline void CalculateQuantizedMultiplierSmallerThanOne(double multiplier, uint16
     }
 }
 
-inline void CalculateRescaleMultiplierAndShift(const double rescaleFactor, uint16_t& mult, uint16_t& shift)
+inline void CalculateRescaleMultiplierAndShift(const double rescaleFactor,
+                                               uint16_t& mult,
+                                               uint16_t& shift,
+                                               uint16_t maxPrecision = 16)
 {
     int exp;
     const double fr = std::frexp(rescaleFactor, &exp);
@@ -352,7 +355,7 @@ inline void CalculateRescaleMultiplierAndShift(const double rescaleFactor, uint1
     }
     else
     {
-        const int precision = std::max(0, 32 - std::max(16, exp));
+        const int precision = std::max(0, 32 - std::max(32 - maxPrecision, exp));
         mult                = static_cast<uint16_t>(fr * (1U << precision));
         shift               = static_cast<uint16_t>(std::max(precision, exp) - exp);
     }

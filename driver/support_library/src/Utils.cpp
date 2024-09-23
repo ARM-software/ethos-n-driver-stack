@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2023 Arm Limited.
+// Copyright © 2018-2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 

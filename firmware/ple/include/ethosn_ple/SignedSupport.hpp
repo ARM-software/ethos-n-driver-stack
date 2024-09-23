@@ -1,5 +1,5 @@
 //
-// Copyright © 2020-2021,2023 Arm Limited.
+// Copyright © 2020-2021,2024 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -43,6 +43,32 @@ void MMul16()
 }
 
 using MMUL16_DELAY_TYPE = std::conditional_t<k_IsSigned, VE_TIMING::SMMUL_16, VE_TIMING::UMMUL_16>;
+
+template <unsigned Dst, unsigned Src1, unsigned Src2, unsigned int post_cc = 0>
+void Mul16()
+{
+    if (k_IsSigned)
+    {
+        ve_smul_16<Dst, Src1, Src2, post_cc>();
+    }
+    else
+    {
+        ve_umul_16<Dst, Src1, Src2, post_cc>();
+    }
+}
+
+template <unsigned Dst, unsigned Src1, unsigned Src2, unsigned int post_cc = 0>
+void Mull16()
+{
+    if (k_IsSigned)
+    {
+        ve_smull_16<Dst, Src1, Src2, post_cc>();
+    }
+    else
+    {
+        ve_umull_16<Dst, Src1, Src2, post_cc>();
+    }
+}
 
 template <unsigned int Dest, unsigned int Src, unsigned int Shift, unsigned int post_cc = 0>
 void SR16()

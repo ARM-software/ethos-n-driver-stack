@@ -960,7 +960,8 @@ void NetworkToGraphOfPartsConverter::Visit(Multiplication& multiplication)
 
         uint16_t overallMultiplier = 0;
         uint16_t overallShift      = 0;
-        utils::CalculateRescaleMultiplierAndShift(overallScale, overallMultiplier, overallShift);
+        uint16_t maxPrecision      = (outputInfo.m_DataType == DataType::INT8_QUANTIZED ? 15 : 16);
+        utils::CalculateRescaleMultiplierAndShift(overallScale, overallMultiplier, overallShift, maxPrecision);
 
         std::map<std::string, int> runtimeParams = {
             { "overall_multiplier", overallMultiplier },
