@@ -768,22 +768,26 @@ StripeInfos StripeGenerator::GenerateStripes(CascadeType cascadeType,
     return result;
 }
 
+inline uint32_t getSpaceLeft(uint32_t tensor_size, uint32_t stripe_size)
+{
+    return (stripe_size - (tensor_size % stripe_size)) % stripe_size;
+}
+
 int32_t checkForPOSB(uint32_t tensor_size, uint32_t stripe_size, uint32_t padding, uint32_t block_config)
 {
-    if (stripe_size > tensor_size || padding == 0)
+    if (getSpaceLeft(tensor_size, stripe_size) >= padding)
     {
         return 0;
     }
 
     uint32_t new_stripe_size = stripe_size;
-    while (new_stripe_size < 2 * stripe_size && tensor_size % new_stripe_size < padding)
+    uint32_t space_left      = getSpaceLeft(tensor_size, stripe_size);
+    do
     {
         new_stripe_size += block_config;
-        if (tensor_size % new_stripe_size > padding)
-        {
-            break;
-        }
-    }
+        space_left = getSpaceLeft(tensor_size, new_stripe_size);
+    } while (new_stripe_size < 2 * stripe_size && space_left < padding);
+
     if (new_stripe_size >= 2 * stripe_size)
     {
         return -1;
@@ -1408,14 +1412,35 @@ void StripeGenerator::GenerateStripes(const BlockConfig blockConfig,
                 {
                     for (uint32_t mceInputStripeWidth : mceInputWidthLoopIncl)
                     {
-                        TensorShape mceInputEncoding  = { 0, mceInputStripeHeight, mceInputStripeWidth, 0 };
+                        uint32_t inputWidth  = mceInputStripeWidth;
+                        uint32_t inputHeight = mceInputStripeHeight;
+
+                        if (shouldCheckForPOSB)
+                        {
+                            int32_t widthDelta = checkForPOSB(GetWidth(m_MceInputTensorShape), mceInputStripeWidth,
+                                                              m_Padding.GetHorizontalPadding(), blockConfig.m_Width);
+                            if (widthDelta < 0)
+                            {
+                                continue;
+                            }
+                            inputWidth += widthDelta;
+                            int32_t heightDelta = checkForPOSB(GetHeight(m_MceInputTensorShape), mceInputStripeHeight,
+                                                               m_Padding.GetVerticalPadding(), blockConfig.m_Height);
+                            if (heightDelta < 0)
+                            {
+                                continue;
+                            }
+                            inputHeight += heightDelta;
+                        }
+
+                        TensorShape mceInputEncoding  = { 0, inputHeight, inputWidth, 0 };
                         const TensorShape& inputShape = m_MceInputTensorShape;
                         TensorShape mceInputStripe =
                             CreateStripe(m_MceInputTensorShape, mceInputEncoding, channelRounding);
 
                         TensorShape mceOutputEncoding =
-                            TensorShape{ 0, mceInputStripeHeight * m_MceShapeMultiplier.m_H,
-                                         mceInputStripeWidth * m_MceShapeMultiplier.m_W, baseMceOfm };
+                            TensorShape{ 0, inputHeight * m_MceShapeMultiplier.m_H,
+                                         inputWidth * m_MceShapeMultiplier.m_W, baseMceOfm };
                         TensorShape mceOutputStripe = CreateStripe(mceOutputShape, mceOutputEncoding, baseMceOfm);
 
                         TensorShape pleInputStripe    = mceOutputStripe;

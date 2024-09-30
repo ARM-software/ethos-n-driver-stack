@@ -193,9 +193,8 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     {
         numStripes.m_Output = { 1, 2 };
     }
-
-    if ((padding.GetHorizontalPadding() > 0 || padding.GetVerticalPadding() > 0) && !fullTensor &&
-        (GetNumElements(sramBuffer->m_TensorShape) < GetNumElements(outputTensorShape)))
+    if ((padding.GetHorizontalPadding() > 0 && GetWidth(sramBuffer->m_TensorShape) < GetWidth(outputTensorShape)) ||
+        (padding.GetVerticalPadding() > 0 && GetHeight(sramBuffer->m_TensorShape) < GetHeight(outputTensorShape)))
     {
         uint32_t numInputHStripes = utils::GetNumStripesH(sramBuffer->m_TensorShape, sramBuffer->m_StripeShape);
         uint32_t numInputWStripes = utils::GetNumStripesW(sramBuffer->m_TensorShape, sramBuffer->m_StripeShape);
