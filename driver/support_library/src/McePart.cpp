@@ -121,6 +121,10 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     TensorShape pleInputEncoding = mceOutputEncoding;
     if (cascadeType == CascadeType::Middle)
     {
+        if (isDepthwise && !fullInputDepth)
+        {
+            return {};
+        }
         // PLE accumulates the full depth for the middle of an s1 cascade
         pleInputEncoding[3] = 0;
     }
