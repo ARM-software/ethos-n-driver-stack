@@ -1,5 +1,23 @@
 # Changelog for Arm® Ethos™-N Driver Stack
 
+## 24.10
+
+### New features
+
+- Support for Arm NN 24.08
+
+### Public API changes
+
+### Other changes
+
+- Fix a cyclic dependency issue when using depthwise convolution split across channels.
+- Align the SRAM buffer allocations to account for PLE address rounding.
+- Improve the multiplication PLE kernel for signed inputs.
+- Improve the algorithm detecting padding over stripe boundaries.
+- Improve the rules determining plans for depthwise convolution in the middle of a cascade.
+
+### Known issues
+
 ## 24.07
 
 ### New features
