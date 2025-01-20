@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2024 Arm Limited.
+// Copyright © 2018-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -188,7 +188,8 @@ uint32_t CalculateBufferSize(const TensorShape& shape, BufferFormat dataFormat)
             return TotalSizeBytesFCAFWide(shape);
         case BufferFormat::NHWCB:
             return TotalSizeBytesNHWCB(shape);
-        case BufferFormat::NHWC:
+        case BufferFormat::NHWC:    // intentional fallthrough
+        case BufferFormat::NCHW:
             return TotalSizeBytes(shape);
         default:
             assert(false);

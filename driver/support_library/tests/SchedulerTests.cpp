@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -125,7 +125,7 @@ IfmSDesc MakeIfmSDesc()
     result.fmData.stripeIdStrides        = { 1, 1, 1 };
     result.fmData.numStripes             = { 1, 1, 1 };
     result.fmData.edgeStripeSize         = { 1, 1, 1 };
-    result.fmData.supertensorSizeInCells = { 1, 1 };
+    result.fmData.supertensorSizeInCells = { 1, 1, 1 };
     return result;
 }
 
@@ -178,7 +178,7 @@ OfmSDesc MakeOfmSDesc()
     result.fmData.stripeIdStrides        = { 1, 1, 1 };
     result.fmData.numStripes             = { 1, 1, 1 };
     result.fmData.edgeStripeSize         = { 1, 1, 1 };
-    result.fmData.supertensorSizeInCells = { 1, 1 };
+    result.fmData.supertensorSizeInCells = { 1, 1, 1 };
     return result;
 }
 

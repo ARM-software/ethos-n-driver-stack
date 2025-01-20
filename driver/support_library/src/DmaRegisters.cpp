@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -34,6 +34,11 @@ bool IsFmsFcaf(const FmSDesc& fmsData)
 bool IsFmsNhwcb(const FmSDesc& fmsData)
 {
     return fmsData.dataType == FmsDataType::NHWCB;
+}
+
+bool IsFmsNchw(const FmSDesc& fmsData)
+{
+    return fmsData.dataType == FmsDataType::NCHW;
 }
 
 /// Stores state for a DMA command that is split into multiple HW commands.
@@ -180,12 +185,29 @@ constexpr TensorShape GetCellSize(FmsDataType fmsDataType)
         {
             return g_BrickGroupShape;
         }
-        case FmsDataType::NHWC:
+        case FmsDataType::NHWC:    // Intentional fallthrough
+        case FmsDataType::NCHW:
         default:
         {
             return { 1, 1, 1 };
         }
     }
+}
+
+uint32_t GetDmaStride2(const FmSDesc& fmDesc, TensorSize stripeSize)
+{
+    dma_stride2_r stride2;
+    if (fmDesc.dataType == FmsDataType::FCAF_DEEP || fmDesc.dataType == FmsDataType::FCAF_WIDE)
+    {
+        const TensorShape fcafCellShape = GetCellSize(fmDesc.dataType);
+        stride2.set_extra_stride(static_cast<uint32_t>(fmDesc.supertensorSizeInCells.width * GetWidth(fcafCellShape)) *
+                                 fmDesc.supertensorSizeInCells.channels * GetChannels(fcafCellShape));
+    }
+    else if (fmDesc.dataType == FmsDataType::NCHW)
+    {
+        stride2.set_extra_stride(stripeSize.width * stripeSize.height);
+    }
+    return stride2.word;
 }
 
 FmsDmaRegParams GetDmaParamsFcaf(const FmSDesc& fmData,
@@ -484,6 +506,65 @@ FmsDmaRegParams
     return fmsDmaParams;
 }
 
+FmsDmaRegParams
+    GetDmaParamsNchw(TensorSize& stripeSize, const FmSDesc& fmData, uint32_t stripeId, const HardwareCapabilities& caps)
+{
+    // NCHW specific registers are programmed as required
+    // Stripe=(c,h,w), Tensor=(C,H,W)
+    // DMA_STRIDE0: w
+    // DMA_STRIDE1: W
+    // DMA_STRIDE2: h*w
+    // DMA_STRIDE3: H*W
+    // DMA_TOTAL_BYTES: h*w*c
+    // NCHW transfer cannot split channels so c must equal C
+
+    if (fmData.supertensorSizeInCells.width != 1)
+    {
+        assert(stripeSize.channels == fmData.supertensorSizeInCells.channels &&
+               "NCHW transfer cannot split channels unless width is 1");
+    }
+
+    FmsDmaRegParams fmsDmaParams = {};
+
+    TensorSize stripeCoord;
+    stripeCoord.width  = (static_cast<uint32_t>(stripeId) / fmData.stripeIdStrides.width) % fmData.numStripes.width;
+    stripeCoord.height = (static_cast<uint32_t>(stripeId) / fmData.stripeIdStrides.height) % fmData.numStripes.height;
+    stripeCoord.channels =
+        (static_cast<uint32_t>(stripeId) / fmData.stripeIdStrides.channels) % fmData.numStripes.channels;
+
+    {
+        const TensorSize stripeDramStrides{
+            .height = 1U * fmData.supertensorSizeInCells.width * fmData.supertensorSizeInCells.height *
+                      fmData.defaultStripeSize.channels,
+            .width    = 1U * fmData.supertensorSizeInCells.width * fmData.defaultStripeSize.height,
+            .channels = fmData.defaultStripeSize.width,
+        };
+
+        fmsDmaParams.dramOffset = fmData.dramOffset + stripeCoord.width * stripeDramStrides.width +
+                                  stripeCoord.height * stripeDramStrides.height +
+                                  stripeCoord.channels * stripeDramStrides.channels;
+    }
+    {
+        fmsDmaParams.stride0 = stripeSize.width;
+    }
+    {
+        fmsDmaParams.totalBytes = stripeSize.width * stripeSize.height * stripeSize.channels;
+    }
+    {
+        fmsDmaParams.sramAddr = SramAddr(fmData.tile, stripeId);
+
+        fmsDmaParams.sramGroupStride = DEFAULT_SRAM_GROUP_STRIDE;
+    }
+
+    fmsDmaParams.stride3 = fmData.supertensorSizeInCells.height * fmData.supertensorSizeInCells.width;
+
+    fmsDmaParams.channels        = stripeSize.channels;
+    const uint32_t numActiveEmcs = std::min(stripeSize.channels, caps.GetNumberOfSrams());
+    fmsDmaParams.emcMask         = (1U << numActiveEmcs) - 1U;
+
+    return fmsDmaParams;
+}
+
 FmsDmaRegParams GetDmaParams(TensorSize& stripeSize,
                              const FmSDesc& fmData,
                              uint32_t stripeId,
@@ -495,6 +576,8 @@ FmsDmaRegParams GetDmaParams(TensorSize& stripeSize,
     {
         case FmsDataType::NHWC:
             return GetDmaParamsNhwc(stripeSize, fmData, stripeId, caps);
+        case FmsDataType::NCHW:
+            return GetDmaParamsNchw(stripeSize, fmData, stripeId, caps);
         case FmsDataType::FCAF_WIDE:
         case FmsDataType::FCAF_DEEP:
             return GetDmaParamsFcaf(fmData, stripeId, caps, chunkState);
@@ -522,6 +605,7 @@ void GenerateDmaCommandCommon(const FmSDesc& fmData,
 
     const bool isFcaf  = IsFmsFcaf(fmData);
     const bool isNhwcb = IsFmsNhwcb(fmData);
+    const bool isNchw  = IsFmsNchw(fmData);
 
     TensorSize stripeSize;
     stripeSize.width = (stripeCoord.width == (fmData.numStripes.width - 1U)) ? fmData.edgeStripeSize.width
@@ -575,12 +659,15 @@ void GenerateDmaCommandCommon(const FmSDesc& fmData,
         cmd.DMA_TOTAL_BYTES = tot.word;
     }
 
-    if (isFcaf)
+    if (isFcaf || isNchw)
     {
         dma_stride3_r stride3;
         stride3.set_stride3(fmsDmaParams.stride3);
         cmd.DMA_STRIDE3 = stride3.word;
     }
+
+    uint32_t stride2 = GetDmaStride2(fmData, stripeSize);
+    cmd.DMA_STRIDE2  = stride2;
 }
 
 /// Updates `state` with chunking information derived from the given parameters.
@@ -1168,6 +1255,9 @@ command_stream::DmaCommand GenerateDmaCommandForLoadIfmStripe(const IfmSDesc& if
             rdCmd.set_format(dma_format_read_t::NHWCB);
             break;
         }
+        case FmsDataType::NCHW:
+            rdCmd.set_format(dma_format_read_t::NCHW);
+            break;
         default:
         {
             assert(false);
@@ -1327,6 +1417,9 @@ command_stream::DmaCommand GenerateDmaCommandForStoreOfmStripe(const OfmSDesc& o
                                                        : dma_format_write_t::NHWCB);
                 break;
             }
+            case FmsDataType::NCHW:
+                wrCmd.set_format(dma_format_write_t::NCHW);
+                break;
             default:
             {
                 assert(false);
@@ -1372,19 +1465,11 @@ uint32_t GetDmaStride1(const FmSDesc& fmDesc)
     {
         stride1.set_outer_stride(1U * fmDesc.supertensorSizeInCells.width * fmDesc.supertensorSizeInCells.channels);
     }
-    return stride1.word;
-}
-
-uint32_t GetDmaStride2(const FmSDesc& fmDesc)
-{
-    dma_stride2_r stride2;
-    if (fmDesc.dataType == FmsDataType::FCAF_DEEP || fmDesc.dataType == FmsDataType::FCAF_WIDE)
+    else if (fmDesc.dataType == FmsDataType::NCHW)
     {
-        const TensorShape fcafCellShape = GetCellSize(fmDesc.dataType);
-        stride2.set_extra_stride(static_cast<uint32_t>(fmDesc.supertensorSizeInCells.width * GetWidth(fcafCellShape)) *
-                                 fmDesc.supertensorSizeInCells.channels * GetChannels(fcafCellShape));
+        stride1.set_outer_stride(1U * fmDesc.supertensorSizeInCells.width);
     }
-    return stride2.word;
+    return stride1.word;
 }
 
 }    // namespace
@@ -1395,7 +1480,6 @@ IfmS CreateIfmS(const IfmSDesc& ifmSDesc)
     ifmS.bufferId         = ifmSDesc.fmData.bufferId;
     ifmS.DMA_COMP_CONFIG0 = GetDmaCompConfig0Reg(ifmSDesc.fmData.fcafInfo);
     ifmS.DMA_STRIDE1      = GetDmaStride1(ifmSDesc.fmData);
-    ifmS.DMA_STRIDE2      = GetDmaStride2(ifmSDesc.fmData);
     return ifmS;
 }
 
@@ -1405,7 +1489,6 @@ OfmS CreateOfmS(const OfmSDesc& ofmSDesc)
     ofmS.bufferId         = ofmSDesc.fmData.bufferId;
     ofmS.DMA_COMP_CONFIG0 = GetDmaCompConfig0Reg(ofmSDesc.fmData.fcafInfo);
     ofmS.DMA_STRIDE1      = GetDmaStride1(ofmSDesc.fmData);
-    ofmS.DMA_STRIDE2      = GetDmaStride2(ofmSDesc.fmData);
     return ofmS;
 }
 

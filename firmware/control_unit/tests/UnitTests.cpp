@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2023 Arm Limited.
+// Copyright © 2018-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -349,7 +349,6 @@ TEST_CASE("ModelHal_WaitForSevEvent")
     ifmS1.bufferId         = 1;
     ifmS1.DMA_COMP_CONFIG0 = 0x0;
     ifmS1.DMA_STRIDE1      = 0x0;
-    ifmS1.DMA_STRIDE2      = 0x0;
     Agent ifmSAgent1{ ifmS1 };
     agents.push_back(ifmSAgent1);
 
@@ -357,7 +356,6 @@ TEST_CASE("ModelHal_WaitForSevEvent")
     ifmS2.bufferId         = 1;
     ifmS2.DMA_COMP_CONFIG0 = 0x0;
     ifmS2.DMA_STRIDE1      = 0x0;
-    ifmS2.DMA_STRIDE2      = 0x0;
     Agent ifmSAgent2{ ifmS2 };
     agents.push_back(ifmSAgent2);
 
@@ -377,7 +375,6 @@ TEST_CASE("ModelHal_WaitForSevEvent")
     ofmS.bufferId         = 2;
     ofmS.DMA_COMP_CONFIG0 = 0x0;
     ofmS.DMA_STRIDE1      = 0x0;
-    ofmS.DMA_STRIDE2      = 0x0;
     Agent ofmSAgent{ ofmS };
     agents.push_back(ofmSAgent);
 
@@ -388,6 +385,7 @@ TEST_CASE("ModelHal_WaitForSevEvent")
     loadPle.SRAM_ADDR       = 0x0;
     loadPle.DMA_SRAM_STRIDE = 0x0;
     loadPle.DMA_STRIDE0     = 0x0;
+    loadPle.DMA_STRIDE2     = 0x0;
     loadPle.DMA_STRIDE3     = 0x0;
     loadPle.DMA_CHANNELS    = 0x0;
     loadPle.DMA_EMCS        = 0x3;
@@ -402,6 +400,7 @@ TEST_CASE("ModelHal_WaitForSevEvent")
     loadIfm1.SRAM_ADDR       = 0x100;
     loadIfm1.DMA_SRAM_STRIDE = 0x0;
     loadIfm1.DMA_STRIDE0     = 0x0;
+    loadIfm1.DMA_STRIDE2     = 0x0;
     loadIfm1.DMA_STRIDE3     = 0x0;
     loadIfm1.DMA_CHANNELS    = 0xf;
     loadIfm1.DMA_EMCS        = 0xff;
@@ -416,6 +415,7 @@ TEST_CASE("ModelHal_WaitForSevEvent")
     loadIfm2.SRAM_ADDR       = 0x148;
     loadIfm2.DMA_SRAM_STRIDE = 0x0;
     loadIfm2.DMA_STRIDE0     = 0x0;
+    loadIfm2.DMA_STRIDE2     = 0x0;
     loadIfm2.DMA_STRIDE3     = 0x0;
     loadIfm2.DMA_CHANNELS    = 0xf;
     loadIfm2.DMA_EMCS        = 0xff;
@@ -436,6 +436,7 @@ TEST_CASE("ModelHal_WaitForSevEvent")
     storeOfm.SRAM_ADDR       = 0x190;
     storeOfm.DMA_SRAM_STRIDE = 0x0;
     storeOfm.DMA_STRIDE0     = 0x0;
+    storeOfm.DMA_STRIDE2     = 0x0;
     storeOfm.DMA_STRIDE3     = 0x0;
     storeOfm.DMA_CHANNELS    = 0xf;
     storeOfm.DMA_EMCS        = 0xff;

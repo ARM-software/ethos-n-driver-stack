@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -276,11 +276,11 @@ profiling::ProfilingOnly<uint8_t> HwAbstraction<Hal>::HandleDmaRdCmdIfm(const If
 
     m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_DMA_COMP_CONFIG0), agentData.DMA_COMP_CONFIG0);
     m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_DMA_STRIDE1), agentData.DMA_STRIDE1);
-    m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_DMA_STRIDE2), agentData.DMA_STRIDE2);
 
     m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_SRAM_ADDR), cmd.SRAM_ADDR);
     m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_DMA_SRAM_STRIDE), cmd.DMA_SRAM_STRIDE);
     m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_DMA_STRIDE0), cmd.DMA_STRIDE0);
+    m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_DMA_STRIDE2), cmd.DMA_STRIDE2);
     m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_DMA_STRIDE3), cmd.DMA_STRIDE3);
     m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_DMA_CHANNELS), cmd.DMA_CHANNELS);
 
@@ -347,11 +347,11 @@ profiling::ProfilingOnly<uint8_t> HwAbstraction<Hal>::HandleDmaWrCmdOfm(const Of
 
     m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_DMA_COMP_CONFIG0), agentData.DMA_COMP_CONFIG0);
     m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_DMA_STRIDE1), agentData.DMA_STRIDE1);
-    m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_DMA_STRIDE2), agentData.DMA_STRIDE2);
 
     m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_SRAM_ADDR), cmd.SRAM_ADDR);
     m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_DMA_SRAM_STRIDE), cmd.DMA_SRAM_STRIDE);
     m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_DMA_STRIDE0), cmd.DMA_STRIDE0);
+    m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_DMA_STRIDE2), cmd.DMA_STRIDE2);
     m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_DMA_STRIDE3), cmd.DMA_STRIDE3);
     m_Hal.WriteReg(TOP_REG(DMA_RP, DMA_DMA_CHANNELS), cmd.DMA_CHANNELS);
 

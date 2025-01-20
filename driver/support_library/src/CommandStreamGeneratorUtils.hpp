@@ -1,5 +1,5 @@
 //
-// Copyright © 2022-2023 Arm Limited.
+// Copyright © 2022-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -66,6 +66,9 @@ inline void SetBufferDataType(FmSDesc& streamerData, const BufferFormat bufferFo
         case BufferFormat::FCAF_WIDE:
             streamerData.dataType = FmsDataType::FCAF_WIDE;
             break;
+        case BufferFormat::NCHW:
+            streamerData.dataType = FmsDataType::NCHW;
+            break;
         default:
             assert(false);
     }
@@ -84,7 +87,7 @@ inline void SetStripeHeightInfo(FmSDesc& streamerData, const TensorShape& tensor
     streamerData.defaultStripeSize.height = stripeHeight;
 
     streamerData.edgeStripeSize.height = CommonUtils::CalculateEdgeSize(tensorHeight, stripeHeight);
-    if (streamerData.dataType != FmsDataType::NHWC)
+    if (streamerData.dataType != FmsDataType::NHWC && streamerData.dataType != FmsDataType::NCHW)
     {
         // Note that we don't round up to the cell shape for FCAF, only the brick group shape.
         // This is because FCAF transfers work fine with partial cells, and we need to keep
@@ -112,7 +115,7 @@ inline void SetStripeWidthInfo(FmSDesc& streamerData, const TensorShape& tensorS
     // This is because FCAF transfers work fine with partial cells, and we need to keep
     // this stripe shape consistent with the PLE's interepretation of stripe layout, which rounds
     // to the brick group shape only.
-    if (streamerData.dataType != FmsDataType::NHWC)
+    if (streamerData.dataType != FmsDataType::NHWC && streamerData.dataType != FmsDataType::NCHW)
     {
         streamerData.edgeStripeSize.width = ethosn::utils::NumericCast<uint16_t>(utils::RoundUpToNearestMultiple(
             static_cast<uint32_t>(streamerData.edgeStripeSize.width), utils::GetWidth(g_BrickGroupShape)));
@@ -166,31 +169,39 @@ inline void SetStripeChannelsInfo(FmSDesc& streamerData,
 inline void
     SetSuperTensorSizeInCells(FmSDesc& streamerData, const TensorShape& tensorShape, const BufferFormat bufferFormat)
 {
-    uint16_t cellWidth = 0;
-    uint16_t cellDepth = 0;
+    uint16_t cellWidth  = 0;
+    uint16_t cellDepth  = 0;
+    uint16_t cellHeight = 0;
 
     switch (bufferFormat)
     {
-        case BufferFormat::NHWC:
-            cellWidth = 1;
-            cellDepth = 1;
+        case BufferFormat::NHWC:    // intentional fallthrough
+        case BufferFormat::NCHW:
+            cellWidth  = 1;
+            cellHeight = 1;
+            cellDepth  = 1;
             break;
         case BufferFormat::NHWCB:
-            cellWidth = 8;
-            cellDepth = 16;
+            cellHeight = 8;
+            cellWidth  = 8;
+            cellDepth  = 16;
             break;
         case BufferFormat::FCAF_DEEP:
-            cellWidth = 8;
-            cellDepth = 32;
+            cellHeight = 8;
+            cellWidth  = 8;
+            cellDepth  = 32;
             break;
         case BufferFormat::FCAF_WIDE:
-            cellWidth = 16;
-            cellDepth = 16;
+            cellHeight = 8;
+            cellWidth  = 16;
+            cellDepth  = 16;
             break;
         default:
             throw InternalErrorException((std::string("Invalid buffer format").c_str()));
     }
 
+    streamerData.supertensorSizeInCells.height =
+        ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(tensorShape[1], cellHeight));
     streamerData.supertensorSizeInCells.width =
         ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(tensorShape[2], cellWidth));
     streamerData.supertensorSizeInCells.channels =

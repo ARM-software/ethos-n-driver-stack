@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2023 Arm Limited.
+// Copyright © 2018-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -2723,8 +2723,10 @@ bool IsTransposeTensorSupported(const std::vector<char>& caps,
     uint32_t totalSize;
     assert(GetElementSizeBytes(inputInfo.m_DataType) == 1 && "transpose only support 8-bit");
 
-    if (transposeInfo.m_Permutation[1] == 2 && transposeInfo.m_Permutation[2] == 3 &&
-        transposeInfo.m_Permutation[3] == 1)
+    if ((transposeInfo.m_Permutation[1] == 2 && transposeInfo.m_Permutation[2] == 3 &&
+         transposeInfo.m_Permutation[3] == 1) ||
+        (transposeInfo.m_Permutation[1] == 3 && transposeInfo.m_Permutation[2] == 1 &&
+         transposeInfo.m_Permutation[3] == 2))
     {
         // (0, 2, 3, 1)
         // Loads to SRAM pretending it is NCHW->0231, then saves to DRAM as NHWC.
@@ -2750,9 +2752,7 @@ bool IsTransposeTensorSupported(const std::vector<char>& caps,
 
         TensorInfo tensorInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO);
 
-        if ((transposeInfo.m_Permutation[1] == 3 && transposeInfo.m_Permutation[2] == 1 &&
-             transposeInfo.m_Permutation[3] == 2) ||
-            (transposeInfo.m_Permutation[1] == 2 && transposeInfo.m_Permutation[2] == 1 &&
+        if ((transposeInfo.m_Permutation[1] == 2 && transposeInfo.m_Permutation[2] == 1 &&
              transposeInfo.m_Permutation[3] == 3))
         {
             // (0, 3, 1, 2)
@@ -2862,7 +2862,19 @@ SupportedLevel SupportQueries::IsTransposeSupported(const TransposeInfo& transpo
         return SupportedLevel::Unsupported;
     }
 
-    return SupportedLevel::EstimateOnly;
+    if (((transposeInfo.m_Permutation[1] == 1) && (transposeInfo.m_Permutation[2] == 3) &&
+         (transposeInfo.m_Permutation[3] == 2)) ||
+        ((transposeInfo.m_Permutation[1] == 2) && (transposeInfo.m_Permutation[2] == 1) &&
+         (transposeInfo.m_Permutation[3] == 3)) ||
+        ((transposeInfo.m_Permutation[1] == 3) && (transposeInfo.m_Permutation[2] == 2) &&
+         (transposeInfo.m_Permutation[3] == 1)))
+    {
+        SetReason("Only <0, 3, 1, 2> or <0, 2, 3, 1> permutation is supported for transposition.", reason,
+                  reasonMaxLength);
+        return SupportedLevel::EstimateOnly;
+    }
+
+    return SupportedLevel::Supported;
 }
 
 SupportedLevel SupportQueries::IsResizeSupported(const ResizeInfo& resizeInfo,

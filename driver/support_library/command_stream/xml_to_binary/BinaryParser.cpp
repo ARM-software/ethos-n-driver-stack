@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2023 Arm Limited.
+// Copyright © 2018-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "BinaryParser.hpp"
@@ -101,10 +101,6 @@ void Parse(std::stringstream& parent, const IfmS& ifms)
     ParseAsHex(parent, ifms.DMA_STRIDE1);
     Parse(parent, "</DMA_STRIDE1>", 0, true);
 
-    Parse(parent, "<DMA_STRIDE2>", 3, false);
-    ParseAsHex(parent, ifms.DMA_STRIDE2);
-    Parse(parent, "</DMA_STRIDE2>", 0, true);
-
     Parse(parent, "</IFM_STREAMER>", 2, true);
 }
 
@@ -123,10 +119,6 @@ void Parse(std::stringstream& parent, const OfmS& ofms)
     Parse(parent, "<DMA_STRIDE1>", 3, false);
     ParseAsHex(parent, ofms.DMA_STRIDE1);
     Parse(parent, "</DMA_STRIDE1>", 0, true);
-
-    Parse(parent, "<DMA_STRIDE2>", 3, false);
-    ParseAsHex(parent, ofms.DMA_STRIDE2);
-    Parse(parent, "</DMA_STRIDE2>", 0, true);
 
     Parse(parent, "</OFM_STREAMER>", 2, true);
 }
@@ -409,6 +401,10 @@ void Parse(std::stringstream& parent, const DmaCommand& dmaCommand)
     Parse(parent, "<DMA_STRIDE0>", 3, false);
     ParseAsHex(parent, dmaCommand.DMA_STRIDE0);
     Parse(parent, "</DMA_STRIDE0>", 0, true);
+
+    Parse(parent, "<DMA_STRIDE2>", 3, false);
+    ParseAsHex(parent, dmaCommand.DMA_STRIDE2);
+    Parse(parent, "</DMA_STRIDE2>", 0, true);
 
     Parse(parent, "<DMA_STRIDE3>", 3, false);
     ParseAsHex(parent, dmaCommand.DMA_STRIDE3);

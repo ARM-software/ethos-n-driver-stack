@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2024 Arm Limited.
+// Copyright © 2018-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -287,10 +287,10 @@ private:
 namespace ethosnbackend
 {
 
-#define MAX_ETHOSN_DRIVER_LIBRARY_MAJOR_VERSION_SUPPORTED 8
-#define MIN_ETHOSN_DRIVER_LIBRARY_MAJOR_VERSION_SUPPORTED 8
-#define MAX_ETHOSN_SUPPORT_LIBRARY_MAJOR_VERSION_SUPPORTED 5
-#define MIN_ETHOSN_SUPPORT_LIBRARY_MAJOR_VERSION_SUPPORTED 5
+#define MAX_ETHOSN_DRIVER_LIBRARY_MAJOR_VERSION_SUPPORTED 9
+#define MIN_ETHOSN_DRIVER_LIBRARY_MAJOR_VERSION_SUPPORTED 9
+#define MAX_ETHOSN_SUPPORT_LIBRARY_MAJOR_VERSION_SUPPORTED 6
+#define MIN_ETHOSN_SUPPORT_LIBRARY_MAJOR_VERSION_SUPPORTED 6
 
 constexpr bool IsLibraryVersionSupported(const uint32_t& majorVer, const uint32_t& maxVer, const uint32_t& minVer);
 

@@ -1,5 +1,5 @@
 //
-// Copyright © 2022-2024 Arm Limited.
+// Copyright © 2022-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -471,8 +471,9 @@ void CommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp, uint32_t opIdx)
             utils::CalculateDramOffset(outputBuffer->m_Format, outputBuffer->m_TensorShape, ptrDmaOp->m_Offset);
 
         // Ofm Streamer Agent
-        AgentIdType ofmStreamerAgentId = AddOfmStreamerToCommandStream(ptrDmaOp, inputBuffer->Sram(), outputBufferId,
-                                                                       outputBuffer, outputDramBufferOffset);
+        AgentIdType ofmStreamerAgentId =
+            AddOfmStreamerToCommandStream(ptrDmaOp, inputBuffer->Sram(), outputBufferId, outputBuffer,
+                                          ptrDmaOp->m_TransferFormat, outputDramBufferOffset);
 
         // Add 'Read After Write' dependency information to the IfmStreamer and PleScheduler agents
         // Read After Write Dependency for [OfmStreamer][IfmStreamer] or
@@ -1078,6 +1079,7 @@ AgentIdType CommandStreamGenerator::AddOfmStreamerToCommandStream(DmaOp* const p
                                                                   const SramBuffer* const outputSramBuffer,
                                                                   const uint16_t outputDramBufferId,
                                                                   const Buffer* const outputDramBuffer,
+                                                                  const BufferFormat transferFormat,
                                                                   const uint32_t outputDramBufferOffset)
 {
     assert(outputSramBuffer->m_Format == BufferFormat::NHWCB);
@@ -1088,7 +1090,7 @@ AgentIdType CommandStreamGenerator::AddOfmStreamerToCommandStream(DmaOp* const p
 
     ofmStreamerData.fmData.bufferId = outputDramBufferId;
 
-    StreamersUtils::SetBufferDataType(ofmStreamerData.fmData, outputDramBuffer->m_Format);
+    StreamersUtils::SetBufferDataType(ofmStreamerData.fmData, transferFormat);
 
     ofmStreamerData.fmData.fcafInfo.signedActivation = (outputDramBuffer->m_DataType == DataType::INT8_QUANTIZED);
     ofmStreamerData.fmData.fcafInfo.zeroPoint =

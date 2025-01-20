@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2024 Arm Limited.
+// Copyright © 2021-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -419,6 +419,7 @@ bool IsSramBufferCompatibleWithDramBuffer(const TensorShape& sramTensorShape,
     TensorShape requiredMultiple = { 0, 0, 0, 0 };
     switch (dramFormat)
     {
+        case BufferFormat::NCHW:    // intentional fallthrough
         case BufferFormat::NHWC:
         {
             // No offset in C is allowed
@@ -564,6 +565,7 @@ std::unique_ptr<SramBuffer> MakeGlueIntermediateSramBuffer(const TensorShape& sh
         TensorShape minStripeShape = g_BrickGroupShape;
         switch (format)
         {
+            case BufferFormat::NCHW:    // intentional fallthrough
             case BufferFormat::NHWC:
                 // The firmware cannot split NHWC tensors along channels, so we must use the full depth.
                 // However we allow splitting in depth only if the width is 1. When the width is 1 the firmware can support splitting in depth,

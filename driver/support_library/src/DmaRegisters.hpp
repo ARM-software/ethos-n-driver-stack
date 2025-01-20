@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -23,6 +23,7 @@ class HardwareCapabilities;
 struct SupertensorSize
 {
     uint32_t width;
+    uint32_t height;
     uint32_t channels;
 };
 
@@ -33,6 +34,7 @@ enum class FmsDataType : uint8_t
     FCAF_WIDE,
     FCAF_DEEP,
     NHWCB,
+    NCHW
 };
 
 /// FCAF Compression Info

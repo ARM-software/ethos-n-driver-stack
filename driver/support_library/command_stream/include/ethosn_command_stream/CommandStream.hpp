@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2023 Arm Limited.
+// Copyright © 2018-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -11,7 +11,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#define ETHOSN_COMMAND_STREAM_VERSION_MAJOR 7
+#define ETHOSN_COMMAND_STREAM_VERSION_MAJOR 8
 #define ETHOSN_COMMAND_STREAM_VERSION_MINOR 0
 #define ETHOSN_COMMAND_STREAM_VERSION_PATCH 0
 
@@ -30,7 +30,6 @@ struct IfmS
     /// @{
     uint32_t DMA_COMP_CONFIG0;
     uint32_t DMA_STRIDE1;
-    uint32_t DMA_STRIDE2;
     /// @}
 };
 
@@ -44,7 +43,6 @@ struct OfmS
     /// @{
     uint32_t DMA_COMP_CONFIG0;
     uint32_t DMA_STRIDE1;
-    uint32_t DMA_STRIDE2;
     /// @}
 };
 
@@ -256,6 +254,7 @@ struct DmaCommand : public Command
     uint32_t SRAM_ADDR;
     uint32_t DMA_SRAM_STRIDE;
     uint32_t DMA_STRIDE0;
+    uint32_t DMA_STRIDE2;    // Might differ per-stripe for NCHW
     uint32_t DMA_STRIDE3;
     uint32_t DMA_CHANNELS;
 

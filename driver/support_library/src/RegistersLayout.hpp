@@ -1,5 +1,5 @@
 //
-// Copyright © 2017-2019,2023 Arm Limited.
+// Copyright © 2017-2019,2023,2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -21,6 +21,7 @@ namespace registers
 enum class dma_format_read_t
 {
     NHWC      = 0,
+    NCHW      = 1,
     NHWCB     = 2,
     WEIGHTS   = 4,
     BROADCAST = 5,
@@ -31,6 +32,7 @@ enum class dma_format_read_t
 enum class dma_format_write_t
 {
     NHWC                   = 0,
+    NCHW                   = 1,
     NHWCB                  = 2,
     NHWCB_WEIGHT_STREAMING = 3,
     FCAF_DEEP              = 6,

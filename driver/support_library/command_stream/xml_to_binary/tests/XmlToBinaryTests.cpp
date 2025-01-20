@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -35,14 +35,12 @@ const std::string g_XmlStr =
             <BUFFER_ID>3</BUFFER_ID>
             <DMA_COMP_CONFIG0>0x3534265</DMA_COMP_CONFIG0>
             <DMA_STRIDE1>0x23424</DMA_STRIDE1>
-            <DMA_STRIDE2>0x213426</DMA_STRIDE2>
         </IFM_STREAMER>
         <!-- Agent 2 -->
         <OFM_STREAMER>
             <BUFFER_ID>0</BUFFER_ID>
             <DMA_COMP_CONFIG0>0x89679</DMA_COMP_CONFIG0>
             <DMA_STRIDE1>0x12346</DMA_STRIDE1>
-            <DMA_STRIDE2>0x209347f</DMA_STRIDE2>
         </OFM_STREAMER>
         <!-- Agent 3 -->
         <MCE_SCHEDULER>
@@ -80,6 +78,7 @@ const std::string g_XmlStr =
             <SRAM_ADDR>0x6543</SRAM_ADDR>
             <DMA_SRAM_STRIDE>0x2345</DMA_SRAM_STRIDE>
             <DMA_STRIDE0>0x7995</DMA_STRIDE0>
+            <DMA_STRIDE2>0x213426</DMA_STRIDE2>
             <DMA_STRIDE3>0x23245</DMA_STRIDE3>
             <DMA_CHANNELS>0x12345</DMA_CHANNELS>
             <DMA_EMCS>0x989</DMA_EMCS>
@@ -96,6 +95,7 @@ const std::string g_XmlStr =
             <SRAM_ADDR>0x6ee</SRAM_ADDR>
             <DMA_SRAM_STRIDE>0xebbb5</DMA_SRAM_STRIDE>
             <DMA_STRIDE0>0x79aa</DMA_STRIDE0>
+            <DMA_STRIDE2>0x209347f</DMA_STRIDE2>
             <DMA_STRIDE3>0xdef</DMA_STRIDE3>
             <DMA_CHANNELS>0xffeed</DMA_CHANNELS>
             <DMA_EMCS>0xdd2</DMA_EMCS>
@@ -307,23 +307,17 @@ TEST_CASE("XmlToBinary-BinaryToXml")
     /* Agent 1 = */
     Agent agent1 = {
         /* AgentData = */
-        { IfmS{
-            /* BufferId = */ uint16_t{ 3 },
-            /* DMA_COMP_CONFIG0 = */ uint32_t{ 0x3534265 },
-            /* DMA_STRIDE1 = */ uint32_t{ 0x23424 },
-            /* DMA_STRIDE2 = */ uint32_t{ 0x213426 },
-        } },
+        { IfmS{ /* BufferId = */ uint16_t{ 3 },
+                /* DMA_COMP_CONFIG0 = */ uint32_t{ 0x3534265 },
+                /* DMA_STRIDE1 = */ uint32_t{ 0x23424 } } },
     };
 
     /* Agent 2 = */
     Agent agent2 = {
         /* AgentData = */
-        { OfmS{
-            /* BufferId = */ uint16_t{ 0 },
-            /* DMA_COMP_CONFIG0 = */ uint32_t{ 0x89679 },
-            /* DMA_STRIDE1 = */ uint32_t{ 0x12346 },
-            /* DMA_STRIDE2 = */ uint32_t{ 0x209347f },
-        } },
+        { OfmS{ /* BufferId = */ uint16_t{ 0 },
+                /* DMA_COMP_CONFIG0 = */ uint32_t{ 0x89679 },
+                /* DMA_STRIDE1 = */ uint32_t{ 0x12346 } } },
     };
 
     /* Agent 3 = */
@@ -378,6 +372,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
     dmaRdCommand1.SRAM_ADDR       = uint32_t{ 0x6543 };
     dmaRdCommand1.DMA_SRAM_STRIDE = uint32_t{ 0x2345 };
     dmaRdCommand1.DMA_STRIDE0     = uint32_t{ 0x7995 };
+    dmaRdCommand1.DMA_STRIDE2     = uint32_t{ 0x213426 };
     dmaRdCommand1.DMA_STRIDE3     = uint32_t{ 0x23245 };
     dmaRdCommand1.DMA_CHANNELS    = uint32_t{ 0x12345 };
     dmaRdCommand1.DMA_EMCS        = uint32_t{ 0x989 };
@@ -392,6 +387,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
     dmaWrCommand1.SRAM_ADDR       = uint32_t{ 0x6ee };
     dmaWrCommand1.DMA_SRAM_STRIDE = uint32_t{ 0xebbb5 };
     dmaWrCommand1.DMA_STRIDE0     = uint32_t{ 0x79aa };
+    dmaWrCommand1.DMA_STRIDE2     = uint32_t{ 0x209347f };
     dmaWrCommand1.DMA_STRIDE3     = uint32_t{ 0xdef };
     dmaWrCommand1.DMA_CHANNELS    = uint32_t{ 0xffeed };
     dmaWrCommand1.DMA_EMCS        = uint32_t{ 0xdd2 };

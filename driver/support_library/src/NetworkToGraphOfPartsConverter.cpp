@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2024 Arm Limited.
+// Copyright © 2021-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -17,6 +17,7 @@
 #include "McePart.hpp"
 #include "OutputPart.hpp"
 #include "Part.hpp"
+#include "ReformatPart.hpp"
 #include "ReshapePart.hpp"
 #include "SplitPart.hpp"
 #include "StandalonePlePart.hpp"
@@ -1829,25 +1830,69 @@ void NetworkToGraphOfPartsConverter::Visit(Split& split)
 
 void NetworkToGraphOfPartsConverter::Visit(Transpose& transpose)
 {
-    const TensorInfo& inputInfo  = transpose.GetInput(0).GetTensorInfo();
-    const TensorInfo& outputInfo = transpose.GetOutput(0).GetTensorInfo();
+    std::vector<Node*> nodes;
 
-    // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
+    const auto& inputOperand    = transpose.GetInput(0);
+    const auto& inputTensorInfo = inputOperand.GetTensorInfo();
+    auto& outputTensorInfo      = transpose.GetOutput(0).GetTensorInfo();
+    auto& permutation           = transpose.GetTransposeInfo().m_Permutation;
+    // Figure out if transpose can be performed via data conversion node
+    // transposeInfo contains the tensor reordering in <> format for output
+    // i.e <0, 3, 1, 2> means N->N, C->H, W->H, H->C <N,H,W,C> becomes <N,C,W,H>.
+
     char reason[1024];
     const SupportedLevel supportedLevel =
-        m_Queries.IsTransposeSupported(transpose.GetTransposeInfo(), inputInfo, nullptr, reason, sizeof(reason));
+        m_Queries.IsTransposeSupported(transpose.GetTransposeInfo(), inputTensorInfo, nullptr, reason, sizeof(reason));
     std::vector<BasePart*> parts;
+
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
         auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
-            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ inputInfo },
-            std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
-            std::set<uint32_t>{ transpose.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
-
+            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ inputTensorInfo },
+            std::vector<TensorInfo>{ outputTensorInfo },
+            ConvertExternalToCompilerDataFormat(outputTensorInfo.m_DataFormat), std::set<uint32_t>{ transpose.GetId() },
+            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
         parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
     }
+
+    // Transpose to 0 3 1 2 can be performed via converting between NHWC and NCHW formats.
+    // 0 3 1 2 => Data in NHWC in DRAM => Load NHWC => NHWCB, Save NCHW => Next layer interprets as NHWC
+    if ((permutation[1] == 3) && (permutation[2] == 1) && (permutation[3] == 2))
+    {
+        auto reformatPart = std::make_unique<ReformatPart>(
+            m_GraphOfParts.GeneratePartId(), transpose.GetInput(0).GetTensorInfo().m_Dimensions, BufferFormat::NHWC,
+            BufferFormat::NHWC, transpose.GetOutput(0).GetTensorInfo().m_Dimensions, BufferFormat::NHWC,
+            BufferFormat::NCHW, transpose.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
+            transpose.GetOutput(0).GetTensorInfo().m_DataType, std::set<uint32_t>{ transpose.GetId() },
+            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+        parts.push_back(reformatPart.get());
+        m_GraphOfParts.AddPart(std::move(reformatPart));
+    }
+    // Transpose to 0 2 3 1 can be performed via converting between NHWC and NCHW formats.
+    // 0 2 3 1 => Data in NHWC in DRAM => Load pretending it is NCHW => NWCHB, Save NHWC
+    // (which will actually save as NWCH) => Next layer interprets as NHWC
+    else if ((permutation[1] == 2) && (permutation[2] == 3) && (permutation[3] == 1))
+    {
+        TensorShape intermediateShape = { inputTensorInfo.m_Dimensions[0], inputTensorInfo.m_Dimensions[2],
+                                          inputTensorInfo.m_Dimensions[3], inputTensorInfo.m_Dimensions[1] };
+        auto reformatPart             = std::make_unique<ReformatPart>(
+            m_GraphOfParts.GeneratePartId(), intermediateShape, BufferFormat::NHWC, BufferFormat::NCHW,
+            transpose.GetOutput(0).GetTensorInfo().m_Dimensions, BufferFormat::NHWC, BufferFormat::NHWC,
+            transpose.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
+            transpose.GetOutput(0).GetTensorInfo().m_DataType, std::set<uint32_t>{ transpose.GetId() },
+            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+        parts.push_back(reformatPart.get());
+        m_GraphOfParts.AddPart(std::move(reformatPart));
+    }
+
     ConnectParts(transpose, parts);
+
+    if ((permutation[1] == 1) && (permutation[2] == 2) && (permutation[3] == 3))
+    {
+        // 0, 1, 2, 3 is equivalent to no-op.
+        ConnectNoOp(transpose);
+    }
 }
 
 void NetworkToGraphOfPartsConverter::Visit(DepthToSpace& depthToSpace)

@@ -1,5 +1,5 @@
 //
-// Copyright © 2022-2023 Arm Limited.
+// Copyright © 2022-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -79,6 +79,7 @@ private:
                                               const SramBuffer* const outputSramBuffer,
                                               const uint16_t outputDramBufferId,
                                               const Buffer* const outputDramBuffer,
+                                              const BufferFormat transferFormat,
                                               const uint32_t outputDramBufferOffset);
 
     // Private function to add ReadAfterWrite Dependency
