@@ -2862,18 +2862,6 @@ SupportedLevel SupportQueries::IsTransposeSupported(const TransposeInfo& transpo
         return SupportedLevel::Unsupported;
     }
 
-    if (((transposeInfo.m_Permutation[1] == 1) && (transposeInfo.m_Permutation[2] == 3) &&
-         (transposeInfo.m_Permutation[3] == 2)) ||
-        ((transposeInfo.m_Permutation[1] == 2) && (transposeInfo.m_Permutation[2] == 1) &&
-         (transposeInfo.m_Permutation[3] == 3)) ||
-        ((transposeInfo.m_Permutation[1] == 3) && (transposeInfo.m_Permutation[2] == 2) &&
-         (transposeInfo.m_Permutation[3] == 1)))
-    {
-        SetReason("Only <0, 3, 1, 2> or <0, 2, 3, 1> permutation is supported for transposition.", reason,
-                  reasonMaxLength);
-        return SupportedLevel::EstimateOnly;
-    }
-
     return SupportedLevel::Supported;
 }
 

@@ -756,6 +756,13 @@ StripeConfig StripeGenerator::ApplyPleKernelSplitRestrictions(CascadeType cascad
         // as more information is needed than is available here.
     }
 
+    /* The transpose operator requires a full tensor present. */
+    if (m_KernelOperation == PleOperation::TRANSPOSE_XY)
+    {
+        result.DisableAllSplits();
+        result.splits.none = 1;
+    }
+
     return result;
 }
 StripeInfos StripeGenerator::GenerateStripes(CascadeType cascadeType,

@@ -1874,25 +1874,126 @@ void NetworkToGraphOfPartsConverter::Visit(Transpose& transpose)
     // (which will actually save as NWCH) => Next layer interprets as NHWC
     else if ((permutation[1] == 2) && (permutation[2] == 3) && (permutation[3] == 1))
     {
-        TensorShape intermediateShape = { inputTensorInfo.m_Dimensions[0], inputTensorInfo.m_Dimensions[2],
-                                          inputTensorInfo.m_Dimensions[3], inputTensorInfo.m_Dimensions[1] };
-        auto reformatPart             = std::make_unique<ReformatPart>(
-            m_GraphOfParts.GeneratePartId(), intermediateShape, BufferFormat::NHWC, BufferFormat::NCHW,
-            transpose.GetOutput(0).GetTensorInfo().m_Dimensions, BufferFormat::NHWC, BufferFormat::NHWC,
-            transpose.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
+        auto reformatPart = std::make_unique<ReformatPart>(
+            m_GraphOfParts.GeneratePartId(), transpose.GetOutput(0).GetTensorInfo().m_Dimensions, BufferFormat::NHWC,
+            BufferFormat::NCHW, transpose.GetOutput(0).GetTensorInfo().m_Dimensions, BufferFormat::NHWC,
+            BufferFormat::NHWC, transpose.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
             transpose.GetOutput(0).GetTensorInfo().m_DataType, std::set<uint32_t>{ transpose.GetId() },
             m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
         parts.push_back(reformatPart.get());
         m_GraphOfParts.AddPart(std::move(reformatPart));
     }
+    // Transpose to 0 2 1 3 can be performed via H and W swapping PLE kernel
+    else if ((permutation[1] == 2) && (permutation[2] == 1) && (permutation[3] == 3))
+    {
+        const uint32_t numIfm   = inputTensorInfo.m_Dimensions[3];
+        const float weightScale = 0.5f;
+        const float biasScale   = weightScale * inputTensorInfo.m_QuantizationInfo.GetScale();
 
-    ConnectParts(transpose, parts);
+        std::vector<uint8_t> weightsData(1 * 1 * 1 * numIfm, 2);
+        std::vector<int32_t> biasData(numIfm, 0);
 
-    if ((permutation[1] == 1) && (permutation[2] == 2) && (permutation[3] == 3))
+        TensorInfo weightInfo{ { 1, 1, numIfm, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM, { 0, weightScale } };
+        TensorInfo biasInfo{ { 1, 1, 1, numIfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
+
+        ShapeMultiplier shapeMultiplier = {
+            Fraction{ inputTensorInfo.m_Dimensions[2], inputTensorInfo.m_Dimensions[1] },
+            Fraction{ inputTensorInfo.m_Dimensions[1], inputTensorInfo.m_Dimensions[2] }, Fraction{ 1, 1 }
+        };
+
+        // Add fuse only ple operation with transpose kernel
+        auto fusedPlePart = std::make_unique<FusedPlePart>(
+            m_GraphOfParts.GeneratePartId(), inputTensorInfo.m_Dimensions, outputTensorInfo.m_Dimensions,
+            inputTensorInfo.m_QuantizationInfo, outputTensorInfo.m_QuantizationInfo, PleOperation::TRANSPOSE_XY,
+            shapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+            std::set<uint32_t>{ transpose.GetId() }, inputTensorInfo.m_DataType, outputTensorInfo.m_DataType,
+            m_DebuggingContext, m_ThreadPool, std::map<std::string, std::string>{}, std::map<std::string, int>{},
+            std::map<std::string, int>{});
+        parts.push_back(fusedPlePart.get());
+        m_GraphOfParts.AddPart(std::move(fusedPlePart));
+    }
+    // Transpose to 0 1 3 2 utilizes converting between NHWC, NCHW formats and H & W swap ple kernel
+    // Load pretending it is NCHW => NWCHB, PLE swap HW (which is actually WC) => NCWHB, Save NCHW
+    // (which will actually save as NHCW) => Next layer interprets as NHWC
+    else if ((permutation[1] == 1) && (permutation[2] == 3) && (permutation[3] == 2))
+    {
+        TensorShape intermediateShape1 = { inputTensorInfo.m_Dimensions[0], inputTensorInfo.m_Dimensions[2],
+                                           inputTensorInfo.m_Dimensions[3], inputTensorInfo.m_Dimensions[1] };
+
+        TensorShape intermediateShape2 = { inputTensorInfo.m_Dimensions[0], inputTensorInfo.m_Dimensions[3],
+                                           inputTensorInfo.m_Dimensions[2], inputTensorInfo.m_Dimensions[1] };
+
+        auto reformatPart1 = std::make_unique<ReformatPart>(
+            m_GraphOfParts.GeneratePartId(), intermediateShape1, BufferFormat::NHWC, BufferFormat::NCHW,
+            intermediateShape1, BufferFormat::NHWC, BufferFormat::NHWC,
+            transpose.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
+            transpose.GetOutput(0).GetTensorInfo().m_DataType, std::set<uint32_t>{ transpose.GetId() },
+            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+        parts.push_back(reformatPart1.get());
+        m_GraphOfParts.AddPart(std::move(reformatPart1));
+
+        ShapeMultiplier shapeMultiplier = { Fraction{ intermediateShape1[2], intermediateShape1[1] },
+                                            Fraction{ intermediateShape1[1], intermediateShape1[2] },
+                                            Fraction{ 1, 1 } };
+
+        auto fusedPlePart = std::make_unique<FusedPlePart>(
+            m_GraphOfParts.GeneratePartId(), intermediateShape1, intermediateShape2, inputTensorInfo.m_QuantizationInfo,
+            outputTensorInfo.m_QuantizationInfo, PleOperation::TRANSPOSE_XY, shapeMultiplier,
+            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ transpose.GetId() },
+            inputTensorInfo.m_DataType, outputTensorInfo.m_DataType, m_DebuggingContext, m_ThreadPool,
+            std::map<std::string, std::string>{}, std::map<std::string, int>{}, std::map<std::string, int>{});
+        parts.push_back(fusedPlePart.get());
+        m_GraphOfParts.AddPart(std::move(fusedPlePart));
+
+        auto reformatPart2 = std::make_unique<ReformatPart>(
+            m_GraphOfParts.GeneratePartId(), intermediateShape2, BufferFormat::NHWC, BufferFormat::NHWC,
+            transpose.GetOutput(0).GetTensorInfo().m_Dimensions, BufferFormat::NHWC, BufferFormat::NCHW,
+            transpose.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
+            transpose.GetOutput(0).GetTensorInfo().m_DataType, std::set<uint32_t>{ transpose.GetId() },
+            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+        parts.push_back(reformatPart2.get());
+        m_GraphOfParts.AddPart(std::move(reformatPart2));
+    }
+
+    // Transpose to 0 3 2 1 utilizes converting between NHWC, NCHW formats and H & W swap ple kernel
+    // 0 3 2 1  => Data in NHWC in DRAM => Load pretending it is NCHW => NWCHB, PLE swap HW
+    // (which is actually WC) => NCWHB, Save NHWC (which will actually save as NCWH) => Next layer
+    // interprets as NHWC
+    else if ((permutation[1] == 3) && (permutation[2] == 2) && (permutation[3] == 1))
+    {
+        TensorShape intermediateShape1 = { inputTensorInfo.m_Dimensions[0], inputTensorInfo.m_Dimensions[2],
+                                           inputTensorInfo.m_Dimensions[3], inputTensorInfo.m_Dimensions[1] };
+
+        auto reformatPart = std::make_unique<ReformatPart>(
+            m_GraphOfParts.GeneratePartId(), intermediateShape1, BufferFormat::NHWC, BufferFormat::NCHW,
+            intermediateShape1, BufferFormat::NHWC, BufferFormat::NHWC,
+            transpose.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
+            transpose.GetOutput(0).GetTensorInfo().m_DataType, std::set<uint32_t>{ transpose.GetId() },
+            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+        parts.push_back(reformatPart.get());
+        m_GraphOfParts.AddPart(std::move(reformatPart));
+
+        ShapeMultiplier shapeMultiplier = { Fraction{ intermediateShape1[2], intermediateShape1[1] },
+                                            Fraction{ intermediateShape1[1], intermediateShape1[2] },
+                                            Fraction{ 1, 1 } };
+
+        auto fusedPlePart = std::make_unique<FusedPlePart>(
+            m_GraphOfParts.GeneratePartId(), intermediateShape1, outputTensorInfo.m_Dimensions,
+            inputTensorInfo.m_QuantizationInfo, outputTensorInfo.m_QuantizationInfo, PleOperation::TRANSPOSE_XY,
+            shapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+            std::set<uint32_t>{ transpose.GetId() }, inputTensorInfo.m_DataType, outputTensorInfo.m_DataType,
+            m_DebuggingContext, m_ThreadPool, std::map<std::string, std::string>{}, std::map<std::string, int>{},
+            std::map<std::string, int>{});
+        parts.push_back(fusedPlePart.get());
+        m_GraphOfParts.AddPart(std::move(fusedPlePart));
+    }
+    else if ((permutation[1] == 1) && (permutation[2] == 2) && (permutation[3] == 3))
     {
         // 0, 1, 2, 3 is equivalent to no-op.
         ConnectNoOp(transpose);
+        return;
     }
+    ConnectParts(transpose, parts);
 }
 
 void NetworkToGraphOfPartsConverter::Visit(DepthToSpace& depthToSpace)

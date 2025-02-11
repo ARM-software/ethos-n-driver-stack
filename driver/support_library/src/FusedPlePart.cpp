@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2024 Arm Limited.
+// Copyright © 2021-2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -447,9 +447,9 @@ Plans FusedPlePart::GenerateContinueSectionPlans(BlockConfig blockConfig,
     bool fullDepth  = memoryOutputStripe[3] >= m_OutputTensorShape[3];
     bool fullTensor = fullPlane && fullDepth;
 
-    // Do not generate Middle or End Plans, if there is a MAXPOOL_3x3_2_2 Ple Operation without a full tensor.
+    // Do not generate Middle or End Plans, if there is a MAXPOOL_3x3_2_2 or Transpose Ple Operation without a full tensor.
     if ((m_KernelOperation == PleOperation::MAXPOOL_3X3_2_2_EVEN ||
-         m_KernelOperation == PleOperation::MAXPOOL_3X3_2_2_ODD) &&
+         m_KernelOperation == PleOperation::MAXPOOL_3X3_2_2_ODD || m_KernelOperation == PleOperation::TRANSPOSE_XY) &&
         !fullTensor)
     {
         return ret;

@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2023 Arm Limited.
+// Copyright © 2021-2023,2025 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -3331,11 +3331,11 @@ TEST_CASE("NetworkToGraphOfPartsConverter Transpose")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
     }
 
-    // InputPart, EstimateOnlyPart, OutputPart
+    // InputPart, FusedPlePart, OutputPart
     REQUIRE(graph.GetNumParts() == 3);
 
     {
-        const EstimateOnlyPart* part = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
+        const FusedPlePart* part = dynamic_cast<const FusedPlePart*>(&graph.GetPart(1));
         REQUIRE(part != nullptr);
     }
 }
