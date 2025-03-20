@@ -136,6 +136,8 @@
 ## Tanh
 - The output for tanh always has a quantization zero point equal to the middle value of the quantized data type and a quantization scale of 1 / 128.
 
+## Transpose
+- Transpose is allowed for height, width, and channel dimensions only.
 
 ## Transpose convolution 2D
 - HWIO format weights are supported.

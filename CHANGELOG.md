@@ -1,5 +1,25 @@
 # Changelog for Arm® Ethos™-N Driver Stack
 
+## 25.03
+
+### New features
+
+- Add support for the transpose operator.
+
+### Public API changes
+
+- Command stream version increased to 8.
+- Driver Library version increased to 9.
+- Support Library version increased to 6.
+
+### Other changes
+
+- None
+
+### Known issues
+
+- None
+
 ## 24.10
 
 ### New features
