@@ -956,8 +956,10 @@ void NetworkToGraphOfPartsConverter::Visit(Multiplication& multiplication)
         const std::vector<TensorShape> inputShapes = { multiplication.GetInput(0).GetTensorInfo().m_Dimensions,
                                                        multiplication.GetInput(1).GetTensorInfo().m_Dimensions };
 
+        const double inputScale0  = quantInfoInput0.GetScale();
+        const double inputScale1  = quantInfoInput1.GetScale();
         const double outputScale  = quantInfoOutput.GetScale();
-        const double overallScale = quantInfoInput0.GetScale() * quantInfoInput1.GetScale() / outputScale;
+        const double overallScale = inputScale0 * inputScale1 / outputScale;
 
         uint16_t overallMultiplier = 0;
         uint16_t overallShift      = 0;
