@@ -26,6 +26,8 @@
 
 #include <catch.hpp>
 
+#include <array>
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <unordered_set>
@@ -2136,6 +2138,56 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION_RESCALE")
     REQUIRE(graph.GetPartOutputs(3).size() == 0);
     REQUIRE(graph.GetConnectedOutputSlot({ 3, 0 }).value().m_PartId == 2);
     REQUIRE(graph.GetConnectedInputSlots({ 3, 0 }).size() == 0);
+}
+
+TEST_CASE("NetworkToGraphOfPartsConverter MULTIPLICATION scale range")
+{
+    using ScaleTestCase = std::array<int, 4>;
+    // Input0, input1 and output scale exponents, followed by the expected rescale exponent.
+    // The input product can overflow or underflow float even when the final factor is representable.
+    const auto scaleTestCase =
+        GENERATE(ScaleTestCase{ 65, 65, 127, 3 }, ScaleTestCase{ 100, 30, 127, 3 },
+                 ScaleTestCase{ -76, -76, -146, -6 }, ScaleTestCase{ 2, 3, 2, 3 });
+    const auto dataType = GENERATE(DataType::UINT8_QUANTIZED, DataType::INT8_QUANTIZED);
+    CAPTURE(scaleTestCase, dataType);
+
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const TensorInfo inputInfo0({ 1, 16, 16, 16 }, dataType, DataFormat::NHWC,
+                                QuantizationInfo(0, std::ldexp(1.0f, scaleTestCase[0])));
+    const TensorInfo inputInfo1({ 1, 16, 16, 16 }, dataType, DataFormat::NHWC,
+                                QuantizationInfo(0, std::ldexp(1.0f, scaleTestCase[1])));
+    const QuantizationInfo outputQuantizationInfo(0, std::ldexp(1.0f, scaleTestCase[2]));
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+    std::shared_ptr<Operand> input0 = AddInput(network, inputInfo0).tensor;
+    std::shared_ptr<Operand> input1 = AddInput(network, inputInfo1).tensor;
+    std::shared_ptr<Operand> multiplication =
+        AddMultiplication(network, *input0, *input1, outputQuantizationInfo).tensor;
+    AddOutput(network, *multiplication);
+
+    DebuggingContext debuggingContext(CompilationOptions::DebugInfo{});
+    ThreadPool threadPool(0);
+    NetworkToGraphOfPartsConverter converter(*network, caps, estOpt, compOpt, debuggingContext, threadPool);
+    GraphOfParts graph = converter.ReleaseGraphOfParts();
+    graph.SortAndCompact();
+
+    REQUIRE(graph.GetNumParts() == 4);
+    const auto* multiplicationPart = dynamic_cast<const StandalonePlePart*>(&graph.GetPart(2));
+    REQUIRE(multiplicationPart != nullptr);
+    auto plans = multiplicationPart->GetPlans(CascadeType::Lonely, BlockConfig{}, { nullptr, nullptr }, 1);
+    REQUIRE(!plans.empty());
+    for (const Plan& plan : plans)
+    {
+        const auto* pleOp = dynamic_cast<const PleOp*>(plan.m_OpGraph.GetOp(0));
+        REQUIRE(pleOp != nullptr);
+        REQUIRE(pleOp->m_Op == PleOperation::MULTIPLICATION);
+        const int multiplier = pleOp->m_RuntimeParams.at("overall_multiplier");
+        const int shift = pleOp->m_RuntimeParams.at("overall_shift");
+        CHECK(std::ldexp(static_cast<double>(multiplier), -shift) == std::ldexp(1.0, scaleTestCase[3]));
+    }
 }
 
 TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION EstimateOnly")
